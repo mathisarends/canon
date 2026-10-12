@@ -8,7 +8,10 @@ from rpckit import (
     RpcChannel,
     RpcConnectedClient,
     RpcError,
+    RpcErrorBinding,
     RpcModel,
+    RpcRawSocket,
+    RpcRejection,
     RpcService,
     ServerVariable,
 )
@@ -70,6 +73,18 @@ class DialogAnswer(RpcModel):
 
 class StartScreencastParams(RpcModel):
     quality: int = 80
+
+
+class BrowserNotFoundError(Exception):
+    pass
+
+
+BROWSER_NOT_FOUND = RpcErrorBinding(
+    BrowserNotFoundError,
+    code="browser_not_found",
+    rejection=RpcRejection.NOT_FOUND,
+    message="Unknown browser",
+)
 
 
 tasks = RpcChannel("tasks")
@@ -170,6 +185,15 @@ async def control(
         await output.send(b"\xff\xd8\xff\xd9")
 
 
+@browser.server.raw_socket(
+    closes=(BROWSER_NOT_FOUND,),
+    summary="Proxy the Chrome DevTools Protocol with native text and binary messages.",
+)
+async def cdp(socket: Inject[RpcRawSocket]) -> None:
+    async for message in socket:
+        await socket.send(message)
+
+
 service = RpcService()
 service.socket("/automation/rpc", channels=(tasks,), name="production")
 service.socket("/browser/rpc", channels=(tabs, dialogs), name="browser")
@@ -182,6 +206,7 @@ service.socket(
 service.stream("/browser/screencast", frames)
 service.stream("/browser/screencast/upload", upload)
 service.stream("/browser/screencast/control", control)
+service.raw_socket("/browser/cdp", cdp)
 
 contract = service.contract(
     title="Automation",

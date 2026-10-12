@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from rpckit.connection import (
     RpcConnection,
@@ -27,7 +27,7 @@ from rpckit.observer import (
 from rpckit.protocol import RpcMethodDefinition, RpcStreamDefinition
 
 if TYPE_CHECKING:
-    from rpckit.service import RpcEndpoint, RpcStreamEndpoint
+    from rpckit.service import RpcAnyEndpoint
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -285,7 +285,7 @@ def _record_rejection(rejection: RpcRejection) -> None:
 
 @asynccontextmanager
 async def _serving_scope(
-    endpoint: "RpcEndpoint[Any] | RpcStreamEndpoint[Any]",
+    endpoint: "RpcAnyEndpoint",
     socket: RpcSocket,
     middleware: Sequence[RpcMiddlewareLike] = (),
 ) -> AsyncGenerator[_ServingState | None, None]:

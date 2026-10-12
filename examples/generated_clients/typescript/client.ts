@@ -15,6 +15,11 @@ import {
   type BinaryWebSocketFactory,
 } from "./streams";
 import {
+  RawWebSocketStream,
+  type RawSocketOpener,
+  type RawWebSocketFactory,
+} from "./rawSockets";
+import {
   resolveEndpoints,
   type EndpointOverrides,
   type ServerName,
@@ -37,6 +42,7 @@ export class AutomationClient {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
       readonly streamOpener?: BinaryStreamOpener;
+      readonly rawSocketOpener?: RawSocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
     },
   ) {
@@ -52,6 +58,7 @@ export class AutomationClient {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
       readonly streamOpener?: BinaryStreamOpener;
+      readonly rawSocketOpener?: RawSocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
     },
   ): AutomationClient {
@@ -74,6 +81,8 @@ export class AutomationClient {
       readonly reconnectMaxDelayMs?: number;
       readonly streamSocketFactory?: BinaryWebSocketFactory;
       readonly streamQueueSize?: number;
+      readonly rawSocketFactory?: RawWebSocketFactory;
+      readonly rawSocketQueueSize?: number;
       readonly hooks?: readonly RpcClientHook[];
     } = {},
   ): Promise<AutomationClient> {
@@ -107,6 +116,11 @@ export class AutomationClient {
         BinaryWebSocketStream.open(endpoint, {
           socketFactory: options.streamSocketFactory,
           incomingQueueSize: options.streamQueueSize,
+        }),
+      rawSocketOpener: (endpoint) =>
+        RawWebSocketStream.open(endpoint, {
+          socketFactory: options.rawSocketFactory,
+          incomingQueueSize: options.rawSocketQueueSize,
         }),
       variables: definedVariables(variables),
     });

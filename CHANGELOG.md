@@ -32,6 +32,23 @@
   dependencies share a connection SESSION scope with the endpoint context.
 - Add an observability guide covering middleware scopes, OpenTelemetry setup,
   signal configuration, and stream metric accounting.
+- Raw socket endpoints for native WebSocket protocols such as the Chrome
+  DevTools Protocol. Declare them with `@channel.raw_socket(...)` and mount
+  them with `RpcService.raw_socket(...)`; handlers inject `RpcRawSocket`, which
+  passes text and binary messages through unchanged. rpckit owns acceptance,
+  message type and size limits, backpressure, and closure, and cancels the
+  handler on disconnect so forwarding tasks and upstream connections are
+  released. `closes=` binds domain exceptions to close codes and reasons,
+  including failures inside task groups; unmapped failures close with 1011
+  without exposing their messages. Raw sockets work with `RpcRoutes`,
+  `create_router()`, Dishka, middleware, and `RpcTestClient`
+  (`send_message()` / `next_message()`).
+- The contract describes raw sockets in `x-rpckit-raw-sockets` with URLs,
+  variables, message types, subprotocols, and close outcomes. Generated Python
+  and TypeScript clients expose them as `client.<namespace>.<name>()`, returning
+  a `RawSocket` that sends and iterates `str`/`bytes` (`string`/`ArrayBuffer`)
+  messages, with `raw_socket_factory` / `rawSocketFactory` connect options and
+  `raw_socket_opener` / `rawSocketOpener` for custom transports.
 
 ### Changed
 
@@ -41,6 +58,10 @@
 - Annotate async context-manager generators as `AsyncGenerator[T, None]` and
   synchronous context-manager generators as `Generator[T, None, None]`, including
   middleware, documentation, and generated Python stream helpers.
+- Generated TypeScript clients define `RpcStreamClosed`, `RpcStreamFailed`,
+  `RpcStreamRefused`, and `RpcStreamsUnavailableError` in `core.ts`, shared by
+  binary streams and raw sockets; the package index still exports them. Their
+  messages now say "stream" instead of "binary stream".
 
 ### Fixed
 
@@ -50,6 +71,8 @@
   Delegating to `serve_websocket()` reuses active middleware without entering
   connection scopes twice; additional middleware also receives request, stream,
   and activity callbacks.
+- Generated TypeScript stream name unions longer than one line are wrapped the
+  way Prettier formats them.
 
 ## 0.10.0 - 2026-09-30
 

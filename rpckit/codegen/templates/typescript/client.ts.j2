@@ -1,4 +1,4 @@
-{% from "typescript/macros.ts.j2" import operation, notification, stream with context %}{% for line in imports %}{{ line }}
+{% from "typescript/macros.ts.j2" import operation, notification, stream, raw_socket with context %}{% for line in imports %}{{ line }}
 {% endfor %}
 export class {{ client_name }} {
 {% for node in nodes %}  readonly {{ node.segment | identifier }}: {{ node.path | api_class }};
@@ -15,7 +15,8 @@ export class {{ client_name }} {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
 {% if binary_streams %}      readonly streamOpener?: BinaryStreamOpener;
-      readonly variables?: Readonly<Record<string, string>>;
+{% endif %}{% if raw_sockets %}      readonly rawSocketOpener?: RawSocketOpener;
+{% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
 {% endif %}    },
   ) {
     this.#rpc = new RpcClientCore(transport, options);
@@ -30,7 +31,8 @@ export class {{ client_name }} {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
 {% if binary_streams %}      readonly streamOpener?: BinaryStreamOpener;
-      readonly variables?: Readonly<Record<string, string>>;
+{% endif %}{% if raw_sockets %}      readonly rawSocketOpener?: RawSocketOpener;
+{% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
 {% endif %}    },
   ): {{ client_name }} {
     return new {{ client_name }}(transports, options);
@@ -53,6 +55,8 @@ export class {{ client_name }} {
       readonly reconnectMaxDelayMs?: number;
 {% if binary_streams %}      readonly streamSocketFactory?: BinaryWebSocketFactory;
       readonly streamQueueSize?: number;
+{% endif %}{% if raw_sockets %}      readonly rawSocketFactory?: RawWebSocketFactory;
+      readonly rawSocketQueueSize?: number;
 {% endif %}      readonly hooks?: readonly RpcClientHook[];
     } = {},
   ): Promise<{{ client_name }}> {
@@ -92,13 +96,19 @@ export class {{ client_name }} {
           socketFactory: options.streamSocketFactory,
           incomingQueueSize: options.streamQueueSize,
         }),
-      variables: definedVariables(variables),
+{% endif %}{% if raw_sockets %}      rawSocketOpener: (endpoint) =>
+        RawWebSocketStream.open(endpoint, {
+          socketFactory: options.rawSocketFactory,
+          incomingQueueSize: options.rawSocketQueueSize,
+        }),
+{% endif %}{% if binary_streams or raw_sockets %}      variables: definedVariables(variables),
 {% endif %}    });
   }
 {% endif %}{% for route in operations %}
 {{ operation(route, true) }}{% endfor %}{% for event in notifications %}
 {{ notification(event, true) }}{% endfor %}{% for item in streams %}
-{{ stream(item, true) }}{% endfor %}
+{{ stream(item, true) }}{% endfor %}{% for item in root_raw_sockets %}
+{{ raw_socket(item, true) }}{% endfor %}
   close(): Promise<void> {
     return this.#rpc.close();
   }
@@ -107,7 +117,7 @@ export class {{ client_name }} {
     return this.close();
   }
 }
-{% if with_websocket and binary_streams %}
+{% if with_websocket and (binary_streams or raw_sockets) %}
 function definedVariables(
   values: Readonly<Record<string, string | undefined>>,
 ): Readonly<Record<string, string>> {

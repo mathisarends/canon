@@ -22,6 +22,7 @@ from rpckit.errors import (
     RpcErrorDeclaration,
     error_declarations,
     merge_error_declarations,
+    rejecting_contracts,
 )
 from rpckit.middleware import RpcMiddlewareLike
 from rpckit.observer import RpcObserverLike
@@ -29,15 +30,18 @@ from rpckit.protocol import (
     RpcClientMethod,
     RpcNotificationDefinition,
     RpcProtocol,
+    RpcRawSocketDefinition,
     RpcStreamDefinition,
     RpcSubscriptionDefinition,
     client_method_definition,
     method_definition,
     notification_definition,
     notification_type_definitions,
+    raw_socket_definition,
     stream_definition,
     subscription_definition,
 )
+from rpckit.raw_sockets import RpcMessageType
 from rpckit.server import (
     RpcErrorMapper,
     RpcServer,
@@ -288,6 +292,79 @@ class RpcServerDeclarations:
 
         return decorate
 
+    @overload
+    def raw_socket(self, function: FunctionType, /) -> FunctionType: ...
+
+    @overload
+    def raw_socket(
+        self,
+        name: str | None = None,
+        /,
+        *,
+        messages: Iterable[RpcMessageType] = (
+            RpcMessageType.TEXT,
+            RpcMessageType.BINARY,
+        ),
+        closes: Iterable[RpcErrorBinding[Any]] = (),
+        summary: str | None = None,
+    ) -> Callable[[FunctionType], FunctionType]: ...
+
+    def raw_socket(
+        self,
+        name: str | FunctionType | None = None,
+        /,
+        *,
+        messages: Iterable[RpcMessageType] = (
+            RpcMessageType.TEXT,
+            RpcMessageType.BINARY,
+        ),
+        closes: Iterable[RpcErrorBinding[Any]] = (),
+        summary: str | None = None,
+    ) -> Any:
+        """Declare a WebSocket that passes text and binary messages through as-is.
+
+        ``closes`` binds the exceptions the handler may raise to the close code
+        and reason the client receives.
+        """
+        channel = self._channel
+        channel._ensure_mutable()
+        if isinstance(name, FunctionType):
+            return self.raw_socket()(name)
+        if name is not None and not isinstance(name, str):
+            raise ProtocolDefinitionError(
+                "RPC raw socket decorator expects a function or name"
+            )
+        try:
+            declared = frozenset(RpcMessageType(item) for item in messages)
+        except ValueError as error:
+            raise ProtocolDefinitionError(
+                "RPC raw socket messages must be RpcMessageType values"
+            ) from error
+        if not declared:
+            raise ProtocolDefinitionError(
+                "RPC raw socket needs at least one message type"
+            )
+        message_types = tuple(item for item in RpcMessageType if item in declared)
+
+        def decorate(function: FunctionType) -> FunctionType:
+            channel._validate_function(function, "raw socket", coroutine=False)
+            local = _name(name or function.__name__, "raw socket name")
+            wire_name = join_rpc_name(channel.namespace, local)
+            definition = raw_socket_definition(
+                name=wire_name,
+                function=function,
+                messages=message_types,
+                closes=rejecting_contracts(closes, f"RPC raw socket {wire_name}"),
+                summary=summary or _docstring_summary(function),
+                resolver_scope=channel.resolver_scope,
+            )
+            channel._reserve(wire_name)
+            channel._raw_sockets.append(definition)
+            function.__dict__["__rpckit_raw_socket__"] = channel, local
+            return function
+
+        return decorate
+
 
 class RpcChannel(RpcServerDeclarations):
     """``@channel.method()`` is shorthand for ``@channel.server.method()``."""
@@ -322,6 +399,7 @@ class RpcChannel(RpcServerDeclarations):
         self._events: list[RpcNotificationDefinition] = []
         self._subscriptions: list[RpcSubscriptionDefinition] = []
         self._streams: list[RpcStreamDefinition] = []
+        self._raw_sockets: list[RpcRawSocketDefinition] = []
         self._client_methods: list[RpcClientMethod[Any, Any]] = []
         self._children: list[RpcChannel] = []
         self._names: set[str] = set()
@@ -360,6 +438,10 @@ class RpcChannel(RpcServerDeclarations):
     @property
     def streams(self) -> tuple[RpcStreamDefinition, ...]:
         return tuple(self._streams)
+
+    @property
+    def raw_sockets(self) -> tuple[RpcRawSocketDefinition, ...]:
+        return tuple(self._raw_sockets)
 
     @property
     def client_methods(self) -> tuple[RpcClientMethod[Any, Any], ...]:
@@ -432,6 +514,7 @@ class RpcChannel(RpcServerDeclarations):
                 for item in notification_type_definitions(event.payload)
             ]
             streams = list(self.streams)
+            raw_sockets = list(self.raw_sockets)
             client_methods = list(self.client_methods)
             for child in self.children:
                 protocol = child.freeze()
@@ -440,6 +523,7 @@ class RpcChannel(RpcServerDeclarations):
                 subscriptions.extend(protocol.subscriptions)
                 notification_types.extend(protocol.notification_types)
                 streams.extend(protocol.streams)
+                raw_sockets.extend(protocol.raw_sockets)
                 client_methods.extend(protocol.client_methods)
             duplicate_requests = {
                 name
@@ -462,6 +546,7 @@ class RpcChannel(RpcServerDeclarations):
                 notification_types=notification_types,
                 streams=streams,
                 client_methods=client_methods,
+                raw_sockets=raw_sockets,
             )
         return self._protocol
 

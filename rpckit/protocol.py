@@ -28,10 +28,12 @@ from rpckit.dependencies import (
 from rpckit.errors import (
     ProtocolDefinitionError,
     RpcError,
+    RpcErrorBinding,
     RpcMethodNotFoundError,
     bind_contracts,
     contract_of,
 )
+from rpckit.raw_sockets import RpcMessageType, RpcRawSocket
 from rpckit.streams import RpcBinaryInput, RpcBinaryOutput, RpcStreamDirection
 from rpckit.wire import wire_annotation
 
@@ -116,6 +118,20 @@ class RpcStreamDefinition:
 
 
 @dataclass(frozen=True, slots=True)
+class RpcRawSocketDefinition:
+    name: str
+    function: FunctionType
+    messages: tuple[RpcMessageType, ...]
+    summary: str | None
+    injected_parameters: tuple[RpcInjectedParameter, ...]
+    resolver_scope: RpcResolverScope
+    closes: tuple[RpcErrorBinding[Any], ...] = ()
+    server: str | None = None
+    path_parameters: tuple[str, ...] = ()
+    path_model: type[BaseModel] | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RpcNotificationTypeDefinition:
     name: str
     payload: type[BaseModel]
@@ -133,6 +149,7 @@ class RpcProtocol:
         notification_types: Iterable[RpcNotificationTypeDefinition] = (),
         streams: Iterable[RpcStreamDefinition] = (),
         client_methods: Iterable[RpcClientMethod[Any, Any]] = (),
+        raw_sockets: Iterable[RpcRawSocketDefinition] = (),
         version: int = 1,
     ) -> None:
         self._version = version
@@ -154,6 +171,9 @@ class RpcProtocol:
         self._streams = _unique("stream", ((item.name, item) for item in streams))
         self._client_methods = _unique(
             "client method", ((item.name, item) for item in client_methods)
+        )
+        self._raw_sockets = _unique(
+            "raw socket", ((item.name, item) for item in raw_sockets)
         )
         for operation in (*self.methods, *self.notifications, *self.subscriptions):
             bind_contracts(
@@ -192,6 +212,10 @@ class RpcProtocol:
     @property
     def client_methods(self) -> tuple[RpcClientMethod[Any, Any], ...]:
         return tuple(self._client_methods.values())
+
+    @property
+    def raw_sockets(self) -> tuple[RpcRawSocketDefinition, ...]:
+        return tuple(self._raw_sockets.values())
 
     def method(self, name: str) -> RpcMethodDefinition:
         try:
@@ -525,10 +549,51 @@ def stream_definition(
     )
 
 
+def raw_socket_definition(
+    *,
+    name: str,
+    function: FunctionType,
+    messages: tuple[RpcMessageType, ...],
+    closes: tuple[RpcErrorBinding[Any], ...],
+    summary: str | None,
+    resolver_scope: RpcResolverScope,
+) -> RpcRawSocketDefinition:
+    qualname = function.__qualname__
+    if not inspect.iscoroutinefunction(function):
+        raise ProtocolDefinitionError(
+            f"RPC raw socket {qualname} must be an async function"
+        )
+    hints, injected, path_parameters = _split_parameters(function)
+    sockets = sum(parameter.dependency is RpcRawSocket for parameter in injected)
+    if sockets != 1:
+        raise ProtocolDefinitionError(
+            f"RPC raw socket {qualname} must inject RpcRawSocket exactly once"
+        )
+    result = hints.get("return")
+    if result is not None and result is not type(None):
+        raise ProtocolDefinitionError(
+            f"RPC raw socket {qualname} must return None; send messages through "
+            "RpcRawSocket"
+        )
+    return RpcRawSocketDefinition(
+        name=name,
+        function=function,
+        messages=messages,
+        summary=summary,
+        injected_parameters=injected,
+        resolver_scope=resolver_scope,
+        closes=closes,
+        path_parameters=tuple(parameter.name for parameter in path_parameters),
+        path_model=_path_model(function, hints, path_parameters, kind="raw socket"),
+    )
+
+
 def _path_model(
     function: Any,
     hints: dict[str, Any],
     parameters: list[inspect.Parameter],
+    *,
+    kind: str = "binary stream",
 ) -> type[BaseModel] | None:
     if not parameters:
         return None
@@ -539,12 +604,11 @@ def _path_model(
             inspect.Parameter.KEYWORD_ONLY,
         ):
             raise ProtocolDefinitionError(
-                f"RPC binary stream path parameter {parameter.name!r} must be "
-                "passable by name"
+                f"RPC {kind} path parameter {parameter.name!r} must be passable by name"
             )
         annotation = hints[parameter.name]
         if _is_model(annotation):
-            raise ProtocolDefinitionError(_path_type_message(parameter.name))
+            raise ProtocolDefinitionError(_path_type_message(parameter.name, kind))
         default = (
             ... if parameter.default is inspect.Parameter.empty else parameter.default
         )
@@ -553,12 +617,12 @@ def _path_model(
         return create_model(f"{_pascal_case(function.__name__)}PathParams", **fields)
     except PydanticSchemaGenerationError as error:
         names = ", ".join(fields)
-        raise ProtocolDefinitionError(_path_type_message(names)) from error
+        raise ProtocolDefinitionError(_path_type_message(names, kind)) from error
 
 
-def _path_type_message(name: str) -> str:
+def _path_type_message(name: str, kind: str) -> str:
     return (
-        f"RPC binary stream parameter {name!r} is not a path variable type; "
+        f"RPC {kind} parameter {name!r} is not a path variable type; "
         "path variables are scalars such as str, int, UUID, or an Enum, and "
         "dependencies use Inject[T]"
     )

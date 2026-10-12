@@ -66,8 +66,9 @@ from .observer import (
     RpcResponseContext,
 )
 from .protocol import RpcClientMethod, RpcProtocol
+from .raw_sockets import RpcMessageType, RpcRawMessage, RpcRawSocket
 from .server import RpcErrorMapper, RpcResponseMessage, RpcServer
-from .service import RpcEndpoint, RpcService, RpcStreamEndpoint
+from .service import RpcEndpoint, RpcRawSocketEndpoint, RpcService, RpcStreamEndpoint
 from .streams import (
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -124,12 +125,16 @@ __all__ = [
     "RpcInvalidParamsError",
     "RpcInvalidRequestError",
     "RpcLimits",
+    "RpcMessageType",
     "RpcMethodNotFoundError",
     "RpcModel",
     "RpcNotification",
     "RpcObserver",
     "RpcObserverLike",
     "RpcParseError",
+    "RpcRawMessage",
+    "RpcRawSocket",
+    "RpcRawSocketEndpoint",
     "RpcRejection",
     "RpcRejectionMapper",
     "RpcRejections",

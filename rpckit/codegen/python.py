@@ -18,6 +18,7 @@ from rpckit.codegen.ir import (
     NotificationDecl,
     Primitive,
     PrimitiveType,
+    RawSocketDecl,
     RouteDecl,
     ServerDecl,
     ServerVariableDecl,
@@ -86,7 +87,7 @@ def render_files(ir: ClientIr, options: PythonClientOptions) -> dict[str, str]:
     _validate(
         ir,
         view.root_operations,
-        view.root_streams,
+        (*view.root_streams, *view.root_raw_sockets),
         view.nodes,
         options,
         client_name,
@@ -100,6 +101,7 @@ def render_files(ir: ClientIr, options: PythonClientOptions) -> dict[str, str]:
             view.nodes,
             view.root_notifications,
             view.root_streams,
+            view.root_raw_sockets,
             options,
             client_name,
         ),
@@ -113,6 +115,8 @@ def render_files(ir: ClientIr, options: PythonClientOptions) -> dict[str, str]:
         files["endpoints.py"] = _render_endpoints(ir, options)
     if ir.binary_streams:
         files["streams.py"] = _render_streams(ir, options)
+    if ir.raw_sockets:
+        files["raw_sockets.py"] = _render_raw_sockets(ir, options)
     if ir.client_methods:
         files["handlers.py"] = _render_handlers(ir, options)
     if options.with_transport == "websocket":
@@ -348,6 +352,45 @@ def _render_streams(ir: ClientIr, options: PythonClientOptions) -> str:
     return _module(options, imports, body)
 
 
+def _render_raw_sockets(ir: ClientIr, options: PythonClientOptions) -> str:
+    imports = _Imports()
+    imports.add("collections.abc", "AsyncGenerator", "Awaitable", "Callable", "Mapping")
+    imports.add("contextlib", "asynccontextmanager")
+    imports.add("dataclasses", "dataclass", "field")
+    imports.add("enum", "StrEnum")
+    imports.add("types", "MappingProxyType")
+    imports.add("typing", "Literal", "Protocol", "Self")
+    imports.add(
+        _runtime_module(options),
+        "RpcServerVariable",
+        "RpcStreamClosed",
+        "RpcStreamsUnavailableError",
+        "resolve_url_template",
+    )
+    if options.with_transport == "websocket":
+        imports.add(_runtime_module(options), "RpcStreamFailed", "RpcStreamRefused")
+    body = render_template(
+        "python/raw_sockets.py.j2",
+        filters=_template_filters(imports, options),
+        sockets=ir.raw_sockets,
+        with_websocket=options.with_transport == "websocket",
+    )
+    body = _collapse_blank_lines(body)
+    return _module(options, imports, body)
+
+
+def _add_raw_socket_imports(imports: _Imports, options: PythonClientOptions) -> None:
+    imports.add("contextlib", "AbstractAsyncContextManager")
+    imports.add(
+        f"{options.package}.raw_sockets",
+        "RAW_SOCKETS",
+        "RawSocket",
+        "RawSocketName",
+        "open_raw_socket",
+        "resolve_raw_socket_endpoint",
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class _HandlerGroup:
     class_name: str
@@ -488,6 +531,8 @@ def _render_api(
             "open_binary_stream",
             "resolve_stream_endpoint",
         )
+    if any(node.raw_sockets for node in nodes):
+        _add_raw_socket_imports(imports, options)
     for node in nodes:
         for route in node.operations:
             _add_operation_imports(route, imports, options)
@@ -526,6 +571,7 @@ def _render_client(
     nodes: tuple[NamespaceViewNode, ...],
     root_events: tuple[NotificationDecl, ...],
     root_streams: tuple[BinaryStreamDecl, ...],
+    root_raw_sockets: tuple[RawSocketDecl, ...],
     options: PythonClientOptions,
     client_name: str,
 ) -> str:
@@ -558,6 +604,18 @@ def _render_client(
                 "BinaryStreamTransport",
                 "BinaryWebSocketFactory",
                 "BinaryWebSocketStream",
+            )
+    if ir.raw_sockets:
+        imports.add(f"{options.package}.raw_sockets", "RawSocketOpener")
+        if root_raw_sockets:
+            _add_raw_socket_imports(imports, options)
+        if options.with_transport == "websocket":
+            imports.add(
+                f"{options.package}.raw_sockets",
+                "RawSocketEndpoint",
+                "RawSocketTransport",
+                "RawWebSocketFactory",
+                "RawWebSocketStream",
             )
     if ir.servers:
         imports.add(f"{options.package}.endpoints", "ServerName")
@@ -597,6 +655,8 @@ def _render_client(
         notifications=root_events,
         streams=root_streams,
         binary_streams=ir.binary_streams,
+        root_raw_sockets=root_raw_sockets,
+        raw_sockets=ir.raw_sockets,
         client_methods=ir.client_methods,
         with_websocket=options.with_transport == "websocket",
     )
@@ -607,7 +667,7 @@ def _connect_variables(ir: ClientIr) -> tuple[ServerVariableDecl, ...]:
     """The server URL variables ``connect`` accepts; streams inherit them too."""
     declared = {variable.name for server in ir.servers for variable in server.variables}
     merged: dict[str, ServerVariableDecl] = {}
-    for declaration in (*ir.servers, *ir.binary_streams):
+    for declaration in (*ir.servers, *ir.binary_streams, *ir.raw_sockets):
         for variable in declaration.variables:
             if variable.name not in declared:
                 continue
@@ -716,6 +776,27 @@ def _render_package_init(
         if options.with_transport == "websocket":
             imports.add(f"{options.package}.streams", "BinaryWebSocketStream")
             exported.append("BinaryWebSocketStream")
+    if ir.raw_sockets:
+        raw_exports = [
+            name
+            for name in _RAW_SOCKET_EXPORTS
+            if options.with_transport == "websocket" or name != "RawWebSocketStream"
+        ]
+        imports.add(options.package, "raw_sockets")
+        imports.add(f"{options.package}.raw_sockets", *raw_exports)
+        exported.extend([*raw_exports, "raw_sockets"])
+        stream_errors = [
+            name
+            for name in (
+                "RpcStreamClosed",
+                "RpcStreamFailed",
+                "RpcStreamRefused",
+                "RpcStreamsUnavailableError",
+            )
+            if name not in exported
+        ]
+        imports.add(_runtime_module(options), *stream_errors)
+        exported.extend(stream_errors)
     for name, module in options.extra_exports.items():
         if not name.isidentifier() or module + ".py" not in options.extra_files:
             raise UnsupportedSchemaError(
@@ -898,7 +979,7 @@ def _variable_annotation(variable: Any) -> str:
 def _validate(
     ir: ClientIr,
     root_operations: tuple[RouteDecl, ...],
-    root_streams: tuple[BinaryStreamDecl, ...],
+    root_streams: tuple[BinaryStreamDecl | RawSocketDecl, ...],
     nodes: tuple[NamespaceViewNode, ...],
     options: PythonClientOptions,
     client_name: str,
@@ -1003,6 +1084,10 @@ def _validate(
             connect_options.append(
                 ("<connect.stream_socket_factory>", "stream_socket_factory")
             )
+        if ir.raw_sockets:
+            connect_options.append(
+                ("<connect.raw_socket_factory>", "raw_socket_factory")
+            )
         if ir.client_methods:
             connect_options.append(("<connect.handlers>", "handlers"))
         assert_unique_names("connect options", connect_options)
@@ -1032,6 +1117,10 @@ def _validate(
     assert_unique_names(
         "binary streams",
         ((stream.name, _identifier(stream.name)) for stream in ir.binary_streams),
+    )
+    assert_unique_names(
+        "raw sockets",
+        ((socket.name, _identifier(socket.name)) for socket in ir.raw_sockets),
     )
     for server in ir.servers:
         assert_unique_names(
@@ -1072,6 +1161,12 @@ def _assert_unique_package_exports(
     if ir.binary_streams:
         exports.extend(("<streams>", name) for name in _STREAM_EXPORTS)
         exports.append(("<streams>", "streams"))
+    if ir.raw_sockets:
+        exports.extend(("<raw sockets>", name) for name in _RAW_SOCKET_EXPORTS)
+        exports.append(("<raw sockets>", "raw_sockets"))
+        exports.extend(
+            ("<streams>", name) for name in _STREAM_EXPORTS if name.startswith("Rpc")
+        )
     if ir.declarations:
         exports.append(("<models>", "models"))
     exports.extend(
@@ -1102,7 +1197,7 @@ def _validate_nodes(nodes: tuple[NamespaceViewNode, ...]) -> None:
         )
         values.extend(
             (stream.rpc_name, _identifier(stream.operation_name))
-            for stream in node.streams
+            for stream in (*node.streams, *node.raw_sockets)
         )
         assert_unique_names(f"API path {'.'.join(node.path)}", values)
         _validate_nodes(node.children)
@@ -1359,6 +1454,17 @@ _STREAM_EXPORTS = (
     "RpcStreamFailed",
     "RpcStreamRefused",
     "RpcStreamsUnavailableError",
+)
+
+_RAW_SOCKET_EXPORTS = (
+    "RawMessage",
+    "RawMessageType",
+    "RawSocket",
+    "RawSocketEndpoint",
+    "RawSocketName",
+    "RawSocketOpener",
+    "RawSocketTransport",
+    "RawWebSocketStream",
 )
 
 _RUNTIME_NAMES = frozenset(

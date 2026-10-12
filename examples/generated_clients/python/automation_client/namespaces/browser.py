@@ -5,6 +5,13 @@ from contextlib import AbstractAsyncContextManager
 
 from automation_client.internal import UNSET, RpcClientCore, UnsetType
 from automation_client.models import OpenTabParams, StartScreencastParams, Tab
+from automation_client.raw_sockets import (
+    RAW_SOCKETS,
+    RawSocket,
+    RawSocketName,
+    open_raw_socket,
+    resolve_raw_socket_endpoint,
+)
 from automation_client.routes import BROWSER_SCREENCAST_START, BROWSER_TABS_OPEN
 from automation_client.streams import (
     BINARY_STREAMS,
@@ -94,3 +101,13 @@ class Browser:
         self._rpc = rpc
         self.tabs = BrowserTabs(rpc)
         self.screencast = BrowserScreencast(rpc)
+
+    def cdp(self) -> AbstractAsyncContextManager[RawSocket]:
+        """Proxy the Chrome DevTools Protocol with native text and binary messages."""
+        return open_raw_socket(
+            resolve_raw_socket_endpoint(
+                RAW_SOCKETS[RawSocketName.BROWSER_CDP],
+                self._rpc.variables,
+            ),
+            self._rpc.raw_socket_opener,
+        )

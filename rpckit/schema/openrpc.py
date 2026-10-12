@@ -25,6 +25,7 @@ def render_openrpc(
     description: str = "Typed JSON-RPC API.",
     servers: Iterable[Server] = (),
     binary_streams: Iterable[Mapping[str, Any]] = (),
+    raw_sockets: Iterable[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Render the protocol as an OpenRPC 1.4.1 document."""
     server_documents = tuple(dict(server) for server in servers)
@@ -103,6 +104,9 @@ def render_openrpc(
     streams = [dict(stream) for stream in binary_streams]
     if streams:
         document["x-rpckit-binary-streams"] = streams
+    sockets = [dict(socket) for socket in raw_sockets]
+    if sockets:
+        document["x-rpckit-raw-sockets"] = sockets
     return document
 
 

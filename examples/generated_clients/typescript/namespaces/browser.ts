@@ -10,6 +10,7 @@ import {
   binaryStreams,
   resolveStreamEndpoint,
 } from "../streams";
+import { RawSocket, rawSockets, resolveRawSocketEndpoint } from "../rawSockets";
 import { routes } from "../routes";
 import type { OpenTabParams, StartScreencastParams, Tab } from "../models";
 
@@ -71,5 +72,13 @@ export class Browser {
   constructor(private readonly rpc: RpcClientCore) {
     this.tabs = new BrowserTabs(rpc);
     this.screencast = new BrowserScreencast(rpc);
+  }
+
+  /** Proxy the Chrome DevTools Protocol with native text and binary messages. */
+  cdp(): Promise<RawSocket> {
+    return this.rpc.openRawSocket(
+      resolveRawSocketEndpoint(rawSockets.browserCdp, this.rpc.variables),
+      (transport, endpoint) => new RawSocket(transport, endpoint),
+    );
   }
 }
