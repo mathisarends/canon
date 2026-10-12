@@ -9,6 +9,7 @@ guides cover the individual parts of the API in more detail:
 - [Client methods](client-methods.md) — let the server call the connected client
 - [Typed errors](errors.md) — make expected failures part of the contract
 - [Binary streams](streams.md) — stream bytes on dedicated endpoints
+- [Raw sockets](raw-sockets.md) — proxy native WebSocket protocols with text and binary messages
 - [Observability](observability.md) — instrument calls and streams with middleware and OpenTelemetry
 - [Contract and clients](clients.md) — export OpenRPC and generate typed clients
 - [Transports](transports.md) — serve with FastAPI, a custom adapter, or in-memory tests

@@ -24,6 +24,7 @@ from rpckit import (
     RpcConnection,
     RpcDisconnect,
     RpcErrorBinding,
+    RpcRawSocket,
     RpcReject,
     RpcRejection,
     RpcRejections,
@@ -1055,3 +1056,89 @@ def test_custom_handlers_without_context_preserve_internal_parameter_names() -> 
         pass
     assert denied.value.status_code == 403
     assert denied.value.text == "custom rejection"
+
+
+class JobDeleted(Exception):
+    pass
+
+
+def create_raw_socket_app(released: list[bool]) -> FastAPI:
+    shell = RpcChannel("jobs")
+
+    @shell.server.raw_socket(
+        closes=(
+            RpcErrorBinding(
+                JobDeleted, rejection=RpcRejection.NOT_FOUND, message="Job deleted"
+            ),
+        )
+    )
+    async def terminal(
+        socket: Inject[RpcRawSocket], session: Inject[JobSession]
+    ) -> None:
+        try:
+            await socket.send(f"hello {session.actor.name}")
+            async for message in socket:
+                if message == "delete":
+                    raise JobDeleted
+                await socket.send(message)
+        finally:
+            released.append(True)
+
+    service = RpcService()
+    service.raw_socket(
+        "/jobs/{job_id}/terminal", terminal, name="terminal", context=JobSession
+    )
+    router = APIRouter(prefix="/jobs")
+    RpcRoutes(router, context=open_job_session, rejects=(job_not_found,)).mount(
+        service.endpoint("terminal")
+    )
+    web = FastAPI()
+    web.include_router(router)
+    return web
+
+
+def test_rpc_routes_serve_raw_sockets_with_mixed_messages() -> None:
+    released: list[bool] = []
+    web = create_raw_socket_app(released)
+
+    with (
+        TestClient(web) as client,
+        client.websocket_connect(f"/jobs/{KNOWN_JOB}/terminal") as websocket,
+    ):
+        assert websocket.receive_text() == "hello ada"
+        websocket.send_bytes(b"\x00\xff")
+        assert websocket.receive_bytes() == b"\x00\xff"
+        websocket.send_text('{"id":1}')
+        assert websocket.receive_text() == '{"id":1}'
+        websocket.send_text("delete")
+        with pytest.raises(WebSocketDisconnect) as closed:
+            websocket.receive_text()
+    assert (closed.value.code, closed.value.reason) == (1008, "Job deleted")
+    assert released == [True]
+
+
+def test_rpc_routes_reject_raw_sockets_before_accepting() -> None:
+    released: list[bool] = []
+    web = create_raw_socket_app(released)
+
+    with (
+        TestClient(web) as client,
+        pytest.raises(WebSocketDenialResponse) as denied,
+        client.websocket_connect(f"/jobs/{UUID(int=2)}/terminal"),
+    ):
+        pass
+    assert denied.value.status_code == 404
+    assert denied.value.text == "Job not found"
+    assert released == []
+
+
+def test_raw_socket_disconnects_release_the_handler() -> None:
+    released: list[bool] = []
+    web = create_raw_socket_app(released)
+
+    with (
+        TestClient(web) as client,
+        client.websocket_connect(f"/jobs/{KNOWN_JOB}/terminal") as websocket,
+    ):
+        assert websocket.receive_text() == "hello ada"
+    assert released == [True]

@@ -114,6 +114,7 @@ class RpcClientCore:
         close_transport: bool = True,
         hooks: Iterable[RpcClientHook] = (),
         stream_opener: Any = None,
+        raw_socket_opener: Any = None,
         variables: Mapping[str, str] | None = None,
         notification_queue_size: int = 100,
     ) -> None:
@@ -127,6 +128,7 @@ class RpcClientCore:
         self._close_transport = close_transport
         self._hooks = tuple(hooks)
         self.stream_opener = stream_opener
+        self.raw_socket_opener = raw_socket_opener
         self.variables = MappingProxyType(dict(variables or {}))
         self._closed = False
         self._hubs: dict[int, _NotificationHub] = {}

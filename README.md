@@ -145,6 +145,7 @@ also calls into the client do you name both sides, `tasks.server` and
 - [Typed errors](docs/errors.md) — stable codes, typed details, generated
   exception classes
 - [Binary streams](docs/streams.md) — upload, download, and bidirectional byte streams beside JSON-RPC
+- [Raw sockets](docs/raw-sockets.md) — proxy native protocols such as CDP with generated socket clients
 - [Contract and clients](docs/clients.md) — `rpcgen.toml`, the CLI, the shape
   of generated clients
 - [Transports](docs/transports.md) — FastAPI, custom sockets, testing

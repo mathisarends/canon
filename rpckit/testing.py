@@ -27,7 +27,12 @@ from rpckit.errors import (
 )
 from rpckit.protocol import RpcClientMethod
 from rpckit.server import RpcErrorMapper
-from rpckit.service import RpcEndpoint, RpcService, RpcStreamEndpoint
+from rpckit.service import (
+    RpcEndpoint,
+    RpcRawSocketEndpoint,
+    RpcService,
+    RpcStreamEndpoint,
+)
 from rpckit.streams import RpcInputEndMessage
 
 _DISCONNECT = object()
@@ -160,8 +165,11 @@ class RpcTestClient:
         self._answers: set[asyncio.Task] = set()
         matched = service.match(path)
         endpoint = None if matched is None else matched[0]
-        self._stream = isinstance(endpoint, RpcStreamEndpoint)
-        self._input = self._stream and endpoint.stream.has_input
+        self._raw = isinstance(endpoint, RpcRawSocketEndpoint)
+        self._stream = self._raw or isinstance(endpoint, RpcStreamEndpoint)
+        self._input = isinstance(endpoint, RpcStreamEndpoint) and (
+            endpoint.stream.has_input
+        )
         declared = (
             {
                 client_method.name: client_method
@@ -220,7 +228,7 @@ class RpcTestClient:
         self, method: str, params: Mapping[str, Any] | None = None
     ) -> Any:
         if self._stream:
-            raise TypeError("request() is unavailable for stream endpoints")
+            raise TypeError("request() is unavailable for stream and raw endpoints")
         if self._reader is not None and self._reader.done():
             raise self._connection_closed()
         self._id += 1
@@ -334,8 +342,25 @@ class RpcTestClient:
     def _connection_closed(self) -> "RpcTestConnectionClosed":
         return RpcTestConnectionClosed(self.socket.rejection or self.socket.closed)
 
+    async def next_message(self) -> str | bytes:
+        """Receive the next text or binary message of a raw socket."""
+        if not self._raw:
+            raise TypeError("next_message() is only available for raw sockets")
+        try:
+            return await self.socket.client_receive()
+        except RpcDisconnect as error:
+            raise RpcTestConnectionClosed(
+                self.socket.rejection or self.socket.closed
+            ) from error
+
+    async def send_message(self, message: str | bytes) -> None:
+        """Send a text (``str``) or binary message to a raw socket."""
+        if not self._raw:
+            raise TypeError("send_message() is only available for raw sockets")
+        await self.socket.client_send(message)
+
     async def next_frame(self) -> bytes:
-        if not self._stream:
+        if not self._stream or self._raw:
             raise TypeError("next_frame() is only available for stream endpoints")
         try:
             value = await self.socket.client_receive()

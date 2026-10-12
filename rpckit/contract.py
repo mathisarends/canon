@@ -7,9 +7,10 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from rpckit.errors import ProtocolDefinitionError
+from rpckit.errors import ProtocolDefinitionError, RpcErrorBinding
 from rpckit.protocol import RpcProtocol
 from rpckit.streams import RpcStreamDirection
+from rpckit.websocket import REJECTION_CLOSE_CODES, close_reason
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,22 +49,20 @@ class RpcContract:
     description: str = "Typed JSON-RPC API."
     servers: tuple[Mapping[str, Any], ...] = ()
     binary_streams: tuple[Mapping[str, Any], ...] = ()
+    raw_sockets: tuple[Mapping[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.title:
             raise ProtocolDefinitionError("RPC contract title cannot be empty")
-        object.__setattr__(
-            self,
-            "servers",
-            tuple(MappingProxyType(deepcopy(dict(item))) for item in self.servers),
-        )
-        object.__setattr__(
-            self,
-            "binary_streams",
-            tuple(
-                MappingProxyType(deepcopy(dict(item))) for item in self.binary_streams
-            ),
-        )
+        for name in ("servers", "binary_streams", "raw_sockets"):
+            object.__setattr__(
+                self,
+                name,
+                tuple(
+                    MappingProxyType(deepcopy(dict(item)))
+                    for item in getattr(self, name)
+                ),
+            )
 
     def to_openrpc(self) -> dict[str, Any]:
         from rpckit.schema.openrpc import render_openrpc
@@ -74,6 +73,7 @@ class RpcContract:
             description=self.description,
             servers=self.servers,
             binary_streams=self.binary_streams,
+            raw_sockets=self.raw_sockets,
         )
 
     def to_json(self) -> str:
@@ -91,7 +91,7 @@ def contract_from_service(
     description: str,
     variables: Mapping[str, ServerVariable] | None,
 ) -> RpcContract:
-    from rpckit.service import RpcEndpoint, RpcStreamEndpoint
+    from rpckit.service import RpcEndpoint, RpcRawSocketEndpoint, RpcStreamEndpoint
 
     if (
         not isinstance(base_url, str)
@@ -110,6 +110,7 @@ def contract_from_service(
     used: set[str] = set()
     servers = []
     streams = []
+    raw_sockets = []
     for endpoint in service.endpoints:
         url = base_url + endpoint.path
         names = tuple(dict.fromkeys(re.findall(r"{([^{}]+)}", url)))
@@ -156,6 +157,23 @@ def contract_from_service(
             if endpoint.subprotocol:
                 item["subprotocols"] = [endpoint.subprotocol]
             streams.append(item)
+        elif isinstance(endpoint, RpcRawSocketEndpoint):
+            definition = endpoint.raw_socket
+            raw: dict[str, Any] = {
+                "name": definition.name,
+                "url": url,
+                "messageTypes": [item.value for item in definition.messages],
+            }
+            summary = definition.summary or endpoint.summary
+            if summary:
+                raw["summary"] = summary
+            if variable_docs:
+                raw["variables"] = variable_docs
+            if endpoint.subprotocol:
+                raw["subprotocols"] = [endpoint.subprotocol]
+            if definition.closes:
+                raw["closes"] = [_close(binding) for binding in definition.closes]
+            raw_sockets.append(raw)
     unused = set(supplied) - used
     if unused:
         raise ProtocolDefinitionError(
@@ -163,5 +181,22 @@ def contract_from_service(
             + ", ".join(sorted(unused))
         )
     return RpcContract(
-        service.freeze(), title, description, tuple(servers), tuple(streams)
+        service.freeze(),
+        title,
+        description,
+        tuple(servers),
+        tuple(streams),
+        tuple(raw_sockets),
     )
+
+
+def _close(binding: RpcErrorBinding[Any]) -> dict[str, Any]:
+    assert binding.rejection is not None
+    close: dict[str, Any] = {
+        "code": REJECTION_CLOSE_CODES[binding.rejection],
+        "x-rpckit-code": binding.code,
+    }
+    # A computed reason depends on the exception, so only a fixed one is known.
+    if not callable(binding._message):
+        close["reason"] = close_reason(binding.error_type.message)
+    return close

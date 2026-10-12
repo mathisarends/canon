@@ -22,3 +22,12 @@
     );
   }
 {% endmacro %}
+
+{% macro raw_socket(item, root) %}{% set rpc = "this.#rpc" if root else "this.rpc" %}{% if item.summary %}  /** {{ item.summary | comment }} */
+{% endif %}{{ item | raw_socket_signature }}
+    return {{ rpc }}.openRawSocket(
+{{ item | raw_socket_endpoint(rpc) }}
+      (transport, endpoint) => new RawSocket(transport, endpoint),
+    );
+  }
+{% endmacro %}

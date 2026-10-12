@@ -19,14 +19,16 @@ export type { Endpoint, ServerName } from "./endpoints";
 export { WebSocketTransport } from "./transport";
 export type { WebSocketFactory, WebSocketOptions } from "./transport";
 export {
-  BinaryChannel,
-  BinaryReceiver,
-  BinarySender,
   RpcStreamClosed,
   RpcStreamFailed,
   RpcStreamRefused,
-  RpcStreamTimeout,
   RpcStreamsUnavailableError,
+} from "./core";
+export {
+  BinaryChannel,
+  BinaryReceiver,
+  BinarySender,
+  RpcStreamTimeout,
   binaryStreams,
   resolveStreamEndpoint,
 } from "./streams";
@@ -40,4 +42,15 @@ export type {
 } from "./streams";
 export { BinaryWebSocketStream } from "./streams";
 export type { BinaryWebSocketFactory, BinaryWebSocketOptions } from "./streams";
+export { RawSocket, rawSockets, resolveRawSocketEndpoint } from "./rawSockets";
+export type {
+  RawMessage,
+  RawMessageType,
+  RawSocketEndpoint,
+  RawSocketName,
+  RawSocketOpener,
+  RawSocketTransport,
+} from "./rawSockets";
+export { RawWebSocketStream } from "./rawSockets";
+export type { RawWebSocketFactory, RawWebSocketOptions } from "./rawSockets";
 export type * from "./models";

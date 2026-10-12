@@ -63,7 +63,9 @@ from rpckit.observer import RpcConnectionContext, notify_observer
 from rpckit.runtime import _rejection
 from rpckit.server import RpcErrorMapper
 from rpckit.service import (
+    RpcAnyEndpoint,
     RpcEndpoint,
+    RpcRawSocketEndpoint,
     RpcService,
     RpcStreamEndpoint,
     endpoint_rejections,
@@ -190,7 +192,7 @@ def create_router(
 
 
 def _create_handler(
-    endpoint: RpcEndpoint | RpcStreamEndpoint,
+    endpoint: RpcAnyEndpoint,
     *,
     resolver: RpcResolverLike | None,
     resolver_factory: FastApiResolverFactory | None,
@@ -229,7 +231,7 @@ def _create_handler(
 
 
 async def serve_websocket(
-    endpoint: RpcEndpoint | RpcStreamEndpoint,
+    endpoint: RpcAnyEndpoint,
     websocket: WebSocket,
     *,
     resolver: RpcResolverLike | None = None,
@@ -258,7 +260,7 @@ async def serve_websocket(
                 rejections=rejections,
                 middleware=middleware,
             )
-        else:
+        elif isinstance(endpoint, RpcStreamEndpoint):
             await endpoint.serve(
                 socket,
                 resolver=resolver,
@@ -266,6 +268,16 @@ async def serve_websocket(
                 limits=limits,
                 before_accept=before_accept,
                 error_mapper=error_mapper,
+                rejections=rejections,
+                middleware=middleware,
+            )
+        else:
+            await endpoint.serve(
+                socket,
+                resolver=resolver,
+                context=context,
+                limits=limits,
+                before_accept=before_accept,
                 rejections=rejections,
                 middleware=middleware,
             )
@@ -357,11 +369,15 @@ class RpcRoutes[ContextT]:
         self._error_mapper = error_mapper
         self._limits = limits
         self._middleware = tuple(middleware)
-        self._mounted: set[RpcEndpoint | RpcStreamEndpoint] = set()
+        self._mounted: set[RpcAnyEndpoint] = set()
 
     def mount(
         self,
-        endpoint: RpcEndpoint[ContextT] | RpcStreamEndpoint[ContextT],
+        endpoint: (
+            RpcEndpoint[ContextT]
+            | RpcStreamEndpoint[ContextT]
+            | RpcRawSocketEndpoint[ContextT]
+        ),
         *,
         handler: Callable[..., Awaitable[None]] | None = None,
     ) -> None:
@@ -399,7 +415,7 @@ class RpcRoutes[ContextT]:
         )
         self._mounted.add(endpoint)
 
-    def _check_context(self, endpoint: RpcEndpoint | RpcStreamEndpoint) -> None:
+    def _check_context(self, endpoint: RpcAnyEndpoint) -> None:
         declared = endpoint.context
         provided = self._context_type
         if declared is None and provided is None:
@@ -411,7 +427,7 @@ class RpcRoutes[ContextT]:
                 f"{_type_name(provided)}"
             )
 
-    def _route_path(self, endpoint: RpcEndpoint | RpcStreamEndpoint) -> str:
+    def _route_path(self, endpoint: RpcAnyEndpoint) -> str:
         prefix = self._router.prefix
         path = endpoint.path
         if not path.startswith(prefix) or path[len(prefix) :][:1] not in ("", "/"):
@@ -420,9 +436,7 @@ class RpcRoutes[ContextT]:
             )
         return path[len(prefix) :]
 
-    def _handler(
-        self, endpoint: RpcEndpoint | RpcStreamEndpoint
-    ) -> Callable[..., Awaitable[None]]:
+    def _handler(self, endpoint: RpcAnyEndpoint) -> Callable[..., Awaitable[None]]:
         context_type = endpoint.context
 
         async def handler(websocket: WebSocket, context: Any = None) -> None:
@@ -460,7 +474,7 @@ class RpcRoutes[ContextT]:
 
     def _custom_handler(
         self,
-        endpoint: RpcEndpoint | RpcStreamEndpoint,
+        endpoint: RpcAnyEndpoint,
         function: Callable[..., Awaitable[None]],
     ) -> Callable[..., Awaitable[None]]:
         if not inspect.iscoroutinefunction(function):
@@ -622,7 +636,7 @@ def _reject_failures(
 
 
 def _middleware_dependency(
-    endpoint: RpcEndpoint | RpcStreamEndpoint,
+    endpoint: RpcAnyEndpoint,
     middleware: Sequence[RpcMiddlewareLike],
     *,
     custom: bool = False,

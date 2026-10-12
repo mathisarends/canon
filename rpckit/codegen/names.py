@@ -9,6 +9,7 @@ from rpckit.codegen.ir import (
     BinaryStreamDecl,
     ClientIr,
     NotificationDecl,
+    RawSocketDecl,
     RouteDecl,
     UnsupportedSchemaError,
 )
@@ -50,6 +51,7 @@ class ClientView:
     root_notifications: tuple[NotificationDecl, ...]
     root_streams: tuple[BinaryStreamDecl, ...]
     nodes: tuple[NamespaceViewNode, ...]
+    root_raw_sockets: tuple[RawSocketDecl, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +63,7 @@ class NamespaceViewNode:
     notifications: tuple[NotificationDecl, ...]
     streams: tuple[BinaryStreamDecl, ...]
     children: tuple[NamespaceViewNode, ...]
+    raw_sockets: tuple[RawSocketDecl, ...] = ()
 
 
 def api_view(
@@ -163,12 +166,12 @@ def client_view(
 ) -> ClientView:
     routes = api_view(ir, api_root=api_root, api_names=api_names)
     events = event_view(ir, api_root=api_root, api_names=api_names)
-    root_streams: list[BinaryStreamDecl] = []
+    root_streams: list[BinaryStreamDecl | RawSocketDecl] = []
     projected_streams: list[
-        tuple[tuple[str, ...], tuple[str, ...], BinaryStreamDecl]
+        tuple[tuple[str, ...], tuple[str, ...], BinaryStreamDecl | RawSocketDecl]
     ] = []
     root = tuple(api_root.split(".")) if api_root else ()
-    for stream in ir.binary_streams:
+    for stream in (*ir.binary_streams, *ir.raw_sockets):
         visible = (
             stream.path[len(root) :]
             if root and stream.path[: len(root)] == root
@@ -181,8 +184,9 @@ def client_view(
     return ClientView(
         root_operations=routes.root_operations,
         root_notifications=events.root_events,
-        root_streams=tuple(root_streams),
+        root_streams=tuple(_binary(root_streams)),
         nodes=_merge_nodes(routes.nodes, events.nodes, _stream_tree(projected_streams)),
+        root_raw_sockets=tuple(_raw(root_streams)),
     )
 
 
@@ -398,7 +402,8 @@ def _merge_nodes(
                 source_path=source_path,
                 operations=route.operations if route is not None else (),
                 notifications=event.events if event is not None else (),
-                streams=stream.streams if stream is not None else (),
+                streams=tuple(_binary(stream.streams)) if stream is not None else (),
+                raw_sockets=tuple(_raw(stream.streams)) if stream is not None else (),
                 children=_merge_nodes(
                     route.children if route is not None else (),
                     event.children if event is not None else (),
@@ -414,12 +419,24 @@ class StreamViewNode:
     segment: str
     path: tuple[str, ...]
     source_path: tuple[str, ...]
-    streams: tuple[BinaryStreamDecl, ...]
+    streams: tuple[BinaryStreamDecl | RawSocketDecl, ...]
     children: tuple[StreamViewNode, ...]
 
 
+def _binary(
+    items: Iterable[BinaryStreamDecl | RawSocketDecl],
+) -> Iterable[BinaryStreamDecl]:
+    return (item for item in items if isinstance(item, BinaryStreamDecl))
+
+
+def _raw(items: Iterable[BinaryStreamDecl | RawSocketDecl]) -> Iterable[RawSocketDecl]:
+    return (item for item in items if isinstance(item, RawSocketDecl))
+
+
 def _stream_tree(
-    streams: list[tuple[tuple[str, ...], tuple[str, ...], BinaryStreamDecl]],
+    streams: list[
+        tuple[tuple[str, ...], tuple[str, ...], BinaryStreamDecl | RawSocketDecl]
+    ],
 ) -> tuple[StreamViewNode, ...]:
     tree: dict[str, dict[str, object]] = {}
     for visible_path, source_path, stream in streams:

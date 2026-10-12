@@ -1,4 +1,4 @@
-{% from "python/macros.py.j2" import operation, notification, stream with context %}class {{ client_name }}:
+{% from "python/macros.py.j2" import operation, notification, stream, raw_socket with context %}{% set dedicated = binary_streams or raw_sockets %}class {{ client_name }}:
     def __init__(
         self,
 {% if servers %}        transport: (
@@ -10,7 +10,8 @@
         hooks: Iterable[RpcClientHook] = (),
         notification_queue_size: int = 100,
 {% if binary_streams %}        stream_opener: BinaryStreamOpener | None = None,
-        variables: Mapping[str, str] | None = None,
+{% endif %}{% if raw_sockets %}        raw_socket_opener: RawSocketOpener | None = None,
+{% endif %}{% if dedicated %}        variables: Mapping[str, str] | None = None,
 {% endif %}    ) -> None:
         self._rpc = RpcClientCore(
             transport,
@@ -18,7 +19,8 @@
             hooks=hooks,
             notification_queue_size=notification_queue_size,
 {% if binary_streams %}            stream_opener=stream_opener,
-            variables=variables,
+{% endif %}{% if raw_sockets %}            raw_socket_opener=raw_socket_opener,
+{% endif %}{% if dedicated %}            variables=variables,
 {% endif %}        )
 {% for node in nodes %}        self.{{ node.segment | identifier }} = {{ node.path | api_class }}(self._rpc)
 {% endfor %}
@@ -35,7 +37,8 @@
         hooks: Iterable[RpcClientHook] = (),
         notification_queue_size: int = 100,
 {% if binary_streams %}        stream_opener: BinaryStreamOpener | None = None,
-        variables: Mapping[str, str] | None = None,
+{% endif %}{% if raw_sockets %}        raw_socket_opener: RawSocketOpener | None = None,
+{% endif %}{% if dedicated %}        variables: Mapping[str, str] | None = None,
 {% endif %}    ) -> Self:
         """Build a client on transports the caller owns, for tests and adapters."""
         return cls(
@@ -44,7 +47,8 @@
             hooks=hooks,
             notification_queue_size=notification_queue_size,
 {% if binary_streams %}            stream_opener=stream_opener,
-            variables=variables,
+{% endif %}{% if raw_sockets %}            raw_socket_opener=raw_socket_opener,
+{% endif %}{% if dedicated %}            variables=variables,
 {% endif %}        )
 {% if with_websocket %}
     @classmethod
@@ -62,6 +66,7 @@
         ) = None,
         socket_factory: WebSocketFactory | None = None,
 {% if binary_streams %}        stream_socket_factory: BinaryWebSocketFactory | None = None,
+{% endif %}{% if raw_sockets %}        raw_socket_factory: RawWebSocketFactory | None = None,
 {% endif %}{% if client_methods %}        handlers: Handler | Iterable[Handler] = (),
 {% endif %}        hooks: Iterable[RpcClientHook] = (),
         lazy: bool = False,
@@ -109,6 +114,13 @@
                 headers=await resolve_headers(),
                 socket_factory=stream_socket_factory,
             )
+{% endif %}{% if raw_sockets %}
+        async def open_raw(endpoint: RawSocketEndpoint) -> RawSocketTransport:
+            return await RawWebSocketStream.open(
+                endpoint,
+                headers=await resolve_headers(),
+                socket_factory=raw_socket_factory,
+            )
 {% endif %}
         pool = RpcTransportPool(
 {% if servers | length == 1 %}            endpoints=resolve_endpoints(variables, overrides),
@@ -127,7 +139,8 @@
                 hooks=hooks,
                 notification_queue_size=notification_queue_size,
 {% if binary_streams %}                stream_opener=open_stream,
-                variables={
+{% endif %}{% if raw_sockets %}                raw_socket_opener=open_raw,
+{% endif %}{% if dedicated %}                variables={
                     name: value
                     for name, value in variables.items()
                     if value is not None
@@ -139,7 +152,8 @@
 {% endif %}{% for route in operations %}
 {{ operation(route) }}{% endfor %}{% for event in notifications %}
 {{ notification(event) }}{% endfor %}{% for item in streams %}
-{{ stream(item) }}{% endfor %}
+{{ stream(item) }}{% endfor %}{% for item in root_raw_sockets %}
+{{ raw_socket(item) }}{% endfor %}
     async def close(self) -> None:
         await self._rpc.close()
 

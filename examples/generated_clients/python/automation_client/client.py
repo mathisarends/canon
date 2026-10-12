@@ -16,6 +16,13 @@ from automation_client.internal import (
     RpcTransportSource,
 )
 from automation_client.namespaces import Browser, Tasks
+from automation_client.raw_sockets import (
+    RawSocketEndpoint,
+    RawSocketOpener,
+    RawSocketTransport,
+    RawWebSocketFactory,
+    RawWebSocketStream,
+)
 from automation_client.streams import (
     BinaryStreamEndpoint,
     BinaryStreamOpener,
@@ -37,6 +44,7 @@ class AutomationClient:
         hooks: Iterable[RpcClientHook] = (),
         notification_queue_size: int = 100,
         stream_opener: BinaryStreamOpener | None = None,
+        raw_socket_opener: RawSocketOpener | None = None,
         variables: Mapping[str, str] | None = None,
     ) -> None:
         self._rpc = RpcClientCore(
@@ -45,6 +53,7 @@ class AutomationClient:
             hooks=hooks,
             notification_queue_size=notification_queue_size,
             stream_opener=stream_opener,
+            raw_socket_opener=raw_socket_opener,
             variables=variables,
         )
         self.tasks = Tasks(self._rpc)
@@ -63,6 +72,7 @@ class AutomationClient:
         hooks: Iterable[RpcClientHook] = (),
         notification_queue_size: int = 100,
         stream_opener: BinaryStreamOpener | None = None,
+        raw_socket_opener: RawSocketOpener | None = None,
         variables: Mapping[str, str] | None = None,
     ) -> Self:
         """Build a client on transports the caller owns, for tests and adapters."""
@@ -72,6 +82,7 @@ class AutomationClient:
             hooks=hooks,
             notification_queue_size=notification_queue_size,
             stream_opener=stream_opener,
+            raw_socket_opener=raw_socket_opener,
             variables=variables,
         )
 
@@ -89,6 +100,7 @@ class AutomationClient:
         ) = None,
         socket_factory: WebSocketFactory | None = None,
         stream_socket_factory: BinaryWebSocketFactory | None = None,
+        raw_socket_factory: RawWebSocketFactory | None = None,
         handlers: Handler | Iterable[Handler] = (),
         hooks: Iterable[RpcClientHook] = (),
         lazy: bool = False,
@@ -132,6 +144,13 @@ class AutomationClient:
                 socket_factory=stream_socket_factory,
             )
 
+        async def open_raw(endpoint: RawSocketEndpoint) -> RawSocketTransport:
+            return await RawWebSocketStream.open(
+                endpoint,
+                headers=await resolve_headers(),
+                socket_factory=raw_socket_factory,
+            )
+
         pool = RpcTransportPool(
             endpoints=resolve_endpoints(variables, servers),
             transport_factory=open_transport,
@@ -148,6 +167,7 @@ class AutomationClient:
                 hooks=hooks,
                 notification_queue_size=notification_queue_size,
                 stream_opener=open_stream,
+                raw_socket_opener=open_raw,
                 variables={
                     name: value
                     for name, value in variables.items()

@@ -3,7 +3,7 @@
   "generatorVersion": "0.10.0",
   "layoutVersion": 10,
   "language": "python",
-  "contractSha256": "6a2ad621d80668d7f7c4e4d2e33f534c37830deb4af37a222a016e1f837a2c11",
+  "contractSha256": "d4b4963f8c027b48966ffbe0cefcee608f491fdaac03700d94997fe13bb70fb4",
   "files": [
     ".rpcgen/manifest.json",
     "__init__.py",
@@ -23,6 +23,7 @@
     "namespaces/__init__.py",
     "namespaces/browser.py",
     "namespaces/tasks.py",
+    "raw_sockets.py",
     "routes.py",
     "streams.py",
     "transport.py"
