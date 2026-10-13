@@ -40,6 +40,9 @@ export type WebSocketOptions = {
   readonly onDisconnect?: (error: unknown) => void;
   readonly signal?: AbortSignal;
   readonly onOverflow?: RpcNotificationOverflowHandler;
+  readonly heartbeatIntervalMs?: number | null;
+  readonly heartbeatTimeoutMs?: number;
+  readonly consecutiveTimeoutLimit?: number;
 };
 
 type WebSocketSocket = {
@@ -85,6 +88,13 @@ export class WebSocketTransport implements RpcTransport {
   readonly closed: Promise<RpcClientError | undefined>;
   readonly #resolveClosed: (error: RpcClientError | undefined) => void;
   #failure?: RpcClientError;
+  #heartbeatIntervalMs?: number;
+  readonly #heartbeatTimeoutMs: number;
+  readonly #consecutiveTimeoutLimit: number;
+  #consecutiveTimeouts = 0;
+  #lastInbound = Date.now();
+  #heartbeatId?: number;
+  #heartbeatTimer?: ReturnType<typeof setTimeout>;
 
   private constructor(socket: WebSocketSocket, options: WebSocketOptions) {
     this.#socket = socket;
@@ -94,6 +104,20 @@ export class WebSocketTransport implements RpcTransport {
     });
     this.#resolveClosed = resolveClosed;
     this.#onDisconnect = options.onDisconnect;
+    this.#heartbeatIntervalMs = options.heartbeatIntervalMs ?? undefined;
+    this.#heartbeatTimeoutMs = options.heartbeatTimeoutMs ?? 10_000;
+    this.#consecutiveTimeoutLimit = options.consecutiveTimeoutLimit ?? 0;
+    for (const value of [this.#heartbeatIntervalMs, this.#heartbeatTimeoutMs]) {
+      if (value !== undefined && (!Number.isFinite(value) || value <= 0))
+        throw new RangeError("Heartbeat intervals must be finite and positive");
+    }
+    if (
+      !Number.isInteger(this.#consecutiveTimeoutLimit) ||
+      this.#consecutiveTimeoutLimit < 0
+    )
+      throw new RangeError(
+        "consecutiveTimeoutLimit must be a nonnegative integer",
+      );
     this.#requestTimeoutMs =
       options.requestTimeoutMs === null
         ? undefined
@@ -112,6 +136,7 @@ export class WebSocketTransport implements RpcTransport {
       if (this.#closed) return;
       this.#fail(RpcConnectionLostError.fromCause(event, false));
     });
+    this.#scheduleHeartbeat();
   }
 
   static async open(
@@ -215,6 +240,20 @@ export class WebSocketTransport implements RpcTransport {
     pending.cancelRequested = true;
     pending.reject(error);
     if (pending.sendComplete) this.#sendCancellation(id);
+    if (error instanceof RpcRequestTimeoutError && pending.sendComplete) {
+      this.#consecutiveTimeouts++;
+      if (
+        this.#consecutiveTimeoutLimit > 0 &&
+        this.#consecutiveTimeouts >= this.#consecutiveTimeoutLimit
+      )
+        this.#fail(
+          new RpcConnectionLostError(
+            false,
+            undefined,
+            "No inbound traffic after consecutive request timeouts",
+          ),
+        );
+    }
   }
 
   #cleanupPending(pending: PendingRequest): void {
@@ -299,6 +338,10 @@ export class WebSocketTransport implements RpcTransport {
       else if (typeof message.method === "string")
         this.#notifications.push(message);
       else throw new RpcTransportError("Invalid JSON-RPC message");
+      this.#lastInbound = Date.now();
+      this.#consecutiveTimeouts = 0;
+      this.#heartbeatId = undefined;
+      this.#scheduleHeartbeat();
     } catch (error) {
       this.#fail(
         error instanceof RpcClientError
@@ -331,6 +374,12 @@ export class WebSocketTransport implements RpcTransport {
       throw new RpcTransportError("Invalid JSON-RPC response error");
     }
     const pending = this.#pending.get(id);
+    if (id === this.#heartbeatId) {
+      if (hasError) this.#heartbeatIntervalMs = undefined;
+      else if (message.result !== null)
+        throw new RpcTransportError("Invalid heartbeat result");
+      return;
+    }
     if (pending === undefined) return;
     this.#pending.delete(id);
     this.#cleanupPending(pending);
@@ -354,6 +403,9 @@ export class WebSocketTransport implements RpcTransport {
   #fail(error: RpcClientError, unexpected = true): void {
     if (this.#failed) return;
     this.#failed = true;
+    if (this.#heartbeatTimer !== undefined) clearTimeout(this.#heartbeatTimer);
+    this.#heartbeatTimer = undefined;
+    this.#heartbeatId = undefined;
     this.#failure = error;
     if (!this.#closed) this.#closed = true;
     for (const pending of this.#pending.values()) {
@@ -384,6 +436,52 @@ export class WebSocketTransport implements RpcTransport {
       } catch (error) {
         console.error("RPC disconnect callback failed", error);
       }
+    }
+  }
+
+  #scheduleHeartbeat(): void {
+    if (this.#heartbeatTimer !== undefined) clearTimeout(this.#heartbeatTimer);
+    this.#heartbeatTimer = undefined;
+    if (this.#closed || this.#heartbeatIntervalMs === undefined) return;
+    this.#heartbeatTimer = setTimeout(
+      () => {
+        this.#heartbeatTimer = undefined;
+        const remaining =
+          this.#heartbeatIntervalMs! - (Date.now() - this.#lastInbound);
+        if (remaining > 0) {
+          this.#scheduleHeartbeat();
+          return;
+        }
+        this.#probe();
+      },
+      Math.max(0, this.#heartbeatIntervalMs - (Date.now() - this.#lastInbound)),
+    );
+  }
+
+  #probe(): void {
+    if (this.#closed || this.#heartbeatIntervalMs === undefined) return;
+    const id = this.#nextRequestId++;
+    this.#heartbeatId = id;
+    const started = Date.now();
+    this.#heartbeatTimer = setTimeout(() => {
+      this.#heartbeatTimer = undefined;
+      if (this.#closed || this.#heartbeatId !== id) return;
+      // A suspended browser gets a fresh probe on wake, with no backlog.
+      if (Date.now() - started > this.#heartbeatTimeoutMs * 2) {
+        this.#heartbeatId = undefined;
+        this.#probe();
+        return;
+      }
+      this.#fail(
+        new RpcConnectionLostError(false, undefined, "RPC heartbeat timed out"),
+      );
+    }, this.#heartbeatTimeoutMs);
+    try {
+      this.#socket.send(
+        JSON.stringify({ jsonrpc: "2.0", id, method: "$/ping", params: {} }),
+      );
+    } catch (error) {
+      this.#fail(RpcConnectionLostError.fromCause(error, false));
     }
   }
 }

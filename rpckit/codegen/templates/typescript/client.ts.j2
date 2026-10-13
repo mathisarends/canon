@@ -64,6 +64,9 @@ export class {{ client_name }} {
 {% endif %}      readonly servers?: EndpointOverrides;
       readonly lazy?: boolean;
       readonly requestTimeoutMs?: number | null;
+      readonly heartbeatIntervalMs?: number | null;
+      readonly heartbeatTimeoutMs?: number;
+      readonly consecutiveTimeoutLimit?: number;
       readonly notificationQueueSize?: number;
       readonly notificationOverflow?: "drop_oldest" | "close";
       readonly onOverflow?: RpcNotificationOverflowHandler;
@@ -111,6 +114,12 @@ export class {{ client_name }} {
         WebSocketTransport.open(endpoint.url, {
           subprotocols: endpoint.subprotocols,
           requestTimeoutMs: options.requestTimeoutMs,
+          heartbeatIntervalMs:
+            options.heartbeatIntervalMs === undefined
+              ? {{ "30_000" if heartbeat else "null" }}
+              : options.heartbeatIntervalMs,
+          heartbeatTimeoutMs: options.heartbeatTimeoutMs,
+          consecutiveTimeoutLimit: options.consecutiveTimeoutLimit,
           notificationQueueSize: options.notificationQueueSize,
           notificationOverflow: options.notificationOverflow,
           onOverflow: options.onOverflow,

@@ -381,6 +381,7 @@ class _Renderer:
             root_raw_sockets=self.root_raw_sockets,
             raw_sockets=self.ir.raw_sockets,
             with_websocket=self.options.with_transport == "websocket",
+            heartbeat=self.ir.heartbeat,
         )
         return self.module(body)
 
@@ -914,6 +915,9 @@ _PRIMITIVES = {
 }
 
 _CONNECT_OPTIONS = (
+    "heartbeatIntervalMs",
+    "heartbeatTimeoutMs",
+    "consecutiveTimeoutLimit",
     "eager",
     "hooks",
     "notificationQueueSize",

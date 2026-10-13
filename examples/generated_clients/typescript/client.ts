@@ -92,6 +92,9 @@ export class AutomationClient {
       readonly servers?: EndpointOverrides;
       readonly lazy?: boolean;
       readonly requestTimeoutMs?: number | null;
+      readonly heartbeatIntervalMs?: number | null;
+      readonly heartbeatTimeoutMs?: number;
+      readonly consecutiveTimeoutLimit?: number;
       readonly notificationQueueSize?: number;
       readonly notificationOverflow?: "drop_oldest" | "close";
       readonly onOverflow?: RpcNotificationOverflowHandler;
@@ -134,6 +137,12 @@ export class AutomationClient {
         WebSocketTransport.open(endpoint.url, {
           subprotocols: endpoint.subprotocols,
           requestTimeoutMs: options.requestTimeoutMs,
+          heartbeatIntervalMs:
+            options.heartbeatIntervalMs === undefined
+              ? 30_000
+              : options.heartbeatIntervalMs,
+          heartbeatTimeoutMs: options.heartbeatTimeoutMs,
+          consecutiveTimeoutLimit: options.consecutiveTimeoutLimit,
           notificationQueueSize: options.notificationQueueSize,
           notificationOverflow: options.notificationOverflow,
           onOverflow: options.onOverflow,
