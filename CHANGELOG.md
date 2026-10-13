@@ -12,6 +12,19 @@
 
 ### Added
 
+- Generated passive event and notification iterators resume after transient loss
+  when reconnect is enabled, alongside remote subscriptions. Connection state
+  callbacks signal possible gaps without changing payload types; no durable
+  replay is introduced. Retired hubs are removed, consumers share one pump per
+  live transport, and close/iterator exit wakes pending waits. TypeScript iterator
+  return can interrupt reconnect acquisition and notification waiting.
+- Notification overflow is observable through `RpcNotificationOverflowHandler`,
+  `on_overflow` / `onOverflow`, and dropped-message counters on clients and
+  WebSocket transports. Counters distinguish subscriber and shared transport
+  buffers, preserve logical subscriber totals across reconnects, and keep
+  one-time warnings. TypeScript accepts configurable subscriber queue sizes and
+  optional notification abort signals for adapter cleanup. Regenerate SDKs;
+  default sizes, drop-oldest policy, and payload iterator types remain compatible.
 - Generated clients expose connection `state`, per-server `states`, and state
   callbacks. Reconnect uses shared, cancellable connection attempts, full-jitter
   backoff, optional attempt limits, and overridable classification. Recovery runs

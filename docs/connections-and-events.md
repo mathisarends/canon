@@ -111,6 +111,82 @@ The connection state decides what a rejection becomes:
 Raising `RpcReject` directly has the same effect without a mapping. Failures
 the mapping does not cover keep their previous behavior.
 
+## Notification delivery and reconnects
+
+Notifications use at most once transport delivery: the SDK does not acknowledge
+or durably replay them. Disconnects can lose messages, and a newly started remote
+subscription can emit its own initial state again. Applications that need a
+complete history should use event IDs, cursors, or an application-owned snapshot
+and resync protocol.
+
+With `reconnect=True` / `reconnect: true`, generated typed event iterators and
+low-level notification iterators keep waiting across transient loss and resume on
+the replacement transport. Remote subscriptions acquire a fresh subscription ID.
+Unsubscribe stays on the transport that issued the old ID. Without reconnect,
+transport errors still end the iterator. Permanent rejection or exhausted recovery
+surfaces the terminal cause instead of waiting forever.
+
+Use the optional [connection state callback](clients.md#lazy-connections-and-multiple-servers)
+to detect gaps: every `reconnecting` transition means messages may be missing for
+that server, and `connected` is the point to resync. Payload iterators keep their
+existing types; there is no gap marker mixed into the stream. This convention
+applies to both passive events and remote subscriptions.
+
+The default overflow policy remains `drop_oldest` with one warning per transport
+or logical subscriber. The shared transport queue and each consumer's queue are
+bounded separately. `notification_queue_size` / `notificationQueueSize` now
+configures both layers on connected clients; TypeScript also accepts it on clients
+built with custom transports. A slow consumer can lose messages while another
+consumer keeps up.
+
+Observe loss with `on_overflow(method, dropped, source)` /
+`onOverflow(method, dropped, source)`, typed as `RpcNotificationOverflowHandler`:
+
+```python
+def overflow(method, dropped, source):
+    print(source, method, dropped)
+
+
+async with TasksClient.connect(reconnect=True, on_overflow=overflow) as client:
+    async for update in client.tasks.updated():
+        ...
+```
+
+```ts
+const client = await TasksClient.connect({
+  reconnect: true,
+  onOverflow: (method, dropped, source) => {
+    console.log(source, method, dropped);
+  },
+});
+```
+
+`source` is `transport` or `subscriber`. `dropped` is cumulative for that buffer's
+lifetime; a logical subscriber preserves its count across reconnects. Transport
+counts reset for the new socket. A transport callback has no method (`None` /
+`undefined`); subscriber callbacks identify their method, or `None` for a Python
+wildcard consumer. Callback failures are contained and reported once per owner.
+
+`client.dropped_notifications` / `client.droppedNotifications` counts subscriber
+buffer drops across the client's lifetime. This counts buffer losses, so one
+message dropped by two consumers contributes two. Each `WebSocketTransport`
+exposes the same property name for its own shared queue's drop count. Use the
+callback's source to distinguish these metrics. `notification_overflow="close"`
+/ `notificationOverflow: "close"` still closes on shared queue overflow instead
+of dropping data.
+
+Iterator exit unregisters that consumer, including while reconnect is pending.
+Explicit client close wakes waiting consumers and retires pumps and hubs.
+TypeScript `iterator.return()` can interrupt a pending `next()`; custom TypeScript
+transports can accept the optional notification `AbortSignal` to remove their
+underlying waiters. Existing no-argument notification methods still type-check,
+and the core stops its local wait if an older adapter ignores the signal. A custom
+adapter owns cleanup of any upstream operation it leaves running.
+
+Regenerate both SDKs to receive iterator recovery, overflow hooks and counters,
+and cleanup. Default queue sizes, payload types, and reconnect opt-in behavior
+remain unchanged.
+
 ## Push typed events
 
 An event is an async generator. Each yielded Pydantic value becomes a JSON-RPC
