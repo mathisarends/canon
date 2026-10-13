@@ -12,6 +12,14 @@
 
 ### Added
 
+- Matching generated Python and TypeScript client error hierarchies with
+  `RpcRequestTimeoutError` (`method`, `timeout`), `RpcConnectionLostError`
+  (`sent`, `code`, `reason`), and `RpcConnectError` (`permanent`, `status`, `code`).
+  Transport exceptions retain their cause; delivery is conservatively uncertain
+  once send begins. TypeScript exposes a typed `transport.closed` promise and
+  shares `RpcClientError` / `RpcTransportError` bases across SDK errors. Existing
+  Python base catches keep working. Regenerate clients; caller cancellation and
+  application hook exceptions retain their semantics. Retry policy is unchanged.
 - Public `SocketFaults`, `InMemoryClientSocket`, and `InMemorySocketFactory` in
   `rpckit.testing` for deterministic resilience tests. Script directional drops,
   frame delays with an injected clock, held responses, half-open connections,
