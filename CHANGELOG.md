@@ -65,6 +65,12 @@
 
 ### Fixed
 
+- Deeply nested JSON produces `parse_error` on served connections and
+  `RpcServer.handle_json()` instead of escaping as `RecursionError`. Generated
+  Python clients normalize the same input to `RpcTransportError` and settle
+  pending calls; regenerate clients for that decoder fix. Pending-limit and
+  unknown client-method response warnings are bounded per connection, with
+  aggregate counts at debug level on cleanup and unchanged observation signals.
 - Generated Python and TypeScript clients ignore valid late, duplicate, and
   unknown responses without interrupting other calls, while rejecting malformed
   response envelopes. TypeScript clients answer server-to-client requests with

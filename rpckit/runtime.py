@@ -418,7 +418,8 @@ async def _serve_endpoint(
         connected_client._close()
         if pending_rejections:
             logger.debug(
-                "Rejected %d messages exceeding max_pending_requests on this connection",
+                "Rejected %d messages exceeding max_pending_requests "
+                "on this connection",
                 pending_rejections,
             )
         if not client_closed and not connection.closed:

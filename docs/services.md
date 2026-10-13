@@ -146,6 +146,18 @@ app.socket(
 `serve()` and `create_router()` use these defaults unless an explicit call-site
 override is supplied.
 
+Malformed JSON, including input nested beyond the JSON decoder's recursion
+limit, produces `parse_error` (`-32700`) and leaves an RPC connection usable.
+The same handling applies to `RpcServer.handle_json()` for custom transports.
+Recursive parameter models continue to report Pydantic validation failures as
+`invalid_params`; arbitrary nested values accepted by `Any` are not rejected
+solely for their depth.
+
+Pending-limit rejections and dropped unknown client-method responses each log
+at most one warning per connection. On connection cleanup, a debug message
+reports the total for each category. This remains bounded with debug logging
+enabled; request observers and middleware still receive each rejection.
+
 ## Use Pydantic directly
 
 `RpcModel` is rpckit's strict Pydantic base model. Existing Pydantic
