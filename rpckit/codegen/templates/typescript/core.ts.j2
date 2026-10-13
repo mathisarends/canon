@@ -15,6 +15,9 @@ export type RpcRequestOptions = {
   readonly signal?: AbortSignal;
 };
 
+export type RpcConnectionState =
+  "connecting" | "connected" | "reconnecting" | "closed";
+
 export type RpcTransport = Omit<BaseRpcTransport, "request"> & {
   request(
     method: string,
@@ -96,6 +99,9 @@ type NotificationHub = {
 /** Where the client gets the transport of one server from. */
 export type RpcTransportSource = {
   readonly requestTimeoutMs?: number;
+  readonly closed?: Promise<unknown>;
+  readonly state?: RpcConnectionState;
+  readonly states?: ReadonlyMap<string, RpcConnectionState>;
   get(server?: string): Promise<RpcTransport>;
   close(): Promise<void>;
 };
@@ -117,14 +123,29 @@ export class RpcTransportPool implements RpcTransportSource {
   readonly #open: (
     endpoint: PoolEndpoint,
     onDisconnect: (error: unknown) => void,
+    signal: AbortSignal,
   ) => Promise<RpcTransport>;
   readonly #transports = new Map<string, Promise<RpcTransport>>();
+  readonly #live = new Map<string, RpcTransport>();
+  readonly #controllers = new Map<string, AbortController>();
   readonly #failed = new WeakSet<RpcTransport>();
   readonly #everConnected = new Set<string>();
+  readonly #states = new Map<string, RpcConnectionState>();
+  readonly #failures = new Map<string, unknown>();
   readonly reconnect: boolean;
   readonly requestTimeoutMs?: number;
   readonly #initialDelayMs: number;
   readonly #maxDelayMs: number;
+  readonly #maxAttempts?: number;
+  readonly #shouldRetry?: (error: unknown) => boolean;
+  readonly #random: () => number;
+  readonly #onStateChange?: (
+    server: string,
+    state: RpcConnectionState,
+    error?: unknown,
+  ) => void;
+  readonly closed: Promise<unknown>;
+  readonly #resolveClosed: (error?: unknown) => void;
   #closed = false;
 
   constructor(options: {
@@ -132,10 +153,19 @@ export class RpcTransportPool implements RpcTransportSource {
     readonly open: (
       endpoint: PoolEndpoint,
       onDisconnect: (error: unknown) => void,
+      signal: AbortSignal,
     ) => Promise<RpcTransport>;
     readonly reconnect?: boolean;
     readonly reconnectInitialDelayMs?: number;
     readonly reconnectMaxDelayMs?: number;
+    readonly reconnectMaxAttempts?: number | null;
+    readonly reconnectShouldRetry?: (error: unknown) => boolean;
+    readonly reconnectRandom?: () => number;
+    readonly onStateChange?: (
+      server: string,
+      state: RpcConnectionState,
+      error?: unknown,
+    ) => void;
     readonly requestTimeoutMs?: number | null;
   }) {
     this.#endpoints = new Map(
@@ -149,29 +179,117 @@ export class RpcTransportPool implements RpcTransportSource {
         : (options.requestTimeoutMs ?? 30_000);
     this.#initialDelayMs = options.reconnectInitialDelayMs ?? 250;
     this.#maxDelayMs = options.reconnectMaxDelayMs ?? 5_000;
-    if (this.#initialDelayMs <= 0 || this.#maxDelayMs < this.#initialDelayMs) {
+    this.#maxAttempts = options.reconnectMaxAttempts ?? undefined;
+    this.#shouldRetry = options.reconnectShouldRetry;
+    this.#random = options.reconnectRandom ?? Math.random;
+    this.#onStateChange = options.onStateChange;
+    if (
+      !Number.isFinite(this.#initialDelayMs) ||
+      !Number.isFinite(this.#maxDelayMs) ||
+      this.#initialDelayMs <= 0 ||
+      this.#maxDelayMs < this.#initialDelayMs
+    ) {
       throw new RpcTransportError("Invalid reconnect backoff delays");
+    }
+    if (
+      this.#maxAttempts !== undefined &&
+      (!Number.isInteger(this.#maxAttempts) || this.#maxAttempts < 0)
+    ) {
+      throw new RpcTransportError(
+        "reconnectMaxAttempts must be non-negative or null",
+      );
+    }
+    for (const name of this.#endpoints.keys())
+      this.#states.set(name, "connecting");
+    let resolveClosed!: (error?: unknown) => void;
+    this.closed = new Promise((resolve) => {
+      resolveClosed = resolve;
+    });
+    this.#resolveClosed = resolveClosed;
+  }
+
+  get states(): ReadonlyMap<string, RpcConnectionState> {
+    return new Map(this.#states);
+  }
+
+  get state(): RpcConnectionState {
+    if (this.#closed || this.#failures.size) return "closed";
+    const states = [...this.#states.values()];
+    if (states.includes("reconnecting")) return "reconnecting";
+    if (states.includes("connected")) return "connected";
+    return "connecting";
+  }
+
+  #transition(
+    name: string,
+    state: RpcConnectionState,
+    error?: unknown,
+    first = false,
+  ): void {
+    if (this.#closed && state !== "closed") return;
+    if (!first && this.#states.get(name) === state) return;
+    this.#states.set(name, state);
+    try {
+      const returned: unknown = this.#onStateChange?.(name, state, error);
+      if (returned instanceof Promise)
+        void returned.catch((error) =>
+          console.error("RPC state callback failed", error),
+        );
+    } catch (error) {
+      console.error("RPC state callback failed", error);
     }
   }
 
-  get(server?: string): Promise<RpcTransport> {
-    if (this.#closed)
-      return Promise.reject(
-        new RpcConnectionLostError(
-          false,
-          undefined,
-          "The RPC client is closed",
-        ),
+  #retryable(error: unknown): boolean {
+    if (this.#shouldRetry !== undefined) {
+      try {
+        return this.#shouldRetry(error);
+      } catch (error) {
+        console.error("RPC retry classifier failed", error);
+        return false;
+      }
+    }
+    if (error instanceof RpcConnectError) return !error.permanent;
+    if (error instanceof RpcConnectionLostError)
+      return (
+        (error.code === 1008 && error.reason === "credentials_expired") ||
+        ![1002, 1003, 1007, 1008, 1009].includes(error.code ?? 0)
       );
-    const name = this.#serverName(server);
+    return false;
+  }
+
+  #terminal(name: string, error?: unknown): void {
+    this.#failures.set(name, error);
+    this.#resolveClosed(error);
+    this.#transition(name, "closed", error);
+  }
+
+  #drop(name: string, transport: RpcTransport, error?: unknown): void {
+    if (this.#closed || this.#live.get(name) !== transport) return;
+    this.#failed.add(transport);
+    this.#live.delete(name);
+    this.#transports.delete(name);
+    if (
+      error === undefined ||
+      !this.reconnect ||
+      !this.#retryable(error) ||
+      this.#maxAttempts === 0
+    ) {
+      this.#terminal(name, error);
+      return;
+    }
+    this.#transition(name, "reconnecting", error);
+    this.#start(name);
+  }
+
+  #start(name: string): Promise<RpcTransport> {
     let transport = this.#transports.get(name);
     if (transport === undefined) {
-      transport = this.#connect(name, () => {
-        if (this.#transports.get(name) === transport)
-          this.#transports.delete(name);
-      });
+      transport = this.#connect(name);
       this.#transports.set(name, transport);
-      void transport.catch(() => {
+      void transport.catch((error) => {
+        if (!this.#closed && !this.#failures.has(name))
+          this.#terminal(name, error);
         if (this.#transports.get(name) === transport)
           this.#transports.delete(name);
       });
@@ -179,46 +297,132 @@ export class RpcTransportPool implements RpcTransportSource {
     return transport;
   }
 
+  get(server?: string): Promise<RpcTransport> {
+    if (this.#closed) return Promise.reject(this.#closedError());
+    const name = this.#serverName(server);
+    if (this.#failures.has(name))
+      return Promise.reject(this.#failures.get(name) ?? this.#closedError());
+    return this.#start(name);
+  }
+
   isDisconnected(transport: RpcTransport): boolean {
     return this.#failed.has(transport);
   }
 
-  async #connect(
-    name: string,
-    disconnected: () => void,
-  ): Promise<RpcTransport> {
-    const endpoint = this.#endpoints.get(name) as PoolEndpoint;
-    let delay = this.#initialDelayMs;
-    while (!this.#closed) {
-      let opened: RpcTransport | undefined;
-      try {
-        opened = await this.#open(endpoint, () => {
-          if (opened !== undefined) this.#failed.add(opened);
-          disconnected();
-        });
-        this.#everConnected.add(name);
-        return opened;
-      } catch (error) {
-        if (!this.reconnect || !this.#everConnected.has(name)) {
-          throw error instanceof RpcClientError
-            ? error
-            : RpcConnectError.fromCause(error);
-        }
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        delay = Math.min(delay * 2, this.#maxDelayMs);
-      }
-    }
-    throw new RpcConnectionLostError(
+  #closedError(): RpcConnectionLostError {
+    return new RpcConnectionLostError(
       false,
       undefined,
       "The RPC client is closed",
     );
   }
 
-  async openAll(): Promise<void> {
-    const names = [...this.#endpoints.keys()];
+  async #connect(name: string): Promise<RpcTransport> {
+    const closing = new AbortController();
+    this.#controllers.set(name, closing);
+    const recovering = this.#everConnected.has(name);
+    if (!recovering) this.#transition(name, "connecting", undefined, true);
+    const endpoint = this.#endpoints.get(name) as PoolEndpoint;
+    let delay = this.#initialDelayMs;
+    let attempts = 0;
     try {
-      await Promise.all(names.map((name) => this.get(name)));
+      while (!this.#closed) {
+        attempts++;
+        const attempt = new AbortController();
+        let opened: RpcTransport | undefined;
+        try {
+          const opening = this.#open(
+            endpoint,
+            (error) => {
+              if (opened !== undefined) this.#drop(name, opened, error);
+            },
+            attempt.signal,
+          );
+          void opening.then(
+            (transport) => {
+              opened = transport;
+              if (attempt.signal.aborted || this.#closed) {
+                void Promise.resolve()
+                  .then(() => transport.close())
+                  .catch(() => {});
+              }
+            },
+            () => {},
+          );
+          opened = await withTimeout(
+            opening,
+            this.requestTimeoutMs,
+            name,
+            closing.signal,
+            (error) => attempt.abort(error),
+          );
+          if (this.#closed) {
+            await opened.close();
+            throw this.#closedError();
+          }
+          this.#live.set(name, opened);
+          this.#everConnected.add(name);
+          this.#transition(name, "connected");
+          const live = opened;
+          void live.closed?.then(
+            (error) => this.#drop(name, live, error),
+            (error) => this.#drop(name, live, error),
+          );
+          return opened;
+        } catch (cause) {
+          if (this.#closed) throw this.#closedError();
+          const error =
+            cause instanceof RpcClientError &&
+            !(cause instanceof RpcRequestTimeoutError)
+              ? cause
+              : RpcConnectError.fromCause(cause);
+          if (
+            !recovering ||
+            !this.reconnect ||
+            !this.#retryable(error) ||
+            (this.#maxAttempts !== undefined && attempts >= this.#maxAttempts)
+          ) {
+            this.#terminal(name, error);
+            throw error;
+          }
+          const fraction = this.#random();
+          if (!Number.isFinite(fraction) || fraction < 0 || fraction > 1) {
+            throw new RpcTransportError(
+              "reconnectRandom must return a value between 0 and 1",
+            );
+          }
+          await this.#pause(delay * fraction, closing.signal);
+          delay = Math.min(this.#maxDelayMs, delay * 2);
+        }
+      }
+      throw this.#closedError();
+    } finally {
+      if (this.#controllers.get(name) === closing)
+        this.#controllers.delete(name);
+    }
+  }
+
+  #pause(delay: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const abort = () => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", abort);
+        reject(signal.reason);
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", abort);
+        resolve();
+      }, delay);
+      signal.addEventListener("abort", abort, { once: true });
+      if (signal.aborted) abort();
+    });
+  }
+
+  async openAll(): Promise<void> {
+    try {
+      await Promise.all(
+        [...this.#endpoints.keys()].map((name) => this.get(name)),
+      );
     } catch (error) {
       await this.close();
       throw error;
@@ -226,14 +430,19 @@ export class RpcTransportPool implements RpcTransportSource {
   }
 
   async close(): Promise<void> {
+    if (this.#closed) return;
     this.#closed = true;
-    const opened = [...this.#transports.values()];
+    this.#resolveClosed();
+    for (const name of this.#endpoints.keys()) this.#transition(name, "closed");
+    const connecting = [...this.#transports.values()];
+    for (const controller of this.#controllers.values())
+      controller.abort(this.#closedError());
+    await Promise.allSettled(connecting);
+    const live = [...this.#live.values()];
+    this.#live.clear();
     this.#transports.clear();
-    const settled = await Promise.allSettled(opened);
-    await Promise.all(
-      settled.map((result) =>
-        result.status === "fulfilled" ? result.value.close() : undefined,
-      ),
+    await Promise.allSettled(
+      live.map((transport) => Promise.resolve().then(() => transport.close())),
     );
   }
 
@@ -456,6 +665,20 @@ export class RpcStreamRefused extends RpcStreamFailed {}
   readonly #hooks: readonly RpcClientHook[];
   readonly #hubs = new WeakMap<RpcTransport, NotificationHub>();
   #closed = false;
+  #resolveClosed!: (error?: unknown) => void;
+  readonly #closedPromise = new Promise<unknown>((resolve) => {
+    this.#resolveClosed = resolve;
+  });
+
+  get closed(): Promise<unknown> {
+    return this.#closedPromise;
+  }
+  get state(): RpcConnectionState {
+    return this.#closed ? "closed" : (this.#source.state ?? "connected");
+  }
+  get states(): ReadonlyMap<string, RpcConnectionState> {
+    return this.#source.states ?? new Map();
+  }
 
   constructor(
     transport:
@@ -473,6 +696,7 @@ export class RpcStreamRefused extends RpcStreamFailed {}
     this.#source = isTransportSource(transport)
       ? transport
       : new StaticTransports(transport);
+    void this.#source.closed?.then(this.#resolveClosed, this.#resolveClosed);
     this.#closeTransport = options?.closeTransport ?? true;
     this.#hooks = options?.hooks ?? [];
 {% if binary_streams %}    this.streamOpener = options?.streamOpener;
@@ -539,18 +763,22 @@ export class RpcStreamRefused extends RpcStreamFailed {}
         signal,
       );
     }
-    const transport = await withTimeout(
-      this.#transportFor(route.server),
+    if (signal?.aborted) throw signal.reason;
+    const controller = new AbortController();
+    const operation = (async () => {
+      const transport = await this.#transportFor(route.server);
+      if (controller.signal.aborted) throw controller.signal.reason;
+      return transport.request(route.method, payload, {
+        ...options,
+        signal: controller.signal,
+      });
+    })();
+    const result = await withTimeout(
+      operation,
       this.#source.requestTimeoutMs,
       route.method,
       signal,
-    );
-    if (signal?.aborted) throw signal.reason;
-    const result = await withTimeout(
-      transport.request(route.method, payload, options),
-      undefined,
-      route.method,
-      signal,
+      (error) => controller.abort(error),
     );
     for (const hook of [...this.#hooks].reverse()) {
       await withTimeout(
@@ -694,8 +922,11 @@ export class RpcStreamRefused extends RpcStreamFailed {}
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    if (!this.#closeTransport) return;
-    await this.#source.close();
+    try {
+      if (this.#closeTransport) await this.#source.close();
+    } finally {
+      this.#resolveClosed();
+    }
   }
 
   async *#notificationValues<Payload>(
@@ -828,6 +1059,7 @@ function withTimeout<T>(
   timeoutMs: number | undefined,
   method: string,
   signal?: AbortSignal,
+  onFailure?: (error: unknown) => void,
 ): Promise<T> {
   if (timeoutMs === undefined && signal === undefined) return promise;
   return new Promise((resolve, reject) => {
@@ -841,6 +1073,7 @@ function withTimeout<T>(
       if (settled) return;
       settled = true;
       cleanup();
+      onFailure?.(error);
       reject(error);
     };
     const abort = () => fail(signal?.reason);

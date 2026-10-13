@@ -17,6 +17,7 @@ export type {
   JsonValue,
   RpcClientCore,
   RpcClientHook,
+  RpcConnectionState,
   RpcRouteInfo,
   RpcRequestOptions,
   RpcTransport,

@@ -284,6 +284,7 @@ class _Renderer:
         core_imports = [
             "RpcClientCore",
             "type RpcClientHook",
+            "type RpcConnectionState",
             "type RpcTransport",
             "type RpcTransportSource",
         ]
@@ -560,6 +561,9 @@ def _validate(
         )
     client_members = [
         ("<client.close>", "close"),
+        ("<client.closed>", "closed"),
+        ("<client.state>", "state"),
+        ("<client.states>", "states"),
         *((node.source_path[-1], _identifier(node.segment)) for node in nodes),
         *(
             (route.rpc_name, _identifier(route.operation_name))
@@ -914,6 +918,10 @@ _CONNECT_OPTIONS = (
     "requestTimeoutMs",
     "servers",
     "socketFactory",
+    "reconnectMaxAttempts",
+    "reconnectShouldRetry",
+    "reconnectRandom",
+    "onStateChange",
 )
 
 _VALID_IDENTIFIER = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
@@ -963,6 +971,7 @@ _RESERVED_WORDS = frozenset(
 _RUNTIME_NAMES = frozenset(
     {
         "RpcClientCore",
+        "RpcConnectionState",
         "RpcClientError",
         "RpcConnectError",
         "RpcConnectionClosed",

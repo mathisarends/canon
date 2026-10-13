@@ -283,6 +283,7 @@ def test_the_index_exports_everything_a_caller_needs(
         "RpcRemoteError",
         "RpcRequestTimeoutError",
         "RpcRequestOptions",
+        "RpcConnectionState",
         "RpcTransportError",
     ):
         assert f"  {name}," in index
