@@ -45,6 +45,17 @@ def render_openrpc(
         ],
         "components": {"schemas": schemas},
         "x-rpc-protocol-version": protocol.version,
+        "x-rpc-request-cancellation": {
+            "method": "$/cancelRequest",
+            "notification": True,
+            "params": {
+                "type": "object",
+                "properties": {"id": {"type": ["integer", "string"]}},
+                "required": ["id"],
+                "additionalProperties": False,
+            },
+            "error": {"code": -32800, "x-rpckit-code": "request_cancelled"},
+        },
         "x-rpc-notifications": [
             described(
                 _with_server(
@@ -116,6 +127,8 @@ def _method(
     servers: Mapping[str, dict[str, Any]],
 ) -> dict[str, Any]:
     document: dict[str, Any] = {"name": method.name}
+    if method._has_timeout:
+        document["x-rpc-request-timeout"] = method.timeout
     if method.summary is not None:
         document["summary"] = method.summary
     document |= {

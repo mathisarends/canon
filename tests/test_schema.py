@@ -1,10 +1,36 @@
 import json
 
-from rpckit import RpcService
+from rpckit import RpcChannel, RpcService
 from rpckit.protocol import RpcProtocol
 from rpckit.schema import render_openrpc
 
 from .conftest import GreetingNotificationMethod, GreetingRpcMethod, room_channel
+
+
+def test_contract_exports_cancellation_and_only_explicit_method_deadlines():
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def inherited() -> None: ...
+
+    @channel.method(timeout=None)
+    async def unbounded() -> None: ...
+
+    @channel.method(timeout=5)
+    async def bounded() -> None: ...
+
+    app = RpcService()
+    app.socket("/rpc", channels=[channel])
+    document = app.contract(title="Deadlines", base_url="ws://localhost").to_openrpc()
+    methods = {method["name"]: method for method in document["methods"]}
+    assert "x-rpc-request-timeout" not in methods["deadlines.inherited"]
+    assert methods["deadlines.unbounded"]["x-rpc-request-timeout"] is None
+    assert methods["deadlines.bounded"]["x-rpc-request-timeout"] == 5
+    control = document["x-rpc-request-cancellation"]
+    assert control["method"] == "$/cancelRequest"
+    assert control["notification"] is True
+    assert control["params"]["properties"]["id"]["type"] == ["integer", "string"]
+    assert control["error"] == {"code": -32800, "x-rpckit-code": "request_cancelled"}
 
 
 def test_openrpc_request_components_pin_the_method_name(

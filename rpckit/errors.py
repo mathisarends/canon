@@ -23,6 +23,7 @@ class RpcErrorCode(IntEnum):
     INVALID_PARAMS = -32602
     INTERNAL_ERROR = -32603
     SERVER_ERROR = -32000
+    REQUEST_CANCELLED = -32800
 
 
 class ProtocolDefinitionError(Exception):
@@ -177,6 +178,17 @@ class RpcInternalError(RpcError):
     _builtin = True
     code = "internal_error"
     rpc_code = RpcErrorCode.INTERNAL_ERROR
+
+
+class RpcRequestTimeoutError(RpcError):
+    _builtin = True
+    code = "request_timeout"
+
+
+class RpcRequestCancelledError(RpcError):
+    _builtin = True
+    code = "request_cancelled"
+    rpc_code = RpcErrorCode.REQUEST_CANCELLED
 
 
 def error_message(code: str | int) -> str:

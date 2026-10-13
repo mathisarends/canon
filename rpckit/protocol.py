@@ -53,6 +53,8 @@ class RpcMethodDefinition:
     resolver_scope: RpcResolverScope | None = None
     params_parameter: str | None = None
     params_origin: type[BaseModel] | None = None
+    timeout: float | None = None
+    _has_timeout: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,11 +235,15 @@ def method_definition(
     raises: tuple[type[RpcError], ...],
     server: str | None,
     resolver_scope: RpcResolverScope,
+    timeout: float | None = None,
+    has_timeout: bool = False,
     request_name: str | None = None,
 ) -> RpcMethodDefinition:
     request_name = request_name or f"{_pascal_case(handler_name)}Request"
     params, params_parameter, injected = _router_params_model(function)
     return RpcMethodDefinition(
+        timeout=timeout,
+        _has_timeout=has_timeout,
         name=name,
         handler_name=handler_name,
         request_name=request_name,

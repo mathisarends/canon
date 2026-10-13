@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import time
-from collections.abc import AsyncGenerator, Callable, Sequence
+from asyncio import timeout_at
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager, nullcontext
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,8 @@ from rpckit.errors import (
     RpcInternalError,
     RpcInvalidRequestError,
     RpcParseError,
+    RpcRequestCancelledError,
+    RpcRequestTimeoutError,
     bind_contracts,
     contract_for,
     contract_of,
@@ -43,6 +46,7 @@ type RpcResponse = RpcSuccess | RpcFailure
 type RpcResponseMessage = RpcResponse | list[RpcResponse] | None
 
 logger = logging.getLogger(LOGGER_NAME)
+_CLIENT_CANCEL = object()
 
 
 class RpcServer:
@@ -77,6 +81,7 @@ class RpcServer:
         server._limits = limits or RpcLimits()
         server._semaphore = asyncio.Semaphore(server._limits.max_concurrency)
         server._strict_errors = strict_errors
+        server._methods = {method.name: method for method in protocol.methods}
         server._observed_methods = (
             {method.name: method for method in protocol.methods}
             if server._middleware
@@ -110,9 +115,57 @@ class RpcServer:
             return [response for response in responses if response is not None] or None
         return await self._handle_one_bounded(raw_request)
 
-    async def _handle_one_bounded(self, raw_request: object) -> RpcResponse | None:
-        async with self._semaphore:
-            return await self._handle_one(raw_request)
+    async def _handle_one_bounded(
+        self, raw_request: object, *, admitted_at: float | None = None
+    ) -> RpcResponse | None:
+        async def dispatch(scope: RpcRequestScope | None) -> RpcResponse | None:
+            return await self._dispatch_request(raw_request, scope=scope)
+
+        return await self._run_bounded(raw_request, dispatch, admitted_at=admitted_at)
+
+    def _request_timeout(self, raw_request: object) -> float | None:
+        method = self._methods.get(_request_method(raw_request) or "")
+        if method is not None and method._has_timeout:
+            return method.timeout
+        return self._limits.request_timeout
+
+    async def _run_bounded(
+        self,
+        raw_request: object,
+        operation: Callable[[RpcRequestScope | None], Awaitable[RpcResponse | None]],
+        *,
+        admitted_at: float | None = None,
+    ) -> RpcResponse | None:
+        timeout = self._request_timeout(raw_request)
+        started = (
+            asyncio.get_running_loop().time() if admitted_at is None else admitted_at
+        )
+        deadline = None if timeout is None else started + timeout
+        async with (
+            self._observe_request(raw_request)
+            if self._observer is not None
+            else nullcontext(None)
+        ) as scope:
+            waiting = timeout_at(deadline)
+            try:
+                async with waiting, self._semaphore:
+                    return await operation(scope)
+            except TimeoutError:
+                if not waiting.expired():
+                    raise
+                error = RpcRequestTimeoutError()
+            except asyncio.CancelledError as cancelled:
+                if (
+                    not cancelled.args
+                    or cancelled.args[0] is not _CLIENT_CANCEL
+                    or (
+                        self._connection is not None
+                        and self._connection.close_code is not None
+                    )
+                ):
+                    raise
+                error = RpcRequestCancelledError()
+            return await self._dispatch_request(raw_request, failure=error, scope=scope)
 
     async def handle_json(self, message: str | bytes | bytearray) -> str | None:
         """Decode, serve, and encode one JSON-RPC message."""
@@ -159,7 +212,8 @@ class RpcServer:
                     response=None if previous is None else previous.response,
                     duration=time.perf_counter() - started,
                     error=error,
-                    cancelled=isinstance(caught, asyncio.CancelledError),
+                    cancelled=isinstance(caught, asyncio.CancelledError)
+                    or (previous is not None and previous.cancelled),
                     error_code=None if previous is None else previous.error_code,
                 )
                 await notify_observer(
@@ -214,7 +268,11 @@ class RpcServer:
                 )
             if scope is not None:
                 scope.outcome = RpcRequestOutcome(
-                    response, 0.0, error, error_code=str(mapped.rpc_code)
+                    response,
+                    0.0,
+                    error,
+                    cancelled=isinstance(error, RpcRequestCancelledError),
+                    error_code=str(mapped.rpc_code),
                 )
         else:
             response = (
