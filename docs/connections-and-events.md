@@ -362,3 +362,31 @@ and `max_message_bytes` rejects oversized incoming frames. Calls on one connecti
 disabling the byte limit.
 
 [Back to documentation](README.md)
+## Draining connections
+
+Each service has a `service.drain` coordinator; pass `RpcService(drain=RpcDrain())`
+to share one coordinator across services. `await service.drain.drain(timeout=30)`
+is idempotent and permanently moves that coordinator into shutdown. The first
+call chooses the budget; cancellation of a caller waiting for drain does not
+cancel the shared drain. `draining` and `connection_count` expose its state.
+
+New connections are unavailable (WebSocket 1013; adapters may deny the handshake
+with HTTP 503). New ordinary calls on accepted sockets receive the built-in
+`server_shutting_down` error. Pings, cancellation controls, and reverse-call
+responses remain usable while admitted requests finish. Passive event sources
+stop immediately. Active subscriptions and dedicated binary/raw sockets may
+finish naturally until the grace deadline; unfinished work is cancelled.
+
+The final tenth of the timeout is reserved for cooperative cleanup. Admitted
+responses and the outgoing queue flush during the first nine tenths; a blocked
+flush cannot extend the total budget. Connections close with
+`RpcConnectionClose.SERVICE_RESTART` (1012), which observers and middleware also
+see. Existing disconnect or explicit-close causes are preserved during races.
+Handlers, dependency exits, and observer cleanup must cooperate with cancellation;
+if cleanup exceeds the final deadline, drain returns, cancels it again, and logs
+the outstanding cleanup. Python cannot forcibly terminate cancellation-resistant
+application code. Create a fresh coordinator for a new service lifetime.
+
+Generated reconnect policies already treat 1001, 1012, and 1013 as transient.
+The request error is a remote error and is not automatically replayed. Client
+operation signatures and defaults are unchanged by server drain support.
