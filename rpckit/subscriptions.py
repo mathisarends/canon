@@ -56,7 +56,7 @@ class SubscriptionSession:
     async def handle(
         self, request: RpcRequestEnvelope, *, admitted_at: float | None = None
     ) -> RpcResponse | None:
-        async def handshake(scope: RpcRequestScope | None) -> None:
+        async def handshake(scope: "RpcRequestScope | None") -> None:
             token = self._request.set(scope)
             try:
                 await self._handle(request)

@@ -118,7 +118,7 @@ class RpcServer:
     async def _handle_one_bounded(
         self, raw_request: object, *, admitted_at: float | None = None
     ) -> RpcResponse | None:
-        async def dispatch(scope: RpcRequestScope | None) -> RpcResponse | None:
+        async def dispatch(scope: "RpcRequestScope | None") -> RpcResponse | None:
             return await self._dispatch_request(raw_request, scope=scope)
 
         return await self._run_bounded(raw_request, dispatch, admitted_at=admitted_at)
