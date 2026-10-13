@@ -30,6 +30,11 @@ class RpcSubscriptionLimitError(RpcError):
 
 
 class SubscriptionSession:
+    async def wait_finished(self) -> None:
+        await asyncio.gather(
+            *(task for _, task in tuple(self._tasks.values())), return_exceptions=True
+        )
+
     def __init__(
         self,
         definitions: tuple[RpcSubscriptionDefinition, ...],

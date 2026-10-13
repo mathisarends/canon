@@ -20,6 +20,7 @@ from rpckit.connection import (
 )
 from rpckit.contract import RpcContract, ServerVariable
 from rpckit.dependencies import RpcResolverLike, resolver_with_context
+from rpckit.drain import RpcDrain
 from rpckit.errors import (
     ProtocolDefinitionError,
     RpcErrorBinding,
@@ -251,6 +252,7 @@ class RpcService:
         middleware: Sequence[RpcMiddlewareLike] = (),
         limits: RpcLimits | None = None,
         strict_errors: bool = False,
+        drain: RpcDrain | None = None,
         rejects: Sequence[RpcErrorBinding[Any]] = (),
     ) -> None:
         if not isinstance(version, int) or version < 1:
@@ -263,6 +265,7 @@ class RpcService:
         self._middleware = tuple(middleware)
         self._limits = limits or RpcLimits()
         self._strict_errors = strict_errors
+        self.drain = drain or RpcDrain()
         self._rejects = rejecting_contracts(rejects, "RpcService")
         self._endpoints: list[RpcAnyEndpoint] = []
         self._channels: set[RpcChannel] = set()

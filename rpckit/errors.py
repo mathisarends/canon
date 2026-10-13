@@ -191,6 +191,11 @@ class RpcRequestCancelledError(RpcError):
     rpc_code = RpcErrorCode.REQUEST_CANCELLED
 
 
+class RpcServerShuttingDownError(RpcError):
+    _builtin = True
+    code = "server_shutting_down"
+
+
 def error_message(code: str | int) -> str:
     if isinstance(code, str):
         return code.replace("_", " ").capitalize()

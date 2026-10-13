@@ -30,6 +30,7 @@ from .dependencies import (
     RpcResolverScope,
     call_scope,
 )
+from .drain import RpcDrain
 from .envelopes import RpcFailure, RpcNotification, RpcRequestId, RpcSuccess
 from .errors import (
     ProtocolDefinitionError,
@@ -44,6 +45,7 @@ from .errors import (
     RpcParseError,
     RpcRequestCancelledError,
     RpcRequestTimeoutError,
+    RpcServerShuttingDownError,
     RpcValidationIssue,
     error_message,
 )
@@ -83,6 +85,8 @@ from .streams import (
 __version__ = "0.10.0"
 
 __all__ = [
+    "RpcDrain",
+    "RpcServerShuttingDownError",
     "RpcEndpointInfo",
     "RpcStreamEndpointInfo",
     "RpcConnectionOutcome",
