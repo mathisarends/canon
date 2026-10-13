@@ -1,6 +1,6 @@
 # 12: Credential expiry on long-lived connections
 
-- **Status:** open
+- **Status:** done — [PR #35](https://github.com/mathisarends/pyrpckit/pull/35)
 - **Priority:** medium
 - **Area:** server (`rpckit/connection.py`, `rpckit/runtime.py`), docs,
   generated clients (verification only)
