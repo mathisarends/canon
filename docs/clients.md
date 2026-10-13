@@ -299,23 +299,101 @@ const client = await TasksClient.connect({
 });
 ```
 
-Python clients expose `client.closed`, which resolves with the cause of the
-first unexpected WebSocket disconnect, or `None` after a normal close. Pass
-`reconnect=True` to retry failed connections with bounded backoff and resume
-active subscriptions on the new socket. The delay can be adjusted with
-`reconnect_initial_delay` and `reconnect_max_delay`.
+Generated connection clients expose `client.state`, per-server `client.states`
+snapshots, and `client.closed`. Python exports the `RpcConnectionState` string
+enum; TypeScript uses the same four string values: `connecting`, `connected`,
+`reconnecting`, and `closed`. Unopened lazy endpoints start as `connecting`.
+The aggregate state prefers `reconnecting`, then `connected` if any endpoint is
+available; a terminal endpoint or explicit client close makes it `closed`.
+
+Pass `reconnect=True` / `reconnect: true` to recover proactively after a transient
+drop, including when no method call is waiting. Initial connect failures surface
+immediately and are terminal; they are never retried. Subsequent recovery uses
+one shared attempt per server. Cancelling or timing out one caller leaves the
+attempt available to others. Each attempt is bounded by the configured request
+timeout, and explicit close interrupts opening and backoff. Eager connection
+failure closes the other endpoints without waiting for an unlimited opener.
+
+`client.closed` resolves with the first terminal cause, or `None` / `undefined`
+after explicit close. With reconnect enabled it stays pending during transient
+loss and recovery. Without reconnect, the first drop remains terminal. If one
+server becomes terminal, the aggregate signal resolves and its state is `closed`,
+while other servers keep their own transports and can still serve calls until
+explicit close. A closed client borrowing a source resolves its local signal
+without closing that source.
 
 ```python
 async with TasksClient.connect(reconnect=True) as client:
     cause = await client.closed
     if cause is not None:
-        print(f"Connection lost: {cause}")
+        print(f"Client terminally closed: {cause}")
 ```
 
-TypeScript clients accept `onDisconnect` to observe unexpected socket loss.
-Pass `reconnect: true` to retry failed connections with bounded backoff and
-resume active subscriptions. Adjust the delay with `reconnectInitialDelayMs`
-and `reconnectMaxDelayMs`.
+State callbacks identify the endpoint and preserve its original cause:
+
+```python
+def state_changed(server, state, error):
+    print(server, state)
+
+
+async with TasksClient.connect(
+    reconnect=True,
+    reconnect_max_attempts=5,
+    on_state_change=state_changed,
+) as client:
+    ...
+```
+
+```ts
+const client = await TasksClient.connect({
+  reconnect: true,
+  reconnectMaxAttempts: 5,
+  onStateChange: (server, state, error) => {
+    console.log(server, state);
+  },
+});
+```
+
+Callbacks run in state-transition order per server: initial `connecting`, then
+`connected`; a retryable drop emits `reconnecting`, then `connected` or `closed`.
+Keep callbacks quick and synchronous. Callback failures are reported and contained.
+TypeScript's existing `onDisconnect` remains available, and its failures also cannot
+break cleanup. Every reconnect can imply a notification gap; resync application
+state when connectivity returns. Remote subscriptions reacquire their server
+subscription; plain notification iterator recovery is handled separately.
+
+Backoff uses full jitter: a random fraction between zero and one times the current
+delay cap, which doubles from `reconnect_initial_delay` / `reconnectInitialDelayMs`
+up to `reconnect_max_delay` / `reconnectMaxDelayMs`. Caps reset after success.
+The first recovery attempt is immediate; jitter applies between failed attempts.
+`reconnect_max_attempts` / `reconnectMaxAttempts` counts attempts in each recovery
+episode; the default `None` / `null` is unlimited, and zero disables recovery.
+Exhaustion preserves the last connect error. `reconnect_random` / `reconnectRandom`
+accepts an injectable fraction source for deterministic tests.
+
+Permanent `RpcConnectError` failures, including visible 401/403/404 handshake
+rejections, stop immediately. Disconnects with 1001, 1012, or 1013 are transient.
+Protocol/data/policy/size closes 1002/1003/1007/1008/1009 are terminal by default,
+as are malformed RPC frames. The sole default policy exception is **1008 with
+the exact reason `credentials_expired`**, which requests credential refresh;
+other 1008 reasons remain terminal. Python's header factory runs on every attempt.
+Invalid refreshed credentials that visibly reject with 401/403 stop recovery.
+Browsers can expose only an opaque handshake error, so configure a finite attempt
+limit when that prevents reliable permanence classification.
+
+Override classification with `reconnect_should_retry(error)` /
+`reconnectShouldRetry(error)` for an application-specific policy. A classifier
+failure stops retrying and preserves the connection error. Automatic reconnect
+opens a new transport; it never replays the failed RPC request.
+
+The configured request timeout now covers connection acquisition, shared-attempt
+wait, backoff, and sending/waiting for the RPC result in one budget after before
+hooks. It no longer resets after connection acquisition. After-response hooks run
+outside that budget. SDK timeout types and the 30-second default stay unchanged;
+cancellation of a sent call still uses the ticket 06 wire control. Regenerate both
+SDKs to receive this policy and the new lifecycle members. Generated root APIs
+must avoid names `closed`, `state`, and `states`; alias colliding namespaces with
+the generator's `api_names` option.
 
 Top-level server variables such as `host` apply to every server and binary
 stream that declares that variable. Override only exceptional deployments with
