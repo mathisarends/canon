@@ -3,6 +3,7 @@ import logging
 import time
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager, nullcontext, suppress
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import ValidationError
@@ -36,6 +37,7 @@ from rpckit.errors import (
     RpcInternalError,
     RpcInvalidRequestError,
     RpcParseError,
+    RpcRequestCancelledError,
     bind_contracts,
     contract_for,
     contract_of,
@@ -51,7 +53,7 @@ from rpckit.middleware import (
 )
 from rpckit.observer import RpcConnectionContext, RpcObserverLike, notify_observer
 from rpckit.raw_sockets import RpcMessageType, RpcRawSocket
-from rpckit.server import RpcErrorMapper, RpcServer
+from rpckit.server import _CLIENT_CANCEL, RpcErrorMapper, RpcServer
 from rpckit.service import RpcEndpoint, RpcRawSocketEndpoint, RpcStreamEndpoint
 from rpckit.streams import (
     RpcBinaryInput,
@@ -228,6 +230,8 @@ async def _serve_endpoint(
 
     connection._on_close = request_close
     tasks: set[asyncio.Task] = set()
+    call_tasks: set[asyncio.Task] = set()
+    requests: dict[tuple[type, str | int], _PendingCall] = {}
     try:
         async with connection_scope(resolved, values) as scoped:
             server = RpcServer._from_channel(
@@ -277,40 +281,58 @@ async def _serve_endpoint(
                     logger.exception("RPC writer failed")
                     request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
 
-            async def invoke_one(message, reservation, invalid, batch):
+            async def invoke_one(call):
+                call.started = True
+                message = call.message
                 try:
-                    if invalid:
+                    if call.invalid:
                         return await server._handle_failure(
                             message, RpcInvalidRequestError()
                         )
-                    if reservation is None:
+                    if call.reservation is None:
                         return await reject_pending(message)
-                    if not batch and subscriptions.owns(message["method"]):
-                        await subscriptions.handle(
-                            RpcRequestEnvelope.model_validate(message)
+                    if not call.batch and subscriptions.owns(message["method"]):
+                        return await subscriptions.handle(
+                            RpcRequestEnvelope.model_validate(message),
+                            admitted_at=call.admitted_at,
                         )
-                        return None
-                    return await server._handle_one_bounded(message)
+                    return await server._handle_one_bounded(
+                        message, admitted_at=call.admitted_at
+                    )
                 finally:
-                    if reservation is not None:
-                        pending.release(reservation)
+                    if call.reservation is not None:
+                        pending.release(call.reservation)
+
+            async def collect_one(call):
+                try:
+                    return await call.task
+                except asyncio.CancelledError:
+                    # Task.cancel() can prevent an admitted task from ever starting.
+                    if (
+                        call.started
+                        or not call.cancel_requested
+                        or close_event.is_set()
+                        or asyncio.current_task().cancelling()
+                    ):
+                        raise
+                    return await server._handle_failure(
+                        call.message, RpcRequestCancelledError()
+                    )
 
             async def invoke(items, batch):
-                work = tuple(
-                    asyncio.create_task(
-                        invoke_one(message, reservation, invalid, batch)
-                    )
-                    for message, reservation, invalid in items
-                )
                 try:
-                    responses = await asyncio.gather(*work)
+                    responses = await asyncio.gather(
+                        *(collect_one(call) for call in items)
+                    )
                 finally:
-                    for task in work:
-                        if not task.done():
-                            task.cancel()
-                    await asyncio.gather(*work, return_exceptions=True)
+                    for call in items:
+                        if not call.task.done():
+                            call.task.cancel()
+                    await asyncio.gather(
+                        *(call.task for call in items), return_exceptions=True
+                    )
                 responses = [response for response in responses if response is not None]
-                if responses:
+                if responses and not close_event.is_set():
                     await send_outgoing(
                         codec.encode(responses if batch else responses[0])
                     )
@@ -322,14 +344,63 @@ async def _serve_endpoint(
                     logger.warning("RPC client exceeded max_pending_requests")
                 return await server._handle_failure(message, RpcPendingLimitError())
 
-            def invocation_done(task, reservations):
+            def invocation_done(task):
                 tasks.discard(task)
-                # Also covers cancellation before the invocation starts.
-                for reservation in reservations:
-                    pending.release(reservation)
                 if not task.cancelled() and (error := task.exception()) is not None:
                     _record_error(error)
                     request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
+
+            def schedule_failure(message, error):
+                if len(tasks) >= limits.max_pending_requests + limits.max_queue_size:
+                    request_close(
+                        RpcConnectionClose.POLICY_VIOLATION,
+                        "Too many response collectors",
+                    )
+                    return False
+
+                async def respond():
+                    response = await server._handle_failure(message, error)
+                    if response is not None and not close_event.is_set():
+                        await send_outgoing(codec.encode(response))
+
+                task = asyncio.create_task(respond())
+                tasks.add(task)
+                task.add_done_callback(invocation_done)
+                return True
+
+            def call_done(call, key):
+                call_tasks.discard(call.task)
+                if call.reservation is not None:
+                    pending.release(call.reservation)
+                if key is not None and requests.get(key) is call:
+                    del requests[key]
+
+            def cancel_request(item):
+                if (
+                    not isinstance(item, dict)
+                    or item.get("method") != "$/cancelRequest"
+                ):
+                    return False
+                if "id" in item:
+                    return False
+                params = item.get("params")
+                if (
+                    item.get("jsonrpc") == "2.0"
+                    and set(item) == {"jsonrpc", "method", "params"}
+                    and isinstance(params, dict)
+                    and set(params) == {"id"}
+                    and type(params["id"]) in (str, int)
+                ):
+                    call = requests.get((type(params["id"]), params["id"]))
+                    if (
+                        call is not None
+                        and call.reservation is not None
+                        and not call.cancel_requested
+                        and not call.task.done()
+                    ):
+                        call.cancel_requested = True
+                        call.task.cancel(_CLIENT_CANCEL)
+                return True
 
             async def reader():
                 nonlocal client_closed
@@ -357,24 +428,17 @@ async def _serve_endpoint(
                         try:
                             message = codec.decode(frame)
                         except RpcParseError as error:
-                            await send_outgoing(
-                                codec.encode(await server._handle_failure(frame, error))
-                            )
+                            if not schedule_failure(frame, error):
+                                return
                             continue
                         batch = isinstance(message, list)
                         if batch and (
                             not message or len(message) > limits.max_batch_size
                         ):
-                            await send_outgoing(
-                                codec.encode(
-                                    await server._handle_failure(
-                                        message, RpcInvalidRequestError()
-                                    )
-                                )
-                            )
+                            if not schedule_failure(message, RpcInvalidRequestError()):
+                                return
                             continue
                         items = []
-                        reservations = []
                         # Bound response collectors as well as admitted items.
                         collectors_full = len(tasks) >= (
                             limits.max_pending_requests + limits.max_queue_size
@@ -382,29 +446,57 @@ async def _serve_endpoint(
                         for item in message if batch else [message]:
                             if connected_client._resolve(item):
                                 continue
+                            if cancel_request(item):
+                                continue
+                            if collectors_full:
+                                request_close(
+                                    RpcConnectionClose.POLICY_VIOLATION,
+                                    "Too many response collectors",
+                                )
+                                return
                             try:
-                                RpcRequestEnvelope.model_validate(item)
-                            except ValidationError:
+                                envelope = RpcRequestEnvelope.model_validate(item)
+                                if envelope.method == "$/cancelRequest":
+                                    raise ValueError(
+                                        "Cancellation must be a notification"
+                                    )
+                            except (ValidationError, ValueError):
                                 invalid = True
                                 reservation = None
                             else:
                                 invalid = False
-                                reservation = (
-                                    None if collectors_full else pending.reserve()
-                                )
-                            items.append((item, reservation, invalid))
-                            if reservation is not None:
-                                reservations.append(reservation)
-                        if not reservations:
-                            await invoke(items, batch)
+                                reservation = pending.reserve()
+                            key = None
+                            if not invalid and type(item.get("id")) in (str, int):
+                                key = (type(item["id"]), item["id"])
+                                if key in requests:
+                                    if reservation is not None:
+                                        pending.release(reservation)
+                                    request_close(
+                                        RpcConnectionClose.PROTOCOL_ERROR,
+                                        "Duplicate in-flight request id",
+                                    )
+                                    return
+                            call = _PendingCall(
+                                item,
+                                reservation,
+                                invalid,
+                                batch,
+                                asyncio.get_running_loop().time(),
+                            )
+                            call.task = asyncio.create_task(invoke_one(call))
+                            call_tasks.add(call.task)
+                            if key is not None:
+                                requests[key] = call
+                            call.task.add_done_callback(
+                                lambda _, call=call, key=key: call_done(call, key)
+                            )
+                            items.append(call)
+                        if not items:
                             continue
                         task = asyncio.create_task(invoke(items, batch))
                         tasks.add(task)
-                        task.add_done_callback(
-                            lambda task, reservations=reservations: invocation_done(
-                                task, reservations
-                            )
-                        )
+                        task.add_done_callback(invocation_done)
                 except RpcDisconnect as error:
                     client_closed = True
                     request_close(error.code, error.reason, error.raw_close_code)
@@ -450,9 +542,11 @@ async def _serve_endpoint(
             ]
             try:
                 await close_event.wait()
-                for task in (*producers, *tasks):
+                for task in (*producers, *tasks, *call_tasks):
                     task.cancel()
-                await asyncio.gather(*producers, *tasks, return_exceptions=True)
+                await asyncio.gather(
+                    *producers, *tasks, *call_tasks, return_exceptions=True
+                )
                 await subscriptions.close()
                 if close_value[0] in (
                     RpcConnectionClose.NORMAL,
@@ -460,10 +554,10 @@ async def _serve_endpoint(
                 ):
                     await _flush(outgoing, writer_task, limits.send_timeout)
             finally:
-                for task in (writer_task, *producers, *tasks):
+                for task in (writer_task, *producers, *tasks, *call_tasks):
                     task.cancel()
                 await asyncio.gather(
-                    writer_task, *producers, *tasks, return_exceptions=True
+                    writer_task, *producers, *tasks, *call_tasks, return_exceptions=True
                 )
     except asyncio.CancelledError:
         close_value[:] = [RpcConnectionClose.SHUTDOWN, ""]
@@ -499,6 +593,18 @@ async def _serve_endpoint(
         )
 
 
+@dataclass
+class _PendingCall:
+    message: Any
+    reservation: object | None
+    invalid: bool
+    batch: bool
+    admitted_at: float
+    task: asyncio.Task = field(init=False)
+    started: bool = False
+    cancel_requested: bool = False
+
+
 class _PendingRequests:
     def __init__(self, limit: int) -> None:
         self.limit = limit
@@ -520,6 +626,7 @@ class _PendingRequests:
 
 
 class RpcPendingLimitError(RpcError):
+    _builtin = True
     code = "pending_limit"
     message = "Too many pending requests"
 

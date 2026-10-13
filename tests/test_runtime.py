@@ -19,13 +19,376 @@ from rpckit import (
     RpcErrorCode,
     RpcHandshake,
     RpcLimits,
+    RpcMiddleware,
     RpcModel,
     RpcObserver,
     RpcRejection,
+    RpcRequestCancelledError,
+    RpcRequestTimeoutError,
     RpcService,
 )
 
+from .deadlines import ControlledDeadlines
 from .testing import InMemorySocket, RpcTestClient
+
+
+class DeadlineRecorder(RpcMiddleware):
+    def __init__(self):
+        self.started = asyncio.Queue()
+        self.finished = asyncio.Queue()
+
+    @asynccontextmanager
+    async def request(self, scope):
+        self.started.put_nowait(scope)
+        try:
+            yield
+        finally:
+            self.finished.put_nowait(scope)
+
+
+def deadline_request(request_id, method="deadlines.work"):
+    return {"jsonrpc": "2.0", "id": request_id, "method": method}
+
+
+def cancel_notification(request_id):
+    return {"jsonrpc": "2.0", "method": "$/cancelRequest", "params": {"id": request_id}}
+
+
+@asynccontextmanager
+async def deadline_socket(app, socket=None):
+    socket = socket or InMemorySocket("/rpc")
+    serving = asyncio.create_task(app.serve(socket))
+    try:
+        async with asyncio.timeout(2):
+            yield socket, serving
+    finally:
+        await socket.client_disconnect()
+        await asyncio.wait_for(serving, 1)
+
+
+async def test_hung_calls_expire_including_queued_batch_item_and_release_capacity(
+    monkeypatch,
+):
+    clock = ControlledDeadlines(monkeypatch)
+    entered = asyncio.Queue()
+    finished = []
+    recorder = DeadlineRecorder()
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> None:
+        entered.put_nowait(True)
+        try:
+            await asyncio.Future()
+        finally:
+            finished.append(True)
+
+    @channel.method(timeout=None)
+    async def ping() -> str:
+        return "pong"
+
+    app = RpcService(
+        limits=RpcLimits(max_concurrency=2, max_pending_requests=3, request_timeout=5),
+        strict_errors=True,
+        middleware=[recorder],
+    )
+    app.socket("/rpc", channels=[channel])
+    async with deadline_socket(app) as (socket, _):
+        await socket.client_send(json.dumps([deadline_request(i) for i in (1, 2, 3)]))
+        timers = [await clock.next() for _ in range(3)]
+        await entered.get()
+        await entered.get()
+        # Expire the queued item first so it never enters the handler.
+        for _, waiting in reversed(timers):
+            clock.expire(waiting)
+        response = json.loads(await socket.client_receive())
+        assert [r["id"] for r in response] == [1, 2, 3]
+        assert all(r["error"]["data"]["code"] == "request_timeout" for r in response)
+        assert all(r["error"]["code"] == RpcErrorCode.SERVER_ERROR for r in response)
+        assert finished == [True, True]
+        assert entered.empty()
+        for _ in range(3):
+            scope = await recorder.finished.get()
+            assert isinstance(scope.outcome.error, RpcRequestTimeoutError)
+            assert not scope.outcome.cancelled
+        await socket.client_send(json.dumps(deadline_request(4, "deadlines.ping")))
+        assert json.loads(await socket.client_receive())["result"] == "pong"
+
+
+async def test_cancel_bypasses_saturated_slots_preserves_id_types_and_cleans_scopes():
+    entered = asyncio.Event()
+    stopped = asyncio.Event()
+    exits = []
+    recorder = DeadlineRecorder()
+
+    class Resolver:
+        @asynccontextmanager
+        async def enter_scope(self):
+            try:
+                yield self
+            finally:
+                exits.append(True)
+
+        async def resolve(self, dependency):
+            return "dependency"
+
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work(value: Inject[str]) -> None:
+        assert value == "dependency"
+        entered.set()
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            stopped.set()
+            raise
+
+    @channel.method()
+    async def ping() -> str:
+        return "pong"
+
+    app = RpcService(
+        limits=RpcLimits(max_concurrency=1, max_pending_requests=2),
+        strict_errors=True,
+        middleware=[recorder],
+    )
+    app.socket("/rpc", channels=[channel])
+    socket = InMemorySocket("/rpc")
+    serving = asyncio.create_task(app.serve(socket, resolver=Resolver()))
+    try:
+        async with asyncio.timeout(2):
+            await socket.client_send(json.dumps(deadline_request(1)))
+            await entered.wait()
+            await socket.client_send(json.dumps(deadline_request("1")))
+            await recorder.started.get()
+            await recorder.started.get()  # String id is queued behind integer id.
+            await socket.client_send(json.dumps(cancel_notification("unknown")))
+            await socket.client_send(json.dumps(deadline_request(9, "deadlines.ping")))
+            rejection = json.loads(await socket.client_receive())
+            assert rejection["error"]["data"]["code"] == "pending_limit"
+            await socket.client_send(json.dumps(cancel_notification("1")))
+            queued = json.loads(await socket.client_receive())
+            assert queued["id"] == "1"
+            assert queued["error"]["code"] == -32800
+            assert queued["error"]["data"]["code"] == "request_cancelled"
+            assert not stopped.is_set()
+            await socket.client_send(json.dumps(cancel_notification(1)))
+            running = json.loads(await socket.client_receive())
+            assert running["id"] == 1 and type(running["id"]) is int
+            assert running["error"]["data"]["code"] == "request_cancelled"
+            assert stopped.is_set()
+            assert exits == [
+                True
+            ]  # Queued invocation never entered a dependency scope.
+            scopes = [await recorder.finished.get() for _ in range(3)]
+            cancelled = [
+                s
+                for s in scopes
+                if isinstance(s.outcome.error, RpcRequestCancelledError)
+            ]
+            assert len(cancelled) == 2
+            assert all(s.outcome.cancelled for s in cancelled)
+            await socket.client_send(json.dumps(cancel_notification(1)))  # Finished id.
+            await socket.client_send(json.dumps(deadline_request(10, "deadlines.ping")))
+            assert json.loads(await socket.client_receive())["result"] == "pong"
+    finally:
+        await socket.client_disconnect()
+        await asyncio.wait_for(serving, 1)
+
+
+async def test_same_batch_cancel_before_task_start_keeps_one_batch_response():
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> None:
+        pytest.fail("Cancelled before the invocation starts")
+
+    @channel.method()
+    async def ping() -> str:
+        return "pong"
+
+    app = RpcService(limits=RpcLimits(max_pending_requests=2))
+    app.socket("/rpc", channels=[channel])
+    async with deadline_socket(app) as (socket, _):
+        await socket.client_send(
+            json.dumps(
+                [
+                    deadline_request(1),
+                    cancel_notification(1),
+                    deadline_request(2, "deadlines.ping"),
+                    {**cancel_notification(2), "id": 3},
+                    cancel_notification("unknown"),
+                ]
+            )
+        )
+        response = json.loads(await socket.client_receive())
+        assert [r["id"] for r in response] == [1, 2, 3]
+        assert response[0]["error"]["data"]["code"] == "request_cancelled"
+        assert response[1]["result"] == "pong"
+        assert response[2]["error"]["data"]["code"] == "invalid_request"
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"params": {"id": True}},
+        {"params": {"id": None}},
+        {"params": {"id": []}},
+        {"params": {"id": 1, "extra": True}},
+        {"params": [1]},
+        {"jsonrpc": "1.0"},
+        {"extra": True},
+    ],
+)
+async def test_malformed_cancel_notifications_do_not_cancel_work(invalid):
+    entered, release = asyncio.Event(), asyncio.Event()
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> str:
+        entered.set()
+        await release.wait()
+        return "completed"
+
+    app = RpcService(limits=RpcLimits(max_pending_requests=1))
+    app.socket("/rpc", channels=[channel])
+    async with deadline_socket(app) as (socket, _):
+        await socket.client_send(json.dumps(deadline_request(1)))
+        await entered.wait()
+        await socket.client_send(json.dumps({**cancel_notification(1), **invalid}))
+        await socket.client_send(json.dumps(deadline_request(2)))
+        assert (
+            json.loads(await socket.client_receive())["error"]["data"]["code"]
+            == "pending_limit"
+        )
+        release.set()
+        assert json.loads(await socket.client_receive())["result"] == "completed"
+
+
+@pytest.mark.parametrize("batch", [False, True])
+async def test_duplicate_in_flight_ids_close_without_overwriting_original(batch):
+    entered, stopped = asyncio.Event(), asyncio.Event()
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> None:
+        entered.set()
+        try:
+            await asyncio.Future()
+        finally:
+            stopped.set()
+
+    app = RpcService()
+    app.socket("/rpc", channels=[channel])
+    async with deadline_socket(app) as (socket, serving):
+        if batch:
+            await socket.client_send(
+                json.dumps([deadline_request(1), deadline_request(1)])
+            )
+        else:
+            await socket.client_send(json.dumps(deadline_request(1)))
+            await entered.wait()
+            await socket.client_send(json.dumps(deadline_request(1)))
+        await serving
+        assert socket.closed == (
+            RpcConnectionClose.PROTOCOL_ERROR,
+            "Duplicate in-flight request id",
+        )
+        if not batch:
+            assert stopped.is_set()
+
+
+@pytest.mark.parametrize("invalid", ["42", "{", "[]"])
+async def test_cancel_is_processed_while_writer_and_outgoing_queue_are_full(invalid):
+    from rpckit.testing import SocketFaults
+
+    entered, stopped = asyncio.Event(), asyncio.Event()
+    recorder = DeadlineRecorder()
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> None:
+        entered.set()
+        try:
+            await asyncio.Future()
+        finally:
+            stopped.set()
+
+    faults = SocketFaults()
+    faults.block()
+    socket = InMemorySocket("/rpc", server_to_client=faults)
+    app = RpcService(
+        limits=RpcLimits(max_pending_requests=2, max_queue_size=1),
+        middleware=[recorder],
+    )
+    app.socket("/rpc", channels=[channel])
+    try:
+        async with deadline_socket(app, socket) as (socket, _):
+            await socket.client_send(json.dumps(deadline_request(1)))
+            await entered.wait()
+            await socket.client_send(invalid)
+            await faults.blocked.wait()
+            await recorder.finished.get()
+            await socket.client_send(invalid)
+            await recorder.finished.get()
+            # The second invalid response fills the queue behind the blocked writer.
+            await asyncio.sleep(0)
+            await socket.client_send(json.dumps(cancel_notification(1)))
+            await stopped.wait()
+            faults.unblock()
+    finally:
+        faults.unblock()
+
+
+@pytest.mark.parametrize("ending", ["disconnect", "shutdown"])
+async def test_shutdown_cancellation_releases_admission_without_cancelled_responses(
+    monkeypatch, ending
+):
+    import rpckit.runtime as runtime_module
+
+    capacities = []
+    original = runtime_module._PendingRequests
+
+    def capture(limit):
+        result = original(limit)
+        capacities.append(result)
+        return result
+
+    monkeypatch.setattr(runtime_module, "_PendingRequests", capture)
+    before = asyncio.all_tasks()
+    entered, stopped = asyncio.Event(), asyncio.Event()
+    recorder = DeadlineRecorder()
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> None:
+        entered.set()
+        try:
+            await asyncio.Future()
+        finally:
+            stopped.set()
+
+    app = RpcService(middleware=[recorder])
+    app.socket("/rpc", channels=[channel])
+    socket = InMemorySocket("/rpc")
+    serving = asyncio.create_task(app.serve(socket))
+    await socket.client_send(json.dumps(deadline_request(1)))
+    await asyncio.wait_for(entered.wait(), 1)
+    if ending == "shutdown":
+        serving.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await serving
+    else:
+        await socket.client_disconnect()
+        await serving
+    assert stopped.is_set()
+    scope = await recorder.finished.get()
+    assert scope.outcome.cancelled
+    assert isinstance(scope.outcome.error, asyncio.CancelledError)
+    assert scope.outcome.response is None
+    assert capacities[0].count == 0
+    assert not asyncio.all_tasks() - before
 
 
 class Params(RpcModel):
@@ -211,6 +574,12 @@ async def test_parse_error_is_answered_and_connection_remains_usable(frame, capl
         "result": {"value": "still open"},
     }
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+@pytest.mark.parametrize("timeout", [0, -1, True, float("nan"), float("inf"), "5"])
+def test_request_timeout_limit_requires_positive_finite_seconds(timeout):
+    with pytest.raises(ValueError, match="request_timeout"):
+        RpcLimits(request_timeout=timeout)
 
 
 async def test_pending_rejection_logs_are_bounded_even_at_debug(caplog) -> None:
