@@ -49,6 +49,7 @@ export type RpcRouteInfo<
   Result = unknown,
 > = {
   readonly method: string;
+  readonly idempotent?: boolean;
   readonly server?: string;
   readonly errorMapper?: (
     rpcCode: number,
@@ -112,6 +113,7 @@ type NotificationHub = {
 
 /** Where the client gets the transport of one server from. */
 export type RpcTransportSource = {
+  retryDelay?(retry: number): number;
   readonly requestTimeoutMs?: number;
   readonly closed?: Promise<unknown>;
   readonly state?: RpcConnectionState;
@@ -162,6 +164,20 @@ export class RpcTransportPool implements RpcTransportSource {
   readonly #resolveClosed: (error?: unknown) => void;
   #closed = false;
 
+  retryDelay(retry: number): number {
+    const fraction = this.#random();
+    if (!Number.isFinite(fraction) || fraction < 0 || fraction > 1)
+      throw new RpcTransportError(
+        "reconnectRandom must return a value between 0 and 1",
+      );
+    return (
+      fraction *
+      Math.min(
+        this.#initialDelayMs * 2 ** Math.min(retry - 1, 30),
+        this.#maxDelayMs,
+      )
+    );
+  }
   constructor(options: {
     readonly endpoints: readonly PoolEndpoint[];
     readonly open: (
@@ -670,6 +686,8 @@ export class RpcStreamFailed extends RpcClientError {
 export class RpcStreamRefused extends RpcStreamFailed {}
 
 export class RpcClientCore {
+  readonly #retryAttempts: number;
+  readonly #retryAttemptTimeoutMs?: number;
   readonly #source: RpcTransportSource;
   readonly #closeTransport: boolean;
   readonly streamOpener?: BinaryStreamOpener;
@@ -712,6 +730,8 @@ export class RpcClientCore {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly retryAttempts?: number;
+      readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
@@ -725,6 +745,16 @@ export class RpcClientCore {
     void this.#source.closed?.then(this.#resolveClosed, this.#resolveClosed);
     this.#closeTransport = options?.closeTransport ?? true;
     this.#hooks = options?.hooks ?? [];
+    this.#retryAttempts = options?.retryAttempts ?? 0;
+    this.#retryAttemptTimeoutMs = options?.retryAttemptTimeoutMs;
+    if (!Number.isInteger(this.#retryAttempts) || this.#retryAttempts < 0)
+      throw new RangeError("retryAttempts must be a nonnegative integer");
+    if (
+      this.#retryAttemptTimeoutMs !== undefined &&
+      (!Number.isFinite(this.#retryAttemptTimeoutMs) ||
+        this.#retryAttemptTimeoutMs <= 0)
+    )
+      throw new RangeError("retryAttemptTimeoutMs must be finite and positive");
     this.#notificationQueueSize = options?.notificationQueueSize ?? 100;
     this.#onOverflow = options?.onOverflow;
     if (
@@ -796,21 +826,70 @@ export class RpcClientCore {
     }
     if (signal?.aborted) throw signal.reason;
     const controller = new AbortController();
+    const closing = () =>
+      controller.abort(
+        new RpcConnectionLostError(false, undefined, "The client was closed"),
+      );
+    this.#closing.signal.addEventListener("abort", closing, { once: true });
+    if (this.#closed) closing();
     const operation = (async () => {
-      const transport = await this.#transportFor(route.server);
-      if (controller.signal.aborted) throw controller.signal.reason;
-      return transport.request(route.method, payload, {
-        ...options,
-        signal: controller.signal,
-      });
+      for (let attempt = 1; ; attempt++) {
+        if (controller.signal.aborted) throw controller.signal.reason;
+        try {
+          return await this.#requestAttempt(
+            route,
+            payload,
+            options,
+            controller.signal,
+            attempt,
+          );
+        } catch (error) {
+          if (
+            controller.signal.aborted ||
+            this.#closed ||
+            attempt > this.#retryAttempts ||
+            !(
+              error instanceof RpcConnectionLostError ||
+              error instanceof RpcRequestTimeoutError
+            ) ||
+            !(
+              (error instanceof RpcConnectionLostError && !error.sent) ||
+              route.idempotent
+            )
+          )
+            throw error;
+          const delay =
+            this.#source.retryDelay?.(attempt) ??
+            Math.random() *
+              Math.min(250 * 2 ** Math.min(attempt - 1, 30), 5_000);
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await withTimeout(
+              new Promise<void>((resolve) => {
+                timer = setTimeout(resolve, delay);
+              }),
+              undefined,
+              route.method,
+              controller.signal,
+            );
+          } finally {
+            if (timer !== undefined) clearTimeout(timer);
+          }
+        }
+      }
     })();
-    const result = await withTimeout(
-      operation,
-      this.#source.requestTimeoutMs,
-      route.method,
-      signal,
-      (error) => controller.abort(error),
-    );
+    let result: unknown;
+    try {
+      result = await withTimeout(
+        operation,
+        this.#source.requestTimeoutMs,
+        route.method,
+        signal,
+        (error) => controller.abort(error),
+      );
+    } finally {
+      this.#closing.signal.removeEventListener("abort", closing);
+    }
     for (const hook of [...this.#hooks].reverse()) {
       await withTimeout(
         Promise.resolve(hook.afterResponse?.(route, result)),
@@ -820,6 +899,31 @@ export class RpcClientCore {
       );
     }
     return result as RouteResult<Route>;
+  }
+
+  async #requestAttempt(
+    route: RpcRouteInfo,
+    payload: object | undefined,
+    options: RpcRequestOptions | undefined,
+    signal: AbortSignal,
+    _attempt: number,
+  ): Promise<unknown> {
+    const controller = new AbortController();
+    const operation = (async () => {
+      const transport = await this.#transportFor(route.server);
+      if (controller.signal.aborted) throw controller.signal.reason;
+      return transport.request(route.method, payload, {
+        ...options,
+        signal: controller.signal,
+      });
+    })();
+    return withTimeout(
+      operation,
+      this.#retryAttemptTimeoutMs,
+      route.method,
+      signal,
+      (error) => controller.abort(error),
+    );
   }
 
   notifications<Payload>(

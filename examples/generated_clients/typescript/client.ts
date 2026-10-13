@@ -57,6 +57,8 @@ export class AutomationClient {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly retryAttempts?: number;
+      readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
@@ -75,6 +77,8 @@ export class AutomationClient {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly retryAttempts?: number;
+      readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
@@ -116,6 +120,8 @@ export class AutomationClient {
       readonly rawSocketFactory?: RawWebSocketFactory;
       readonly rawSocketQueueSize?: number;
       readonly hooks?: readonly RpcClientHook[];
+      readonly retryAttempts?: number;
+      readonly retryAttemptTimeoutMs?: number;
     } = {},
   ): Promise<AutomationClient> {
     const variables: Record<string, string | undefined> = {
@@ -157,6 +163,8 @@ export class AutomationClient {
     if (!options.lazy) await pool.openAll();
     return new AutomationClient(pool, {
       hooks: options.hooks,
+      retryAttempts: options.retryAttempts,
+      retryAttemptTimeoutMs: options.retryAttemptTimeoutMs,
       notificationQueueSize: options.notificationQueueSize,
       onOverflow: options.onOverflow,
       streamOpener: (endpoint) =>
