@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -177,12 +178,14 @@ def test_unknown_peer_close_code_is_preserved_separately() -> None:
     assert error.raw_close_code == 4321
 
 
-async def test_parse_error_is_answered_and_connection_remains_usable() -> None:
+@pytest.mark.parametrize("frame", ["{", "[" * 100_000], ids=["syntax", "deep"])
+async def test_parse_error_is_answered_and_connection_remains_usable(frame, caplog):
+    caplog.set_level(logging.DEBUG, logger="rpckit")
     socket = InMemorySocket("/rpc")
     task = asyncio.create_task(service.serve(socket))
     await asyncio.sleep(0)
 
-    await socket.client_send("{")
+    await socket.client_send(frame)
     failure = json.loads(await socket.client_receive())
     await socket.client_send(
         json.dumps(
@@ -205,6 +208,53 @@ async def test_parse_error_is_answered_and_connection_remains_usable() -> None:
         "id": 1,
         "result": {"value": "still open"},
     }
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+async def test_pending_rejection_logs_are_bounded_even_at_debug(caplog) -> None:
+    caplog.set_level(logging.DEBUG, logger="rpckit")
+    entered, release = asyncio.Event(), asyncio.Event()
+    channel = RpcChannel("flood")
+    finished = []
+
+    class Observer(RpcObserver):
+        async def request_finished(self, context) -> None:
+            finished.append(context)
+
+    @channel.method
+    async def wait() -> None:
+        entered.set()
+        await release.wait()
+
+    app = RpcService(observer=Observer(), limits=RpcLimits(max_pending_requests=1))
+    app.socket("/rpc", channels=[channel])
+    socket = InMemorySocket("/rpc")
+    serving = asyncio.create_task(app.serve(socket))
+    try:
+        await socket.client_send(
+            json.dumps({"jsonrpc": "2.0", "id": 1, "method": "flood.wait"})
+        )
+        await entered.wait()
+        for request_id in range(2, 62):
+            await socket.client_send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "method": "flood.wait"})
+            )
+        for _ in range(60):
+            response = json.loads(await socket.client_receive())
+            assert response["error"]["data"]["code"] == "pending_limit"
+        release.set()
+        assert json.loads(await socket.client_receive())["id"] == 1
+    finally:
+        release.set()
+        await socket.client_disconnect()
+        await serving
+    records = [r for r in caplog.records if "max_pending_requests" in r.message]
+    assert len(records) == 2
+    assert [r.levelno for r in records] == [logging.WARNING, logging.DEBUG]
+    assert "60" in records[-1].message
+    assert (
+        len([c for c in finished if c.response and hasattr(c.response, "error")]) == 60
+    )
 
 
 async def test_requests_beyond_the_pending_limit_are_rejected() -> None:
