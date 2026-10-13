@@ -21,6 +21,7 @@ from .errors import (
 )
 from .metadata import (
     JsonValue,
+    RpcConnectionState,
     RpcContractInfo,
     RpcNotificationInfo,
     RpcRouteInfo,
@@ -43,6 +44,7 @@ __all__ = [
     "RpcConnectError",
     "RpcConnectionClosed",
     "RpcConnectionLostError",
+    "RpcConnectionState",
     "RpcContractInfo",
     "RpcNotificationInfo",
     "RpcNotificationValidationError",

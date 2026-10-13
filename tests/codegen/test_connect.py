@@ -32,7 +32,10 @@ class FakeSocket:
         )
 
     async def recv(self) -> str:
-        return await self._replies.get()
+        message = await self._replies.get()
+        if isinstance(message, BaseException):
+            raise message
+        return message
 
     async def close(self) -> None:
         self.closed = True
@@ -200,20 +203,27 @@ async def test_reconnect_opens_a_fresh_socket_after_disconnect(
     client_module: ModuleType,
 ) -> None:
     network = FakeNetwork({"text": "ok"})
+    recovered = asyncio.Event()
+
+    def changed(server, state, error):
+        if state == "connected" and len(network.sockets) == 3:
+            recovered.set()
+
     client = await client_module.GreetingClient.connect(
         socket_factory=network,
         reconnect=True,
         reconnect_initial_delay=0.001,
+        on_state_change=changed,
     )
     try:
         assert (await client.greeting.say(name="first")).text == "ok"
-        network.sockets[0]._replies.put_nowait("not json")
-        assert isinstance(
-            await asyncio.wait_for(client.closed, 1),
-            client_module.RpcTransportError,
-        )
+        network.sockets[0]._replies.put_nowait(ConnectionResetError("dropped"))
+        await asyncio.wait_for(recovered.wait(), 1)
         assert (await client.greeting.say(name="second")).text == "ok"
-        assert len(network.sockets) == 3
+        async with asyncio.timeout(1):
+            while len(network.sockets) < 3:
+                await asyncio.sleep(0)
+        assert not client.closed.done()
     finally:
         await client.close()
 
@@ -244,9 +254,11 @@ async def test_reconnecting_call_fails_after_the_request_timeout(
     )
     try:
         reachable = False
-        network.sockets[0]._replies.put_nowait("not json")
-        await asyncio.wait_for(client.closed, 1)
-        with pytest.raises(client_module.RpcTransportError, match="request timeout"):
+        network.sockets[0]._replies.put_nowait(ConnectionResetError("dropped"))
+        async with asyncio.timeout(1):
+            while client.state != client_module.RpcConnectionState.RECONNECTING:
+                await asyncio.sleep(0)
+        with pytest.raises(client_module.RpcRequestTimeoutError):
             await asyncio.wait_for(client.greeting.say(name="lost"), 1)
     finally:
         await client.close()
