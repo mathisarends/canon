@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -26,6 +28,51 @@ from .conftest import (
 
 def _server(handler: GreetingState) -> RpcServer:
     return greeting_app.create_server(resolver=TestResolver(handler))
+
+
+async def test_handle_json_maps_deep_nesting_to_parse_error(handler, caplog) -> None:
+    caplog.set_level(logging.DEBUG, logger="rpckit")
+    response = json.loads(await _server(handler).handle_json("[" * 100_000))
+    assert response["id"] is None
+    assert response["error"]["code"] == -32700
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+async def test_deep_any_params_and_recursive_models_have_controlled_outcomes(caplog):
+    caplog.set_level(logging.DEBUG, logger="rpckit")
+
+    class AnyParams(BaseModel):
+        data: dict[str, Any]
+
+    class Tree(BaseModel):
+        child: "Tree | None" = None
+
+    channel = RpcChannel("deep")
+
+    @channel.method
+    async def arbitrary(params: AnyParams) -> None: ...
+
+    @channel.method
+    async def recursive(params: Tree) -> None: ...
+
+    nested = {}
+    for _ in range(1000):
+        nested = {"child": nested}
+    server = channel.create_server()
+    accepted = await server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "deep.arbitrary",
+            "params": {"data": nested},
+        }
+    )
+    rejected = await server.handle(
+        {"jsonrpc": "2.0", "id": 2, "method": "deep.recursive", "params": nested}
+    )
+    assert isinstance(accepted, RpcSuccess)
+    assert rejected.error.code == RpcErrorCode.INVALID_PARAMS
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
 @pytest.mark.parametrize("params", [[], ["M"], [1, 2]])

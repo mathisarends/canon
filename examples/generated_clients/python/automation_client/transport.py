@@ -253,7 +253,12 @@ class WebSocketTransport:
     def _decode(raw: str | bytes) -> JsonObject:
         try:
             message = json.loads(raw)
-        except (TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        except (
+            TypeError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            RecursionError,
+        ) as error:
             raise RpcTransportError("The WebSocket returned invalid JSON") from error
         if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
             raise RpcTransportError("Invalid JSON-RPC message")

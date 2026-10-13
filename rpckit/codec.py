@@ -12,7 +12,7 @@ class RpcCodec:
     def decode(self, message: str | bytes | bytearray) -> object:
         try:
             return json.loads(message)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
             raise RpcParseError() from error
 
     def encode(self, message: BaseModel | list[BaseModel]) -> str:
