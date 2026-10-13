@@ -1,6 +1,6 @@
 # 10: Idempotent methods and automatic retry
 
-- **Status:** open
+- **Status:** done — [PR #33](https://github.com/mathisarends/pyrpckit/pull/33)
 - **Priority:** medium
 - **Area:** contract (`rpckit/channel.py`, `rpckit/protocol.py`,
   `rpckit/schema/openrpc.py`), codegen IR, generated clients
