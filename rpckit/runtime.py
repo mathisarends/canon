@@ -31,7 +31,7 @@ from rpckit.dependencies import (
     connection_scope,
     context_values,
 )
-from rpckit.envelopes import RpcNotification, RpcRequestEnvelope
+from rpckit.envelopes import RpcFailure, RpcNotification, RpcRequestEnvelope, RpcSuccess
 from rpckit.errors import (
     RpcError,
     RpcInternalError,
@@ -319,7 +319,7 @@ async def _serve_endpoint(
                         call.message, RpcRequestCancelledError()
                     )
 
-            async def invoke(items, batch):
+            async def invoke(items, batch, controls=()):
                 try:
                     responses = await asyncio.gather(
                         *(collect_one(call) for call in items)
@@ -331,7 +331,7 @@ async def _serve_endpoint(
                     await asyncio.gather(
                         *(call.task for call in items), return_exceptions=True
                     )
-                responses = [response for response in responses if response is not None]
+                responses = [*controls, *(r for r in responses if r is not None)]
                 if responses and not close_event.is_set():
                     await send_outgoing(
                         codec.encode(responses if batch else responses[0])
@@ -439,6 +439,7 @@ async def _serve_endpoint(
                                 return
                             continue
                         items = []
+                        controls = []
                         # Bound response collectors as well as admitted items.
                         collectors_full = len(tasks) >= (
                             limits.max_pending_requests + limits.max_queue_size
@@ -447,6 +448,30 @@ async def _serve_endpoint(
                             if connected_client._resolve(item):
                                 continue
                             if cancel_request(item):
+                                continue
+                            if (
+                                isinstance(item, dict)
+                                and item.get("method") == "$/ping"
+                            ):
+                                valid = (
+                                    item.get("jsonrpc") == "2.0"
+                                    and set(item)
+                                    <= {"jsonrpc", "method", "id", "params"}
+                                    and item.get("params", {}) == {}
+                                    and (
+                                        "id" not in item
+                                        or type(item["id"]) in (str, int)
+                                    )
+                                )
+                                if "id" in item:
+                                    response = (
+                                        RpcSuccess(id=item["id"], result=None)
+                                        if valid
+                                        else RpcFailure.from_error(
+                                            None, RpcInvalidRequestError()
+                                        )
+                                    )
+                                    controls.append(response)
                                 continue
                             if collectors_full:
                                 request_close(
@@ -493,8 +518,12 @@ async def _serve_endpoint(
                             )
                             items.append(call)
                         if not items:
+                            if controls:
+                                await send_outgoing(
+                                    codec.encode(controls if batch else controls[0])
+                                )
                             continue
-                        task = asyncio.create_task(invoke(items, batch))
+                        task = asyncio.create_task(invoke(items, batch, controls))
                         tasks.add(task)
                         task.add_done_callback(invocation_done)
                 except RpcDisconnect as error:

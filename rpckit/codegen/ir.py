@@ -256,6 +256,7 @@ class ClientIr:
     title: str
     version: str
     protocol_version: int | None = None
+    heartbeat: bool = False
     servers: tuple[ServerDecl, ...] = ()
     declarations: tuple[Declaration, ...] = ()
     root_operations: tuple[RouteDecl, ...] = ()
@@ -321,6 +322,8 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         title=info.get("title", "RPC"),
         version=str(info.get("version", "0.0.0")),
         protocol_version=document.get("x-rpc-protocol-version"),
+        heartbeat=document.get("x-rpc-heartbeat")
+        == {"method": "$/ping", "params": {}, "result": None},
         servers=servers,
         declarations=_reachable(
             declarations,

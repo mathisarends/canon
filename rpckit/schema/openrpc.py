@@ -45,6 +45,7 @@ def render_openrpc(
         ],
         "components": {"schemas": schemas},
         "x-rpc-protocol-version": protocol.version,
+        "x-rpc-heartbeat": {"method": "$/ping", "params": {}, "result": None},
         "x-rpc-request-cancellation": {
             "method": "$/cancelRequest",
             "notification": True,
