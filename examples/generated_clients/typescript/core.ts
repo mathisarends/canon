@@ -21,7 +21,17 @@ export type RpcRequestOptions = {
 export type RpcConnectionState =
   "connecting" | "connected" | "reconnecting" | "closed";
 
-export type RpcTransport = Omit<BaseRpcTransport, "request"> & {
+export type RpcNotificationOverflowHandler = (
+  method: string | undefined,
+  dropped: number,
+  source: "transport" | "subscriber",
+) => void;
+
+export type RpcTransport = Omit<
+  BaseRpcTransport,
+  "request" | "notifications"
+> & {
+  notifications(signal?: AbortSignal): AsyncIterable<unknown>;
   request(
     method: string,
     params?: object,
@@ -97,6 +107,7 @@ type NotificationHub = {
   readonly subscribers: Set<Subscriber>;
   pumping: boolean;
   ended?: { readonly error?: unknown };
+  task?: Promise<void>;
 };
 
 /** Where the client gets the transport of one server from. */
@@ -667,6 +678,12 @@ export class RpcClientCore {
 
   readonly #hooks: readonly RpcClientHook[];
   readonly #hubs = new WeakMap<RpcTransport, NotificationHub>();
+  readonly #activeHubs = new Set<NotificationHub>();
+  readonly #closing = new AbortController();
+  readonly #notificationQueueSize: number;
+  readonly #onOverflow?: RpcNotificationOverflowHandler;
+  #droppedNotifications = 0;
+  #overflowCallbackFailed = false;
   #closed = false;
   #resolveClosed!: (error?: unknown) => void;
   readonly #closedPromise = new Promise<unknown>((resolve) => {
@@ -683,6 +700,10 @@ export class RpcClientCore {
     return this.#source.states ?? new Map();
   }
 
+  get droppedNotifications(): number {
+    return this.#droppedNotifications;
+  }
+
   constructor(
     transport:
       | RpcTransport
@@ -691,6 +712,8 @@ export class RpcClientCore {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly notificationQueueSize?: number;
+      readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
       readonly rawSocketOpener?: RawSocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
@@ -702,6 +725,14 @@ export class RpcClientCore {
     void this.#source.closed?.then(this.#resolveClosed, this.#resolveClosed);
     this.#closeTransport = options?.closeTransport ?? true;
     this.#hooks = options?.hooks ?? [];
+    this.#notificationQueueSize = options?.notificationQueueSize ?? 100;
+    this.#onOverflow = options?.onOverflow;
+    if (
+      !Number.isInteger(this.#notificationQueueSize) ||
+      this.#notificationQueueSize <= 0
+    ) {
+      throw new RpcTransportError("notificationQueueSize must be positive");
+    }
     this.streamOpener = options?.streamOpener;
     this.rawSocketOpener = options?.rawSocketOpener;
     this.variables = options?.variables ?? {};
@@ -794,30 +825,41 @@ export class RpcClientCore {
   notifications<Payload>(
     route: RpcNotificationInfo<Payload>,
   ): AsyncIterable<Payload> {
-    return this.#notificationValues(route);
+    return cancellableNotifications((signal) =>
+      this.#notificationValues(route, signal),
+    );
   }
 
   subscribeRemote<Payload>(
     route: RpcNotificationInfo<Payload>,
     params?: object,
   ): AsyncIterable<Payload> {
-    return this.#remoteValues(route, params);
+    return cancellableNotifications((signal) =>
+      this.#remoteValues(route, params, signal),
+    );
   }
 
   async *#remoteValues<Payload>(
     route: RpcNotificationInfo<Payload>,
     params?: object,
-  ): AsyncIterable<Payload> {
-    while (true) {
-      const transport = await this.#transportFor(route.server);
+    signal?: AbortSignal,
+  ): AsyncGenerator<Payload> {
+    const overflow = { dropped: 0, warned: false };
+    while (!this.#closed && !signal?.aborted) {
+      const transport = await this.#notificationTransport(route.server, signal);
+      if (transport === undefined) return;
       const subscriber: Subscriber = {
         method: route.method,
-        queue: new AsyncQueue<JsonRpcNotification>(100),
+        queue: new AsyncQueue<JsonRpcNotification>(
+          this.#notificationQueueSize,
+          () => this.#subscriberOverflow(route.method, overflow),
+        ),
       };
       let hub = this.#hubs.get(transport);
       if (hub === undefined) {
         hub = { subscribers: new Set(), pumping: false };
         this.#hubs.set(transport, hub);
+        this.#activeHubs.add(hub);
       }
       if (hub.ended !== undefined) {
         throw new RpcTransportError("The notification stream is closed");
@@ -826,13 +868,14 @@ export class RpcClientCore {
       if (!hub.pumping) {
         transport.startNotifications?.();
         hub.pumping = true;
-        void this.#pump(transport, hub);
+        hub.task = this.#pump(transport, hub);
       }
       let subscriptionId: string | undefined;
       try {
         const result = await transport.request(
           `${route.method}.subscribe`,
           params === undefined ? undefined : withoutUndefined(params),
+          { signal },
         );
         if (
           typeof result !== "object" ||
@@ -843,7 +886,8 @@ export class RpcClientCore {
           throw new RpcTransportError("Invalid subscription response");
         }
         subscriptionId = result.subscriptionId;
-        for await (const message of subscriber.queue) {
+        for await (const message of subscriber.queue.iterate(signal)) {
+          if (this.#closed) return;
           const values = message.params;
           if (
             typeof values !== "object" ||
@@ -896,6 +940,7 @@ export class RpcClientCore {
         }
         return;
       } catch (error) {
+        if (this.#closed || signal?.aborted) return;
         if (
           !(this.#source instanceof RpcTransportPool) ||
           !this.#source.reconnect ||
@@ -922,53 +967,147 @@ export class RpcClientCore {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
+    const hubs = [...this.#activeHubs];
+    this.#closing.abort();
+    for (const hub of hubs)
+      for (const subscriber of hub.subscribers) subscriber.queue.end();
     try {
       if (this.#closeTransport) await this.#source.close();
     } finally {
+      await Promise.allSettled(hubs.map((hub) => hub.task));
       this.#resolveClosed();
     }
   }
 
   async *#notificationValues<Payload>(
     route: RpcNotificationInfo<Payload>,
-  ): AsyncIterable<Payload> {
-    const transport = await this.#transportFor(route.server);
-    const subscriber: Subscriber = {
-      method: route.method,
-      queue: new AsyncQueue<JsonRpcNotification>(100),
-    };
-    let hub = this.#hubs.get(transport);
-    if (hub === undefined) {
-      hub = { subscribers: new Set(), pumping: false };
-      this.#hubs.set(transport, hub);
-    }
-    if (hub.ended !== undefined) {
-      if ("error" in hub.ended) subscriber.queue.fail(hub.ended.error);
-      else subscriber.queue.end();
-    } else {
+    signal?: AbortSignal,
+  ): AsyncGenerator<Payload> {
+    const overflow = { dropped: 0, warned: false };
+    while (!this.#closed && !signal?.aborted) {
+      const transport = await this.#notificationTransport(route.server, signal);
+      if (transport === undefined) return;
+      const subscriber: Subscriber = {
+        method: route.method,
+        queue: new AsyncQueue<JsonRpcNotification>(
+          this.#notificationQueueSize,
+          () => this.#subscriberOverflow(route.method, overflow),
+        ),
+      };
+      let hub = this.#hubs.get(transport);
+      if (hub === undefined) {
+        hub = { subscribers: new Set(), pumping: false };
+        this.#hubs.set(transport, hub);
+        this.#activeHubs.add(hub);
+      }
       hub.subscribers.add(subscriber);
-      if (!hub.pumping) {
+      transport.startNotifications?.();
+      if (hub.ended !== undefined) {
+        if ("error" in hub.ended) subscriber.queue.fail(hub.ended.error);
+        else subscriber.queue.end();
+      } else if (!hub.pumping) {
         hub.pumping = true;
-        void this.#pump(transport, hub);
+        hub.task = this.#pump(transport, hub);
+      }
+      try {
+        for await (const message of subscriber.queue.iterate(signal)) {
+          if (this.#closed) return;
+          yield message.params as Payload;
+        }
+        return;
+      } catch (error) {
+        if (this.#closed || signal?.aborted) return;
+        if (
+          !(this.#source instanceof RpcTransportPool) ||
+          !this.#source.reconnect ||
+          !this.#source.isDisconnected(transport)
+        )
+          throw error;
+      } finally {
+        hub.subscribers.delete(subscriber);
       }
     }
+  }
+
+  async #notificationTransport(
+    server?: string,
+    signal?: AbortSignal,
+  ): Promise<RpcTransport | undefined> {
+    if (this.#closed || signal?.aborted) return undefined;
+    const waiting = new AbortController();
+    const abort = () => waiting.abort();
+    this.#closing.signal.addEventListener("abort", abort, { once: true });
+    signal?.addEventListener("abort", abort, { once: true });
     try {
-      for await (const message of subscriber.queue) {
-        yield message.params as Payload;
-      }
+      return await withTimeout(
+        this.#transportFor(server),
+        undefined,
+        "notifications",
+        waiting.signal,
+      );
+    } catch (error) {
+      if (this.#closed || signal?.aborted) return undefined;
+      throw error;
     } finally {
-      hub.subscribers.delete(subscriber);
+      this.#closing.signal.removeEventListener("abort", abort);
+      signal?.removeEventListener("abort", abort);
+    }
+  }
+
+  #subscriberOverflow(
+    method: string,
+    state: { dropped: number; warned: boolean },
+  ): void {
+    this.#overflow(method, ++state.dropped);
+    if (!state.warned) {
+      state.warned = true;
+      console.warn(
+        "Notification subscriber queue overflowed; dropping oldest notifications",
+      );
+    }
+  }
+
+  #overflow(method: string | undefined, dropped: number): void {
+    this.#droppedNotifications++;
+    try {
+      const returned: unknown = this.#onOverflow?.(
+        method,
+        dropped,
+        "subscriber",
+      );
+      if (returned instanceof Promise)
+        void returned.catch((error) => this.#overflowFailed(error));
+    } catch (error) {
+      this.#overflowFailed(error);
+    }
+  }
+
+  #overflowFailed(error: unknown): void {
+    if (!this.#overflowCallbackFailed) {
+      this.#overflowCallbackFailed = true;
+      console.error("RPC overflow callback failed", error);
     }
   }
 
   async #pump(transport: RpcTransport, hub: NotificationHub): Promise<void> {
+    let iterator: AsyncIterator<unknown> | undefined;
     try {
-      for await (const message of transport.notifications()) {
-        if (!isNotification(message)) {
+      iterator = transport
+        .notifications(this.#closing.signal)
+        [Symbol.asyncIterator]();
+      while (!this.#closed) {
+        const next = await withTimeout(
+          iterator.next(),
+          undefined,
+          "notifications",
+          this.#closing.signal,
+        );
+        if (next.done) break;
+        const message = next.value;
+        if (!isNotification(message))
           throw new RpcTransportError(
             "The transport returned an invalid JSON-RPC notification",
           );
-        }
         for (const subscriber of hub.subscribers) {
           if (subscriber.method === message.method)
             subscriber.queue.push(message);
@@ -977,12 +1116,26 @@ export class RpcClientCore {
       hub.ended = {};
       for (const subscriber of hub.subscribers) subscriber.queue.end();
     } catch (error) {
-      const failure =
-        error instanceof RpcClientError
-          ? error
-          : RpcConnectionLostError.fromCause(error, false);
-      hub.ended = { error: failure };
-      for (const subscriber of hub.subscribers) subscriber.queue.fail(failure);
+      if (this.#closed) {
+        hub.ended = {};
+        for (const subscriber of hub.subscribers) subscriber.queue.end();
+      } else {
+        const failure =
+          error instanceof RpcClientError
+            ? error
+            : RpcConnectionLostError.fromCause(error, false);
+        hub.ended = { error: failure };
+        for (const subscriber of hub.subscribers)
+          subscriber.queue.fail(failure);
+      }
+    } finally {
+      if (this.#hubs.get(transport) === hub) this.#hubs.delete(transport);
+      this.#activeHubs.delete(hub);
+      try {
+        void iterator?.return?.().catch(() => {});
+      } catch {
+        /* Iterator cleanup is best effort. */
+      }
     }
   }
 
@@ -997,40 +1150,97 @@ export class RpcClientCore {
   }
 }
 
+function cancellableNotifications<Value>(
+  create: (signal: AbortSignal) => AsyncIterator<Value>,
+): AsyncIterable<Value> {
+  return {
+    [Symbol.asyncIterator]() {
+      const closing = new AbortController();
+      const iterator = create(closing.signal);
+      return {
+        next: () => iterator.next(),
+        async return() {
+          closing.abort();
+          await iterator.return?.();
+          return { value: undefined, done: true as const };
+        },
+        async throw(error?: unknown) {
+          closing.abort();
+          if (iterator.throw !== undefined) return iterator.throw(error);
+          throw error;
+        },
+      };
+    },
+  };
+}
+
 class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
   readonly #capacity: number;
   readonly #values: Value[] = [];
   readonly #waiters: Array<{
     readonly resolve: (result: IteratorResult<Value>) => void;
     readonly reject: (error: unknown) => void;
+    readonly removeAbortListener: () => void;
   }> = [];
   #ended = false;
+  #failed = false;
+  #failure?: unknown;
+  readonly #onOverflow?: () => void;
   #overflowWarned = false;
 
-  constructor(capacity: number) {
+  constructor(capacity: number, onOverflow?: () => void) {
     this.#capacity = capacity;
+    this.#onOverflow = onOverflow;
   }
 
   [Symbol.asyncIterator](): AsyncIterableIterator<Value> {
     return this;
   }
 
-  next(): Promise<IteratorResult<Value>> {
+  next(signal?: AbortSignal): Promise<IteratorResult<Value>> {
+    if (signal?.aborted)
+      return Promise.resolve({ value: undefined, done: true });
     const value = this.#values.shift();
     if (value !== undefined) return Promise.resolve({ value, done: false });
+    if (this.#failed) return Promise.reject(this.#failure);
     if (this.#ended) return Promise.resolve({ value: undefined, done: true });
     return new Promise((resolve, reject) => {
-      this.#waiters.push({ resolve, reject });
+      const abort = () => {
+        const index = this.#waiters.indexOf(waiter);
+        if (index !== -1) this.#waiters.splice(index, 1);
+        waiter.removeAbortListener();
+        resolve({ value: undefined, done: true });
+      };
+      const waiter = {
+        resolve,
+        reject,
+        removeAbortListener: () => signal?.removeEventListener("abort", abort),
+      };
+      this.#waiters.push(waiter);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
     });
+  }
+
+  iterate(signal?: AbortSignal): AsyncIterable<Value> {
+    const queue = this;
+    return {
+      [Symbol.asyncIterator]() {
+        return { next: () => queue.next(signal) };
+      },
+    };
   }
 
   push(value: Value): void {
     const waiter = this.#waiters.shift();
-    if (waiter !== undefined) waiter.resolve({ value, done: false });
-    else {
+    if (waiter !== undefined) {
+      waiter.removeAbortListener();
+      waiter.resolve({ value, done: false });
+    } else {
       if (this.#values.length === this.#capacity) {
         this.#values.shift();
-        if (!this.#overflowWarned) {
+        this.#onOverflow?.();
+        if (this.#onOverflow === undefined && !this.#overflowWarned) {
           console.warn(
             "Notification subscriber queue overflowed; dropping oldest notifications",
           );
@@ -1044,13 +1254,19 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
   end(): void {
     this.#ended = true;
     for (const waiter of this.#waiters.splice(0)) {
+      waiter.removeAbortListener();
       waiter.resolve({ value: undefined, done: true });
     }
   }
 
   fail(error: unknown): void {
+    this.#failed = true;
+    this.#failure = error;
     this.#ended = true;
-    for (const waiter of this.#waiters.splice(0)) waiter.reject(error);
+    for (const waiter of this.#waiters.splice(0)) {
+      waiter.removeAbortListener();
+      waiter.reject(error);
+    }
   }
 }
 

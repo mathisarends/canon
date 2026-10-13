@@ -15,6 +15,10 @@ export class {{ client_name }} {
     return this.#rpc.states;
   }
 
+  get droppedNotifications(): number {
+    return this.#rpc.droppedNotifications;
+  }
+
   constructor(
 {% if servers %}    transport:
       | RpcTransport
@@ -24,6 +28,8 @@ export class {{ client_name }} {
 {% endif %}    options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly notificationQueueSize?: number;
+      readonly onOverflow?: RpcNotificationOverflowHandler;
 {% if binary_streams %}      readonly streamOpener?: BinaryStreamOpener;
 {% endif %}{% if raw_sockets %}      readonly rawSocketOpener?: RawSocketOpener;
 {% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
@@ -40,6 +46,8 @@ export class {{ client_name }} {
 {% endif %}    options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly notificationQueueSize?: number;
+      readonly onOverflow?: RpcNotificationOverflowHandler;
 {% if binary_streams %}      readonly streamOpener?: BinaryStreamOpener;
 {% endif %}{% if raw_sockets %}      readonly rawSocketOpener?: RawSocketOpener;
 {% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
@@ -58,6 +66,7 @@ export class {{ client_name }} {
       readonly requestTimeoutMs?: number | null;
       readonly notificationQueueSize?: number;
       readonly notificationOverflow?: "drop_oldest" | "close";
+      readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly socketFactory?: WebSocketFactory;
       readonly onDisconnect?: (error: unknown) => void;
       readonly reconnect?: boolean;
@@ -104,6 +113,7 @@ export class {{ client_name }} {
           requestTimeoutMs: options.requestTimeoutMs,
           notificationQueueSize: options.notificationQueueSize,
           notificationOverflow: options.notificationOverflow,
+          onOverflow: options.onOverflow,
           socketFactory: options.socketFactory,
           signal,
           onDisconnect: (error) => {
@@ -115,6 +125,8 @@ export class {{ client_name }} {
     if (!options.lazy) await pool.openAll();
     return new {{ client_name }}(pool, {
       hooks: options.hooks,
+      notificationQueueSize: options.notificationQueueSize,
+      onOverflow: options.onOverflow,
 {% if binary_streams %}      streamOpener: (endpoint) =>
         BinaryWebSocketStream.open(endpoint, {
           socketFactory: options.streamSocketFactory,

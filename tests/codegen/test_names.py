@@ -39,14 +39,20 @@ def test_api_aliases_cannot_merge_distinct_wire_paths(
 
 
 @pytest.mark.parametrize("language", ["python", "typescript"])
-@pytest.mark.parametrize("name", ["close", "closed", "state", "states"])
+@pytest.mark.parametrize(
+    "name", ["close", "closed", "state", "states", "droppedNotifications"]
+)
 def test_root_operations_cannot_shadow_client_lifecycle(
     document: dict[str, Any],
     language,
     name,
 ) -> None:
     collision = deepcopy(document)
-    collision["methods"][0]["name"] = name
+    collision["methods"][0]["name"] = (
+        "dropped_notifications"
+        if language == "python" and name == "droppedNotifications"
+        else name
+    )
     collision["methods"] = [collision["methods"][0]]
 
     with pytest.raises(UnsupportedSchemaError, match="root client"):
@@ -64,6 +70,7 @@ def test_root_operations_cannot_shadow_client_lifecycle(
         "RpcConnectionLostError",
         "RpcRequestTimeoutError",
         "RpcConnectionState",
+        "RpcNotificationOverflowHandler",
     ],
 )
 def test_sdk_error_names_cannot_be_shadowed_by_models(language, name):

@@ -285,6 +285,7 @@ class _Renderer:
             "RpcClientCore",
             "type RpcClientHook",
             "type RpcConnectionState",
+            "type RpcNotificationOverflowHandler",
             "type RpcTransport",
             "type RpcTransportSource",
         ]
@@ -564,6 +565,7 @@ def _validate(
         ("<client.closed>", "closed"),
         ("<client.state>", "state"),
         ("<client.states>", "states"),
+        ("<client.droppedNotifications>", "droppedNotifications"),
         *((node.source_path[-1], _identifier(node.segment)) for node in nodes),
         *(
             (route.rpc_name, _identifier(route.operation_name))
@@ -922,6 +924,7 @@ _CONNECT_OPTIONS = (
     "reconnectShouldRetry",
     "reconnectRandom",
     "onStateChange",
+    "onOverflow",
 )
 
 _VALID_IDENTIFIER = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
@@ -972,6 +975,7 @@ _RUNTIME_NAMES = frozenset(
     {
         "RpcClientCore",
         "RpcConnectionState",
+        "RpcNotificationOverflowHandler",
         "RpcClientError",
         "RpcConnectError",
         "RpcConnectionClosed",
