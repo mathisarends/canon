@@ -1,10 +1,12 @@
 import asyncio
 import inspect
 import json
-from collections.abc import Callable, Iterable, Mapping
+from collections import deque
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -34,19 +36,134 @@ from rpckit.service import (
     RpcStreamEndpoint,
 )
 from rpckit.streams import RpcInputEndMessage
+from rpckit.websocket import CLOSE_CODES, REJECTION_CLOSE_CODES
 
-_DISCONNECT = object()
 _CLOSED = object()
 
 __all__ = [
     "InMemorySocket",
+    "InMemoryClientSocket",
+    "InMemorySocketFactory",
     "RpcTestClient",
     "RpcTestConnectionClosed",
     "RpcTestError",
     "RpcTestStream",
+    "RpcTestHandshakeRejected",
+    "SocketFaults",
 ]
 
 type RpcClientMethodHandler = Callable[..., Any]
+
+
+class SocketFaults:
+    """Directional faults for one in-memory socket; gates create no worker tasks."""
+
+    def __init__(
+        self,
+        *,
+        drop_after: int | None = None,
+        drop_when: Callable[[str | bytes], bool] | None = None,
+        close_code: RpcConnectionClose | int = 1006,
+        reason: str = "",
+        delay: float | Callable[[str | bytes], float] = 0,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        half_open: bool = False,
+    ) -> None:
+        if drop_after is not None and drop_after < 0:
+            raise ValueError("drop_after must be non-negative or None")
+        if not callable(delay) and delay < 0:
+            raise ValueError("delay must be non-negative")
+        self.drop_after = drop_after
+        self.drop_when = drop_when
+        self.close_code = close_code
+        self.reason = reason
+        self.delay = delay
+        self.sleep = sleep
+        self.half_open = half_open
+        self.frames_sent = 0
+        self.blocked = asyncio.Event()
+        self.held = asyncio.Event()
+        self._send_gate = asyncio.Event()
+        self._send_gate.set()
+        self._closed = asyncio.Event()
+        self._holding = False
+        self._held: deque[tuple[asyncio.Queue[Any], str | bytes]] = deque()
+        self._bound = False
+
+    @property
+    def held_count(self) -> int:
+        return len(self._held)
+
+    def hold(self) -> None:
+        """Buffer delivered frames while allowing send to finish."""
+        self._holding = True
+        self.held.clear()
+
+    def release(self) -> None:
+        self._holding = False
+        self.held.clear()
+        while self._held:
+            queue, frame = self._held.popleft()
+            if not self._closed.is_set():
+                queue.put_nowait(frame)
+
+    def block(self) -> None:
+        """Block send itself until unblock or disconnect."""
+        self.blocked.clear()
+        self._send_gate.clear()
+
+    def unblock(self) -> None:
+        self._send_gate.set()
+
+    def _bind(self) -> None:
+        if self._bound:
+            raise ValueError("Use separate SocketFaults instances per socket direction")
+        self._bound = True
+
+    def _close(self) -> None:
+        self._held.clear()
+        self._closed.set()
+        self._send_gate.set()
+
+    async def _wait(self, operation: Awaitable[None], socket: "InMemorySocket") -> None:
+        waiting = asyncio.ensure_future(operation)
+        closing = asyncio.create_task(self._closed.wait())
+        try:
+            await asyncio.wait((waiting, closing), return_when=asyncio.FIRST_COMPLETED)
+            socket._check_open()
+            await waiting
+        finally:
+            for task in (waiting, closing):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(waiting, closing, return_exceptions=True)
+
+    async def _send(
+        self, socket: "InMemorySocket", queue: asyncio.Queue[Any], frame: str | bytes
+    ) -> None:
+        socket._check_open()
+        if not self._send_gate.is_set():
+            self.blocked.set()
+            await self._wait(self._send_gate.wait(), socket)
+        if self.drop_after == 0 or (
+            self.drop_when is not None and self.drop_when(frame)
+        ):
+            socket._disconnect(RpcDisconnect(self.close_code, self.reason))
+            socket._check_open()
+        duration = self.delay(frame) if callable(self.delay) else self.delay
+        if duration < 0:
+            raise ValueError("Frame delay must be non-negative")
+        if duration:
+            await self._wait(self.sleep(duration), socket)
+        self.frames_sent += 1
+        if not self.half_open:
+            if self._holding:
+                self._held.append((queue, frame))
+                self.held.set()
+            else:
+                queue.put_nowait(frame)
+        if self.drop_after is not None and self.frames_sent >= self.drop_after:
+            socket._disconnect(RpcDisconnect(self.close_code, self.reason))
 
 
 class InMemorySocket:
@@ -57,6 +174,8 @@ class InMemorySocket:
         headers: Mapping[str, str] | None = None,
         query_params: Mapping[str, str] | None = None,
         subprotocols: Iterable[str] = (),
+        client_to_server: SocketFaults | None = None,
+        server_to_client: SocketFaults | None = None,
     ) -> None:
         self._handshake = RpcHandshake(
             path=path,
@@ -70,14 +189,23 @@ class InMemorySocket:
         self.subprotocol: str | None = None
         self.rejection: tuple[RpcRejection, str] | None = None
         self.closed: tuple[RpcConnectionClose, str] | None = None
+        self.disconnect_error: RpcDisconnect | None = None
+        self.client_to_server = client_to_server or SocketFaults()
+        self.server_to_client = server_to_client or SocketFaults()
+        self.client_to_server._bind()
+        self.server_to_client._bind()
+        self._handshake_complete = asyncio.Event()
+        self.client = InMemoryClientSocket(self)
 
     @property
     def handshake(self) -> RpcHandshake:
         return self._handshake
 
     async def accept(self, subprotocol: str | None = None) -> None:
+        self._check_open()
         self.accepted = True
         self.subprotocol = subprotocol
+        self._handshake_complete.set()
 
     async def reject(
         self,
@@ -87,39 +215,206 @@ class InMemorySocket:
         headers: Mapping[str, str] | None = None,
     ) -> None:
         self.rejection = (rejection, reason)
-        await self._outgoing.put(_DISCONNECT)
+        self._disconnect(RpcDisconnect(REJECTION_CLOSE_CODES[rejection], reason))
 
     async def receive(self) -> str | bytes:
-        value = await self._incoming.get()
-        if isinstance(value, RpcDisconnect):
-            raise value
-        return value
+        return await self._receive(self._incoming)
 
     async def send(self, message: str) -> None:
-        await self._outgoing.put(message)
+        await self.server_to_client._send(self, self._outgoing, message)
 
     async def send_bytes(self, data: bytes) -> None:
-        await self._outgoing.put(data)
+        await self.server_to_client._send(self, self._outgoing, data)
 
     async def close(self, close: RpcConnectionClose, reason: str) -> None:
-        self.closed = (close, reason)
-        await self._outgoing.put(_DISCONNECT)
+        if self.closed is None:
+            self.closed = (close, reason)
+        self._disconnect(RpcDisconnect(close, reason))
 
     async def client_send(self, message: str | bytes) -> None:
-        await self._incoming.put(message)
+        await self.client_to_server._send(self, self._incoming, message)
 
     async def client_receive(self) -> str | bytes:
-        value = await self._outgoing.get()
-        if value is _DISCONNECT:
-            raise RpcDisconnect()
-        return value
+        return await self._receive(self._outgoing)
 
     async def client_disconnect(
         self,
         code: RpcConnectionClose | int = RpcConnectionClose.NORMAL,
         reason: str = "",
     ) -> None:
-        await self._incoming.put(RpcDisconnect(code, reason))
+        self._disconnect(RpcDisconnect(code, reason))
+
+    def _check_open(self) -> None:
+        if self.disconnect_error is not None:
+            error = self.disconnect_error
+            raise RpcDisconnect(
+                error.code if error.raw_close_code is None else error.raw_close_code,
+                error.reason,
+            )
+
+    def _disconnect(self, error: RpcDisconnect) -> None:
+        if self.disconnect_error is not None:
+            return
+        self.disconnect_error = error
+        self.client_to_server._close()
+        self.server_to_client._close()
+        self._incoming.put_nowait(error)
+        self._outgoing.put_nowait(error)
+        self._handshake_complete.set()
+
+    async def _receive(self, queue: asyncio.Queue[Any]) -> str | bytes:
+        if queue.empty():
+            self._check_open()
+        value = await queue.get()
+        if isinstance(value, RpcDisconnect):
+            self._check_open()
+        return value
+
+
+class InMemoryClientSocket:
+    """The generated client's send/recv/close view of the same socket queues."""
+
+    def __init__(self, socket: InMemorySocket) -> None:
+        self.server_socket = socket
+
+    @property
+    def close_code(self) -> int | None:
+        error = self.server_socket.disconnect_error
+        if error is None:
+            return None
+        return error.raw_close_code or CLOSE_CODES[error.code]
+
+    @property
+    def close_reason(self) -> str:
+        error = self.server_socket.disconnect_error
+        return "" if error is None else error.reason
+
+    async def send(self, message: str | bytes) -> None:
+        await self.server_socket.client_send(message)
+
+    async def recv(self) -> str | bytes:
+        return await self.server_socket.client_receive()
+
+    async def close(self) -> None:
+        await self.server_socket.client_disconnect()
+
+
+class RpcTestHandshakeRejected(Exception):
+    def __init__(
+        self,
+        *,
+        status: int | None = None,
+        close_code: int | None = None,
+        reason: str = "",
+    ) -> None:
+        self.status_code = status
+        self.close_code = close_code
+        self.reason = reason
+        super().__init__(reason or "The in-memory handshake was rejected")
+
+
+class InMemorySocketFactory:
+    """Repeated generated-client connections to a service without network I/O."""
+
+    def __init__(
+        self,
+        service: RpcService,
+        *,
+        configure: Callable[[InMemorySocket, int], None] | None = None,
+        resolver: RpcResolverLike | None = None,
+        context: object | Mapping[type[Any], object] | None = None,
+        limits: RpcLimits | None = None,
+    ) -> None:
+        self.service = service
+        self.configure = configure
+        self.resolver = resolver
+        self.context = context
+        self.limits = limits
+        self.attempts = 0
+        self.sockets: list[InMemorySocket] = []
+        self._tasks: list[asyncio.Task[None]] = []
+        self._rejections: deque[RpcTestHandshakeRejected] = deque()
+        self._closed = False
+
+    def reject_next(
+        self,
+        *,
+        status: int | None = None,
+        close_code: int | None = None,
+        reason: str = "",
+    ) -> None:
+        if status is None and close_code is None:
+            raise ValueError("Provide a handshake status or close_code")
+        self._rejections.append(
+            RpcTestHandshakeRejected(
+                status=status, close_code=close_code, reason=reason
+            )
+        )
+
+    async def __call__(
+        self,
+        url: str,
+        *,
+        subprotocols: list[str] | None = None,
+        additional_headers: Mapping[str, str] | None = None,
+    ) -> InMemoryClientSocket:
+        if self._closed:
+            raise RuntimeError("The in-memory socket factory is closed")
+        self.attempts += 1
+        if self._rejections:
+            raise self._rejections.popleft()
+        socket = InMemorySocket(
+            unquote(urlsplit(url).path) or "/",
+            headers=additional_headers,
+            subprotocols=subprotocols or (),
+        )
+        if self.configure is not None:
+            self.configure(socket, self.attempts)
+        self.sockets.append(socket)
+        serving = asyncio.create_task(
+            self.service.serve(
+                socket, resolver=self.resolver, context=self.context, limits=self.limits
+            )
+        )
+        self._tasks.append(serving)
+        handshake = asyncio.create_task(socket._handshake_complete.wait())
+        try:
+            await asyncio.wait(
+                (serving, handshake), return_when=asyncio.FIRST_COMPLETED
+            )
+            if serving.done():
+                serving.result()
+            if socket.rejection is not None:
+                raise RpcTestHandshakeRejected(
+                    close_code=socket.client.close_code, reason=socket.rejection[1]
+                )
+            socket._check_open()
+            return socket.client
+        except BaseException:
+            await socket.client_disconnect()
+            serving.cancel()
+            await asyncio.gather(serving, return_exceptions=True)
+            raise
+        finally:
+            handshake.cancel()
+            await asyncio.gather(handshake, return_exceptions=True)
+
+    async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        for socket in self.sockets:
+            await socket.client_disconnect()
+        outcomes = await asyncio.gather(*self._tasks, return_exceptions=True)
+        for outcome in outcomes:
+            if isinstance(outcome, Exception):
+                raise outcome
+
+    async def __aenter__(self) -> "InMemorySocketFactory":
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        await self.close()
 
 
 @dataclass(frozen=True, slots=True)
