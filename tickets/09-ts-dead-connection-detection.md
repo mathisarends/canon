@@ -1,6 +1,6 @@
 # 09: Dead-connection detection in the TypeScript client
 
-- **Status:** open
+- **Status:** done — [PR #32](https://github.com/mathisarends/pyrpckit/pull/32)
 - **Priority:** high
 - **Area:** generated TypeScript client (`transport.ts.j2`, `core.ts.j2`);
   possibly the server (`rpckit/runtime.py`) for a ping method
