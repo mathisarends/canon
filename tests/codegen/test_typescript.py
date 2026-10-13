@@ -269,7 +269,16 @@ def test_the_index_exports_everything_a_caller_needs(
     assert 'export * from "./namespaces";' in index
     assert 'export * from "./errors";' in index
     assert 'export { routes, notifications } from "./routes";' in index
-    assert 'export { RpcConnectionClosed, RpcRemoteError } from "./core";' in index
+    for name in (
+        "RpcClientError",
+        "RpcConnectError",
+        "RpcConnectionClosed",
+        "RpcConnectionLostError",
+        "RpcRemoteError",
+        "RpcRequestTimeoutError",
+        "RpcTransportError",
+    ):
+        assert f"  {name}," in index
     assert "export type {" in index
     assert "  RpcClientCore," in index
 

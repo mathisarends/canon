@@ -3,10 +3,11 @@ from typing import Any
 
 import pytest
 
-from rpckit.codegen import render_python_client
+from rpckit.codegen import render_python_client, render_typescript_client
 from rpckit.codegen.ir import UnsupportedSchemaError
 from rpckit.codegen.names import camel_case, pascal_case, snake_case
 from rpckit.codegen.python import PythonClientOptions
+from rpckit.codegen.typescript import TypeScriptClientOptions
 
 
 def test_identifier_styles_handle_acronyms_stably() -> None:
@@ -49,3 +50,46 @@ def test_root_operations_cannot_shadow_client_lifecycle(
             collision,
             PythonClientOptions(package="client"),
         )
+
+
+@pytest.mark.parametrize("language", ["python", "typescript"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "RpcConnectError",
+        "RpcConnectionLostError",
+        "RpcRequestTimeoutError",
+    ],
+)
+def test_sdk_error_names_cannot_be_shadowed_by_models(language, name):
+    document = {
+        "openrpc": "1.4.1",
+        "info": {"title": "Collision", "version": "1"},
+        "components": {
+            "schemas": {
+                name: {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        "methods": [
+            {
+                "name": "ping",
+                "params": [],
+                "result": {
+                    "name": "result",
+                    "schema": {"$ref": f"#/components/schemas/{name}"},
+                },
+            }
+        ],
+    }
+    with pytest.raises(UnsupportedSchemaError):
+        if language == "python":
+            render_python_client(
+                document, PythonClientOptions(package="collision_client")
+            )
+        else:
+            render_typescript_client(document, TypeScriptClientOptions())

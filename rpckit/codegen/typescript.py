@@ -921,5 +921,16 @@ _RESERVED_WORDS = frozenset(
 )
 
 _RUNTIME_NAMES = frozenset(
-    {"RpcClientCore", "RpcRemoteError", "RpcRouteInfo", "RpcTransport"}
+    {
+        "RpcClientCore",
+        "RpcClientError",
+        "RpcConnectError",
+        "RpcConnectionClosed",
+        "RpcConnectionLostError",
+        "RpcRemoteError",
+        "RpcRequestTimeoutError",
+        "RpcRouteInfo",
+        "RpcTransport",
+        "RpcTransportError",
+    }
 )

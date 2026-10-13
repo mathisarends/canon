@@ -1,10 +1,18 @@
 import { errorFromResponse } from "./errors";
+import {
+  RpcClientError,
+  RpcConnectError,
+  RpcConnectionLostError,
+  RpcRequestTimeoutError,
+  RpcTransportError,
+} from "./core";
 
 export type RpcTransport = {
   request(method: string, params?: object): Promise<unknown>;
   notifications(): AsyncIterable<unknown>;
   startNotifications?(): void;
   close(): Promise<void>;
+  readonly closed?: Promise<RpcClientError | undefined>;
 };
 
 export type WebSocketFactory = (
@@ -27,7 +35,7 @@ type WebSocketSocket = {
   close(): void;
   addEventListener(
     type: "open" | "close" | "error",
-    listener: () => void,
+    listener: (event?: unknown) => void,
   ): void;
   addEventListener(
     type: "message",
@@ -40,6 +48,7 @@ type PendingRequest = {
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: unknown) => void;
   readonly timeout?: ReturnType<typeof setTimeout>;
+  sent: boolean;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -53,9 +62,17 @@ export class WebSocketTransport implements RpcTransport {
   #closed = false;
   #failed = false;
   readonly #onDisconnect?: (error: unknown) => void;
+  readonly closed: Promise<RpcClientError | undefined>;
+  readonly #resolveClosed: (error: RpcClientError | undefined) => void;
+  #failure?: RpcClientError;
 
   private constructor(socket: WebSocketSocket, options: WebSocketOptions) {
     this.#socket = socket;
+    let resolveClosed!: (error: RpcClientError | undefined) => void;
+    this.closed = new Promise((resolve) => {
+      resolveClosed = resolve;
+    });
+    this.#resolveClosed = resolveClosed;
     this.#onDisconnect = options.onDisconnect;
     this.#requestTimeoutMs =
       options.requestTimeoutMs === null
@@ -66,11 +83,13 @@ export class WebSocketTransport implements RpcTransport {
       options.notificationOverflow ?? "drop_oldest",
     );
     socket.addEventListener("message", (event) => this.#receive(event.data));
-    socket.addEventListener("error", () => {
-      this.#fail(new Error("The WebSocket connection failed"));
+    socket.addEventListener("error", (event) => {
+      if (this.#closed) return;
+      this.#fail(RpcConnectionLostError.fromCause(event, false));
     });
-    socket.addEventListener("close", () => {
-      this.#fail(new Error("The WebSocket connection closed"));
+    socket.addEventListener("close", (event) => {
+      if (this.#closed) return;
+      this.#fail(RpcConnectionLostError.fromCause(event, false));
     });
   }
 
@@ -79,32 +98,64 @@ export class WebSocketTransport implements RpcTransport {
     options: WebSocketOptions = {},
   ): Promise<WebSocketTransport> {
     const factory = options.socketFactory ?? defaultWebSocketFactory;
-    const socket = factory(url, options.subprotocols);
-    await waitForOpen(socket);
-    return new WebSocketTransport(socket, options);
+    let socket: WebSocketSocket | undefined;
+    try {
+      socket = factory(url, options.subprotocols);
+      await waitForOpen(socket);
+      return new WebSocketTransport(socket, options);
+    } catch (error) {
+      try {
+        socket?.close();
+      } catch {
+        /* Opening failure is the cause. */
+      }
+      throw error instanceof RpcConnectError
+        ? error
+        : RpcConnectError.fromCause(error);
+    }
   }
 
   request(method: string, params?: object): Promise<unknown> {
     if (this.#closed)
-      return Promise.reject(new Error("The WebSocket is closed"));
+      return Promise.reject(
+        RpcConnectionLostError.fromCause(this.#failure, false),
+      );
     const id = this.#nextRequestId++;
     const message: JsonObject = { jsonrpc: "2.0", id, method };
     if (params !== undefined) message.params = params;
+    let frame: string;
+    try {
+      frame = JSON.stringify(message);
+    } catch (error) {
+      return Promise.reject(
+        new RpcTransportError(
+          "RPC request parameters are not JSON serializable",
+          { cause: error },
+        ),
+      );
+    }
     return new Promise((resolve, reject) => {
       const timeout =
         this.#requestTimeoutMs === undefined
           ? undefined
           : setTimeout(() => {
               this.#pending.delete(id);
-              reject(new Error(`RPC request ${method} timed out`));
+              reject(
+                new RpcRequestTimeoutError(method, this.#requestTimeoutMs),
+              );
             }, this.#requestTimeoutMs);
-      this.#pending.set(id, { method, resolve, reject, timeout });
+      const pending = { method, resolve, reject, timeout, sent: false };
+      this.#pending.set(id, pending);
       try {
-        this.#socket.send(JSON.stringify(message));
+        pending.sent = true;
+        this.#socket.send(frame);
       } catch (error) {
-        this.#pending.delete(id);
-        if (timeout !== undefined) clearTimeout(timeout);
-        reject(error);
+        this.#fail(RpcConnectionLostError.fromCause(error, pending.sent));
+        try {
+          this.#socket.close();
+        } catch {
+          /* Preserve the send failure. */
+        }
       }
     });
   }
@@ -120,11 +171,26 @@ export class WebSocketTransport implements RpcTransport {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    this.#socket.close();
-    this.#fail(new Error("The WebSocket transport was closed"), false);
+    try {
+      this.#socket.close();
+    } catch (error) {
+      const failure = RpcConnectionLostError.fromCause(error, false);
+      this.#fail(failure);
+      throw failure;
+    } finally {
+      this.#fail(
+        new RpcConnectionLostError(
+          false,
+          undefined,
+          "The WebSocket transport was closed",
+        ),
+        false,
+      );
+    }
   }
 
   #receive(raw: unknown): void {
+    if (this.#closed) return;
     try {
       const message = decodeMessage(raw);
       if ("id" in message && typeof message.method === "string") {
@@ -145,9 +211,13 @@ export class WebSocketTransport implements RpcTransport {
       } else if ("id" in message) this.#resolveResponse(message);
       else if (typeof message.method === "string")
         this.#notifications.push(message);
-      else throw new Error("Invalid JSON-RPC message");
+      else throw new RpcTransportError("Invalid JSON-RPC message");
     } catch (error) {
-      this.#fail(error);
+      this.#fail(
+        error instanceof RpcClientError
+          ? error
+          : new RpcTransportError("Invalid JSON-RPC message", { cause: error }),
+      );
       this.#socket.close();
     }
   }
@@ -155,12 +225,14 @@ export class WebSocketTransport implements RpcTransport {
   #resolveResponse(message: JsonObject): void {
     const id = message.id;
     if (typeof id !== "number" || !Number.isInteger(id)) {
-      throw new Error("JSON-RPC response IDs must be integers");
+      throw new RpcTransportError("JSON-RPC response IDs must be integers");
     }
     const hasResult = "result" in message;
     const hasError = "error" in message;
     if (hasResult === hasError) {
-      throw new Error("JSON-RPC response must have one result or error");
+      throw new RpcTransportError(
+        "JSON-RPC response must have one result or error",
+      );
     }
     if (
       hasError &&
@@ -169,7 +241,7 @@ export class WebSocketTransport implements RpcTransport {
         !Number.isInteger(message.error.code) ||
         typeof message.error.message !== "string")
     ) {
-      throw new Error("Invalid JSON-RPC response error");
+      throw new RpcTransportError("Invalid JSON-RPC response error");
     }
     const pending = this.#pending.get(id);
     if (pending === undefined) return;
@@ -188,19 +260,33 @@ export class WebSocketTransport implements RpcTransport {
         ),
       );
     } else if ("result" in message) pending.resolve(message.result);
-    else throw new Error("JSON-RPC response has no result or error");
+    else
+      throw new RpcTransportError("JSON-RPC response has no result or error");
   }
 
-  #fail(error: unknown, unexpected = true): void {
+  #fail(error: RpcClientError, unexpected = true): void {
     if (this.#failed) return;
     this.#failed = true;
+    this.#failure = error;
     if (!this.#closed) this.#closed = true;
     for (const pending of this.#pending.values()) {
       if (pending.timeout !== undefined) clearTimeout(pending.timeout);
-      pending.reject(error);
+      pending.reject(
+        error instanceof RpcConnectionLostError
+          ? RpcConnectionLostError.fromCause(error, pending.sent)
+          : error,
+      );
     }
     this.#pending.clear();
     this.#notifications.fail(error);
+    this.#resolveClosed(unexpected ? error : undefined);
+    if (unexpected) {
+      try {
+        this.#socket.close();
+      } catch {
+        /* Preserve the original failure. */
+      }
+    }
     if (unexpected) this.#onDisconnect?.(error);
   }
 }
@@ -219,7 +305,9 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
 
   constructor(capacity: number, overflow: "drop_oldest" | "close") {
     if (!Number.isInteger(capacity) || capacity <= 0) {
-      throw new Error("notificationQueueSize must be a positive integer");
+      throw new RpcTransportError(
+        "notificationQueueSize must be a positive integer",
+      );
     }
     this.#capacity = capacity;
     this.#overflow = overflow;
@@ -252,7 +340,9 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
     }
     if (this.#values.length === this.#capacity) {
       if (this.#overflow === "close")
-        throw new Error("The WebSocket notification queue overflowed");
+        throw new RpcTransportError(
+          "The WebSocket notification queue overflowed",
+        );
       this.#values.shift();
       if (!this.#overflowWarned) {
         console.warn(
@@ -284,8 +374,9 @@ function defaultWebSocketFactory(
     }
   ).WebSocket;
   if (constructor === undefined) {
-    throw new Error(
+    throw new RpcConnectError(
       "No global WebSocket implementation is available; provide socketFactory",
+      true,
     );
   }
   return new constructor(url, protocols);
@@ -294,22 +385,22 @@ function defaultWebSocketFactory(
 function waitForOpen(socket: WebSocketSocket): Promise<void> {
   if (socket.readyState === 1) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve);
-    socket.addEventListener("error", () =>
-      reject(new Error("WebSocket open failed")),
+    socket.addEventListener("open", () => resolve());
+    socket.addEventListener("error", (event) =>
+      reject(RpcConnectError.fromCause(event)),
     );
-    socket.addEventListener("close", () =>
-      reject(new Error("WebSocket closed")),
+    socket.addEventListener("close", (event) =>
+      reject(RpcConnectError.fromCause(event)),
     );
   });
 }
 
 function decodeMessage(raw: unknown): JsonObject {
   if (typeof raw !== "string")
-    throw new Error("WebSocket messages must be text");
+    throw new RpcTransportError("WebSocket messages must be text");
   const message: unknown = JSON.parse(raw);
   if (!isObject(message) || message.jsonrpc !== "2.0") {
-    throw new Error("Invalid JSON-RPC message");
+    throw new RpcTransportError("Invalid JSON-RPC message");
   }
   return message;
 }
