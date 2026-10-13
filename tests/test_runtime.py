@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
 from uuid import UUID
 
 import pytest
@@ -479,6 +481,84 @@ def test_reservation_release_is_idempotent_and_never_negative():
     capacity.release(reservation)
     assert capacity.count == 0
     assert capacity.reserve() is not None
+
+
+@pytest.mark.parametrize("ending", ["failure", "disconnect", "shutdown"])
+async def test_documented_shared_capacity_releases_worker_permits(ending):
+    from rpckit import RpcInvalidParamsError
+
+    guide = (Path(__file__).parents[1] / "docs/services.md").read_text(encoding="utf-8")
+    snippet = guide.split("## Capacity across connections", 1)[1].split("```python", 1)[
+        1
+    ]
+    namespace = {}
+    exec(snippet.split("```", 1)[0], namespace)
+    queued = asyncio.Event()
+
+    class Capacity(namespace["SharedCapacity"]):
+        @asynccontextmanager
+        async def request(self, scope):
+            if scope.request.request_id == 2:
+                queued.set()
+            async with super().request(scope):
+                yield
+
+    capacity = Capacity(connections=2, requests=1)
+    started = asyncio.Queue()
+    release = asyncio.Event()
+    channel = RpcChannel("shared")
+
+    @channel.method
+    async def wait(params: Params) -> None:
+        started.put_nowait(params.value)
+        await release.wait()
+        raise RpcInvalidParamsError(message="controlled failure")
+
+    app = RpcService(middleware=[capacity])
+    app.socket("/rpc", channels=[channel], before_accept=capacity.before_accept)
+    sockets = [InMemorySocket("/rpc") for _ in range(3)]
+    serving = []
+    try:
+        for i, socket in enumerate(sockets[:2], 1):
+            serving.append(asyncio.create_task(app.serve(socket)))
+            await socket.client_send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": i,
+                        "method": "shared.wait",
+                        "params": {"value": str(i)},
+                    }
+                )
+            )
+            if i == 1:
+                assert await started.get() == "1"
+            else:
+                await queued.wait()
+        assert capacity.active_connections == 2
+        assert capacity.active_requests == 1
+        assert started.empty()
+        await app.serve(sockets[2])
+        assert sockets[2].rejection[0] == RpcRejection.UNAVAILABLE
+        assert capacity.active_connections == 2
+        if ending == "failure":
+            release.set()
+            await sockets[0].client_receive()
+        elif ending == "disconnect":
+            await sockets[0].client_disconnect()
+            await serving[0]
+        else:
+            serving[0].cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await serving[0]
+        assert await started.get() == "2"
+    finally:
+        release.set()
+        for socket in sockets:
+            await socket.client_disconnect()
+        await asyncio.gather(*serving, return_exceptions=True)
+    assert capacity.active_connections == 0
+    assert capacity.active_requests == 0
 
 
 async def test_writer_failure_closes_connection_and_notifies_observer() -> None:

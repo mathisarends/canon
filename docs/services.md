@@ -250,11 +250,12 @@ Register that same instance on the service and handshake hook:
 ```python
 capacity = SharedCapacity(connections=200, requests=64)
 app = RpcService(middleware=[capacity], limits=RpcLimits(max_pending_requests=128))
-app.socket("/rpc", channels=[tasks])
-web.include_router(create_router(app, before_accept=capacity.before_accept))
+app.socket("/rpc", channels=[tasks], before_accept=capacity.before_accept)
+web.include_router(create_router(app))
 ```
 
-For custom transports, pass `before_accept=capacity.before_accept` to `app.serve()`.
+Custom transports using `app.serve()` also run the registered handshake hook.
+Alternatively pass `before_accept=capacity.before_accept` to an endpoint's `serve()`.
 The shared request semaphore limits requests across sockets, while per-connection
 admission bounds requests waiting for that semaphore. Both scopes use `finally`,
 so handler failures, rejected handshakes, disconnects, and cancellation release
