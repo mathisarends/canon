@@ -390,3 +390,109 @@ application code. Create a fresh coordinator for a new service lifetime.
 Generated reconnect policies already treat 1001, 1012, and 1013 as transient.
 The request error is a remote error and is not automatically replayed. Client
 operation signatures and defaults are unchanged by server drain support.
+## Authentication and credential expiry
+
+Authentication remains application-owned. Validate credentials in `before_accept`
+and return your identity as a dependency alongside an expiry:
+
+```python
+from rpckit import RpcConnectionExpiry, RpcHandshake
+
+
+async def authenticate(handshake: RpcHandshake):
+    identity = await verify_bearer(handshake.headers.get("authorization"))
+    return {
+        Identity: identity,
+        RpcConnectionExpiry: RpcConnectionExpiry(identity.expires_at),
+    }
+```
+
+`Identity` and `verify_bearer` are application types/functions. Raise `RpcReject`
+with unauthorized/forbidden when authentication fails. Never include the token
+in its reason. `expires_at` is a finite Unix timestamp in **seconds**, not a
+monotonic deadline or JavaScript milliseconds. After acceptance, the runtime
+converts the remaining wall-clock duration once to the event loop's monotonic
+clock. Past timestamps expire immediately; later wall-clock adjustments do not
+move that timer. In an injected `RpcConnection`, use `connection.expire_at(ts)`
+or assign `connection.expires_at`; `None` removes the timer. Changing it replaces
+the previous timer, and disconnect cancels it. Renewal requires your application
+to verify renewed authorization before extending the expiry.
+
+All endpoint types close with policy violation (1008) and the exact reason
+`credentials_expired`. Both SDK reconnect policies narrowly recognize that pair
+as transient. Other policy reasons stay terminal. For immediate revocation,
+`await connection.close(RpcConnectionClose.POLICY_VIOLATION,
+reason="credentials_revoked")` closes with a terminal reason. Your application
+can call it after a revocation event or identity check; rpckit does not maintain
+an identity/revocation registry. Close reasons and observer state contain the
+constant reason, never credentials.
+
+Python/server-to-server clients can use an async `headers` factory:
+
+```python
+async def headers():
+    return {"Authorization": f"Bearer {await credentials.refresh()}"}
+
+
+connection = ApiClient.connect(
+    headers=headers,
+    reconnect=True,
+    reconnect_max_attempts=3,
+)
+```
+
+It runs again for each connection attempt and new dedicated socket. Refresh with
+async I/O, or offload blocking credential work rather than blocking the loop.
+Visible handshake 401/403 or ordinary 1008 rejection terminates recovery.
+
+Browser WebSockets accept a URL and subprotocols, not custom authorization
+headers. Obtain a short-lived, preferably single-use connection ticket through
+your authenticated HTTPS API, then use the TypeScript `credentials` provider:
+
+```typescript
+const client = await ApiClient.connect({
+  reconnect: true,
+  credentials: async ({ url, subprotocols }, signal) => {
+    const ticket = await fetchConnectionTicket({ signal });
+    const authenticated = new URL(url);
+    authenticated.searchParams.set("ticket", ticket);
+    return { url: authenticated, subprotocols };
+  },
+});
+```
+
+The provider receives a copy of the URL and an attempt AbortSignal; it runs for
+every RPC handshake/reconnect, and for newly opened binary/raw sockets. Only
+RPC sockets reconnect automatically. It can return replacement `url` and/or
+`subprotocols`; omitted fields retain the resolved endpoint. Pool attempt/call
+timeouts also bound refresh waiting. Honor the signal to stop your own I/O;
+late provider results cannot open a socket after pool close. Direct
+`WebSocketTransport.open()` also accepts `credentials`, but callers must supply
+their own opening deadline/signal.
+
+When TypeScript `connect()` has a provider and no explicit reconnect attempt
+limit, recovery permits three connection attempts. Browser handshake errors may
+hide HTTP status, so this finite default prevents rejected refresh from looping
+indefinitely. Visible 401/403/404 or generic 1008 still terminates immediately.
+`reconnectMaxAttempts` overrides the budget; `null` deliberately removes it.
+Without a provider, existing reconnect defaults are unchanged. Request retry is
+separate: refreshing a socket never implies replaying a sent operation.
+
+Use `wss://` in production. Query tickets can appear in proxy/access logs; redact
+query credentials and URL telemetry, keep tickets short-lived, and avoid putting
+long-lived bearer credentials in the URL. Cookie authentication needs an exact
+Origin allowlist and explicit cross-site connection controls, plus suitable
+Secure/HttpOnly/SameSite cookie policy. Cookie presence alone does not authorize
+the initiating origin. Subprotocol credential carriers must use legal HTTP token
+syntax (for example base64url without padding), retain the actual RPC protocol in
+the offered list, and let the server negotiate that protocol; do not echo a secret
+carrier as the selected protocol. These requirements follow the
+[WebSocket handshake rules](https://www.rfc-editor.org/rfc/rfc6455#section-4.1)
+and [OWASP WebSocket guidance](https://cheatsheetseries.owasp.org/cheatsheets/WebSocket_Security_Cheat_Sheet.html).
+
+Normalized SDK connect-error messages do not copy raw exception strings or URLs.
+Original `cause` / `__cause__` remains available, and third-party exceptions or
+peer-supplied reasons can contain sensitive data: log safe class/status/code
+fields and apply redaction before exporting diagnostic causes or state errors.
+Regenerate TypeScript clients for the provider API; Python header signatures
+remain compatible. Expiry and revocation are opt-in server policies.
