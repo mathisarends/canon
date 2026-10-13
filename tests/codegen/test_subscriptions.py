@@ -191,7 +191,7 @@ async def test_subscription_resubscribes_after_reconnect(tmp_path: Path) -> None
     class Socket:
         def __init__(self, generation: int) -> None:
             self.generation = generation
-            self.frames: asyncio.Queue[str] = asyncio.Queue()
+            self.frames: asyncio.Queue[str | BaseException] = asyncio.Queue()
             self.methods: list[str] = []
 
         async def send(self, raw: str) -> None:
@@ -219,7 +219,10 @@ async def test_subscription_resubscribes_after_reconnect(tmp_path: Path) -> None
                 )
 
         async def recv(self) -> str:
-            return await self.frames.get()
+            frame = await self.frames.get()
+            if isinstance(frame, BaseException):
+                raise frame
+            return frame
 
         async def close(self) -> None: ...
 
@@ -242,7 +245,7 @@ async def test_subscription_resubscribes_after_reconnect(tmp_path: Path) -> None
             stream = client.session.events(session_id="abc")
             async with aclosing(stream):
                 assert (await asyncio.wait_for(anext(stream), 1)).value == "1"
-                sockets[0].frames.put_nowait("not json")
+                sockets[0].frames.put_nowait(ConnectionResetError("dropped"))
                 assert (await asyncio.wait_for(anext(stream), 1)).value == "2"
             assert sockets[1].methods == [
                 "session.events.subscribe",

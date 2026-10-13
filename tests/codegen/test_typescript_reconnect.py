@@ -70,11 +70,17 @@ def test_reconnect_policy_state_and_cleanup_in_node(cancellation_sdk):
         async function main() {
           const expiryConnections = [];
           const expiring = pool(async () => {
-            const transport = new Transport(); expiryConnections.push(transport); return transport;
+            const transport = new Transport();
+            expiryConnections.push(transport);
+            return transport;
           }, { reconnect: true });
           await expiring.get("a");
-          expiryConnections[0].disconnect(new RpcConnectionLostError(false, 1008, "credentials_expired"));
-          await until(() => expiryConnections.length === 2 && expiring.state === "connected");
+          expiryConnections[0].disconnect(
+            new RpcConnectionLostError(false, 1008, "credentials_expired"),
+          );
+          await until(
+            () => expiryConnections.length === 2 && expiring.state === "connected",
+          );
           await expiring.close();
           for (const permanent of [true, false]) {
             const error = new RpcConnectError("initial failure", permanent);

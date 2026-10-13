@@ -146,6 +146,8 @@ class RpcTransportPool[ServerT: str]:
         if isinstance(error, RpcConnectError):
             return not error.permanent
         if isinstance(error, RpcConnectionLostError):
+            if error.code == 1008:
+                return error.reason == "credentials_expired"
             return error.code not in (1002, 1003, 1007, 1008, 1009)
         return False
 

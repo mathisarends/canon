@@ -304,7 +304,9 @@ async def test_zero_reconnect_budget_stops_without_an_attempt(pool_runtime):
     await source.close()
 
 
-async def test_borrowed_source_stays_open_while_local_client_closed_resolves(pool_runtime):
+async def test_borrowed_source_stays_open_while_local_client_closed_resolves(
+    pool_runtime,
+):
     async def factory(*args, **kwargs):
         return Transport()
 
@@ -396,8 +398,11 @@ async def test_request_deadline_bounds_shared_connection_wait_and_wire_work(
 
 
 @pytest.mark.parametrize("reject", [False, True])
+@pytest.mark.parametrize("close", [(1012, "restart"), (1008, "credentials_expired")])
 async def test_proactive_recovery_refreshes_headers_or_surfaces_permanent_rejection(
-    client_module, reject
+    client_module,
+    reject,
+    close,
 ):
     channel = RpcChannel("greeting")
 
@@ -433,10 +438,10 @@ async def test_proactive_recovery_refreshes_headers_or_surfaces_permanent_reject
             assert (await states.get())[1] == "connected"
             if reject:
                 factory.reject_next(status=401)
-            await factory.sockets[0].client_disconnect(1012, "restart")
+            await factory.sockets[0].client_disconnect(*close)
             server, state, error = await asyncio.wait_for(states.get(), 1)
             assert server == client_module.ServerName.PRIMARY
-            assert state == "reconnecting" and error.code == 1012
+            assert state == "reconnecting" and error.code == close[0]
             if reject:
                 error = await asyncio.wait_for(client.closed, 1)
                 assert isinstance(error, client_module.RpcConnectError)
