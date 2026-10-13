@@ -283,9 +283,20 @@ class StaticTransports implements RpcTransportSource {
   }
 }
 
+type RpcErrorOptions = { readonly cause?: unknown };
+
 export class RpcClientError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
+  declare readonly cause?: unknown;
+
+  constructor(message: string, options?: RpcErrorOptions) {
+    super(message);
+    if (options && "cause" in options) {
+      Object.defineProperty(this, "cause", {
+        value: options.cause,
+        writable: true,
+        configurable: true,
+      });
+    }
     this.name = new.target.name;
   }
 }
@@ -308,7 +319,7 @@ export class RpcConnectionLostError extends RpcTransportError {
     readonly sent: boolean,
     readonly code: number | undefined = undefined,
     readonly reason = "",
-    options?: ErrorOptions,
+    options?: RpcErrorOptions,
   ) {
     super(`RPC connection lost (${code}): ${reason}`, options);
   }
@@ -330,7 +341,7 @@ export class RpcConnectError extends RpcTransportError {
     readonly permanent = false,
     readonly status: number | undefined = undefined,
     readonly code: number | undefined = undefined,
-    options?: ErrorOptions,
+    options?: RpcErrorOptions,
   ) {
     super(message, options);
   }

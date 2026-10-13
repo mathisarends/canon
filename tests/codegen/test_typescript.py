@@ -494,3 +494,64 @@ def test_contracts_without_models_do_not_export_a_models_module() -> None:
 
     assert "models.ts" not in files
     assert "./models" not in files["index.ts"]
+
+
+def test_sdk_error_types_do_not_require_upgrading_the_consumers_lib_target(
+    document: dict[str, Any], tmp_path: Path
+) -> None:
+    npx = shutil.which("npx.cmd") or shutil.which("npx")
+    if npx is None:
+        pytest.skip("npx is required")
+    deployed = deepcopy(document)
+    deployed["servers"] = [
+        {
+            "name": "rpc",
+            "url": "ws://test",
+            "x-rpckit-transport": {"type": "websocket", "messageEncoding": "json"},
+        }
+    ]
+    generate_typescript_client(
+        deployed,
+        tmp_path / "generated",
+        TypeScriptClientOptions(with_transport="websocket"),
+    )
+    consumer = tmp_path / "consumer.ts"
+    consumer.write_text(
+        dedent("""
+        import {
+          RpcClientError, RpcConnectionLostError, RpcConnectError,
+        } from "./generated";
+        const cause = new Error("reset");
+        const error: RpcClientError = new RpcConnectionLostError(
+          true, 1011, "closed", { cause },
+        );
+        const connect = RpcConnectError.fromCause(cause);
+        void error.cause;
+        void connect.permanent;
+        """),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            npx,
+            "--yes",
+            "--package",
+            "typescript",
+            "tsc",
+            "--noEmit",
+            "--strict",
+            "--target",
+            "ES2021",
+            "--module",
+            "ESNext",
+            "--moduleResolution",
+            "Bundler",
+            "--lib",
+            "ES2021,DOM,ESNext.Disposable",
+            "--skipLibCheck",
+            str(consumer),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

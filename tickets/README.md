@@ -83,9 +83,8 @@ Merge the stack from the bottom up; subsequent PR descriptions link their base.
 | 04 | done | [#27](https://github.com/mathisarends/pyrpckit/pull/27) | #26 |
 
 Tickets 05–14 remain open. Ticket 05 is next and can build on #27; its prerequisites
-are implemented in #23 and #25. The user-authorized stack allows implementation
-against these prerequisite branches before merge; merge order still preserves
-their dependencies.
+are implemented in #23 and #25. Review and merge those prerequisite PRs before
+merging the dependent work.
 
 ## Review coverage
 
