@@ -217,9 +217,7 @@ class SharedCapacity(RpcMiddleware):
         self._admitted = ContextVar("connection_admitted", default=False)
 
     @asynccontextmanager
-    async def connection(
-        self, scope: RpcConnectionScope
-    ) -> AsyncGenerator[None, None]:
+    async def connection(self, scope: RpcConnectionScope) -> AsyncGenerator[None, None]:
         admitted = self.active_connections < self._connection_limit
         if admitted:
             self.active_connections += 1
