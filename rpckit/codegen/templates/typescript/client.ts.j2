@@ -75,6 +75,7 @@ export class {{ client_name }} {
       readonly notificationOverflow?: "drop_oldest" | "close";
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly socketFactory?: WebSocketFactory;
+      readonly credentials?: WebSocketCredentialsProvider;
       readonly onDisconnect?: (error: unknown) => void;
       readonly reconnect?: boolean;
       readonly reconnectInitialDelayMs?: number;
@@ -110,7 +111,11 @@ export class {{ client_name }} {
       reconnect: options.reconnect,
       reconnectInitialDelayMs: options.reconnectInitialDelayMs,
       reconnectMaxDelayMs: options.reconnectMaxDelayMs,
-      reconnectMaxAttempts: options.reconnectMaxAttempts,
+      reconnectMaxAttempts:
+        options.reconnectMaxAttempts === undefined &&
+        options.credentials !== undefined
+          ? 3
+          : options.reconnectMaxAttempts,
       reconnectShouldRetry: options.reconnectShouldRetry,
       reconnectRandom: options.reconnectRandom,
       onStateChange: (server, state, error) =>
@@ -130,6 +135,7 @@ export class {{ client_name }} {
           notificationOverflow: options.notificationOverflow,
           onOverflow: options.onOverflow,
           socketFactory: options.socketFactory,
+          credentials: options.credentials,
           signal,
           onDisconnect: (error) => {
             disconnected(error);
@@ -144,16 +150,34 @@ export class {{ client_name }} {
       retryAttemptTimeoutMs: options.retryAttemptTimeoutMs,
       notificationQueueSize: options.notificationQueueSize,
       onOverflow: options.onOverflow,
-{% if binary_streams %}      streamOpener: (endpoint) =>
-        BinaryWebSocketStream.open(endpoint, {
-          socketFactory: options.streamSocketFactory,
-          incomingQueueSize: options.streamQueueSize,
-        }),
-{% endif %}{% if raw_sockets %}      rawSocketOpener: (endpoint) =>
-        RawWebSocketStream.open(endpoint, {
-          socketFactory: options.rawSocketFactory,
-          incomingQueueSize: options.rawSocketQueueSize,
-        }),
+{% if binary_streams %}      streamOpener: async (endpoint) => {
+        const credentials = await resolveWebSocketCredentials(
+          endpoint.url,
+          endpoint.subprotocols,
+          options.credentials,
+        );
+        return BinaryWebSocketStream.open(
+          { ...endpoint, ...credentials },
+          {
+            socketFactory: options.streamSocketFactory,
+            incomingQueueSize: options.streamQueueSize,
+          },
+        );
+      },
+{% endif %}{% if raw_sockets %}      rawSocketOpener: async (endpoint) => {
+        const credentials = await resolveWebSocketCredentials(
+          endpoint.url,
+          endpoint.subprotocols,
+          options.credentials,
+        );
+        return RawWebSocketStream.open(
+          { ...endpoint, ...credentials },
+          {
+            socketFactory: options.rawSocketFactory,
+            incomingQueueSize: options.rawSocketQueueSize,
+          },
+        );
+      },
 {% endif %}{% if binary_streams or raw_sockets %}      variables: definedVariables(variables),
 {% endif %}    });
   }

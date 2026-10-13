@@ -28,7 +28,12 @@ export { routes, notifications } from "./routes";
 export { endpoints, servers } from "./endpoints";
 export type { Endpoint, ServerName } from "./endpoints";
 export { WebSocketTransport } from "./transport";
-export type { WebSocketFactory, WebSocketOptions } from "./transport";
+export type {
+  WebSocketCredentials,
+  WebSocketCredentialsProvider,
+  WebSocketFactory,
+  WebSocketOptions,
+} from "./transport";
 export {
   RpcStreamClosed,
   RpcStreamFailed,

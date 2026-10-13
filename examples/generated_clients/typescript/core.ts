@@ -604,7 +604,7 @@ export class RpcConnectError extends RpcTransportError {
     const status = typeof value === "number" ? value : undefined;
     const { code } = closeInfo(error);
     return new RpcConnectError(
-      `Could not open the RPC connection: ${String(error)}`,
+      "Could not open the RPC connection",
       status === 401 || status === 403 || status === 404 || code === 1008,
       status,
       code,
@@ -631,10 +631,7 @@ function closeInfo(error: unknown): { code?: number; reason: string } {
   const reason = received.reason ?? source.reason ?? source.close_reason;
   return {
     code: typeof code === "number" ? code : undefined,
-    reason:
-      typeof reason === "string"
-        ? reason
-        : String(error ?? "The WebSocket is closed"),
+    reason: typeof reason === "string" ? reason : "The WebSocket is closed",
   };
 }
 

@@ -110,7 +110,7 @@ class RpcConnectError(RpcTransportError):
         )
         code, _ = _close_info(error)
         failure = cls(
-            f"Could not open the RPC connection: {error}",
+            "Could not open the RPC connection",
             permanent=status in (401, 403, 404) or code == 1008,
             status=status,
             code=code,
@@ -137,9 +137,7 @@ def _close_info(
     if reason is None:
         reason = getattr(socket, "close_reason", None)
     if reason is None:
-        reason = (
-            str(error) if error is not None else "The WebSocket transport is closed"
-        )
+        reason = "The WebSocket transport is closed"
     return code, str(reason)
 
 
