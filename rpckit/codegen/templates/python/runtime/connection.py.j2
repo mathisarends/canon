@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Protocol
 
-from .errors import RpcTransportError
+from .errors import RpcClientError, RpcConnectError, RpcTransportError
 from .transport import RpcTransport
 
 
@@ -127,9 +127,11 @@ class RpcTransportPool[ServerT: str]:
                             notification_overflow=self._notification_overflow,
                         )
                         break
-                    except Exception:
+                    except Exception as error:
                         if not self.reconnect or name not in self._ever_connected:
-                            raise
+                            if isinstance(error, RpcClientError):
+                                raise
+                            raise RpcConnectError.from_exception(error) from error
                         try:
                             await asyncio.wait_for(self._closing.wait(), delay)
                         except TimeoutError:

@@ -7,7 +7,13 @@ from collections.abc import AsyncIterator, Awaitable, Mapping
 from contextlib import suppress
 from typing import Any, Protocol, Self
 
-from automation_client.internal import RpcTransportError
+from automation_client.internal import (
+    RpcClientError,
+    RpcConnectError,
+    RpcConnectionLostError,
+    RpcRequestTimeoutError,
+    RpcTransportError,
+)
 
 from .errors import error_from_response
 
@@ -60,6 +66,7 @@ class WebSocketTransport:
         self._notification_listener = False
         self._overflow_warned = False
         self._pending: dict[int, asyncio.Future[Any]] = {}
+        self._sent: set[int] = set()
         self._next_request_id = 1
         self._closed = False
         self.closed: asyncio.Future[BaseException | None] = (
@@ -86,15 +93,21 @@ class WebSocketTransport:
             try:
                 from websockets.asyncio.client import connect
             except ImportError as error:
-                raise RuntimeError(
-                    "Generated WebSocket clients require the 'websockets' package"
+                raise RpcConnectError(
+                    "Generated WebSocket clients require the 'websockets' package",
+                    permanent=True,
                 ) from error
             socket_factory = connect
-        socket = await socket_factory(
-            url,
-            subprotocols=list(subprotocols) or None,
-            additional_headers=headers,
-        )
+        try:
+            socket = await socket_factory(
+                url,
+                subprotocols=list(subprotocols) or None,
+                additional_headers=headers,
+            )
+        except RpcClientError:
+            raise
+        except Exception as error:
+            raise RpcConnectError.from_exception(error) from error
         return cls(
             socket,
             request_timeout=request_timeout,
@@ -109,11 +122,13 @@ class WebSocketTransport:
         params: JsonObject | None = None,
     ) -> Any:
         if self._closed:
-            raise RpcTransportError("The WebSocket transport is closed")
+            raise RpcConnectionLostError.from_exception(
+                self.closed.result() if self.closed.done() else None,
+                sent=False,
+                socket=self._socket,
+            )
         request_id = self._next_request_id
         self._next_request_id += 1
-        response = asyncio.get_running_loop().create_future()
-        self._pending[request_id] = response
         message: JsonObject = {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -121,25 +136,51 @@ class WebSocketTransport:
         }
         if params is not None:
             message["params"] = params
+        frame = json.dumps(message, separators=(",", ":"))
+        response = asyncio.get_running_loop().create_future()
+        self._pending[request_id] = response
         sending = True
+        waiting = asyncio.timeout(self._request_timeout)
         try:
-            async with asyncio.timeout(self._request_timeout):
-                await self._socket.send(json.dumps(message, separators=(",", ":")))
+            async with waiting:
+                self._sent.add(request_id)
+                await self._socket.send(frame)
                 sending = False
                 return await asyncio.shield(response)
         except TimeoutError as error:
-            failure = RpcTransportError(f"RPC request {method!r} timed out")
-            if sending:
+            if not waiting.expired():
+                failure = RpcConnectionLostError.from_exception(
+                    error, sent=True, socket=self._socket
+                )
                 await self._retire(failure)
-            raise failure from error
-        except asyncio.CancelledError:
+                raise failure from error
+            failure = RpcRequestTimeoutError(method, self._request_timeout)
             if sending:
                 await self._retire(
-                    RpcTransportError("The WebSocket send was cancelled")
+                    RpcConnectionLostError.from_exception(
+                        failure, sent=True, socket=self._socket
+                    )
+                )
+            raise failure from error
+        except asyncio.CancelledError as error:
+            if sending:
+                await self._retire(
+                    RpcConnectionLostError.from_exception(
+                        error, sent=True, socket=self._socket
+                    )
                 )
             raise
+        except RpcClientError:
+            raise
+        except Exception as error:
+            failure = RpcConnectionLostError.from_exception(
+                error, sent=True, socket=self._socket
+            )
+            await self._retire(failure)
+            raise failure from error
         finally:
             self._pending.pop(request_id, None)
+            self._sent.discard(request_id)
             if not response.done():
                 response.cancel()
             elif not response.cancelled():
@@ -162,6 +203,8 @@ class WebSocketTransport:
             if item is _STREAM_ENDED:
                 return
             if isinstance(item, BaseException):
+                if isinstance(item, RpcClientError):
+                    raise item
                 raise RpcTransportError(
                     "The WebSocket notification stream failed"
                 ) from item
@@ -172,15 +215,26 @@ class WebSocketTransport:
         if self._closed:
             return
         self._closed = True
+        failure = None
         try:
             await self._socket.close()
+        except Exception as error:
+            failure = RpcConnectionLostError.from_exception(
+                error, sent=False, socket=self._socket
+            )
+            raise failure from error
         finally:
             for task in (self._reader, *self._answers):
                 task.cancel()
             await asyncio.gather(self._reader, *self._answers, return_exceptions=True)
-            self._fail_pending(RpcTransportError("The WebSocket transport was closed"))
+            self._fail_pending(
+                failure
+                or RpcConnectionLostError(
+                    sent=bool(self._sent), reason="The WebSocket transport was closed"
+                )
+            )
             if not self.closed.done():
-                self.closed.set_result(None)
+                self.closed.set_result(failure)
 
     async def _receive(self) -> None:
         failure: BaseException | None = None
@@ -215,10 +269,16 @@ class WebSocketTransport:
                     raise RpcTransportError("Invalid JSON-RPC message")
         except asyncio.CancelledError:
             return
-        except BaseException as error:
-            failure = error
+        except Exception as error:
+            failure = (
+                error
+                if isinstance(error, RpcClientError)
+                else RpcConnectionLostError.from_exception(
+                    error, sent=bool(self._sent), socket=self._socket
+                )
+            )
             self._closed = True
-            self._fail_pending(error)
+            self._fail_pending(failure)
         finally:
             if failure is not None:
                 for task in tuple(self._answers):
@@ -297,10 +357,17 @@ class WebSocketTransport:
             raise RpcTransportError("JSON-RPC response has no result or error")
 
     def _fail_pending(self, error: BaseException) -> None:
-        for response in self._pending.values():
+        for request_id, response in self._pending.items():
             if not response.done():
-                response.set_exception(error)
+                response.set_exception(
+                    RpcConnectionLostError.from_exception(
+                        error, sent=request_id in self._sent, socket=self._socket
+                    )
+                    if isinstance(error, RpcConnectionLostError)
+                    else error
+                )
         self._pending.clear()
+        self._sent.clear()
 
     def _finish_notifications(self, failure: BaseException | None) -> None:
         if self._notifications.full():
