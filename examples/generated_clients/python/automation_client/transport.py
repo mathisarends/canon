@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Mapping
+from contextlib import suppress
 from typing import Any, Protocol, Self
 
 from automation_client.internal import RpcTransportError
@@ -120,14 +121,36 @@ class WebSocketTransport:
         }
         if params is not None:
             message["params"] = params
+        sending = True
         try:
-            await self._socket.send(json.dumps(message, separators=(",", ":")))
             async with asyncio.timeout(self._request_timeout):
+                await self._socket.send(json.dumps(message, separators=(",", ":")))
+                sending = False
                 return await asyncio.shield(response)
         except TimeoutError as error:
-            raise RpcTransportError(f"RPC request {method!r} timed out") from error
+            failure = RpcTransportError(f"RPC request {method!r} timed out")
+            if sending:
+                await self._retire(failure)
+            raise failure from error
+        except asyncio.CancelledError:
+            if sending:
+                await self._retire(
+                    RpcTransportError("The WebSocket send was cancelled")
+                )
+            raise
         finally:
             self._pending.pop(request_id, None)
+            if not response.done():
+                response.cancel()
+            elif not response.cancelled():
+                response.exception()
+
+    async def _retire(self, failure: RpcTransportError) -> None:
+        if not self.closed.done():
+            self.closed.set_result(failure)
+        self._fail_pending(failure)
+        with suppress(Exception):
+            await self.close()
 
     def start_notifications(self) -> None:
         self._notification_listener = True
@@ -149,13 +172,15 @@ class WebSocketTransport:
         if self._closed:
             return
         self._closed = True
-        await self._socket.close()
-        for task in (self._reader, *self._answers):
-            task.cancel()
-        await asyncio.gather(self._reader, *self._answers, return_exceptions=True)
-        self._fail_pending(RpcTransportError("The WebSocket transport was closed"))
-        if not self.closed.done():
-            self.closed.set_result(None)
+        try:
+            await self._socket.close()
+        finally:
+            for task in (self._reader, *self._answers):
+                task.cancel()
+            await asyncio.gather(self._reader, *self._answers, return_exceptions=True)
+            self._fail_pending(RpcTransportError("The WebSocket transport was closed"))
+            if not self.closed.done():
+                self.closed.set_result(None)
 
     async def _receive(self) -> None:
         failure: BaseException | None = None
@@ -195,6 +220,12 @@ class WebSocketTransport:
             self._closed = True
             self._fail_pending(error)
         finally:
+            if failure is not None:
+                for task in tuple(self._answers):
+                    task.cancel()
+                await asyncio.gather(*self._answers, return_exceptions=True)
+                with suppress(Exception):
+                    await self._socket.close()
             self._finish_notifications(failure)
             if not self.closed.done():
                 self.closed.set_result(failure)
@@ -232,10 +263,19 @@ class WebSocketTransport:
         request_id = message["id"]
         if not isinstance(request_id, int) or isinstance(request_id, bool):
             raise RpcTransportError("JSON-RPC response IDs must be integers")
+        if ("result" in message) == ("error" in message):
+            raise RpcTransportError("JSON-RPC response must have one result or error")
+        error = message.get("error")
+        if "error" in message and (
+            not isinstance(error, dict)
+            or not isinstance(error.get("code"), int)
+            or isinstance(error.get("code"), bool)
+            or not isinstance(error.get("message"), str)
+        ):
+            raise RpcTransportError("Invalid JSON-RPC response error")
         response = self._pending.get(request_id)
         if response is None or response.done():
-            raise RpcTransportError(f"Unknown JSON-RPC response ID: {request_id!r}")
-        error = message.get("error")
+            return
         if isinstance(error, dict):
             data = error.get("data")
             response.set_exception(

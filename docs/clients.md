@@ -182,6 +182,24 @@ const task = await client.tasks.create({ title: "Write docs" });
 
 Closing a generated client is idempotent and closes every transport the client
 owns.
+Python custom-transport clients wait for all owned transports to close and
+ignore individual close failures, matching clients opened through `connect()`.
+Cancelling the caller's `close()` still propagates cancellation.
+
+The request timeout covers sending the request and waiting for its response.
+Valid late, duplicate, or unknown responses are ignored, so a timed-out or
+cancelled call does not interrupt other calls on the same connection. Malformed
+responses still fail the transport. If a Python timeout or cancellation occurs
+while `send()` is blocked, the transport is retired: delivery is uncertain and
+the socket cannot safely be reused. Socket shutdown waits for the adapter's
+close operation; configure its close timeout to bound that cleanup. This follows
+the [websockets send cancellation guidance](https://websockets.readthedocs.io/en/stable/reference/asyncio/connection.html#websockets.asyncio.connection.Connection.send).
+
+TypeScript clients answer server-to-client method requests with
+`method_not_found` and keep the connection open. Typed TypeScript client-method
+handlers are not available yet. Regenerate existing clients to receive these
+transport fixes; public call signatures and the default 30-second timeout are
+unchanged.
 
 ## Lazy connections and multiple servers
 

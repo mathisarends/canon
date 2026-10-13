@@ -127,7 +127,22 @@ export class WebSocketTransport implements RpcTransport {
   #receive(raw: unknown): void {
     try {
       const message = decodeMessage(raw);
-      if ("id" in message) this.#resolveResponse(message);
+      if ("id" in message && typeof message.method === "string") {
+        this.#socket.send(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            error: {
+              code: -32601,
+              message: "Method not found",
+              data: {
+                code: "method_not_found",
+                details: { method: message.method },
+              },
+            },
+          }),
+        );
+      } else if ("id" in message) this.#resolveResponse(message);
       else if (typeof message.method === "string")
         this.#notifications.push(message);
       else throw new Error("Invalid JSON-RPC message");
@@ -142,9 +157,22 @@ export class WebSocketTransport implements RpcTransport {
     if (typeof id !== "number" || !Number.isInteger(id)) {
       throw new Error("JSON-RPC response IDs must be integers");
     }
+    const hasResult = "result" in message;
+    const hasError = "error" in message;
+    if (hasResult === hasError) {
+      throw new Error("JSON-RPC response must have one result or error");
+    }
+    if (
+      hasError &&
+      (!isObject(message.error) ||
+        typeof message.error.code !== "number" ||
+        !Number.isInteger(message.error.code) ||
+        typeof message.error.message !== "string")
+    ) {
+      throw new Error("Invalid JSON-RPC response error");
+    }
     const pending = this.#pending.get(id);
-    if (pending === undefined)
-      throw new Error(`Unknown JSON-RPC response ID: ${id}`);
+    if (pending === undefined) return;
     this.#pending.delete(id);
     if (pending.timeout !== undefined) clearTimeout(pending.timeout);
     if (isObject(message.error)) {
