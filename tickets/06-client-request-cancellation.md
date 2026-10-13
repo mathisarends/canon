@@ -1,6 +1,6 @@
 # 06: Client request cancellation
 
-- **Status:** open
+- **Status:** done — [PR #29](https://github.com/mathisarends/pyrpckit/pull/29)
 - **Priority:** high
 - **Area:** generated clients (Python + TypeScript)
 - **Depends on:** 04, 05
