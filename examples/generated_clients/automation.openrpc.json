@@ -760,6 +760,29 @@
     }
   },
   "x-rpc-protocol-version": 1,
+  "x-rpc-request-cancellation": {
+    "method": "$/cancelRequest",
+    "notification": true,
+    "params": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "code": -32800,
+      "x-rpckit-code": "request_cancelled"
+    }
+  },
   "x-rpc-notifications": [
     {
       "name": "tasks.updated",
