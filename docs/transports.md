@@ -3,6 +3,42 @@
 rpckit's core deals in an `RpcSocket` protocol, not a web framework. Use the
 FastAPI adapter or implement that small protocol for another server.
 
+## Message size and transport buffering
+
+`RpcLimits.max_message_bytes` defaults to 1 MiB and is checked after
+`RpcSocket.receive()` returns an assembled message. Configure the transport's
+message-size limit too, so oversized input is rejected before the application
+buffers it. For Uvicorn with its explicit `websockets` backend:
+
+```bash
+uvicorn my_api:web --ws websockets --ws-max-size 1048576 --ws-max-queue 4
+```
+
+The Python equivalents are `uvicorn.run(..., ws="websockets",
+ws_max_size=1_048_576, ws_max_queue=4)`. Use the same value in
+`RpcLimits(max_message_bytes=1_048_576)`. The message limit applies to the combined
+payload of a fragmented WebSocket message, not independently to each fragment.
+The transport may close oversized messages with WebSocket code 1009 before rpckit
+can produce a JSON-RPC response.
+
+Pin and check the backend you deploy rather than relying on `--ws auto`.
+Uvicorn's `--ws-max-queue` applies to the `websockets` backend. For example, in
+Uvicorn 0.35.0 `websockets-sansio` uses `ws_max_size` but does not use
+`ws_max_queue`, while `wsproto` does not use either setting. Newer versions may
+differ; check the [Uvicorn settings](https://uvicorn.dev/settings/) and the
+backend implementation for your installed version.
+The verified `websockets` mapping is in
+[Uvicorn 0.35.0](https://github.com/Kludex/uvicorn/blob/0.35.0/uvicorn/protocols/websockets/websockets_impl.py).
+
+Incoming transport queues, assembled messages, decoded JSON, and rpckit's own
+pending items and outgoing queue all consume memory. A message-size limit alone
+does not bound their sum. The legacy `websockets` backend queues complete
+messages; text can require up to four bytes per character in Python, so four
+queued 1 MiB messages can take roughly 16 MiB before accounting for other buffers
+or objects. See [websockets memory usage](https://websockets.readthedocs.io/en/10.0/topics/memory.html).
+Tune queue lengths alongside message size and connection limits, and verify
+oversized fragmented messages against the actual backend during deployment.
+
 ## FastAPI
 
 Install the optional adapter:
