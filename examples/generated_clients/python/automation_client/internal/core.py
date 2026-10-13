@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator, Iterable, Mapping
-from contextlib import suppress
+from contextlib import aclosing, suppress
 from types import MappingProxyType
 from typing import Any, Protocol, cast
 
@@ -18,7 +18,13 @@ from .errors import (
     RpcResponseValidationError,
     RpcTransportError,
 )
-from .metadata import JsonValue, RpcConnectionState, RpcNotificationInfo, RpcRouteInfo
+from .metadata import (
+    JsonValue,
+    RpcConnectionState,
+    RpcNotificationInfo,
+    RpcNotificationOverflowHandler,
+    RpcRouteInfo,
+)
 from .transport import RpcTransport
 
 _STREAM_ENDED = object()
@@ -31,6 +37,21 @@ class _Subscriber:
         self.method = method
         self.queue: asyncio.Queue[object] = asyncio.Queue(queue_size)
         self.overflow_warned = False
+        self.dropped = 0
+        self.terminal: object | None = None
+        self.ready = asyncio.Event()
+
+    async def next(self) -> object:
+        while self.queue.empty():
+            if self.terminal is not None:
+                return self.terminal
+            self.ready.clear()
+            await self.ready.wait()
+        return self.queue.get_nowait()
+
+    def finish(self, terminal: object) -> None:
+        self.terminal = terminal
+        self.ready.set()
 
 
 class _NotificationHub:
@@ -122,6 +143,7 @@ class RpcClientCore:
         raw_socket_opener: Any = None,
         variables: Mapping[str, str] | None = None,
         notification_queue_size: int = 100,
+        on_overflow: RpcNotificationOverflowHandler | None = None,
     ) -> None:
         if notification_queue_size <= 0:
             raise ValueError("notification_queue_size must be positive")
@@ -136,6 +158,10 @@ class RpcClientCore:
         self.raw_socket_opener = raw_socket_opener
         self.variables = MappingProxyType(dict(variables or {}))
         self._closed = False
+        self._closing = asyncio.Event()
+        self._dropped_notifications = 0
+        self._on_overflow = on_overflow
+        self._overflow_callback_failed = False
         self._hubs: dict[int, _NotificationHub] = {}
         self._notification_queue_size = notification_queue_size
         self._closed_future: asyncio.Future[BaseException | None] | None = None
@@ -166,6 +192,10 @@ class RpcClientCore:
     @property
     def states(self) -> Mapping[str, RpcConnectionState]:
         return getattr(self._source, "states", MappingProxyType({}))
+
+    @property
+    def dropped_notifications(self) -> int:
+        return self._dropped_notifications
 
     async def request[ParamsT: BaseModel, ResultT](
         self,
@@ -229,13 +259,16 @@ class RpcClientCore:
             if params is None
             else params.model_dump(mode="json", by_alias=True, exclude_unset=True)
         )
-        while True:
-            transport = await self._transport_for(notification.server)
+        subscriber = _Subscriber(notification.method, self._notification_queue_size)
+        while not self._closed:
+            transport = await self._notification_transport(notification.server)
+            if transport is None:
+                return
             hub = self._hubs.get(id(transport))
             if hub is None:
                 hub = _NotificationHub(transport)
                 self._hubs[id(transport)] = hub
-            subscriber = _Subscriber(notification.method, self._notification_queue_size)
+            subscriber.terminal = None
             if hub.terminal is not None:
                 raise RpcTransportError("The notification stream is closed")
             hub.subscribers.append(subscriber)
@@ -255,7 +288,9 @@ class RpcClientCore:
                     raise RpcTransportError("Invalid subscription response")
                 subscription_id = result["subscriptionId"]
                 while True:
-                    item = await subscriber.queue.get()
+                    item = await subscriber.next()
+                    if self._closed:
+                        return
                     if item is _STREAM_ENDED:
                         return
                     if isinstance(item, BaseException):
@@ -318,7 +353,7 @@ class RpcClientCore:
             finally:
                 if subscriber in hub.subscribers:
                     hub.subscribers.remove(subscriber)
-                if hub.terminal is not None:
+                if hub.terminal is not None and self._hubs.get(id(transport)) is hub:
                     self._hubs.pop(id(transport), None)
                 if subscription_id is not None:
                     with suppress(Exception):
@@ -331,50 +366,93 @@ class RpcClientCore:
         self,
         notification: RpcNotificationInfo[PayloadT],
     ) -> AsyncIterator[PayloadT]:
-        async for message in self.notifications(
-            notification.method,
-            server=notification.server,
-        ):
-            try:
-                envelope = notification.message_adapter.validate_python(message)
-            except ValidationError as error:
-                raise RpcNotificationValidationError(
-                    notification.method,
-                    error,
-                ) from error
-            yield envelope.params
+        async with aclosing(
+            self.notifications(notification.method, server=notification.server)
+        ) as stream:
+            async for message in stream:
+                try:
+                    envelope = notification.message_adapter.validate_python(message)
+                except ValidationError as error:
+                    raise RpcNotificationValidationError(
+                        notification.method, error
+                    ) from error
+                yield envelope.params
 
     async def _notifications(
         self,
         method: str | None,
         server: str | None,
     ) -> AsyncIterator[dict[str, Any]]:
-        transport = await self._transport_for(server)
-        hub = self._hubs.get(id(transport))
-        if hub is None:
-            hub = _NotificationHub(transport)
-            self._hubs[id(transport)] = hub
         subscriber = _Subscriber(method, self._notification_queue_size)
-        if hub.terminal is not None:
-            subscriber.queue.put_nowait(hub.terminal)
-        else:
+        while not self._closed:
+            transport = await self._notification_transport(server)
+            if transport is None:
+                return
+            hub = self._hubs.get(id(transport))
+            if hub is None:
+                hub = _NotificationHub(transport)
+                self._hubs[id(transport)] = hub
+            subscriber.terminal = None
             hub.subscribers.append(subscriber)
-            if hub.task is None:
+            if hub.terminal is not None:
+                subscriber.finish(hub.terminal)
+            elif hub.task is None:
+                start = getattr(transport, "start_notifications", None)
+                if start is not None:
+                    start()
                 hub.task = asyncio.create_task(self._pump_notifications(hub))
+            try:
+                while True:
+                    item = await subscriber.next()
+                    if self._closed or item is _STREAM_ENDED:
+                        return
+                    if isinstance(item, BaseException):
+                        if isinstance(item, RpcClientError):
+                            raise item
+                        raise RpcTransportError(
+                            "The notification stream failed"
+                        ) from item
+                    assert isinstance(item, dict)
+                    yield item
+            except Exception:
+                closed = getattr(transport, "closed", None)
+                if not (
+                    getattr(self._source, "reconnect", False)
+                    and not self._closed
+                    and isinstance(closed, asyncio.Future)
+                    and closed.done()
+                    and closed.result() is not None
+                ):
+                    raise
+            finally:
+                if subscriber in hub.subscribers:
+                    hub.subscribers.remove(subscriber)
+
+    async def _notification_transport(self, server: str | None) -> RpcTransport | None:
+        opening = asyncio.create_task(self._transport_for(server))
+        closing = asyncio.create_task(self._closing.wait())
         try:
-            while True:
-                item = await subscriber.queue.get()
-                if item is _STREAM_ENDED:
-                    return
-                if isinstance(item, BaseException):
-                    if isinstance(item, RpcClientError):
-                        raise item
-                    raise RpcTransportError("The notification stream failed") from item
-                assert isinstance(item, dict)
-                yield item
+            await asyncio.wait((opening, closing), return_when=asyncio.FIRST_COMPLETED)
+            if self._closed:
+                return None
+            return await opening
         finally:
-            if subscriber in hub.subscribers:
-                hub.subscribers.remove(subscriber)
+            for task in (opening, closing):
+                task.cancel()
+            await asyncio.gather(opening, closing, return_exceptions=True)
+
+    def _overflow(self, subscriber: _Subscriber) -> None:
+        subscriber.dropped += 1
+        self._dropped_notifications += 1
+        if self._on_overflow is not None:
+            try:
+                self._on_overflow(subscriber.method, subscriber.dropped, "subscriber")
+            except Exception:
+                if not self._overflow_callback_failed:
+                    logging.getLogger(__name__).exception(
+                        "RPC overflow callback failed"
+                    )
+                    self._overflow_callback_failed = True
 
     async def _pump_notifications(self, hub: _NotificationHub) -> None:
         terminal: object = _STREAM_ENDED
@@ -385,6 +463,7 @@ class RpcClientCore:
                     if subscriber.method in (None, message_method):
                         if subscriber.queue.full():
                             subscriber.queue.get_nowait()
+                            self._overflow(subscriber)
                             if not subscriber.overflow_warned:
                                 logging.getLogger(__name__).warning(
                                     "Notification subscriber queue overflowed; "
@@ -392,6 +471,7 @@ class RpcClientCore:
                                 )
                                 subscriber.overflow_warned = True
                         subscriber.queue.put_nowait(message)
+                        subscriber.ready.set()
         except asyncio.CancelledError:
             raise
         except BaseException as error:
@@ -403,14 +483,15 @@ class RpcClientCore:
         finally:
             hub.terminal = terminal
             for subscriber in tuple(hub.subscribers):
-                if subscriber.queue.full():
-                    subscriber.queue.get_nowait()
-                subscriber.queue.put_nowait(terminal)
+                subscriber.finish(terminal)
+            if self._hubs.get(id(hub.transport)) is hub:
+                self._hubs.pop(id(hub.transport), None)
 
     async def close(self) -> None:
         if self._closed:
             return
         self._closed = True
+        self._closing.set()
         tasks = tuple(hub.task for hub in self._hubs.values() if hub.task is not None)
         for task in tasks:
             task.cancel()

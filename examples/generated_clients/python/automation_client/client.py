@@ -12,6 +12,7 @@ from automation_client.internal import (
     RpcClientCore,
     RpcClientHook,
     RpcConnectionState,
+    RpcNotificationOverflowHandler,
     RpcTransport,
     RpcTransportPool,
     RpcTransportSource,
@@ -44,6 +45,7 @@ class AutomationClient:
         close_transport: bool = True,
         hooks: Iterable[RpcClientHook] = (),
         notification_queue_size: int = 100,
+        on_overflow: RpcNotificationOverflowHandler | None = None,
         stream_opener: BinaryStreamOpener | None = None,
         raw_socket_opener: RawSocketOpener | None = None,
         variables: Mapping[str, str] | None = None,
@@ -53,6 +55,7 @@ class AutomationClient:
             close_transport=close_transport,
             hooks=hooks,
             notification_queue_size=notification_queue_size,
+            on_overflow=on_overflow,
             stream_opener=stream_opener,
             raw_socket_opener=raw_socket_opener,
             variables=variables,
@@ -72,6 +75,10 @@ class AutomationClient:
     def states(self) -> Mapping[str, RpcConnectionState]:
         return self._rpc.states
 
+    @property
+    def dropped_notifications(self) -> int:
+        return self._rpc.dropped_notifications
+
     @classmethod
     def with_transports(
         cls,
@@ -80,6 +87,7 @@ class AutomationClient:
         close_transport: bool = True,
         hooks: Iterable[RpcClientHook] = (),
         notification_queue_size: int = 100,
+        on_overflow: RpcNotificationOverflowHandler | None = None,
         stream_opener: BinaryStreamOpener | None = None,
         raw_socket_opener: RawSocketOpener | None = None,
         variables: Mapping[str, str] | None = None,
@@ -90,6 +98,7 @@ class AutomationClient:
             close_transport=close_transport,
             hooks=hooks,
             notification_queue_size=notification_queue_size,
+            on_overflow=on_overflow,
             stream_opener=stream_opener,
             raw_socket_opener=raw_socket_opener,
             variables=variables,
@@ -104,6 +113,7 @@ class AutomationClient:
         request_timeout: float | None = 30.0,
         notification_queue_size: int = 100,
         notification_overflow: str = "drop_oldest",
+        on_overflow: RpcNotificationOverflowHandler | None = None,
         headers: (
             Mapping[str, str] | Callable[[], Awaitable[Mapping[str, str]]] | None
         ) = None,
@@ -150,6 +160,7 @@ class AutomationClient:
                 notification_overflow=notification_overflow,
                 headers=await resolve_headers(),
                 socket_factory=socket_factory,
+                on_overflow=on_overflow,
                 request_handler=dispatcher,
             )
 
@@ -185,6 +196,7 @@ class AutomationClient:
             client_factory=lambda transports: cls(
                 transports,
                 hooks=hooks,
+                on_overflow=on_overflow,
                 notification_queue_size=notification_queue_size,
                 stream_opener=open_stream,
                 raw_socket_opener=open_raw,

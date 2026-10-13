@@ -4,11 +4,15 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, TypeAdapter
 
 from .errors import RpcRemoteError
+
+type RpcNotificationOverflowHandler = Callable[
+    [str | None, int, Literal["transport", "subscriber"]], None
+]
 
 
 class RpcConnectionState(StrEnum):
