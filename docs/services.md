@@ -324,3 +324,11 @@ accounting when the required bound spans workers or hosts.
 from `RpcModel` merely to appear in an RPC signature.
 
 [Back to documentation](README.md)
+## Idempotent methods
+
+Declare `@channel.method(idempotent=True)` only when concurrent or repeated
+execution with the same params has the same intended effect. The contract exports
+`x-rpc-idempotent: true`; generated route metadata carries the flag. Omitted or
+false declarations leave methods non-idempotent. This is a service guarantee:
+rpckit does not deduplicate requests or provide idempotency keys. Read operations
+often qualify; writes require careful service-level design.

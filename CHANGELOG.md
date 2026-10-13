@@ -12,6 +12,13 @@
 
 ### Added
 
+- Methods can declare `idempotent=True`, exported as `x-rpc-idempotent` and
+  generated route metadata in both SDKs. Optional `retry_attempts` /
+  `retryAttempts` (default zero extra attempts) retry unsent calls and declared
+  idempotent calls after ambiguous connection loss or an attempt timeout.
+  Retries use the reconnect jitter policy, fresh wire IDs, and one overall call
+  deadline; optional attempt timeouts leave room within that budget. Caller
+  cancellation, explicit close, remote errors, and validation errors are excluded.
 - OpenRPC advertises the reserved `$/ping` heartbeat. The server answers it
   outside handler capacity, middleware, and request observation. Generated
   TypeScript clients enable idle heartbeats (30 s interval, 10 s timeout) only
