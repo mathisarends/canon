@@ -1,6 +1,6 @@
 # 05: Server request deadlines and cancellation
 
-- **Status:** open
+- **Status:** done — [PR #28](https://github.com/mathisarends/pyrpckit/pull/28)
 - **Priority:** high
 - **Area:** server (`rpckit/runtime.py`, `rpckit/server.py`,
   `rpckit/connection.py`, `rpckit/channel.py`, `rpckit/protocol.py`, schema)
