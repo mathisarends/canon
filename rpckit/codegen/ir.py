@@ -129,6 +129,7 @@ class RouteDecl:
     errors: tuple[ErrorDecl, ...] = ()
     server: str | None = None
     deprecated: bool = False
+    idempotent: bool = False
 
     @property
     def name(self) -> str:
@@ -559,6 +560,7 @@ def _route(method: dict[str, Any]) -> RouteDecl:
         errors=tuple(_error(error) for error in method.get("errors", ())),
         server=_server_reference(method, owner=f"Method {method['name']!r}"),
         deprecated=bool(method.get("deprecated", False)),
+        idempotent=method.get("x-rpc-idempotent") is True,
     )
 
 

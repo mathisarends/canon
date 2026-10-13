@@ -55,6 +55,11 @@ class RpcMethodDefinition:
     params_origin: type[BaseModel] | None = None
     timeout: float | None = None
     _has_timeout: bool = False
+    idempotent: bool = False
+
+    def __post_init__(self) -> None:
+        if type(self.idempotent) is not bool:
+            raise ProtocolDefinitionError("Method idempotent must be a bool")
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +242,7 @@ def method_definition(
     resolver_scope: RpcResolverScope,
     timeout: float | None = None,
     has_timeout: bool = False,
+    idempotent: bool = False,
     request_name: str | None = None,
 ) -> RpcMethodDefinition:
     request_name = request_name or f"{_pascal_case(handler_name)}Request"
@@ -244,6 +250,7 @@ def method_definition(
     return RpcMethodDefinition(
         timeout=timeout,
         _has_timeout=has_timeout,
+        idempotent=idempotent,
         name=name,
         handler_name=handler_name,
         request_name=request_name,
