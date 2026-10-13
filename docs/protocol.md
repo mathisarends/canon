@@ -38,8 +38,8 @@ declarations. Cancellation races with completion: an already completed call can
 still return its result. Within a batch, controls are processed in wire order;
 cancelling a preceding item keeps its failure in the original batch response.
 Clients that already abandoned the call should ignore its valid late response.
-The generated SDKs currently require callers to send the control explicitly;
-automatic transmission on client timeout or abort is a separate client feature.
+The generated WebSocket SDKs send the control automatically after local timeout
+or caller cancellation; see [Client cancellation](clients.md#cancel-a-request).
 
 Duplicate in-flight IDs of the same type close the connection with
 `PROTOCOL_ERROR` (1002) instead of replacing the original task or sending an
