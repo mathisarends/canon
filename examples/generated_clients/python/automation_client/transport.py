@@ -136,7 +136,12 @@ class WebSocketTransport:
         }
         if params is not None:
             message["params"] = params
-        frame = json.dumps(message, separators=(",", ":"))
+        try:
+            frame = json.dumps(message, separators=(",", ":"))
+        except (TypeError, ValueError, OverflowError) as error:
+            raise RpcTransportError(
+                "RPC request parameters are not JSON serializable"
+            ) from error
         response = asyncio.get_running_loop().create_future()
         self._pending[request_id] = response
         sending = True

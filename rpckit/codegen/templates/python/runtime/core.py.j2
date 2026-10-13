@@ -408,5 +408,5 @@ class RpcClientCore:
 
     async def _transport_for(self, server: str | None) -> RpcTransport:
         if self._closed:
-            raise RpcTransportError("The RPC client is closed")
+            raise RpcConnectionLostError(sent=False, reason="The RPC client is closed")
         return await self._source.get(server)
