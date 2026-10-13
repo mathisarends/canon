@@ -53,9 +53,11 @@ def test_renders_typed_api_groups_and_notifications(document: dict[str, Any]) ->
     client = files["client.ts"]
 
     assert "export class Greeting {" in api
-    assert "say(params: SayParams): Promise<SayResult>" in api
-    assert "async forget(params: ForgetParams): Promise<void>" in api
-    assert "greeted(): Promise<GreetedResult>" in api
+    assert "params: SayParams," in api
+    assert "options?: RpcRequestOptions," in api
+    assert "): Promise<SayResult>" in api
+    assert "async forget(" in api and "params: ForgetParams," in api
+    assert "greeted(options?: RpcRequestOptions): Promise<GreetedResult>" in api
     assert "readonly greeting: Greeting;" in client
     assert "changed(): AsyncIterable<GreetingUpdate>" in api
     assert "events()" not in client
@@ -96,7 +98,7 @@ def test_api_calls_infer_their_types_from_route_metadata(
 
     assert ".request<SayResult>" not in api
     assert ".notifications<GreetingUpdate>" not in api
-    assert "this.rpc.request(routes.greetingSay, params)" in api
+    assert "this.rpc.request(routes.greetingSay, params, options)" in api
     assert "this.rpc.notifications(notifications.greetingChanged)" in api
 
 
@@ -114,7 +116,10 @@ def test_transport_module_can_be_configured(document: dict[str, Any]) -> None:
 
     files = render_typescript_client(document, configured)
 
-    assert 'import type { RpcTransport } from "@example/rpc";' in files["core.ts"]
+    assert (
+        'import type { RpcTransport as BaseRpcTransport } from "@example/rpc";'
+        in files["core.ts"]
+    )
 
 
 def test_api_root_and_names_are_shared_with_the_python_layout(
@@ -146,7 +151,8 @@ def test_all_optional_params_default_to_an_empty_object(
 
     api = render_typescript_client(optional, options())["namespaces/greeting.ts"]
 
-    assert "say(params: SayParams = {}): Promise<SayResult>" in api
+    assert "params: SayParams = {}," in api
+    assert "options?: RpcRequestOptions," in api
 
 
 def test_camel_case_wire_fields_stay_camel_case_in_typescript(
@@ -276,6 +282,7 @@ def test_the_index_exports_everything_a_caller_needs(
         "RpcConnectionLostError",
         "RpcRemoteError",
         "RpcRequestTimeoutError",
+        "RpcRequestOptions",
         "RpcTransportError",
     ):
         assert f"  {name}," in index

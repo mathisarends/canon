@@ -18,6 +18,7 @@ export type {
   RpcClientCore,
   RpcClientHook,
   RpcRouteInfo,
+  RpcRequestOptions,
   RpcTransport,
 } from "./core";
 export * from "./errors";
