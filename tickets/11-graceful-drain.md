@@ -1,6 +1,6 @@
 # 11: Graceful drain on shutdown
 
-- **Status:** open
+- **Status:** done — [PR #34](https://github.com/mathisarends/pyrpckit/pull/34)
 - **Priority:** high
 - **Area:** server (`rpckit/runtime.py`, `rpckit/connection.py`,
   `rpckit/websocket.py`, `rpckit/integrations/fastapi.py`)
