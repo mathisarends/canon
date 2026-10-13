@@ -34,6 +34,7 @@ from rpckit.envelopes import RpcNotification, RpcRequestEnvelope
 from rpckit.errors import (
     RpcError,
     RpcInternalError,
+    RpcInvalidRequestError,
     RpcParseError,
     bind_contracts,
     contract_for,
@@ -192,6 +193,7 @@ async def _serve_endpoint(
     outgoing: asyncio.Queue[str] = asyncio.Queue(limits.max_queue_size)
     slow_consumer_reported = False
     pending_rejections = 0
+    pending = _PendingRequests(limits.max_pending_requests)
 
     async def report_slow_consumer() -> None:
         nonlocal slow_consumer_reported
@@ -275,34 +277,56 @@ async def _serve_endpoint(
                     logger.exception("RPC writer failed")
                     request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
 
-            async def invoke(message):
-                if isinstance(message, dict) and subscriptions.owns(
-                    str(message.get("method", ""))
-                ):
-                    try:
-                        request = RpcRequestEnvelope.model_validate(message)
-                    except ValidationError:
-                        response = await server.handle(message)
-                        if response is not None:
-                            await send_outgoing(codec.encode(response))
-                        return
-                    await subscriptions.handle(request)
-                    return
-                response = await server.handle(message)
-                if response is not None:
-                    await send_outgoing(codec.encode(response))
+            async def invoke_one(message, reservation, invalid, batch):
+                try:
+                    if invalid:
+                        return await server._handle_failure(
+                            message, RpcInvalidRequestError()
+                        )
+                    if reservation is None:
+                        return await reject_pending(message)
+                    if not batch and subscriptions.owns(message["method"]):
+                        await subscriptions.handle(
+                            RpcRequestEnvelope.model_validate(message)
+                        )
+                        return None
+                    return await server._handle_one_bounded(message)
+                finally:
+                    if reservation is not None:
+                        pending.release(reservation)
+
+            async def invoke(items, batch):
+                work = tuple(
+                    asyncio.create_task(
+                        invoke_one(message, reservation, invalid, batch)
+                    )
+                    for message, reservation, invalid in items
+                )
+                try:
+                    responses = await asyncio.gather(*work)
+                finally:
+                    for task in work:
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(*work, return_exceptions=True)
+                responses = [response for response in responses if response is not None]
+                if responses:
+                    await send_outgoing(
+                        codec.encode(responses if batch else responses[0])
+                    )
 
             async def reject_pending(message):
                 nonlocal pending_rejections
                 pending_rejections += 1
                 if pending_rejections == 1:
                     logger.warning("RPC client exceeded max_pending_requests")
-                failure = await server._handle_failure(message, RpcPendingLimitError())
-                if failure is not None:
-                    await send_outgoing(codec.encode(failure))
+                return await server._handle_failure(message, RpcPendingLimitError())
 
-            def invocation_done(task):
+            def invocation_done(task, reservations):
                 tasks.discard(task)
+                # Also covers cancellation before the invocation starts.
+                for reservation in reservations:
+                    pending.release(reservation)
                 if not task.cancelled() and (error := task.exception()) is not None:
                     _record_error(error)
                     request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
@@ -337,14 +361,50 @@ async def _serve_endpoint(
                                 codec.encode(await server._handle_failure(frame, error))
                             )
                             continue
-                        if connected_client._resolve(message):
+                        batch = isinstance(message, list)
+                        if batch and (
+                            not message or len(message) > limits.max_batch_size
+                        ):
+                            await send_outgoing(
+                                codec.encode(
+                                    await server._handle_failure(
+                                        message, RpcInvalidRequestError()
+                                    )
+                                )
+                            )
                             continue
-                        if len(tasks) >= limits.max_pending_requests:
-                            await reject_pending(message)
+                        items = []
+                        reservations = []
+                        # Bound response collectors as well as admitted items.
+                        collectors_full = len(tasks) >= (
+                            limits.max_pending_requests + limits.max_queue_size
+                        )
+                        for item in message if batch else [message]:
+                            if connected_client._resolve(item):
+                                continue
+                            try:
+                                RpcRequestEnvelope.model_validate(item)
+                            except ValidationError:
+                                invalid = True
+                                reservation = None
+                            else:
+                                invalid = False
+                                reservation = (
+                                    None if collectors_full else pending.reserve()
+                                )
+                            items.append((item, reservation, invalid))
+                            if reservation is not None:
+                                reservations.append(reservation)
+                        if not reservations:
+                            await invoke(items, batch)
                             continue
-                        task = asyncio.create_task(invoke(message))
+                        task = asyncio.create_task(invoke(items, batch))
                         tasks.add(task)
-                        task.add_done_callback(invocation_done)
+                        task.add_done_callback(
+                            lambda task, reservations=reservations: invocation_done(
+                                task, reservations
+                            )
+                        )
                 except RpcDisconnect as error:
                     client_closed = True
                     request_close(error.code, error.reason, error.raw_close_code)
@@ -437,6 +497,26 @@ async def _serve_endpoint(
                 raw_close_code=connection.raw_close_code,
             ),
         )
+
+
+class _PendingRequests:
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self._reservations: set[object] = set()
+
+    @property
+    def count(self) -> int:
+        return len(self._reservations)
+
+    def reserve(self) -> object | None:
+        if self.count >= self.limit:
+            return None
+        reservation = object()
+        self._reservations.add(reservation)
+        return reservation
+
+    def release(self, reservation: object) -> None:
+        self._reservations.discard(reservation)
 
 
 class RpcPendingLimitError(RpcError):

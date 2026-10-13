@@ -155,6 +155,7 @@ class RpcLimits:
     send_timeout: float | None = 10.0
     max_batch_size: int = 32
     max_subscriptions: int = 100
+    # Admitted request/notification items, including executing batch members.
     max_pending_requests: int = 1024
 
     def __post_init__(self) -> None:

@@ -300,6 +300,21 @@ async def test_outgoing_requests_respect_the_concurrency_limit() -> None:
         assert await second is None
 
 
+@pytest.mark.parametrize("batch", [False, True])
+async def test_client_method_responses_bypass_full_request_admission(batch):
+    async with Session(RpcLimits(max_concurrency=1, max_pending_requests=1)) as session:
+        await session.send({"jsonrpc": "2.0", "id": 2, "method": "hello.relay"})
+        request = await session.receive()
+        response = {"jsonrpc": "2.0", "id": request["id"], "result": {"started": True}}
+        await session.socket.client_send(json.dumps([response] if batch else response))
+        async with asyncio.timeout(1):
+            assert await session.receive() == {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": True,
+            }
+
+
 async def test_responses_to_unknown_ids_are_dropped_without_a_reply() -> None:
     async with Session() as session:
         await session.send({"jsonrpc": "2.0", "id": "server:99", "result": None})
