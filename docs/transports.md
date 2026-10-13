@@ -378,3 +378,16 @@ See the late-response regression in
 for a complete generated-client example using held responses.
 
 [Back to documentation](README.md)
+# Application heartbeats
+
+The RPC socket runtime reserves `$/ping` alongside `$/cancelRequest`. A ping
+request has no params or `{}` and returns `null`. Malformed requests receive
+`invalid_request`; notifications get no response. Batch responses preserve batch
+shape. Control processing is bounded by frame/batch limits and the bounded
+outgoing queue with its send timeout. Pings bypass request admission, handler
+semaphores, middleware, and request observers, so handler overload does not make
+an otherwise responsive connection appear dead.
+
+Configure protocol ping settings in your WebSocket server separately. Those
+pings let the server detect lost peers; browsers cannot originate WebSocket ping
+frames, so client-side application heartbeats provide the reverse check.

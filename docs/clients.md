@@ -532,3 +532,31 @@ come from the document. See
 generated Python and TypeScript packages.
 
 [Back to documentation](README.md)
+# Connection keepalive
+
+Generated TypeScript `connect()` enables application heartbeats when the OpenRPC
+document advertises `x-rpc-heartbeat` with `method: "$/ping"`, `params: {}`, and
+`result: null`. An idle connection sends one JSON-RPC request with an integer ID,
+`method: "$/ping"`, and empty object params. The server returns `result: null`.
+Defaults are `heartbeatIntervalMs: 30_000` and `heartbeatTimeoutMs: 10_000`.
+Set `heartbeatIntervalMs: null` to disable, or a positive value to opt in for a
+known compatible server. Direct `WebSocketTransport.open()` leaves probing off.
+Missing or different capability metadata leaves it off; a valid error reply to a
+probe also disables it without disconnecting. Regenerate clients to acquire the
+capability default. Existing operation signatures and Python clients are unchanged.
+
+Any valid inbound traffic resets idle detection and the timeout breaker. With
+`reconnect: true`, heartbeat failure produces `RpcConnectionLostError` and enters
+the normal state/reconnect policy. Only one probe is outstanding. If browser
+timers resume much later than a probe deadline, a fresh probe gets a new timeout;
+there is no backlog of heartbeats. Detection takes interval plus timeout while
+timers run normally; background suspension can extend that bound.
+
+`consecutiveTimeoutLimit` is an optional fallback (default `0`, disabled). A
+positive integer fails the socket after that many consecutive sent-request
+timeouts without valid inbound traffic. Choose it cautiously for slow servers;
+it does not imply an operation failed to execute. Caller aborts do not count.
+
+Python's default `websockets` factory uses its protocol-level keepalive (20 s ping
+interval and timeout). A custom socket factory must provide its own keepalive;
+the generated Python runtime does not add application probes.
