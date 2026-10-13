@@ -1,7 +1,9 @@
+import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
+from time import time
 from types import MappingProxyType
 from typing import Protocol
 
@@ -62,6 +64,32 @@ class RpcHandshake:
     path_params: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
     subprotocols: tuple[str, ...] = ()
     client: tuple[str, int] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RpcConnectionExpiry:
+    """Unix timestamp in seconds returned from a before_accept hook."""
+
+    expires_at: float
+
+    def __post_init__(self) -> None:
+        _validate_expiry(self.expires_at)
+
+
+def _validate_expiry(value: float) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not isfinite(value)
+    ):
+        raise ValueError("Connection expiry must be a finite Unix timestamp")
+
+
+def _schedule_expiry(
+    expires_at: float, callback: Callable[[], None]
+) -> asyncio.TimerHandle:
+    loop = asyncio.get_running_loop()
+    return loop.call_at(loop.time() + max(0.0, expires_at - time()), callback)
 
 
 type RpcBeforeAccept = Callable[[RpcHandshake], Awaitable[Mapping[type, object] | None]]
@@ -211,6 +239,8 @@ class RpcConnection:
         "_raw_close_code",
         "_on_close",
         "_path_params",
+        "_expires_at",
+        "_expiry_timer",
     )
 
     def __init__(self) -> None:
@@ -232,6 +262,8 @@ class RpcConnection:
         self._close_reason = ""
         self._raw_close_code = None
         self._on_close = None
+        self._expires_at = None
+        self._expiry_timer = None
         return self
 
     @property
@@ -278,6 +310,48 @@ class RpcConnection:
     @property
     def raw_close_code(self) -> int | None:
         return self._raw_close_code
+
+    @property
+    def expires_at(self) -> float | None:
+        return self._expires_at
+
+    @expires_at.setter
+    def expires_at(self, value: float | None) -> None:
+        if value is not None:
+            _validate_expiry(value)
+        self._expires_at = value
+        self._arm_expiry()
+
+    def expire_at(self, timestamp: float | None) -> None:
+        self.expires_at = timestamp
+
+    def _arm_expiry(self) -> None:
+        if self._expiry_timer is not None:
+            self._expiry_timer.cancel()
+            self._expiry_timer = None
+        if self._accepted and not self._closed and self._expires_at is not None:
+            self._expiry_timer = _schedule_expiry(self._expires_at, self._expire)
+
+    def _expire(self) -> None:
+        self._expiry_timer = None
+        if self._closed or self._close_code is not None:
+            return
+        if self._on_close is not None:
+            self._on_close(RpcConnectionClose.POLICY_VIOLATION, "credentials_expired")
+        else:
+            self._close_code = RpcConnectionClose.POLICY_VIOLATION
+            self._close_reason = "credentials_expired"
+
+    def _set_close_handler(self, callback: Callable) -> None:
+        self._on_close = callback
+        if self._close_reason == "credentials_expired":
+            callback(RpcConnectionClose.POLICY_VIOLATION, "credentials_expired")
+
+    def _mark_closed(self) -> None:
+        self._closed = True
+        if self._expiry_timer is not None:
+            self._expiry_timer.cancel()
+            self._expiry_timer = None
 
     async def close(
         self, close: RpcConnectionClose = RpcConnectionClose.NORMAL, *, reason: str = ""

@@ -16,6 +16,7 @@ from rpckit.connection import (
     RpcBeforeAccept,
     RpcConnection,
     RpcConnectionClose,
+    RpcConnectionExpiry,
     RpcDisconnect,
     RpcLimits,
     RpcReject,
@@ -134,12 +135,16 @@ async def _prepare(
             return None
         if accepted_values is not None:
             base_values.update(accepted_values)
+    expiry = base_values.get(RpcConnectionExpiry)
+    if isinstance(expiry, RpcConnectionExpiry):
+        connection.expire_at(expiry.expires_at)
     if endpoint.service.drain.draining:
         _record_rejection(RpcRejection.UNAVAILABLE)
         await socket.reject(RpcRejection.UNAVAILABLE, "Server restarting")
         return None
     await socket.accept(endpoint.subprotocol)
     connection._accepted = True
+    connection._arm_expiry()
     if state is not None:
         state.accepted_at = time.perf_counter()
     return connection, resolved, base_values, path_values
@@ -245,7 +250,7 @@ async def _serve_endpoint(
             close_event.set()
             connected_client._close()
 
-    connection._on_close = request_close
+    connection._set_close_handler(request_close)
     tasks: set[asyncio.Task] = set()
     call_tasks: set[asyncio.Task] = set()
     requests: dict[tuple[type, str | int], _PendingCall] = {}
@@ -639,7 +644,7 @@ async def _serve_endpoint(
         if not client_closed:
             with suppress(RpcDisconnect):
                 await socket.close(*close_value)
-        connection._closed = True
+        connection._mark_closed()
         raise
     finally:
         connected_client._close()
@@ -652,7 +657,7 @@ async def _serve_endpoint(
         if not client_closed and not connection.closed:
             with suppress(RpcDisconnect):
                 await socket.close(*close_value)
-        connection._closed = True
+        connection._mark_closed()
         await notify_observer(
             observer,
             "connection_closed",
@@ -885,7 +890,7 @@ async def _accepted(
                     connection.close_code or RpcConnectionClose.NORMAL,
                     connection.close_reason,
                 )
-            connection._closed = True
+            connection._mark_closed()
         await notify_observer(
             observer,
             "connection_closed",
@@ -962,7 +967,7 @@ async def _run_stream_endpoint(
         logger.error("RPC binary stream failed", exc_info=error)
         request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
 
-    connection._on_close = request_close
+    connection._set_close_handler(request_close)
     binary_input = (
         RpcBinaryInput._create(limits.max_queue_size) if stream.has_input else None
     )
@@ -1104,7 +1109,7 @@ async def _run_stream_endpoint(
         if not client_closed:
             with suppress(RpcDisconnect):
                 await socket.close(*close_value)
-        connection._closed = True
+        connection._mark_closed()
 
 
 def _is_input_end(frame: str) -> bool:
@@ -1219,7 +1224,7 @@ async def _run_raw_socket(
         logger.error("RPC raw socket %s failed", definition.name, exc_info=failure)
         request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
 
-    connection._on_close = request_close
+    connection._set_close_handler(request_close)
     raw_socket = RpcRawSocket._create(
         socket,
         connection,
@@ -1303,7 +1308,7 @@ async def _run_raw_socket(
         if not client_closed:
             with suppress(RpcDisconnect):
                 await socket.close(*close_value)
-        connection._closed = True
+        connection._mark_closed()
 
 
 def _leaf_exceptions(error: Exception) -> list[Exception]:

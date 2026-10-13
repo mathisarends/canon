@@ -12,6 +12,7 @@ from .connection import (
     RpcBeforeAccept,
     RpcConnection,
     RpcConnectionClose,
+    RpcConnectionExpiry,
     RpcDisconnect,
     RpcHandshake,
     RpcLimits,
@@ -85,6 +86,7 @@ from .streams import (
 __version__ = "0.10.0"
 
 __all__ = [
+    "RpcConnectionExpiry",
     "RpcDrain",
     "RpcServerShuttingDownError",
     "RpcEndpointInfo",
