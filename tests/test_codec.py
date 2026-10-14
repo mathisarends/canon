@@ -15,7 +15,9 @@ def test_decode_accepts_supported_json_frame_types(message) -> None:
     assert "value" in RpcCodec().decode(message)
 
 
-@pytest.mark.parametrize("message", ["{", b"\xff"])
+@pytest.mark.parametrize(
+    "message", ["{", b"\xff", "[" * 100_000], ids=["syntax", "utf8", "deep"]
+)
 def test_decode_translates_invalid_json_to_a_parse_error(message) -> None:
     with pytest.raises(RpcParseError):
         RpcCodec().decode(message)

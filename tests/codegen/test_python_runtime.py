@@ -415,6 +415,23 @@ async def test_cancel_during_send_preserves_cancellation_and_retires_transport(
     assert transport._reader.done()
 
 
+async def test_deep_json_fails_all_client_calls_without_leaked_futures(
+    websocket_runtime: ModuleType,
+) -> None:
+    socket = ControlledSocket()
+    transport = websocket_runtime.WebSocketTransport(socket, request_timeout=None)
+    calls = [asyncio.create_task(transport.request("pending")) for _ in range(2)]
+    for _ in calls:
+        await socket.sent.get()
+    socket.inbox.put_nowait("[" * 100_000)
+    outcomes = await asyncio.gather(*calls, return_exceptions=True)
+    assert all(isinstance(e, websocket_runtime.RpcTransportError) for e in outcomes)
+    assert isinstance(await transport.closed, websocket_runtime.RpcTransportError)
+    assert not transport._pending
+    assert transport._reader.done()
+    assert socket.closed
+
+
 async def test_static_transport_close_waits_for_all_and_finalizes_client(
     runtime: ModuleType,
 ) -> None:

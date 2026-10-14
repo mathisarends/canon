@@ -1,6 +1,7 @@
 # 02: Server input hardening
 
-- **Status:** open
+- **Status:** done
+- **PR:** https://github.com/mathisarends/pyrpckit/pull/24
 - **Priority:** high
 - **Area:** server (`rpckit/codec.py`, `rpckit/runtime.py`,
   `rpckit/connected_client.py`, `rpckit/server.py`), Python client decoder

@@ -191,6 +191,7 @@ async def _serve_endpoint(
     client_closed = False
     outgoing: asyncio.Queue[str] = asyncio.Queue(limits.max_queue_size)
     slow_consumer_reported = False
+    pending_rejections = 0
 
     async def report_slow_consumer() -> None:
         nonlocal slow_consumer_reported
@@ -292,7 +293,10 @@ async def _serve_endpoint(
                     await send_outgoing(codec.encode(response))
 
             async def reject_pending(message):
-                logger.warning("RPC client exceeded max_pending_requests")
+                nonlocal pending_rejections
+                pending_rejections += 1
+                if pending_rejections == 1:
+                    logger.warning("RPC client exceeded max_pending_requests")
                 failure = await server._handle_failure(message, RpcPendingLimitError())
                 if failure is not None:
                     await send_outgoing(codec.encode(failure))
@@ -412,6 +416,12 @@ async def _serve_endpoint(
         raise
     finally:
         connected_client._close()
+        if pending_rejections:
+            logger.debug(
+                "Rejected %d messages exceeding max_pending_requests "
+                "on this connection",
+                pending_rejections,
+            )
         if not client_closed and not connection.closed:
             with suppress(RpcDisconnect):
                 await socket.close(*close_value)

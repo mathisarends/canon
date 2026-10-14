@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from contextlib import suppress
 from typing import Any
 
@@ -307,3 +308,30 @@ async def test_responses_to_unknown_ids_are_dropped_without_a_reply() -> None:
         client_method = await session.receive()
 
     assert client_method["method"] == "room.media.play"
+
+
+async def test_unknown_response_logs_are_bounded_per_connection_at_debug(caplog):
+    caplog.set_level(logging.DEBUG, logger="rpckit")
+    for _ in range(2):
+        async with Session() as session:
+            for request_id in range(60):
+                await session.send(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": f"server:unknown:{request_id}",
+                        "result": 1,
+                    }
+                )
+            # A real call/answer proves the preceding frames were consumed.
+            call = asyncio.create_task(session.client.call(room_ping))
+            request = await session.receive()
+            await session.send({"jsonrpc": "2.0", "id": request["id"], "result": None})
+            assert await call is None
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    totals = [r for r in caplog.records if "unknown client_method" in r.message]
+    assert len(warnings) == 2
+    assert len(totals) == 4
+    assert (
+        len([r for r in totals if r.levelno == logging.DEBUG and "60" in r.message])
+        == 2
+    )

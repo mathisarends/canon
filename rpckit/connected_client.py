@@ -88,6 +88,7 @@ class RpcConnectedClient:
         self._pending = {}
         self._next_id = 0
         self._closed = False
+        self._dropped_responses = 0
         return self
 
     @property
@@ -171,9 +172,9 @@ class RpcConnectedClient:
             self._pending.get(request_id) if isinstance(request_id, str) else None
         )
         if response is None or response.done():
-            logger.warning(
-                "Dropped a response to unknown client_method id %r", request_id
-            )
+            self._dropped_responses += 1
+            if self._dropped_responses == 1:
+                logger.warning("Dropped a response to unknown client_method id")
         else:
             response.set_result(message)
         return True
@@ -182,6 +183,11 @@ class RpcConnectedClient:
         if self._closed:
             return
         self._closed = True
+        if self._dropped_responses:
+            logger.debug(
+                "Dropped %d responses to unknown client_method ids on this connection",
+                self._dropped_responses,
+            )
         for response in self._pending.values():
             if not response.done():
                 response.set_exception(
