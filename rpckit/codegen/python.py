@@ -193,6 +193,7 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
     )
     imports.add(
         ".metadata",
+        "RpcConnectionState",
         "JsonValue",
         "RpcContractInfo",
         "RpcNotificationInfo",
@@ -207,6 +208,7 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
     exported.extend(
         [
             "JsonValue",
+            "RpcConnectionState",
             "RpcClientError",
             "RpcConnectError",
             "RpcConnectionClosed",
@@ -591,6 +593,7 @@ def _render_client(
         _runtime_module(options),
         "RpcClientCore",
         "RpcClientHook",
+        "RpcConnectionState",
         "RpcTransport",
         "RpcTransportSource",
     )
@@ -697,6 +700,7 @@ def _render_package_init(
     imports.add(
         _runtime_module(options),
         "RpcClientError",
+        "RpcConnectionState",
         "RpcConnectError",
         "RpcConnectionClosed",
         "RpcConnectionLostError",
@@ -710,6 +714,7 @@ def _render_package_init(
     exported = [
         client_name,
         "RpcClientError",
+        "RpcConnectionState",
         "RpcConnectError",
         "RpcConnectionClosed",
         "RpcConnectionLostError",
@@ -1059,6 +1064,9 @@ def _validate(
         )
     client_members = [
         ("<client.close>", "close"),
+        ("<client.closed>", "closed"),
+        ("<client.state>", "state"),
+        ("<client.states>", "states"),
         ("<client.from_transport>", "from_transport"),
         *((node.source_path[-1], _identifier(node.segment)) for node in nodes),
         *(
@@ -1445,10 +1453,15 @@ _CONNECT_OPTIONS = (
     "request_timeout",
     "servers",
     "socket_factory",
+    "reconnect_max_attempts",
+    "reconnect_should_retry",
+    "reconnect_random",
+    "on_state_change",
 )
 
 _PACKAGE_EXPORTS = (
     "RpcClientError",
+    "RpcConnectionState",
     "RpcConnectError",
     "RpcConnectionClosed",
     "RpcConnectionLostError",
@@ -1491,6 +1504,7 @@ _RUNTIME_NAMES = frozenset(
     {
         "AsyncIterator",
         "RpcClientCore",
+        "RpcConnectionState",
         "RpcRemoteError",
         "RpcTransport",
         "Self",

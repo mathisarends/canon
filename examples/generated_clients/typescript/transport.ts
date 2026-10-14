@@ -36,12 +36,17 @@ export type WebSocketOptions = {
   readonly notificationOverflow?: "drop_oldest" | "close";
   readonly socketFactory?: WebSocketFactory;
   readonly onDisconnect?: (error: unknown) => void;
+  readonly signal?: AbortSignal;
 };
 
 type WebSocketSocket = {
   readonly readyState: number;
   send(data: string): void;
   close(): void;
+  removeEventListener?(
+    type: "open" | "close" | "error",
+    listener: (event?: unknown) => void,
+  ): void;
   addEventListener(
     type: "open" | "close" | "error",
     listener: (event?: unknown) => void,
@@ -109,11 +114,12 @@ export class WebSocketTransport implements RpcTransport {
     url: string | URL,
     options: WebSocketOptions = {},
   ): Promise<WebSocketTransport> {
+    if (options.signal?.aborted) throw options.signal.reason;
     const factory = options.socketFactory ?? defaultWebSocketFactory;
     let socket: WebSocketSocket | undefined;
     try {
       socket = factory(url, options.subprotocols);
-      await waitForOpen(socket);
+      await waitForOpen(socket, options.signal);
       return new WebSocketTransport(socket, options);
     } catch (error) {
       try {
@@ -121,6 +127,7 @@ export class WebSocketTransport implements RpcTransport {
       } catch {
         /* Opening failure is the cause. */
       }
+      if (options.signal?.aborted) throw options.signal.reason;
       throw error instanceof RpcConnectError
         ? error
         : RpcConnectError.fromCause(error);
@@ -353,7 +360,17 @@ export class WebSocketTransport implements RpcTransport {
         /* Preserve the original failure. */
       }
     }
-    if (unexpected) this.#onDisconnect?.(error);
+    if (unexpected) {
+      try {
+        const returned: unknown = this.#onDisconnect?.(error);
+        if (returned instanceof Promise)
+          void returned.catch((error) =>
+            console.error("RPC disconnect callback failed", error),
+          );
+      } catch (error) {
+        console.error("RPC disconnect callback failed", error);
+      }
+    }
   }
 }
 
@@ -448,16 +465,32 @@ function defaultWebSocketFactory(
   return new constructor(url, protocols);
 }
 
-function waitForOpen(socket: WebSocketSocket): Promise<void> {
+function waitForOpen(
+  socket: WebSocketSocket,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (signal?.aborted) return Promise.reject(signal.reason);
   if (socket.readyState === 1) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    socket.addEventListener("open", () => resolve());
-    socket.addEventListener("error", (event) =>
-      reject(RpcConnectError.fromCause(event)),
-    );
-    socket.addEventListener("close", (event) =>
-      reject(RpcConnectError.fromCause(event)),
-    );
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      socket.removeEventListener?.("open", opened);
+      socket.removeEventListener?.("error", failed);
+      socket.removeEventListener?.("close", failed);
+      signal?.removeEventListener("abort", aborted);
+      callback();
+    };
+    const opened = () => finish(resolve);
+    const failed = (event?: unknown) =>
+      finish(() => reject(RpcConnectError.fromCause(event)));
+    const aborted = () => finish(() => reject(signal?.reason));
+    socket.addEventListener("open", opened);
+    socket.addEventListener("error", failed);
+    socket.addEventListener("close", failed);
+    signal?.addEventListener("abort", aborted, { once: true });
+    if (signal?.aborted) aborted();
   });
 }
 

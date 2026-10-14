@@ -1,6 +1,6 @@
 # 07: Reconnect policy and connection state
 
-- **Status:** open
+- **Status:** done — [PR #30](https://github.com/mathisarends/pyrpckit/pull/30)
 - **Priority:** high
 - **Area:** generated clients (Python `runtime/connection.py.j2`,
   `client.py.j2`; TS `core.ts.j2`, `client.ts.j2`)

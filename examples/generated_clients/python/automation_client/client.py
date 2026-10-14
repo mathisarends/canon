@@ -11,6 +11,7 @@ from automation_client.internal import (
     ClientConnection,
     RpcClientCore,
     RpcClientHook,
+    RpcConnectionState,
     RpcTransport,
     RpcTransportPool,
     RpcTransportSource,
@@ -63,6 +64,14 @@ class AutomationClient:
     def closed(self) -> asyncio.Future[BaseException | None]:
         return self._rpc.closed
 
+    @property
+    def state(self) -> RpcConnectionState:
+        return self._rpc.state
+
+    @property
+    def states(self) -> Mapping[str, RpcConnectionState]:
+        return self._rpc.states
+
     @classmethod
     def with_transports(
         cls,
@@ -107,6 +116,13 @@ class AutomationClient:
         reconnect: bool = False,
         reconnect_initial_delay: float = 0.25,
         reconnect_max_delay: float = 5.0,
+        reconnect_max_attempts: int | None = None,
+        reconnect_should_retry: Callable[[Exception], bool] | None = None,
+        reconnect_random: Callable[[], float] | None = None,
+        on_state_change: (
+            Callable[[ServerName, RpcConnectionState, BaseException | None], None]
+            | None
+        ) = None,
     ) -> ClientConnection[Self, ServerName]:
         """Connect to servers and register handlers for their requests."""
 
@@ -160,6 +176,10 @@ class AutomationClient:
             reconnect=reconnect,
             reconnect_initial_delay=reconnect_initial_delay,
             reconnect_max_delay=reconnect_max_delay,
+            reconnect_max_attempts=reconnect_max_attempts,
+            reconnect_should_retry=reconnect_should_retry,
+            reconnect_random=reconnect_random,
+            on_state_change=on_state_change,
         )
         return ClientConnection(
             client_factory=lambda transports: cls(

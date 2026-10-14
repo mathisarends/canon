@@ -12,6 +12,20 @@
 
 ### Added
 
+- Generated clients expose connection `state`, per-server `states`, and state
+  callbacks. Reconnect uses shared, cancellable connection attempts, full-jitter
+  backoff, optional attempt limits, and overridable classification. Recovery runs
+  proactively after transient loss; permanent handshake/policy failures stop with
+  their original cause. Close codes 1001/1012/1013 are transient, with an exact
+  1008 `credentials_expired` exception for credential refresh. Header factories
+  run per attempt. Regenerate SDKs; reconnect remains opt-in and attempts unlimited
+  by default. Initial failures remain unretried, and failed RPC calls are not replayed.
+- `client.closed` now waits for terminal closure during reconnect instead of
+  resolving on a transient drop. Explicit close interrupts opening/backoff and
+  ends a local client even when its source is borrowed. One terminal endpoint
+  resolves the aggregate signal while other endpoint transports remain independent.
+  Request budgets now cover connection acquisition and the wire call together;
+  the 30-second default and typed timeout errors remain unchanged.
 - Generated WebSocket clients send best-effort `$/cancelRequest` controls after
   sent calls time out or are cancelled. Python retains `CancelledError` and tracks
   bounded background control sends through cleanup. TypeScript exposes

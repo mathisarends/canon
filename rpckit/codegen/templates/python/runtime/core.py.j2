@@ -16,7 +16,7 @@ from .errors import (
     RpcResponseValidationError,
     RpcTransportError,
 )
-from .metadata import JsonValue, RpcNotificationInfo, RpcRouteInfo
+from .metadata import JsonValue, RpcConnectionState, RpcNotificationInfo, RpcRouteInfo
 from .transport import RpcTransport
 
 _STREAM_ENDED = object()
@@ -137,15 +137,33 @@ class RpcClientCore:
         self._hubs: dict[int, _NotificationHub] = {}
         self._notification_queue_size = notification_queue_size
         self._closed_future: asyncio.Future[BaseException | None] | None = None
+        self._source_closed: asyncio.Future[BaseException | None] | None = None
 
     @property
     def closed(self) -> asyncio.Future[BaseException | None]:
-        source_closed = getattr(self._source, "closed", None)
-        if isinstance(source_closed, asyncio.Future):
-            return source_closed
         if self._closed_future is None:
             self._closed_future = asyncio.get_running_loop().create_future()
+            source_closed = getattr(self._source, "closed", None)
+            if isinstance(source_closed, asyncio.Future):
+                self._source_closed = source_closed
+                source_closed.add_done_callback(self._source_finished)
+        if self._source_closed is not None and self._source_closed.done():
+            self._source_finished(self._source_closed)
         return self._closed_future
+
+    def _source_finished(self, future: asyncio.Future[BaseException | None]) -> None:
+        if self._closed_future is not None and not self._closed_future.done():
+            self._closed_future.set_result(future.result())
+
+    @property
+    def state(self) -> RpcConnectionState:
+        if self._closed:
+            return RpcConnectionState.CLOSED
+        return getattr(self._source, "state", RpcConnectionState.CONNECTED)
+
+    @property
+    def states(self) -> Mapping[str, RpcConnectionState]:
+        return getattr(self._source, "states", MappingProxyType({}))
 
     async def request[ParamsT: BaseModel, ResultT](
         self,
@@ -160,8 +178,16 @@ class RpcClientCore:
         )
         for hook in self._hooks:
             await hook.before_request(route, payload)
-        transport = await self._request_transport(route.server, route.method)
-        result = await transport.request(route.method, payload)
+        timeout = getattr(self._source, "request_timeout", None)
+        waiting = asyncio.timeout(timeout)
+        try:
+            async with waiting:
+                transport = await self._transport_for(route.server)
+                result = await transport.request(route.method, payload)
+        except TimeoutError:
+            if not waiting.expired():
+                raise
+            raise RpcRequestTimeoutError(route.method, timeout) from None
         for hook in reversed(self._hooks):
             await hook.after_response(route, result)
         try:
@@ -394,17 +420,8 @@ class RpcClientCore:
         finally:
             if not self.closed.done():
                 self.closed.set_result(None)
-
-    async def _request_transport(self, server: str | None, method: str) -> RpcTransport:
-        timeout = getattr(self._source, "request_timeout", None)
-        waiting = asyncio.timeout(timeout)
-        try:
-            async with waiting:
-                return await self._transport_for(server)
-        except TimeoutError:
-            if not waiting.expired():
-                raise
-            raise RpcRequestTimeoutError(method, timeout) from None
+            if self._source_closed is not None:
+                self._source_closed.remove_done_callback(self._source_finished)
 
     async def _transport_for(self, server: str | None) -> RpcTransport:
         if self._closed:

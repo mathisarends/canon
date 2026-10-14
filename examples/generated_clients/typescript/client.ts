@@ -6,6 +6,7 @@ import {
   RpcClientCore,
   RpcTransportPool,
   type RpcClientHook,
+  type RpcConnectionState,
   type RpcTransport,
   type RpcTransportSource,
 } from "./core";
@@ -32,6 +33,16 @@ export class AutomationClient {
   readonly browser: Browser;
 
   readonly #rpc: RpcClientCore;
+
+  get closed(): Promise<unknown> {
+    return this.#rpc.closed;
+  }
+  get state(): RpcConnectionState {
+    return this.#rpc.state;
+  }
+  get states(): ReadonlyMap<string, RpcConnectionState> {
+    return this.#rpc.states;
+  }
 
   constructor(
     transport:
@@ -79,6 +90,14 @@ export class AutomationClient {
       readonly reconnect?: boolean;
       readonly reconnectInitialDelayMs?: number;
       readonly reconnectMaxDelayMs?: number;
+      readonly reconnectMaxAttempts?: number | null;
+      readonly reconnectShouldRetry?: (error: unknown) => boolean;
+      readonly reconnectRandom?: () => number;
+      readonly onStateChange?: (
+        server: ServerName,
+        state: RpcConnectionState,
+        error?: unknown,
+      ) => void;
       readonly streamSocketFactory?: BinaryWebSocketFactory;
       readonly streamQueueSize?: number;
       readonly rawSocketFactory?: RawWebSocketFactory;
@@ -95,14 +114,20 @@ export class AutomationClient {
       reconnect: options.reconnect,
       reconnectInitialDelayMs: options.reconnectInitialDelayMs,
       reconnectMaxDelayMs: options.reconnectMaxDelayMs,
+      reconnectMaxAttempts: options.reconnectMaxAttempts,
+      reconnectShouldRetry: options.reconnectShouldRetry,
+      reconnectRandom: options.reconnectRandom,
+      onStateChange: (server, state, error) =>
+        options.onStateChange?.(server as ServerName, state, error),
       requestTimeoutMs: options.requestTimeoutMs,
-      open: (endpoint, disconnected) =>
+      open: (endpoint, disconnected, signal) =>
         WebSocketTransport.open(endpoint.url, {
           subprotocols: endpoint.subprotocols,
           requestTimeoutMs: options.requestTimeoutMs,
           notificationQueueSize: options.notificationQueueSize,
           notificationOverflow: options.notificationOverflow,
           socketFactory: options.socketFactory,
+          signal,
           onDisconnect: (error) => {
             disconnected(error);
             options.onDisconnect?.(error);
