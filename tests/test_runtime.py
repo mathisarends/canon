@@ -396,6 +396,28 @@ async def test_middleware_interruption_returns_and_observes_failure(
         assert scope.outcome.duration > 0
 
 
+async def test_boolean_batch_id_cannot_alias_a_valid_request_id():
+    channel = RpcChannel("deadlines")
+    executions = []
+
+    @channel.method()
+    async def work() -> int:
+        executions.append(True)
+        return 42
+
+    app = RpcService()
+    app.socket("/rpc", channels=[channel])
+    async with deadline_socket(app) as (socket, _):
+        await socket.client_send(
+            json.dumps([deadline_request(True), deadline_request(1)])
+        )
+        invalid, valid = json.loads(await socket.client_receive())
+        assert invalid["id"] is None
+        assert invalid["error"]["code"] == -32600
+        assert valid == {"jsonrpc": "2.0", "id": 1, "result": 42}
+        assert executions == [True]
+
+
 @pytest.mark.parametrize("ending", ["disconnect", "shutdown"])
 async def test_shutdown_cancellation_releases_admission_without_cancelled_responses(
     monkeypatch, ending

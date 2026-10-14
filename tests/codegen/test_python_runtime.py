@@ -648,6 +648,27 @@ async def test_deep_json_fails_all_client_calls_without_leaked_futures(
     assert socket.closed
 
 
+async def test_integer_digit_limit_is_a_protocol_failure_not_connection_loss(
+    websocket_runtime,
+):
+    previous = sys.get_int_max_str_digits()
+    socket = ControlledSocket()
+    transport = websocket_runtime.WebSocketTransport(socket, request_timeout=None)
+    pending = asyncio.create_task(transport.request("pending"))
+    try:
+        await socket.sent.get()
+        sys.set_int_max_str_digits(640)
+        socket.inbox.put_nowait('{"jsonrpc":"2.0","id":1,"result":' + "9" * 641 + "}")
+        with pytest.raises(websocket_runtime.RpcTransportError) as raised:
+            await asyncio.wait_for(pending, 1)
+        assert not isinstance(raised.value, websocket_runtime.RpcConnectionLostError)
+        assert await transport.closed is raised.value
+        assert not transport._pending
+    finally:
+        sys.set_int_max_str_digits(previous)
+        await transport.close()
+
+
 async def test_socket_reset_is_a_client_error_with_cause_and_sent_state(
     websocket_runtime,
 ):

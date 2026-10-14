@@ -46,6 +46,11 @@ class SubscriptionSession:
         activity: _Activity | None = None,
     ) -> None:
         self._definitions = {item.name: item for item in definitions}
+        self._methods = frozenset(
+            f"{name}.{suffix}"
+            for name in self._definitions
+            for suffix in ("subscribe", "unsubscribe")
+        )
         self._resolver = resolver
         self._send = send
         self._limit = limit
@@ -58,6 +63,9 @@ class SubscriptionSession:
         self._request: ContextVar[RpcRequestScope | None] = ContextVar(
             "rpckit.subscription.request", default=None
         )
+        self._responded: ContextVar[bool] = ContextVar(
+            "rpckit.subscription.responded", default=False
+        )
 
     async def handle(
         self, request: RpcRequestEnvelope, *, admitted_at: float | None = None
@@ -69,9 +77,17 @@ class SubscriptionSession:
             finally:
                 self._request.reset(token)
 
-        return await self._server._run_bounded(
-            request.model_dump(exclude_unset=True), handshake, admitted_at=admitted_at
-        )
+        token = self._responded.set(False)
+        try:
+            response = await self._server._run_bounded(
+                request.model_dump(exclude_unset=True),
+                handshake,
+                admitted_at=admitted_at,
+            )
+            # Middleware teardown can time out after the handshake is committed.
+            return None if self._responded.get() else response
+        finally:
+            self._responded.reset(token)
 
     async def _handle(self, request: RpcRequestEnvelope) -> None:
         if not request.expects_response:
@@ -134,10 +150,7 @@ class SubscriptionSession:
         await self._respond(request, RpcSuccess(id=request.id, result=None))
 
     def owns(self, method: str) -> bool:
-        return any(
-            method in (f"{name}.subscribe", f"{name}.unsubscribe")
-            for name in self._definitions
-        )
+        return method in self._methods
 
     async def close(self) -> None:
         tasks = tuple(task for _, task in self._tasks.values())
@@ -159,6 +172,7 @@ class SubscriptionSession:
             )
         if request.expects_response:
             await self._send(self._codec.encode(response))
+            self._responded.set(True)
 
     async def _run(
         self,

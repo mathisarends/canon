@@ -392,6 +392,25 @@ async def test_a_boolean_id_on_a_failed_request_is_not_echoed_back(
     assert response.id is None
 
 
+@pytest.mark.parametrize("request_id", [True, False, 1.0])
+@pytest.mark.parametrize("encoded", [False, True])
+async def test_invalid_id_types_cannot_execute_handlers(request_id, encoded):
+    channel = RpcChannel("strict")
+
+    @channel.method()
+    async def work() -> None:
+        pytest.fail("Invalid request IDs must be rejected before execution")
+
+    server = channel.create_server()
+    message = {"jsonrpc": "2.0", "method": "strict.work", "id": request_id}
+    if encoded:
+        response = json.loads(await server.handle_json(json.dumps(message)))
+    else:
+        response = (await server.handle(message)).model_dump()
+    assert response["id"] is None
+    assert response["error"]["code"] == -32600
+
+
 async def test_a_validation_error_in_handler_is_internal(caplog) -> None:
     class NestedParams(BaseModel):
         params: str

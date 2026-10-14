@@ -24,9 +24,23 @@
 - Uninstrumented Python SDK attempts skip middleware call objects, UUIDs, and
   redundant deep copies. The same request and result validators serve both paths;
   retry attempts remain isolated from parameter mutations by custom transports.
+- Single-request socket responses avoid unnecessary collector tasks and completed
+  task joins. Subscription control lookup no longer scans every subscription for
+  each ordinary request.
+- Subscription acknowledgements are final: a deadline or cancellation during
+  middleware teardown cannot produce a second reply for the same request ID.
+- Request IDs reject booleans and floats instead of coercing them to integers,
+  preventing collisions with other in-flight requests. Oversized JSON integers
+  produce parse errors; Python clients classify them as protocol errors rather
+  than reconnectable connection failures.
 
 ### Migration from 0.10
 
+- Send request IDs as strings, integers, or `null`. Boolean IDs and floating-point
+  IDs such as `1.0` now produce `Invalid Request`; use `1` or `"1"` instead.
+- Server request deadlines now include middleware entry and teardown. Keep both
+  cancellation-cooperative and move unrelated background work out of the request
+  scope. An acknowledged subscription stays active if handshake teardown times out.
 - Client instrumentation now uses only `middleware`. Remove `hooks`,
   `RpcClientHook`, `before_request` / `beforeRequest`, and `after_response` /
   `afterResponse`. Move before work into middleware entry and after work into

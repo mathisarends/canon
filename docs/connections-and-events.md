@@ -387,9 +387,9 @@ finish naturally until the grace deadline; unfinished work is cancelled.
 The final tenth of the timeout is reserved for cooperative cleanup. Admitted
 responses and the outgoing queue flush during the first nine tenths; a blocked
 flush cannot extend the total budget. Connections close with
-`RpcConnectionClose.SERVICE_RESTART` (1012), which observers and middleware also
-see. Existing disconnect or explicit-close causes are preserved during races.
-Handlers, dependency exits, and observer cleanup must cooperate with cancellation;
+`RpcConnectionClose.SERVICE_RESTART` (1012), which middleware also sees.
+Existing disconnect or explicit-close causes are preserved during races.
+Handlers, dependency exits, and middleware cleanup must cooperate with cancellation;
 if cleanup exceeds the final deadline, drain returns, cancels it again, and logs
 the outstanding cleanup. Python cannot forcibly terminate cancellation-resistant
 application code. Create a fresh coordinator for a new service lifetime.
@@ -431,7 +431,7 @@ as transient. Other policy reasons stay terminal. For immediate revocation,
 `await connection.close(RpcConnectionClose.POLICY_VIOLATION,
 reason="credentials_revoked")` closes with a terminal reason. Your application
 can call it after a revocation event or identity check; rpckit does not maintain
-an identity/revocation registry. Close reasons and observer state contain the
+an identity/revocation registry. Close reasons and middleware state contain the
 constant reason, never credentials.
 
 Python/server-to-server clients can use an async `headers` factory:

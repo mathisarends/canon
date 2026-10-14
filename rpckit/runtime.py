@@ -373,16 +373,19 @@ async def _run_rpc_endpoint(
 
             async def invoke(items, batch, controls=()):
                 try:
-                    responses = await asyncio.gather(
-                        *(collect_one(call) for call in items)
+                    responses = (
+                        [await collect_one(items[0])]
+                        if len(items) == 1
+                        else await asyncio.gather(
+                            *(collect_one(call) for call in items)
+                        )
                     )
                 finally:
-                    for call in items:
-                        if not call.task.done():
-                            call.task.cancel()
-                    await asyncio.gather(
-                        *(call.task for call in items), return_exceptions=True
-                    )
+                    unfinished = [call.task for call in items if not call.task.done()]
+                    for task in unfinished:
+                        task.cancel()
+                    if unfinished:
+                        await asyncio.gather(*unfinished, return_exceptions=True)
                 responses = [*controls, *(r for r in responses if r is not None)]
                 if responses and not close_event.is_set():
                     await send_outgoing(

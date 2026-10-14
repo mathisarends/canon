@@ -5,6 +5,8 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
+    StrictInt,
+    StrictStr,
     field_serializer,
     field_validator,
 )
@@ -26,7 +28,7 @@ class RpcSchema(BaseModel):
 
 class RpcRequestEnvelope(RpcSchema):
     jsonrpc: Literal["2.0"]
-    id: RpcRequestId = None
+    id: StrictStr | StrictInt | None = None
     method: str
     params: dict[str, Any] | list[Any] = Field(default_factory=dict)
     meta: dict[str, str] | None = None

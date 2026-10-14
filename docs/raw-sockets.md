@@ -140,7 +140,7 @@ routes = RpcRoutes(router, context=open_session, resolver=Dishka())
 routes.mount(app.endpoint("cdp"))
 ```
 
-Connection middleware and observers see raw sockets as connections. Every
+Connection middleware sees raw sockets as connections. Every
 message increments the `stream_frame_sent` and `stream_frame_received`
 callbacks, so the OpenTelemetry `rpckit.stream.frames` and
 `rpckit.stream.bytes` counters include them. Raw sockets do not open a

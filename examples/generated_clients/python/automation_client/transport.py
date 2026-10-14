@@ -408,8 +408,7 @@ class WebSocketTransport:
             message = json.loads(raw)
         except (
             TypeError,
-            UnicodeDecodeError,
-            json.JSONDecodeError,
+            ValueError,
             RecursionError,
         ) as error:
             raise RpcTransportError("The WebSocket returned invalid JSON") from error

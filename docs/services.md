@@ -156,7 +156,7 @@ solely for their depth.
 Pending-limit rejections and dropped unknown client-method responses each log
 at most one warning per connection. On connection cleanup, a debug message
 reports the total for each category. This remains bounded with debug logging
-enabled; request observers and middleware still receive each rejection.
+enabled; request middleware still receives each rejection.
 
 ## Request deadlines
 

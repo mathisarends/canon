@@ -1,14 +1,89 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import pytest
 
-from rpckit import RpcChannel, RpcErrorBinding, RpcLimits, RpcModel, RpcService
+from rpckit import (
+    RpcChannel,
+    RpcErrorBinding,
+    RpcLimits,
+    RpcMiddleware,
+    RpcModel,
+    RpcService,
+)
 from rpckit.testing import RpcTestClient
 
 from .deadlines import ControlledDeadlines
 from .testing import InMemorySocket
+
+
+@pytest.mark.parametrize("interrupt", ["timeout", "cancel"])
+async def test_subscription_ack_is_not_followed_by_a_second_response(
+    monkeypatch, interrupt
+):
+    from rpckit.dependencies import as_resolver
+    from rpckit.envelopes import RpcRequestEnvelope
+    from rpckit.server import _CLIENT_CANCEL
+    from rpckit.subscriptions import SubscriptionSession
+
+    clock = ControlledDeadlines(monkeypatch)
+    exiting, started, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    responses = []
+    channel = RpcChannel("session")
+
+    class Middleware(RpcMiddleware):
+        @asynccontextmanager
+        async def request(self, scope):
+            yield
+            exiting.set()
+            await asyncio.Future()
+
+    @channel.subscription()
+    async def events() -> AsyncIterator[int]:
+        started.set()
+        await release.wait()
+        yield 42
+
+    async def send(message):
+        responses.append(json.loads(message))
+
+    session = SubscriptionSession(
+        channel.protocol.subscriptions,
+        as_resolver(None),
+        send,
+        limit=1,
+        server=channel.create_server(
+            limits=RpcLimits(request_timeout=5), middleware=[Middleware()]
+        ),
+    )
+    task = asyncio.create_task(
+        session.handle(
+            RpcRequestEnvelope(jsonrpc="2.0", id=1, method="session.events.subscribe")
+        )
+    )
+    try:
+        async with asyncio.timeout(2):
+            _, deadline = await clock.next()
+            await exiting.wait()
+            await started.wait()
+            assert responses == [
+                {"jsonrpc": "2.0", "id": 1, "result": {"subscriptionId": "1"}}
+            ]
+            if interrupt == "timeout":
+                clock.expire(deadline)
+            else:
+                task.cancel(_CLIENT_CANCEL)
+            assert await task is None
+            release.set()
+            await session.wait_finished()
+            assert responses[1]["params"]["payload"] == 42
+            assert responses[2]["params"]["complete"] is True
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        await session.close()
 
 
 async def test_deadline_bounds_subscription_handshake_but_does_not_limit_stream(

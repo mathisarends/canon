@@ -385,7 +385,7 @@ request has no params or `{}` and returns `null`. Malformed requests receive
 `invalid_request`; notifications get no response. Batch responses preserve batch
 shape. Control processing is bounded by frame/batch limits and the bounded
 outgoing queue with its send timeout. Pings bypass request admission, handler
-semaphores, middleware, and request observers, so handler overload does not make
+semaphores and request middleware, so handler overload does not make
 an otherwise responsive connection appear dead.
 
 Configure protocol ping settings in your WebSocket server separately. Those
