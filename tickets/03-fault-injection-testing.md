@@ -1,6 +1,7 @@
 # 03: Fault-injecting sockets for resilience tests
 
-- **Status:** open
+- **Status:** done
+- **PR:** https://github.com/mathisarends/pyrpckit/pull/26
 - **Priority:** high
 - **Area:** `rpckit/testing.py` (public, documented), tests
 - **Depends on:** –

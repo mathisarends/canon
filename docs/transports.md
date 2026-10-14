@@ -296,4 +296,85 @@ For low-level dispatch tests that do not need connection behavior, obtain an
 `RpcServer` from `endpoint.create_server(...)` or `channel.create_server(...)` and call
 `handle()` or `handle_json()` directly.
 
+## In-memory testing and directional faults
+
+`rpckit.testing.InMemorySocket` implements the server adapter. Its `client` view
+(`InMemoryClientSocket`) provides `send()` / `recv()` / `close()` for generated
+Python WebSocket clients, using the same incoming and outgoing queues. Both views
+preserve close code and reason; the client exposes `close_code` and `close_reason`.
+`RpcTestClient` remains the convenience client for ordinary service tests.
+
+Each socket has independent `client_to_server` and `server_to_client`
+`SocketFaults` controllers. Pass them to the constructor or configure the existing
+controllers before sending frames:
+
+```python
+from rpckit.testing import InMemorySocket, SocketFaults
+
+socket = InMemorySocket(
+    "/rpc",
+    client_to_server=SocketFaults(drop_after=2, close_code=1011, reason="test drop"),
+)
+socket.server_to_client.hold()
+```
+
+- `drop_after=N` disconnects after N send attempts finish; N=0 drops before the
+  first frame. Already queued frames precede the disconnect. `drop_when(frame)`
+  drops before delivering a matching frame. Held frames are discarded on drop.
+- `close_code=1006` (the default for injected drops) represents an abrupt
+  disconnect without a close frame. It is reported as abnormal closure, never
+  passed to a server adapter as a wire close code. Set `reason` to preserve a
+  diagnostic or supply a regular close code such as 1008 or 1011.
+- `delay=seconds` or `delay=lambda frame: seconds` delays a directional send.
+  Inject `sleep=clock.sleep` to use a controllable test clock; its awaitable must
+  honor cancellation. No clock-dependent test needs a wall-clock sleep.
+- `hold()` buffers frames while allowing send to complete. Await `held.wait()`
+  and inspect `held_count`; `release()` delivers them in insertion order.
+- `half_open=True` silently discards frames in that direction without closing
+  the socket. The opposite direction stays usable.
+- `block()` simulates a slow consumer by blocking send itself. Await
+  `blocked.wait()` to synchronize the test, then `unblock()` to release it.
+  Caller cancellation propagates and does not deliver the cancelled frame.
+
+Use one controller per connection direction. Disconnect releases blocked sends
+with `RpcDisconnect`, cancels delay waits, and clears held frames. Controllers
+own no background workers; temporary wait tasks are awaited during cleanup.
+
+`InMemorySocketFactory` runs a service for each generated-client connection and
+owns cleanup through an async context manager. Its `configure(socket, attempt)`
+callback can script different failures for successive connections. `attempts`
+includes rejected attempts, and `sockets` records connections actually created:
+
+```python
+from rpckit.testing import InMemorySocketFactory, RpcTestHandshakeRejected
+
+
+def configure(socket, attempt):
+    socket.server_to_client.hold()
+
+
+async with InMemorySocketFactory(app, configure=configure) as factory:
+    factory.reject_next(status=503, reason="temporary outage")
+    try:
+        await factory("ws://test/rpc")
+    except RpcTestHandshakeRejected as error:
+        assert error.status_code == 503
+
+    async with TasksClient.connect(socket_factory=factory) as client:
+        # Start a call, await the controller's held event, then release its answer.
+        ...
+```
+
+`reject_next(close_code=1008, reason="policy")` scripts a rejection with close
+metadata instead of an HTTP status. Rejections raise `RpcTestHandshakeRejected`
+with `status_code`, `close_code`, and `reason`. Actual endpoint handshake
+rejections are preserved too. The factory forwards URL paths, headers, and
+subprotocols and accepts `resolver`, `context`, and `limits` for serving. Exiting
+the factory disconnects every socket and awaits all service tasks; cancellation
+during connection setup also cleans up the unfinished handshake.
+
+See the late-response regression in
+[`tests/codegen/test_python_runtime.py`](../tests/codegen/test_python_runtime.py)
+for a complete generated-client example using held responses.
+
 [Back to documentation](README.md)

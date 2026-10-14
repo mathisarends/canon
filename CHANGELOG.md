@@ -12,6 +12,14 @@
 
 ### Added
 
+- Public `SocketFaults`, `InMemoryClientSocket`, and `InMemorySocketFactory` in
+  `rpckit.testing` for deterministic resilience tests. Script directional drops,
+  frame delays with an injected clock, held responses, half-open connections,
+  blocked sends, and next-connect handshake rejections. Client and server views
+  share the existing in-memory queues and preserve close metadata, including
+  abnormal disconnects without emitting reserved close code 1006. Factory scopes
+  clean up connections and serving tasks; `RpcTestHandshakeRejected` exposes
+  scripted status/code/reason. Existing in-memory defaults remain fault-free.
 - Lifecycle middleware for connections, requests, and binary streams through
   `RpcMiddleware` and `RpcMiddlewareLike`. Register `middleware=` on services,
   endpoints, standalone servers, or FastAPI adapters. Scopes expose final

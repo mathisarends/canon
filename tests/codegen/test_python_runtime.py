@@ -313,7 +313,7 @@ async def test_late_response_from_a_served_endpoint_keeps_the_client_usable(
     websocket_runtime: ModuleType,
 ) -> None:
     from rpckit import RpcChannel, RpcService
-    from rpckit.testing import InMemorySocket
+    from rpckit.testing import InMemorySocketFactory
 
     channel = RpcChannel("resilience")
     entered, release = asyncio.Event(), asyncio.Event()
@@ -330,33 +330,31 @@ async def test_late_response_from_a_served_endpoint_keeps_the_client_usable(
 
     service = RpcService()
     service.socket("/rpc", channels=[channel])
-    socket = InMemorySocket("/rpc")
 
-    class Adapter:
-        async def send(self, message: str) -> None:
-            await socket.client_send(message)
+    def configure(socket, attempt):
+        socket.server_to_client.hold()
 
-        async def recv(self) -> str | bytes:
-            return await socket.client_receive()
-
-        async def close(self) -> None:
-            await socket.client_disconnect()
-
-    server = asyncio.create_task(service.serve(socket))
-    transport = websocket_runtime.WebSocketTransport(Adapter(), request_timeout=0)
-    try:
-        with pytest.raises(websocket_runtime.RpcTransportError, match="timed out"):
-            await transport.request("resilience.slow")
-        await entered.wait()
-        release.set()
-        transport._request_timeout = None
-        assert await transport.request("resilience.fast") == "ok"
-        assert await transport.request("resilience.fast") == "ok"
-        assert not transport.closed.done()
-    finally:
-        release.set()
-        await transport.close()
-        await server
+    async with InMemorySocketFactory(service, configure=configure) as factory:
+        transport = await websocket_runtime.WebSocketTransport.open(
+            "ws://test/rpc", socket_factory=factory, request_timeout=0
+        )
+        try:
+            with pytest.raises(websocket_runtime.RpcTransportError, match="timed out"):
+                await transport.request("resilience.slow")
+            await entered.wait()
+            release.set()
+            faults = factory.sockets[0].server_to_client
+            await faults.held.wait()
+            assert faults.held_count == 1
+            faults.release()
+            transport._request_timeout = None
+            assert await transport.request("resilience.fast") == "ok"
+            assert await transport.request("resilience.fast") == "ok"
+            assert not transport.closed.done()
+        finally:
+            release.set()
+            await transport.close()
+    assert all(task.done() for task in factory._tasks)
 
 
 @pytest.mark.parametrize(
