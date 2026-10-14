@@ -1,6 +1,6 @@
 # 08: Notifications across reconnects
 
-- **Status:** open
+- **Status:** done — [PR #31](https://github.com/mathisarends/pyrpckit/pull/31)
 - **Priority:** high
 - **Area:** generated clients (Python `runtime/core.py.j2`, TS `core.ts.j2`)
 - **Depends on:** 07

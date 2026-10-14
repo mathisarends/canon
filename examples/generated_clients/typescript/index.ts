@@ -18,6 +18,7 @@ export type {
   RpcClientCore,
   RpcClientHook,
   RpcConnectionState,
+  RpcNotificationOverflowHandler,
   RpcRouteInfo,
   RpcRequestOptions,
   RpcTransport,

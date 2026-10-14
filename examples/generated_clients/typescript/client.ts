@@ -7,6 +7,7 @@ import {
   RpcTransportPool,
   type RpcClientHook,
   type RpcConnectionState,
+  type RpcNotificationOverflowHandler,
   type RpcTransport,
   type RpcTransportSource,
 } from "./core";
@@ -44,6 +45,10 @@ export class AutomationClient {
     return this.#rpc.states;
   }
 
+  get droppedNotifications(): number {
+    return this.#rpc.droppedNotifications;
+  }
+
   constructor(
     transport:
       | RpcTransport
@@ -52,6 +57,8 @@ export class AutomationClient {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly notificationQueueSize?: number;
+      readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
       readonly rawSocketOpener?: RawSocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
@@ -68,6 +75,8 @@ export class AutomationClient {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly notificationQueueSize?: number;
+      readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
       readonly rawSocketOpener?: RawSocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
@@ -85,6 +94,7 @@ export class AutomationClient {
       readonly requestTimeoutMs?: number | null;
       readonly notificationQueueSize?: number;
       readonly notificationOverflow?: "drop_oldest" | "close";
+      readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly socketFactory?: WebSocketFactory;
       readonly onDisconnect?: (error: unknown) => void;
       readonly reconnect?: boolean;
@@ -126,6 +136,7 @@ export class AutomationClient {
           requestTimeoutMs: options.requestTimeoutMs,
           notificationQueueSize: options.notificationQueueSize,
           notificationOverflow: options.notificationOverflow,
+          onOverflow: options.onOverflow,
           socketFactory: options.socketFactory,
           signal,
           onDisconnect: (error) => {
@@ -137,6 +148,8 @@ export class AutomationClient {
     if (!options.lazy) await pool.openAll();
     return new AutomationClient(pool, {
       hooks: options.hooks,
+      notificationQueueSize: options.notificationQueueSize,
+      onOverflow: options.onOverflow,
       streamOpener: (endpoint) =>
         BinaryWebSocketStream.open(endpoint, {
           socketFactory: options.streamSocketFactory,

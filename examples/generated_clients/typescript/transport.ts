@@ -10,6 +10,7 @@ import {
   RpcRequestTimeoutError,
   RpcTransportError,
   type RpcRequestOptions,
+  type RpcNotificationOverflowHandler,
 } from "./core";
 
 export type RpcTransport = {
@@ -18,7 +19,8 @@ export type RpcTransport = {
     params?: object,
     options?: RpcRequestOptions,
   ): Promise<unknown>;
-  notifications(): AsyncIterable<unknown>;
+  notifications(signal?: AbortSignal): AsyncIterable<unknown>;
+  readonly droppedNotifications?: number;
   startNotifications?(): void;
   close(): Promise<void>;
   readonly closed?: Promise<RpcClientError | undefined>;
@@ -37,6 +39,7 @@ export type WebSocketOptions = {
   readonly socketFactory?: WebSocketFactory;
   readonly onDisconnect?: (error: unknown) => void;
   readonly signal?: AbortSignal;
+  readonly onOverflow?: RpcNotificationOverflowHandler;
 };
 
 type WebSocketSocket = {
@@ -98,6 +101,7 @@ export class WebSocketTransport implements RpcTransport {
     this.#notifications = new AsyncQueue(
       options.notificationQueueSize ?? 100,
       options.notificationOverflow ?? "drop_oldest",
+      options.onOverflow,
     );
     socket.addEventListener("message", (event) => this.#receive(event.data));
     socket.addEventListener("error", (event) => {
@@ -233,8 +237,18 @@ export class WebSocketTransport implements RpcTransport {
     }
   }
 
-  notifications(): AsyncIterable<JsonObject> {
-    return this.#notifications;
+  notifications(signal?: AbortSignal): AsyncIterable<JsonObject> {
+    const queue = this.#notifications;
+    if (signal === undefined) return queue;
+    return {
+      [Symbol.asyncIterator]() {
+        return { next: () => queue.next(signal) };
+      },
+    };
+  }
+
+  get droppedNotifications(): number {
+    return this.#notifications.dropped;
   }
 
   startNotifications(): void {
@@ -380,13 +394,21 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
   readonly #waiters: Array<{
     readonly resolve: (result: IteratorResult<Value>) => void;
     readonly reject: (error: unknown) => void;
+    readonly removeAbortListener: () => void;
   }> = [];
   #failure?: unknown;
   #listening = false;
   #overflowWarned = false;
   readonly #overflow: "drop_oldest" | "close";
+  readonly #onOverflow?: RpcNotificationOverflowHandler;
+  dropped = 0;
+  #callbackFailed = false;
 
-  constructor(capacity: number, overflow: "drop_oldest" | "close") {
+  constructor(
+    capacity: number,
+    overflow: "drop_oldest" | "close",
+    onOverflow?: RpcNotificationOverflowHandler,
+  ) {
     if (!Number.isInteger(capacity) || capacity <= 0) {
       throw new RpcTransportError(
         "notificationQueueSize must be a positive integer",
@@ -394,20 +416,36 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
     }
     this.#capacity = capacity;
     this.#overflow = overflow;
+    this.#onOverflow = onOverflow;
   }
 
   [Symbol.asyncIterator](): AsyncIterableIterator<Value> {
     return this;
   }
 
-  next(): Promise<IteratorResult<Value>> {
+  next(signal?: AbortSignal): Promise<IteratorResult<Value>> {
+    if (signal?.aborted)
+      return Promise.resolve({ value: undefined, done: true });
     this.listen();
     const value = this.#values.shift();
     if (value !== undefined) return Promise.resolve({ value, done: false });
     if (this.#failure !== undefined) return Promise.reject(this.#failure);
-    return new Promise((resolve, reject) =>
-      this.#waiters.push({ resolve, reject }),
-    );
+    return new Promise((resolve, reject) => {
+      const abort = () => {
+        const index = this.#waiters.indexOf(waiter);
+        if (index !== -1) this.#waiters.splice(index, 1);
+        waiter.removeAbortListener();
+        resolve({ value: undefined, done: true });
+      };
+      const waiter = {
+        resolve,
+        reject,
+        removeAbortListener: () => signal?.removeEventListener("abort", abort),
+      };
+      this.#waiters.push(waiter);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    });
   }
 
   listen(): void {
@@ -418,6 +456,7 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
     if (!this.#listening) return;
     const waiter = this.#waiters.shift();
     if (waiter !== undefined) {
+      waiter.removeAbortListener();
       waiter.resolve({ value, done: false });
       return;
     }
@@ -427,6 +466,18 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
           "The WebSocket notification queue overflowed",
         );
       this.#values.shift();
+      this.dropped++;
+      try {
+        const returned: unknown = this.#onOverflow?.(
+          undefined,
+          this.dropped,
+          "transport",
+        );
+        if (returned instanceof Promise)
+          void returned.catch((error) => this.#callbackFailure(error));
+      } catch (error) {
+        this.#callbackFailure(error);
+      }
       if (!this.#overflowWarned) {
         console.warn(
           "The WebSocket notification queue overflowed; dropping oldest notifications",
@@ -440,7 +491,17 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
   fail(error: unknown): void {
     if (this.#failure !== undefined) return;
     this.#failure = error;
-    for (const waiter of this.#waiters.splice(0)) waiter.reject(error);
+    for (const waiter of this.#waiters.splice(0)) {
+      waiter.removeAbortListener();
+      waiter.reject(error);
+    }
+  }
+
+  #callbackFailure(error: unknown): void {
+    if (!this.#callbackFailed) {
+      this.#callbackFailed = true;
+      console.error("RPC overflow callback failed", error);
+    }
   }
 }
 

@@ -360,7 +360,9 @@ Keep callbacks quick and synchronous. Callback failures are reported and contain
 TypeScript's existing `onDisconnect` remains available, and its failures also cannot
 break cleanup. Every reconnect can imply a notification gap; resync application
 state when connectivity returns. Remote subscriptions reacquire their server
-subscription; plain notification iterator recovery is handled separately.
+subscription, and passive event iterators also resume on the replacement socket.
+See [Notification delivery](connections-and-events.md#notification-delivery-and-reconnects)
+for gap detection and overflow counters.
 
 Backoff uses full jitter: a random fraction between zero and one times the current
 delay cap, which doubles from `reconnect_initial_delay` / `reconnectInitialDelayMs`

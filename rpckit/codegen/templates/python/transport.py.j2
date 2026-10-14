@@ -9,6 +9,7 @@ from {{ runtime_module }} import (
     RpcClientError,
     RpcConnectError,
     RpcConnectionLostError,
+    RpcNotificationOverflowHandler,
     RpcRequestTimeoutError,
     RpcTransportError,
 )
@@ -52,6 +53,7 @@ class WebSocketTransport:
         notification_queue_size: int = 100,
         notification_overflow: str = "drop_oldest",
         request_handler: RequestHandler | None = None,
+        on_overflow: RpcNotificationOverflowHandler | None = None,
     ) -> None:
         if notification_queue_size <= 0:
             raise ValueError("notification_queue_size must be positive")
@@ -65,6 +67,9 @@ class WebSocketTransport:
         self._notification_overflow = notification_overflow
         self._notification_listener = False
         self._overflow_warned = False
+        self._on_overflow = on_overflow
+        self._overflow_callback_failed = False
+        self._dropped_notifications = 0
         self._pending: dict[int, asyncio.Future[Any]] = {}
         self._sent: set[int] = set()
         self._next_request_id = 1
@@ -89,6 +94,7 @@ class WebSocketTransport:
         headers: Mapping[str, str] | None = None,
         socket_factory: WebSocketFactory | None = None,
         request_handler: RequestHandler | None = None,
+        on_overflow: RpcNotificationOverflowHandler | None = None,
     ) -> Self:
         if socket_factory is None:
             try:
@@ -115,6 +121,7 @@ class WebSocketTransport:
             notification_queue_size=notification_queue_size,
             notification_overflow=notification_overflow,
             request_handler=request_handler,
+            on_overflow=on_overflow,
         )
 
     async def request(
@@ -232,6 +239,22 @@ class WebSocketTransport:
     def start_notifications(self) -> None:
         self._notification_listener = True
 
+    @property
+    def dropped_notifications(self) -> int:
+        return self._dropped_notifications
+
+    def _overflow(self) -> None:
+        self._dropped_notifications += 1
+        if self._on_overflow is not None:
+            try:
+                self._on_overflow(None, self._dropped_notifications, "transport")
+            except Exception:
+                if not self._overflow_callback_failed:
+                    logging.getLogger(__name__).exception(
+                        "RPC overflow callback failed"
+                    )
+                    self._overflow_callback_failed = True
+
     async def notifications(self) -> AsyncIterator[JsonObject]:
         self._notification_listener = True
         while True:
@@ -302,6 +325,7 @@ class WebSocketTransport:
                                 "The WebSocket notification queue overflowed"
                             ) from error
                         self._notifications.get_nowait()
+                        self._overflow()
                         self._notifications.put_nowait(message)
                         if not self._overflow_warned:
                             logging.getLogger(__name__).warning(
