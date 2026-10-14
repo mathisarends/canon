@@ -162,3 +162,78 @@ def test_wall_clock_expiry_converts_to_monotonic_schedule(monkeypatch):
 def test_invalid_expiry_rejected(timestamp):
     with pytest.raises(ValueError, match="Unix timestamp"):
         RpcConnectionExpiry(timestamp)
+
+
+@pytest.mark.parametrize(
+    ("path", "phase"),
+    [
+        (path, phase)
+        for path in ("/rpc", "/binary", "/raw")
+        for phase in ("activity", "connection")
+    ]
+    + [("/binary", "dependency"), ("/raw", "dependency")],
+)
+async def test_expiry_interrupts_accepted_connection_initialization(
+    path, phase, expiry_clock
+):
+    entered, cleaned = asyncio.Event(), asyncio.Event()
+    before = asyncio.all_tasks()
+
+    async def block():
+        entered.set()
+        try:
+            await asyncio.Future()
+        finally:
+            cleaned.set()
+
+    class Dependency:
+        pass
+
+    class Resolver:
+        @asynccontextmanager
+        async def enter_connection(self, values):
+            if phase == "connection":
+                await block()
+            yield self
+
+        async def resolve(self, dependency):
+            assert dependency is Dependency
+            await block()
+
+    class Instrumentation(RpcMiddleware):
+        async def connection_opened(self, connection):
+            if phase == "activity":
+                await block()
+
+    channel = RpcChannel("expiry")
+
+    @channel.stream()
+    async def frames(dependency: Inject[Dependency]) -> AsyncIterator[bytes]:
+        raise AssertionError("Expired connection must not start a stream")
+        yield b""
+
+    @channel.raw_socket()
+    async def raw(socket: Inject[RpcRawSocket], dependency: Inject[Dependency]) -> None:
+        raise AssertionError("Expired connection must not start a handler")
+
+    async def authenticate(handshake):
+        return {RpcConnectionExpiry: RpcConnectionExpiry(1000)}
+
+    service = RpcService(middleware=[Instrumentation()])
+    service.socket("/rpc", channels=[channel], before_accept=authenticate)
+    service.stream("/binary", frames, before_accept=authenticate)
+    service.raw_socket("/raw", raw, before_accept=authenticate)
+    socket = InMemorySocket(path)
+    serving = asyncio.create_task(service.serve(socket, resolver=Resolver()))
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        (await expiry_clock.get()).callback()
+        await asyncio.wait_for(serving, 1)
+        assert cleaned.is_set()
+        assert socket.client.close_code == 1008
+        assert socket.client.close_reason == "credentials_expired"
+        assert not serving.cancelled()
+        assert not asyncio.all_tasks() - before
+    finally:
+        serving.cancel()
+        await asyncio.gather(serving, return_exceptions=True)

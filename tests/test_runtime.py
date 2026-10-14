@@ -347,6 +347,55 @@ async def test_cancel_is_processed_while_writer_and_outgoing_queue_are_full(inva
         faults.unblock()
 
 
+@pytest.mark.parametrize("phase", ["enter", "exit"])
+@pytest.mark.parametrize("ending", ["deadline", "cancel"])
+async def test_middleware_interruption_returns_and_observes_failure(
+    monkeypatch, phase, ending
+):
+    clock = ControlledDeadlines(monkeypatch)
+    entered = asyncio.Event()
+    recorder = DeadlineRecorder()
+
+    class Blocking(RpcMiddleware):
+        @asynccontextmanager
+        async def request(self, scope):
+            if phase == "enter":
+                entered.set()
+                await asyncio.Future()
+            yield
+            if phase == "exit":
+                entered.set()
+                await asyncio.Future()
+
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> int:
+        assert phase != "enter"
+        return 42
+
+    app = RpcService(
+        middleware=[recorder, Blocking()], limits=RpcLimits(request_timeout=5)
+    )
+    app.socket("/rpc", channels=[channel])
+    async with deadline_socket(app) as (socket, _):
+        await socket.client_send(json.dumps(deadline_request(1)))
+        await entered.wait()
+        _, waiting = await clock.next()
+        if ending == "deadline":
+            clock.expire(waiting)
+        else:
+            await socket.client_send(json.dumps(cancel_notification(1)))
+        response = json.loads(await socket.client_receive())
+        scope = await recorder.finished.get()
+        expected = "request_timeout" if ending == "deadline" else "request_cancelled"
+        assert response["error"]["data"]["code"] == expected
+        assert scope.outcome.response.model_dump() == response
+        assert scope.outcome.error.code == expected
+        assert scope.outcome.cancelled is (ending == "cancel")
+        assert scope.outcome.duration > 0
+
+
 @pytest.mark.parametrize("ending", ["disconnect", "shutdown"])
 async def test_shutdown_cancellation_releases_admission_without_cancelled_responses(
     monkeypatch, ending

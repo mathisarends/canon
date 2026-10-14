@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from collections.abc import AsyncGenerator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -151,6 +151,8 @@ async def _middleware_scope(
     middleware: Sequence[RpcMiddlewareLike],
     kind: str,
     scope: RpcConnectionScope | RpcRequestScope | RpcStreamScope,
+    *,
+    on_error: Callable[[BaseException], None] | None = None,
 ) -> AsyncGenerator[None, None]:
     entered: list[AbstractAsyncContextManager[None]] = []
     error: BaseException | None = None
@@ -167,6 +169,8 @@ async def _middleware_scope(
         yield
     except BaseException as caught:
         error = caught
+        if on_error is not None:
+            on_error(caught)
         raise
     finally:
         if scope.outcome is None:
@@ -205,6 +209,8 @@ async def _middleware_scope(
                 logger.exception("RPC middleware %s exit failed", kind)
             except BaseException as caught:
                 interrupted = caught
+                if error is None and on_error is not None:
+                    on_error(caught)
         if interrupted is not None and error is None:
             raise interrupted
 

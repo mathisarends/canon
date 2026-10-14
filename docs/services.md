@@ -182,16 +182,16 @@ app.socket("/rpc", channels=[tasks])
 
 An omitted method override inherits the serving limit; explicit `None` disables
 it. Socket deadlines start at per-item admission using the event loop's monotonic
-clock. Scheduling, semaphore wait, dependency resolution, and method execution
-consume that budget. `RpcServer.handle()` and `handle_json()` use the same rules,
-starting at dispatch. Middleware entry time consumes the budget, but entry itself
-is not interrupted by the timer. Observer and middleware exit run after the timer
-has stopped; ordinary response queueing and transport sending use `send_timeout`.
+clock. Scheduling, middleware entry and exit, semaphore wait, dependency
+resolution, and method execution consume that budget. `RpcServer.handle()` and
+`handle_json()` use the same rules, starting at dispatch. The timer can interrupt
+middleware initialization and teardown; ordinary response queueing and transport
+sending use `send_timeout`.
 
 Expiry cancels the invocation, releases its concurrency and pending slots after
 cleanup, and answers calls with `request_timeout` (`-32000`). Notifications have
 no response. `RpcRequestTimeoutError` is a built-in server error, so it survives
-`strict_errors=True` without a `raises=` declaration. Middleware and observers
+`strict_errors=True` without a `raises=` declaration. Middleware scopes
 receive that error distinctly from an internal failure. Cancellation is cooperative:
 handlers and dependency scopes must propagate `asyncio.CancelledError`; synchronous
 CPU work cannot be preempted, and cleanup can extend elapsed time beyond the budget.

@@ -13,6 +13,7 @@ from rpckit._adapter import adapter
 from rpckit.codec import RpcCodec
 from rpckit.connected_client import RpcConnectedClient
 from rpckit.connection import (
+    _STARTUP_EXPIRED,
     REJECTION_CLOSES,
     RpcBeforeAccept,
     RpcConnection,
@@ -209,7 +210,34 @@ async def _serve_endpoint(
     if prepared is None:
         return
     connection, resolved, values, _ = prepared
-    await notify_activity(activity, "connection_opened", connection)
+    async with _accepted(socket, connection):
+        await notify_activity(activity, "connection_opened", connection)
+        await _run_rpc_endpoint(
+            endpoint,
+            socket,
+            connection,
+            resolved,
+            values,
+            error_mapper,
+            limits,
+            rejections,
+            activity,
+            middleware,
+        )
+
+
+async def _run_rpc_endpoint(
+    endpoint,
+    socket,
+    connection,
+    resolved,
+    values,
+    error_mapper,
+    limits,
+    rejections,
+    activity,
+    middleware,
+):
     close_event = asyncio.Event()
     close_value = [RpcConnectionClose.NORMAL, ""]
     client_closed = False
@@ -621,6 +649,7 @@ async def _serve_endpoint(
                 drain_session.begin = graceful
                 drain_session.ready.set()
             try:
+                connection._startup_task = None
                 await close_event.wait()
                 for task in (*producers, *tasks, *call_tasks):
                     task.cancel()
@@ -840,38 +869,49 @@ async def _serve_stream_endpoint(
     if prepared is None:
         return
     connection, resolved, values, path_values = prepared
-    async with (
-        _accepted(socket, connection, activity),
-        (
+    async with _accepted(socket, connection):
+        await notify_activity(activity, "connection_opened", connection)
+        async with (
             _stream_scope(RpcStreamScope(endpoint, connection), middleware)
             if middleware
             else nullcontext()
-        ),
-    ):
-        await _run_stream_endpoint(
-            endpoint,
-            socket,
-            connection,
-            resolved,
-            values,
-            path_values,
-            limits,
-            error_mapper,
-            rejections,
-            activity,
-        )
+        ):
+            await _run_stream_endpoint(
+                endpoint,
+                socket,
+                connection,
+                resolved,
+                values,
+                path_values,
+                limits,
+                error_mapper,
+                rejections,
+                activity,
+            )
 
 
 @asynccontextmanager
 async def _accepted(
     socket: RpcSocket,
     connection: RpcConnection,
-    activity: _Activity | None,
 ) -> AsyncGenerator[None, None]:
-    """Report an accepted dedicated socket and close it however it ends."""
+    """Close accepted sockets even when expiry interrupts their initialization."""
+    task = asyncio.current_task()
+    assert task is not None
+    cancelling = task.cancelling()
+    connection._startup_task = task
     try:
-        await notify_activity(activity, "connection_opened", connection)
         yield
+    except asyncio.CancelledError as error:
+        if (
+            not error.args
+            or error.args[0] is not _STARTUP_EXPIRED
+            or task.cancelling() != cancelling + 1
+        ):
+            if not connection.closed and connection.close_code is None:
+                connection._close_code = RpcConnectionClose.SHUTDOWN
+            raise
+        task.uncancel()
     except BaseException as error:
         if not connection.closed and connection.close_code is None:
             connection._close_code = (
@@ -881,6 +921,7 @@ async def _accepted(
             )
         raise
     finally:
+        connection._startup_task = None
         if not connection.closed:
             with suppress(RpcDisconnect):
                 await socket.close(
@@ -1068,6 +1109,7 @@ async def _run_stream_endpoint(
                 run = handle()
             tasks = [asyncio.create_task(run), asyncio.create_task(read())]
             try:
+                connection._startup_task = None
                 await close_event.wait()
             finally:
                 for task in tasks:
@@ -1137,7 +1179,8 @@ async def serve_raw_socket_endpoint(
             return
         connection, resolved, values, path_values = prepared
         activity = None if state is None else state.activity
-        async with _accepted(socket, connection, activity):
+        async with _accepted(socket, connection):
+            await notify_activity(activity, "connection_opened", connection)
             await _run_raw_socket(
                 endpoint,
                 socket,
@@ -1278,6 +1321,7 @@ async def _run_raw_socket(
 
             tasks = [asyncio.create_task(handle()), asyncio.create_task(read())]
             try:
+                connection._startup_task = None
                 await close_event.wait()
             finally:
                 for task in tasks:

@@ -228,6 +228,9 @@ class _Headers(Mapping[str, str]):
         return len(self._values)
 
 
+_STARTUP_EXPIRED = object()
+
+
 class RpcConnection:
     __slots__ = (
         "_accepted",
@@ -241,6 +244,7 @@ class RpcConnection:
         "_path_params",
         "_expires_at",
         "_expiry_timer",
+        "_startup_task",
     )
 
     def __init__(self) -> None:
@@ -264,6 +268,7 @@ class RpcConnection:
         self._on_close = None
         self._expires_at = None
         self._expiry_timer = None
+        self._startup_task: asyncio.Task | None = None
         return self
 
     @property
@@ -341,6 +346,9 @@ class RpcConnection:
         else:
             self._close_code = RpcConnectionClose.POLICY_VIOLATION
             self._close_reason = "credentials_expired"
+        if self._startup_task is not None:
+            self._startup_task.cancel(_STARTUP_EXPIRED)
+            self._startup_task = None
 
     def _set_close_handler(self, callback: Callable) -> None:
         self._on_close = callback
@@ -349,6 +357,7 @@ class RpcConnection:
 
     def _mark_closed(self) -> None:
         self._closed = True
+        self._startup_task = None
         if self._expiry_timer is not None:
             self._expiry_timer.cancel()
             self._expiry_timer = None

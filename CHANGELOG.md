@@ -10,6 +10,13 @@
   before releasing connection dependencies.
 - Heartbeat replies use bounded response collectors, so a blocked outgoing queue
   cannot stop the reader from processing request cancellation or reverse replies.
+- Server deadlines and client cancellation cover middleware entry and exit.
+  Interrupted middleware produces the normal typed failure reply and exposes that
+  same failure to previously entered middleware during cleanup.
+- Credential expiry interrupts accepted-connection initialization, including
+  activity callbacks, connection scopes, and binary/raw dependency resolution.
+  Expired connections close with `1008 / credentials_expired` even before their
+  normal reader and writer tasks have started.
 
 ### Migration from 0.10
 
