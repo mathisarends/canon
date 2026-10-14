@@ -71,9 +71,10 @@ infrastructure for the later resilience work, rather than a mandatory dependency
 
 ## Implementation progress
 
-The current PRs are stacked in implementation order. Each PR targets the preceding
-branch and includes its SDK impact, rationale, validation, and changelog update.
-Merge the stack from the bottom up; subsequent PR descriptions link their base.
+The ticket PRs were stacked in implementation order and merged one by one into
+main. Each successor was retargeted after its prerequisite merged. Each PR
+includes its SDK impact, rationale, validation, and changelog update; the table
+records the original dependency chain.
 
 | Ticket | Status | PR | Builds on |
 |--------|--------|----|-----------|
@@ -94,7 +95,7 @@ Merge the stack from the bottom up; subsequent PR descriptions link their base.
 | 14 | done | [#37](https://github.com/mathisarends/pyrpckit/pull/37) | #36 |
 
 All 15 tickets are implemented and have their own PRs, changelog updates,
-and SDK impact summaries. Review and merge from #23 upward. The consolidated
+and SDK impact summaries. All 15 ticket PRs are merged. The consolidated
 [SDK migration guide](../docs/hardening-overview.md) explains changed defaults,
 compatibility, and integration steps. The user-requested pre-release cleanup
 [PR #38](https://github.com/mathisarends/pyrpckit/pull/38) builds on #37 and removes

@@ -8,12 +8,14 @@ here to understand the resulting behavior, then use the linked guides for setup.
 The changes are recorded under **0.11.0 Unreleased**; opening these PRs does not
 publish a package or change the package version.
 
-## Review and merge order
+## Implementation history
 
-Merge from the bottom of the stack upward. Each PR targets the preceding branch;
-after merging a base, verify or retarget its successor to `main` before merging
-that successor. Review each PR's own diff against its base. The tip contains all
-tickets, while each earlier PR contains only its own changes plus prerequisites.
+The 15 ticket PRs were built in the order below and merged one by one into
+`main`. Each successor was retargeted after its prerequisite merged, and merge
+commits preserve the incremental implementation commits. The final cleanup
+[PR #38](https://github.com/mathisarends/pyrpckit/pull/38) applies the middleware-only
+API and the breaking migrations described below. The table records the original
+implementation chain; the current changelog describes the resulting API.
 
 | Ticket | PR | What it changes |
 |---|---|---|
