@@ -2,7 +2,8 @@
 
 This guide covers all 15 production-readiness tickets. Each ticket has its own
 stacked PR, incremental commits, changelog entry, and SDK impact summary. A final
-cleanup PR applies the current-API-only policy across client/server instrumentation. Start
+cleanup [PR #38](https://github.com/mathisarends/pyrpckit/pull/38) applies the
+current-API-only policy across client/server instrumentation. Start
 here to understand the resulting behavior, then use the linked guides for setup.
 The changes are recorded under **0.11.0 Unreleased**; opening these PRs does not
 publish a package or change the package version.
@@ -31,6 +32,7 @@ tickets, while each earlier PR contains only its own changes plus prerequisites.
 | 12 | [#35](https://github.com/mathisarends/pyrpckit/pull/35) | Credential expiry and fresh authentication per connection |
 | 13 | [#36](https://github.com/mathisarends/pyrpckit/pull/36) | Per-attempt middleware with error/validation outcomes |
 | 14 | [#37](https://github.com/mathisarends/pyrpckit/pull/37) | Bounded request metadata and remote trace propagation |
+| Cleanup | [#38](https://github.com/mathisarends/pyrpckit/pull/38) | Middleware-only APIs and documented breaking migrations |
 
 ## What existing applications need to know
 

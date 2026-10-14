@@ -472,12 +472,14 @@ Generated Python and TypeScript packages export the same client error hierarchy:
 
 ```text
 RpcClientError
-├── RpcRemoteError (including declared and built-in RPC errors)
-├── RpcTransportError
-│   ├── RpcRequestTimeoutError
-│   ├── RpcConnectionLostError
-│   └── RpcConnectError
-└── ```
+  RpcRemoteError (declared and built-in server errors)
+  RpcResponseValidationError
+  RpcNotificationValidationError (Python)
+  RpcTransportError
+    RpcRequestTimeoutError
+    RpcConnectionLostError
+    RpcConnectError
+```
 
 Python response/notification validation errors and stream errors also inherit
 `RpcClientError`. TypeScript's existing remote, connection-close, and stream

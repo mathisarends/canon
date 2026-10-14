@@ -330,7 +330,7 @@ Use a W3C trace-context propagator in the application. Each retry creates a new
 attempt span under the caller's active context, shares the logical call ID, and
 injects fresh metadata. Subscribe/unsubscribe controls run through the same
 middleware; passive notification payload delivery does not. Python custom
-transports opting into propagation must accept a keyword-only
+transports implement the keyword-only
 `metadata: Mapping[str, str] | None = None` in `request()` and serialize it as
 `meta`. The single generated `RpcTransport` protocol includes this keyword.
 The core supplies `metadata=None` even without tracing; update two-argument adapters.

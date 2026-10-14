@@ -96,7 +96,9 @@ Merge the stack from the bottom up; subsequent PR descriptions link their base.
 All 15 tickets are implemented and have their own PRs, changelog updates,
 and SDK impact summaries. Review and merge from #23 upward. The consolidated
 [SDK migration guide](../docs/hardening-overview.md) explains changed defaults,
-compatibility, and integration steps.
+compatibility, and integration steps. The user-requested pre-release cleanup
+[PR #38](https://github.com/mathisarends/pyrpckit/pull/38) builds on #37 and removes
+superseded instrumentation APIs; migrations are recorded in CHANGELOG.md.
 
 ## Review coverage
 
