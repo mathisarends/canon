@@ -314,7 +314,7 @@ def test_abort_timeout_response_and_disconnect_races(cancellation_sdk):
             clean(tracker);
             await client.close();
           }
-          for (const phase of ["before", "hook", "connect"]) {
+          for (const phase of ["before", "middleware", "connect"]) {
             const tracker = trackedSignal();
             let opened = 0,
               lateReject;
@@ -329,11 +329,11 @@ def test_abort_timeout_response_and_disconnect_races(cancellation_sdk):
               async close() {},
             };
             const core = new RpcClientCore(source, {
-              hooks:
-                phase === "hook"
+              middleware:
+                phase === "middleware"
                   ? [
                       {
-                        beforeRequest() {
+                        request() {
                           return new Promise((_, reject) => {
                             lateReject = reject;
                           });

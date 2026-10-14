@@ -7,7 +7,6 @@
 {% else %}        transport: RpcTransport | RpcTransportSource,
 {% endif %}        *,
         close_transport: bool = True,
-        hooks: Iterable[RpcClientHook] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
         notification_queue_size: int = 100,
         on_overflow: RpcNotificationOverflowHandler | None = None,
@@ -20,7 +19,6 @@
         self._rpc = RpcClientCore(
             transport,
             close_transport=close_transport,
-            hooks=hooks,
             middleware=middleware,
             supports_metadata={{ "True" if request_metadata else "False" }},
             notification_queue_size=notification_queue_size,
@@ -55,7 +53,6 @@
         transports: {{ "RpcTransport | Mapping[ServerName, RpcTransport]" if servers else "RpcTransport" }},
         *,
         close_transport: bool = True,
-        hooks: Iterable[RpcClientHook] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
         notification_queue_size: int = 100,
         on_overflow: RpcNotificationOverflowHandler | None = None,
@@ -69,7 +66,6 @@
         return cls(
             transports,
             close_transport=close_transport,
-            hooks=hooks,
             middleware=middleware,
             notification_queue_size=notification_queue_size,
             on_overflow=on_overflow,
@@ -100,8 +96,7 @@
 {% if binary_streams %}        stream_socket_factory: BinaryWebSocketFactory | None = None,
 {% endif %}{% if raw_sockets %}        raw_socket_factory: RawWebSocketFactory | None = None,
 {% endif %}{% if client_methods %}        handlers: Handler | Iterable[Handler] = (),
-{% endif %}        hooks: Iterable[RpcClientHook] = (),
-        middleware: Iterable[RpcClientMiddleware] = (),
+{% endif %}        middleware: Iterable[RpcClientMiddleware] = (),
         lazy: bool = False,
         reconnect: bool = False,
         reconnect_initial_delay: float = 0.25,
@@ -181,7 +176,6 @@
         return ClientConnection(
             client_factory=lambda transports: cls(
                 transports,
-                hooks=hooks,
                 middleware=middleware,
                 on_overflow=on_overflow,
                 retry_attempts=retry_attempts,

@@ -7,6 +7,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
+from rpckit._activity import _Activity, _activity_for
 from rpckit.connection import (
     RpcConnection,
     RpcConnectionClose,
@@ -16,14 +17,7 @@ from rpckit.connection import (
     RpcSocket,
 )
 from rpckit.constants import LOGGER_NAME
-from rpckit.observer import (
-    RpcConnectionContext,
-    RpcObserver,
-    RpcObserverLike,
-    RpcRequestContext,
-    RpcResponseContext,
-    notify_observer,
-)
+from rpckit.envelopes import RpcRequestId
 from rpckit.protocol import RpcMethodDefinition, RpcStreamDefinition
 
 if TYPE_CHECKING:
@@ -43,6 +37,16 @@ class RpcEndpointInfo(Protocol):
 class RpcStreamEndpointInfo(RpcEndpointInfo, Protocol):
     @property
     def stream(self) -> RpcStreamDefinition: ...
+
+
+@dataclass(frozen=True, slots=True)
+class RpcRequestContext:
+    raw_request: object
+    method: str | None
+    request_id: RpcRequestId
+    notification: bool
+    connection: RpcConnection | None = None
+    metadata: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,7 +116,7 @@ class RpcMiddlewareLike(Protocol):
     def stream(self, scope: RpcStreamScope) -> AbstractAsyncContextManager[None]: ...
 
 
-class RpcMiddleware(RpcObserver):
+class RpcMiddleware:
     """Override lifecycle scopes and activity callbacks to instrument operations."""
 
     def connection(
@@ -125,6 +129,21 @@ class RpcMiddleware(RpcObserver):
 
     def stream(self, scope: RpcStreamScope) -> AbstractAsyncContextManager[None]:
         return nullcontext()
+
+    async def connection_opened(self, connection: RpcConnection) -> None:
+        pass
+
+    async def notification_sent(self, name: str, size: int) -> None:
+        pass
+
+    async def slow_consumer_closed(self, connection: RpcConnection) -> None:
+        pass
+
+    async def stream_frame_sent(self, connection: RpcConnection, size: int) -> None:
+        pass
+
+    async def stream_frame_received(self, connection: RpcConnection, size: int) -> None:
+        pass
 
 
 @asynccontextmanager
@@ -190,53 +209,12 @@ async def _middleware_scope(
             raise interrupted
 
 
-class _ObserverGroup(RpcObserver):
-    def __init__(self, observers: Sequence[object]) -> None:
-        self._observers = tuple(observers)
-
-    async def _notify(self, method: str, *args: object) -> None:
-        for observer in self._observers:
-            await notify_observer(observer, method, *args)  # type: ignore[arg-type]
-
-    async def request_started(self, context: RpcRequestContext) -> None:
-        await self._notify("request_started", context)
-
-    async def request_finished(self, context: RpcResponseContext) -> None:
-        await self._notify("request_finished", context)
-
-    async def connection_opened(self, connection: RpcConnection) -> None:
-        await self._notify("connection_opened", connection)
-
-    async def connection_closed(self, context: RpcConnectionContext) -> None:
-        await self._notify("connection_closed", context)
-
-    async def notification_sent(self, name: str, size: int) -> None:
-        await self._notify("notification_sent", name, size)
-
-    async def slow_consumer_closed(self, connection: RpcConnection) -> None:
-        await self._notify("slow_consumer_closed", connection)
-
-    async def stream_frame_sent(self, connection: RpcConnection, size: int) -> None:
-        await self._notify("stream_frame_sent", connection, size)
-
-    async def stream_frame_received(self, connection: RpcConnection, size: int) -> None:
-        await self._notify("stream_frame_received", connection, size)
-
-
-def _middleware_observer(
-    observer: RpcObserverLike | None, middleware: Sequence[RpcMiddlewareLike]
-) -> RpcObserverLike | None:
-    if not middleware:
-        return observer
-    return _ObserverGroup([*(() if observer is None else (observer,)), *middleware])
-
-
 @dataclass(slots=True)
 class _ServingState:
     scope: RpcConnectionScope
     socket: RpcSocket
     middleware: tuple[RpcMiddlewareLike, ...]
-    observer: RpcObserverLike | None
+    activity: _Activity | None
     started_at: float = field(default_factory=time.perf_counter)
     error: BaseException | None = None
     disconnect_error: BaseException | None = None
@@ -307,17 +285,17 @@ async def _serving_scope(
         if not additional:
             yield active
             return
-        previous = active.middleware, active.observer
+        previous = active.middleware, active.activity
         active.middleware = (*active.middleware, *additional)
-        active.observer = _middleware_observer(active.observer, additional)
+        active.activity = _activity_for(active.middleware)
         try:
             async with _connection_middleware(active, additional):
                 yield active
         finally:
-            active.middleware, active.observer = previous
+            active.middleware, active.activity = previous
         return
     chain = (*middleware, *endpoint.middleware)
-    if not chain and endpoint.observer is None:
+    if not chain:
         # A nested uninstrumented connection must not update its caller's scope.
         token = _serving.set(None) if active is not None else None
         try:
@@ -330,11 +308,11 @@ async def _serving_scope(
         RpcConnectionScope(endpoint, socket.handshake),
         socket,
         chain,
-        _middleware_observer(endpoint.observer, chain),
+        _activity_for(chain),
     )
     token = _serving.set(state)
     try:
-        async with _connection_middleware(state, chain) if chain else nullcontext():
+        async with _connection_middleware(state, chain):
             yield state
     finally:
         _serving.reset(token)

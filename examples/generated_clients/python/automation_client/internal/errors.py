@@ -44,13 +44,6 @@ class RpcInternalError(RpcRemoteError):
     code = "internal_error"
 
 
-class RpcConnectionClosed(RpcClientError):
-    def __init__(self, code: int | None, reason: str) -> None:
-        super().__init__(f"RPC connection closed ({code}): {reason}")
-        self.code = code
-        self.reason = reason
-
-
 class RpcTransportError(RpcClientError):
     """Raised when the connection cannot serve a request."""
 

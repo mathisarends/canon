@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
@@ -12,6 +13,7 @@ from rpckit import (
     RpcErrorCode,
     RpcFailure,
     RpcLimits,
+    RpcMiddleware,
     RpcServer,
     RpcService,
     RpcSuccess,
@@ -99,7 +101,6 @@ async def test_deadlines_include_semaphore_wait_and_method_none_disables_default
 
 
 async def test_deadline_cancels_dependency_resolution_and_exits_its_scope(monkeypatch):
-    from contextlib import asynccontextmanager
 
     from rpckit import Inject, RpcRequestTimeoutError
 
@@ -239,27 +240,27 @@ async def test_a_request_is_answered_with_its_result(
     assert response.result.text == "Hello, M!"
 
 
-async def test_observer_receives_request_outcome_and_duration(
+async def test_middleware_receives_request_outcome_and_duration(
     handler: GreetingState,
 ) -> None:
-    class Observer:
+    class Instrumentation(RpcMiddleware):
         def __init__(self) -> None:
             self.requests = []
             self.responses = []
 
-        async def request_started(self, context) -> None:
-            self.requests.append(context)
+        @asynccontextmanager
+        async def request(self, scope):
+            self.requests.append(scope.request)
+            try:
+                yield
+            finally:
+                self.responses.append(scope)
 
-        async def request_finished(self, context) -> None:
-            self.responses.append(context)
-
-        async def connection_closed(self, context) -> None: ...
-
-    observer = Observer()
+    instrumentation = Instrumentation()
 
     server = greeting_app.create_server(
         resolver=TestResolver(handler),
-        observer=observer,
+        middleware=[instrumentation],
     )
     response = await server.handle(
         {
@@ -270,12 +271,12 @@ async def test_observer_receives_request_outcome_and_duration(
         }
     )
 
-    assert observer.requests[0].method == GreetingRpcMethod.SAY
-    assert observer.requests[0].request_id == 7
-    assert observer.requests[0].notification is False
-    assert observer.responses[0].request is observer.requests[0]
-    assert observer.responses[0].response is response
-    assert observer.responses[0].duration >= 0
+    assert instrumentation.requests[0].method == GreetingRpcMethod.SAY
+    assert instrumentation.requests[0].request_id == 7
+    assert instrumentation.requests[0].notification is False
+    assert instrumentation.responses[0].request is instrumentation.requests[0]
+    assert instrumentation.responses[0].outcome.response is response
+    assert instrumentation.responses[0].outcome.duration >= 0
 
 
 async def test_a_notification_is_served_without_a_response(

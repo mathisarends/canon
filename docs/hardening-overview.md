@@ -1,17 +1,21 @@
 # Hardening stack: SDK changes and migration
 
 This guide covers all 15 production-readiness tickets. Each ticket has its own
-stacked PR, incremental commits, changelog entry, and SDK impact summary. Start
+stacked PR, incremental commits, changelog entry, and SDK impact summary. A final
+cleanup [PR #38](https://github.com/mathisarends/pyrpckit/pull/38) applies the
+current-API-only policy across client/server instrumentation. Start
 here to understand the resulting behavior, then use the linked guides for setup.
 The changes are recorded under **0.11.0 Unreleased**; opening these PRs does not
 publish a package or change the package version.
 
-## Review and merge order
+## Implementation history
 
-Merge from the bottom of the stack upward. Each PR targets the preceding branch;
-after merging a base, verify or retarget its successor to `main` before merging
-that successor. Review each PR's own diff against its base. The tip contains all
-tickets, while each earlier PR contains only its own changes plus prerequisites.
+The 15 ticket PRs were built in the order below and merged one by one into
+`main`. Each successor was retargeted after its prerequisite merged, and merge
+commits preserve the incremental implementation commits. The final cleanup
+[PR #38](https://github.com/mathisarends/pyrpckit/pull/38) applies the middleware-only
+API and the breaking migrations described below. The table records the original
+implementation chain; the current changelog describes the resulting API.
 
 | Ticket | PR | What it changes |
 |---|---|---|
@@ -30,6 +34,7 @@ tickets, while each earlier PR contains only its own changes plus prerequisites.
 | 12 | [#35](https://github.com/mathisarends/pyrpckit/pull/35) | Credential expiry and fresh authentication per connection |
 | 13 | [#36](https://github.com/mathisarends/pyrpckit/pull/36) | Per-attempt middleware with error/validation outcomes |
 | 14 | [#37](https://github.com/mathisarends/pyrpckit/pull/37) | Bounded request metadata and remote trace propagation |
+| Cleanup | [#38](https://github.com/mathisarends/pyrpckit/pull/38) | Middleware-only APIs and documented breaking migrations |
 
 ## What existing applications need to know
 
@@ -147,12 +152,13 @@ renewal are described in [Connection authentication](connections-and-events.md).
 
 ## Middleware and tracing
 
-Legacy success hooks still run once per logical call. New middleware runs once
+Middleware is the only instrumentation API. Client middleware runs once
 per physical attempt, with a shared logical ID, attempt number, copied JSON params,
 selected transport, and success/error/duration outcome. Python uses async context
 managers; TS uses onion middleware with exactly one `await next()`. Inspect outcomes
 in teardown/finally. Cleanup failures preserve the original operation error;
-cleanup-only failures remain application errors. See [Client middleware](clients.md#client-middleware-and-per-attempt-outcomes).
+cleanup-only failures remain application errors. All attempts share one validation
+path, and success outcomes contain the validated result. See [Client middleware](clients.md#client-middleware-and-per-attempt-outcomes).
 
 `call.metadata` is separate from business params. The top-level `meta` carrier
 accepts only W3C `traceparent`, `tracestate`, and optional `baggage` strings within
@@ -168,3 +174,20 @@ For resilience tests, `rpckit.testing.SocketFaults` and `InMemorySocketFactory`
 provide deterministic disconnects, blocked sends, delayed/held responses,
 half-open sockets, and handshake rejection. Use controlled clocks and events to
 test your own retry, refresh, resync, and shutdown policy.
+
+## Breaking instrumentation cleanup
+
+Remove `hooks` / `RpcClientHook` and use client `middleware`. Before work belongs
+in middleware entry; after work belongs after `yield` / `await next()` or in
+finally. Middleware runs per physical attempt, including retries. Server
+`observer=` and `RpcObserver` / `RpcObserverLike` are removed; use `RpcMiddleware`
+request/connection scopes and their outcomes. Live activity callbacks remain on
+`RpcMiddleware`. The observer module and its response/connection context types
+have no replacement aliases.
+
+Custom Python adapters accept `metadata=` through the single `RpcTransport`
+interface; `RpcMetadataTransport` is removed. Catch `RpcConnectionLostError`
+instead of the unused `RpcConnectionClosed`. TypeScript clients use
+`onStateChange` instead of `onDisconnect`; direct transports expose `closed`.
+Pool openers take `(endpoint, signal)`. See the migration section in
+[CHANGELOG.md](../CHANGELOG.md) for the complete list of breaking changes.

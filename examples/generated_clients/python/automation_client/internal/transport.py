@@ -12,23 +12,13 @@ class RpcTransport(Protocol):
         self,
         method: str,
         params: dict[str, Any] | None = None,
+        *,
+        metadata: Mapping[str, str] | None = None,
     ) -> Any: ...
 
     def notifications(self) -> AsyncIterator[dict[str, Any]]: ...
 
     async def close(self) -> None: ...
-
-
-class RpcMetadataTransport(RpcTransport, Protocol):
-    """An adapter opting into the advertised top-level request metadata extension."""
-
-    async def request(
-        self,
-        method: str,
-        params: dict[str, Any] | None = None,
-        *,
-        metadata: Mapping[str, str] | None = None,
-    ) -> Any: ...
 
 
 def validate_request_metadata(value: object) -> dict[str, str]:

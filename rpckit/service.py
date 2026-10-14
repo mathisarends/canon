@@ -28,7 +28,6 @@ from rpckit.errors import (
     rejecting_contracts,
 )
 from rpckit.middleware import RpcMiddlewareLike
-from rpckit.observer import RpcObserverLike
 from rpckit.protocol import (
     RpcProtocol,
     RpcRawSocketDefinition,
@@ -47,7 +46,6 @@ class RpcEndpoint[ContextT]:
     path: str
     channels: tuple[RpcChannel, ...]
     error_mapper: RpcErrorMapper | None
-    observer: RpcObserverLike | None
     limits: RpcLimits
     subprotocol: str | None
     summary: str | None
@@ -131,14 +129,12 @@ class RpcEndpoint[ContextT]:
         resolver: RpcResolverLike | None = None,
         error_mapper: RpcErrorMapper | None = None,
         limits: RpcLimits | None = None,
-        observer: RpcObserverLike | None = None,
         middleware: Sequence[RpcMiddlewareLike] = (),
     ) -> RpcServer:
         return RpcServer._from_channel(
             self.protocol,
             resolver=resolver_with_context(resolver, context),
             error_mapper=error_mapper or self.error_mapper,
-            observer=observer or self.observer,
             limits=limits or self.limits,
             strict_errors=self.service.strict_errors,
             middleware=(*middleware, *self.middleware),
@@ -152,7 +148,6 @@ class RpcStreamEndpoint[ContextT]:
     name: str
     path: str
     stream: RpcStreamDefinition
-    observer: RpcObserverLike | None
     limits: RpcLimits
     subprotocol: str | None
     summary: str | None
@@ -199,7 +194,6 @@ class RpcRawSocketEndpoint[ContextT]:
     name: str
     path: str
     raw_socket: RpcRawSocketDefinition
-    observer: RpcObserverLike | None
     limits: RpcLimits
     subprotocol: str | None
     summary: str | None
@@ -248,7 +242,6 @@ class RpcService:
         *,
         version: int = 1,
         error_mapper: RpcErrorMapper | None = None,
-        observer: RpcObserverLike | None = None,
         middleware: Sequence[RpcMiddlewareLike] = (),
         limits: RpcLimits | None = None,
         strict_errors: bool = False,
@@ -261,7 +254,6 @@ class RpcService:
             )
         self._version = version
         self._error_mapper = error_mapper
-        self._observer = observer
         self._middleware = tuple(middleware)
         self._limits = limits or RpcLimits()
         self._strict_errors = strict_errors
@@ -301,7 +293,6 @@ class RpcService:
         channels: Sequence[RpcChannel],
         name: str | None = None,
         error_mapper: RpcErrorMapper | None = None,
-        observer: RpcObserverLike | None = None,
         middleware: Sequence[RpcMiddlewareLike] = (),
         limits: RpcLimits | None = None,
         subprotocol: str | None = None,
@@ -347,7 +338,6 @@ class RpcService:
             path,
             tuple(channels),
             error_mapper or self._error_mapper,
-            observer or self._observer,
             limits or self._limits,
             subprotocol,
             summary,
@@ -370,7 +360,6 @@ class RpcService:
         /,
         *,
         name: str | None = None,
-        observer: RpcObserverLike | None = None,
         middleware: Sequence[RpcMiddlewareLike] = (),
         limits: RpcLimits | None = None,
         subprotocol: str | None = None,
@@ -404,7 +393,6 @@ class RpcService:
             name or _endpoint_name(path),
             path,
             definition,
-            observer or self._observer,
             limits or self._limits,
             subprotocol,
             summary,
@@ -427,7 +415,6 @@ class RpcService:
         /,
         *,
         name: str | None = None,
-        observer: RpcObserverLike | None = None,
         middleware: Sequence[RpcMiddlewareLike] = (),
         limits: RpcLimits | None = None,
         subprotocol: str | None = None,
@@ -463,7 +450,6 @@ class RpcService:
             name or _endpoint_name(path),
             path,
             definition,
-            observer or self._observer,
             limits or self._limits,
             subprotocol,
             summary,

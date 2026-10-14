@@ -7,7 +7,6 @@ export * from "./namespaces";
 export {
   RpcClientError,
   RpcConnectError,
-  RpcConnectionClosed,
   RpcConnectionLostError,
   RpcRemoteError,
   RpcRequestTimeoutError,
@@ -17,7 +16,6 @@ export {
 export type {
   JsonValue,
   RpcClientCore,
-  RpcClientHook,
   RpcClientMiddleware,
   RpcClientCall,
   RpcClientCallOutcome,

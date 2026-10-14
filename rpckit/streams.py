@@ -4,13 +4,13 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict
 
+from rpckit._activity import _Activity, notify_activity
 from rpckit.connection import (
     RpcConnection,
     RpcConnectionClose,
     RpcDisconnect,
     RpcSocket,
 )
-from rpckit.observer import RpcObserverLike, notify_observer
 
 _END = object()
 
@@ -87,7 +87,7 @@ class RpcBinaryInput:
 class RpcBinaryOutput:
     """Frames the server sends; waits while the socket applies backpressure."""
 
-    __slots__ = ("_connection", "_socket", "_lock", "_observer")
+    __slots__ = ("_connection", "_socket", "_lock", "_activity")
 
     def __init__(self) -> None:
         raise TypeError("RpcBinaryOutput instances are created by rpckit")
@@ -97,12 +97,12 @@ class RpcBinaryOutput:
         cls,
         socket: RpcSocket,
         connection: RpcConnection,
-        observer: RpcObserverLike | None = None,
+        activity: _Activity | None = None,
     ) -> Self:
         self = cls.__new__(cls)
         self._socket = socket
         self._connection = connection
-        self._observer = observer
+        self._activity = activity
         self._lock = asyncio.Lock()
         return self
 
@@ -114,6 +114,6 @@ class RpcBinaryOutput:
                 raise RpcDisconnect(reason="The binary stream is closed")
             data = bytes(frame)
             await self._socket.send_bytes(data)
-            await notify_observer(
-                self._observer, "stream_frame_sent", self._connection, len(data)
+            await notify_activity(
+                self._activity, "stream_frame_sent", self._connection, len(data)
             )

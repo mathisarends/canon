@@ -137,7 +137,7 @@ async def test_bad_client_metadata_is_observed_and_never_sent_or_retried(
     await core.close()
 
 
-async def test_old_contract_and_two_argument_adapters_remain_compatible(
+async def test_contract_capability_and_current_transport_typing(
     document, tmp_path, pool_runtime
 ):
     old = deepcopy(document)
@@ -149,25 +149,20 @@ async def test_old_contract_and_two_argument_adapters_remain_compatible(
         """
 from collections.abc import AsyncIterator, Mapping
 from typing import Any
-from old import RpcMetadataTransport
-from old.internal import RpcClientCore, RpcTransport
+from old import RpcTransport
+from old.internal import RpcClientCore
 
-class Old:
-    async def request(self, method: str, params: dict[str, Any] | None = None) -> Any:
+class Adapter:
+    async def request(self, method: str, params: dict[str, Any] | None = None,
+                      *, metadata: Mapping[str, str] | None = None) -> Any:
         return None
     async def notifications(self) -> AsyncIterator[dict[str, Any]]:
         yield {}
     async def close(self) -> None:
         pass
 
-class Traced(Old):
-    async def request(self, method: str, params: dict[str, Any] | None = None,
-                      *, metadata: Mapping[str, str] | None = None) -> Any:
-        return None
-
-old: RpcTransport = Old()
-traced: RpcMetadataTransport = Traced()
-client = RpcClientCore(old)
+transport: RpcTransport = Adapter()
+client = RpcClientCore(transport)
 """,
         encoding="utf-8",
     )

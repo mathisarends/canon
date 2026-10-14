@@ -283,7 +283,6 @@ class _Renderer:
     def client(self) -> str:
         core_imports = [
             "RpcClientCore",
-            "type RpcClientHook",
             "type RpcClientMiddleware",
             "type RpcConnectionState",
             "type RpcNotificationOverflowHandler",
@@ -933,7 +932,6 @@ _CONNECT_OPTIONS = (
     "heartbeatTimeoutMs",
     "consecutiveTimeoutLimit",
     "eager",
-    "hooks",
     "notificationQueueSize",
     "requestTimeoutMs",
     "servers",
@@ -1002,7 +1000,6 @@ _RUNTIME_NAMES = frozenset(
         "RpcNotificationOverflowHandler",
         "RpcClientError",
         "RpcConnectError",
-        "RpcConnectionClosed",
         "RpcConnectionLostError",
         "RpcRemoteError",
         "RpcRequestTimeoutError",

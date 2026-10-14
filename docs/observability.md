@@ -2,8 +2,8 @@
 
 Instrument RPC calls, notifications, connections, and binary streams with
 `middleware=`. Lifecycle hooks run around execution, so tracing context reaches
-application handlers and their child tasks. Existing `observer=` callbacks
-continue to work alongside middleware.
+application handlers and their child tasks. Middleware is the single server
+and generated-client instrumentation API.
 
 ## Enable OpenTelemetry
 
@@ -130,8 +130,8 @@ Normal disconnects and shutdown cancellations do not mark spans as errors.
 
 ## Write middleware
 
-Subclass `RpcMiddleware` and override the scopes or existing observer callbacks
-you need. `RpcMiddlewareLike` supports structural implementations of all three
+Subclass `RpcMiddleware` and override the lifecycle scopes or live activity
+callbacks you need. `RpcMiddlewareLike` supports structural implementations of all three
 lifecycle methods. The base class provides no-op implementations.
 
 ```python
@@ -196,11 +196,10 @@ are reused without entering their scopes twice. Middleware added during
 delegation finishes when delegated serving ends; route middleware also covers
 the surrounding dependency cleanup.
 
-When neither middleware nor an observer is configured, RPC requests and
-subscriptions bypass observation scopes, outcome objects, and timing. Connections
+When middleware is not configured, RPC requests and subscriptions bypass
+operation scopes, outcome objects, and timing. Connections
 and binary streams also skip middleware scopes, and FastAPI routes omit the
-middleware dependency and custom-handler socket wrappers. Existing `observer=`
-callbacks remain available without registering middleware. To disable telemetry
+middleware dependency and custom-handler socket wrappers. To disable telemetry
 with this fast path, omit `OpenTelemetry()` from `middleware=`; registering an
 instance with both signals disabled still enters middleware scopes.
 
@@ -210,7 +209,7 @@ application. Per-request trace propagation is described below.
 [Back to documentation](README.md)
 ## Observe generated-client calls
 
-Generated clients accept `middleware` in addition to legacy success hooks. Wrap
+Generated clients use `middleware` for instrumentation. Wrap
 each attempt with a Python async context manager or a TypeScript `request(call,
 next)` function, retain local span/metric state in that block, and inspect
 `call.outcome` during teardown. Registration order nests middleware. The call
@@ -224,7 +223,7 @@ response validation, timeout, and caller cancellation. Failed attempts and
 subscribe/unsubscribe control calls are observable. Keep tracing/export callbacks
 cancellation-aware: the SDK preserves the original operation error if cleanup
 also fails, while cleanup-only failures remain application errors and do not
-retry. Legacy hooks stay once per logical call and remain success-oriented.
+retry. Success outcomes contain the validated result returned to the caller.
 Log safe method/server/attempt/error-class fields; params, peer reasons, and
 diagnostic causes can carry sensitive application or credential data.
 
@@ -256,7 +255,7 @@ no collision with existing models, and no need to add params to a no-argument
 call. Existing named-param validation and positional-param policy are unchanged.
 
 The server exposes a validated immutable mapping as `scope.metadata` and
-`scope.request.metadata`; observers see it as `RpcRequestContext.metadata`.
+`scope.request.metadata` on `RpcRequestContext`.
 Absent metadata means `None`. With OpenTelemetry, an explicit carrier is extracted
 as **remote W3C context** from a fresh context and parents that request's span.
 When `connection_spans=True`, the request also links to its connection span.
@@ -331,11 +330,10 @@ Use a W3C trace-context propagator in the application. Each retry creates a new
 attempt span under the caller's active context, shares the logical call ID, and
 injects fresh metadata. Subscribe/unsubscribe controls run through the same
 middleware; passive notification payload delivery does not. Python custom
-transports opting into propagation must accept a keyword-only
+transports implement the keyword-only
 `metadata: Mapping[str, str] | None = None` in `request()` and serialize it as
-`meta`. The generated `RpcMetadataTransport` protocol describes this opt-in
-adapter interface. Existing two-argument `RpcTransport` adapters keep runtime
-and structural typing compatibility when no metadata is sent.
+`meta`. The single generated `RpcTransport` protocol includes this keyword.
+The core supplies `metadata=None` even without tracing; update two-argument adapters.
 
 ### TypeScript client recipe
 

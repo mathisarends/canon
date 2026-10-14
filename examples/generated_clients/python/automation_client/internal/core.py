@@ -6,7 +6,6 @@ import random
 from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import AbstractAsyncContextManager, aclosing, suppress
 from copy import deepcopy
-from dataclasses import dataclass
 from math import isfinite
 from time import perf_counter
 from types import MappingProxyType
@@ -25,7 +24,6 @@ from .errors import (
     RpcTransportError,
 )
 from .metadata import (
-    JsonValue,
     RpcClientCall,
     RpcClientCallOutcome,
     RpcConnectionState,
@@ -33,7 +31,7 @@ from .metadata import (
     RpcNotificationOverflowHandler,
     RpcRouteInfo,
 )
-from .transport import RpcMetadataTransport, RpcTransport, validate_request_metadata
+from .transport import RpcTransport, validate_request_metadata
 
 _STREAM_ENDED = object()
 
@@ -126,28 +124,8 @@ class _StaticTransports:
         )
 
 
-class RpcClientHook(Protocol):
-    async def before_request(
-        self,
-        route: RpcRouteInfo[Any, Any],
-        params: JsonValue,
-    ) -> None: ...
-
-    async def after_response(
-        self,
-        route: RpcRouteInfo[Any, Any],
-        result: JsonValue,
-    ) -> None: ...
-
-
 class RpcClientMiddleware(Protocol):
     def request(self, call: RpcClientCall) -> AbstractAsyncContextManager[None]: ...
-
-
-@dataclass
-class _AttemptResult:
-    raw: Any
-    value: Any
 
 
 class _AttemptFailure(Exception):
@@ -166,7 +144,6 @@ class RpcClientCore:
         transports: RpcTransport | Mapping[ServerT, RpcTransport] | RpcTransportSource,
         *,
         close_transport: bool = True,
-        hooks: Iterable[RpcClientHook] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
         supports_metadata: bool = False,
         stream_opener: Any = None,
@@ -197,7 +174,6 @@ class RpcClientCore:
         else:
             self._source = transports
         self._close_transport = close_transport
-        self._hooks = tuple(hooks)
         self._middleware = tuple(middleware)
         self._supports_metadata = supports_metadata
         self.stream_opener = stream_opener
@@ -254,8 +230,6 @@ class RpcClientCore:
             if params is None
             else params.model_dump(mode="json", by_alias=True, exclude_unset=True)
         )
-        for hook in self._hooks:
-            await hook.before_request(route, payload)
         timeout = getattr(self._source, "request_timeout", None)
         waiting = asyncio.timeout(timeout)
         call_id = str(uuid4())
@@ -307,15 +281,7 @@ class RpcClientCore:
             if not waiting.expired():
                 raise
             raise timeout_error from None
-        raw = result.raw if isinstance(result, _AttemptResult) else result
-        for hook in reversed(self._hooks):
-            await hook.after_response(route, raw)
-        if isinstance(result, _AttemptResult):
-            return result.value
-        try:
-            return route.result_adapter.validate_python(result)
-        except ValidationError as error:
-            raise RpcResponseValidationError(route.method, error) from error
+        return result
 
     @staticmethod
     def _retry_delay(retry: int) -> float:
@@ -330,39 +296,6 @@ class RpcClientCore:
         transport: RpcTransport | None = None,
         logical_timeout: tuple[asyncio.Timeout, RpcRequestTimeoutError] | None = None,
     ) -> Any:
-        if self._middleware:
-            return await self._scoped_attempt(
-                route, payload, attempt, call_id, transport, logical_timeout
-            )
-        return await self._wire_attempt(route, payload, transport)
-
-    async def _wire_attempt(
-        self,
-        route: RpcRouteInfo[Any, Any],
-        payload: Any,
-        transport: RpcTransport | None = None,
-    ) -> Any:
-        waiting = asyncio.timeout(self._retry_attempt_timeout)
-        try:
-            async with waiting:
-                transport = transport or await self._transport_for(route.server)
-                return await transport.request(route.method, payload)
-        except TimeoutError:
-            if not waiting.expired():
-                raise
-            raise RpcRequestTimeoutError(
-                route.method, self._retry_attempt_timeout
-            ) from None
-
-    async def _scoped_attempt(
-        self,
-        route: RpcRouteInfo[Any, Any],
-        payload: Any,
-        attempt: int,
-        call_id: str,
-        transport: RpcTransport | None,
-        logical_timeout: tuple[asyncio.Timeout, RpcRequestTimeoutError] | None,
-    ) -> _AttemptResult:
         call = RpcClientCall(
             route, deepcopy(payload), attempt, call_id, route.server, transport
         )
@@ -391,12 +324,9 @@ class RpcClientCore:
             try:
                 async with waiting:
                     call.transport = transport or await self._transport_for(call.server)
-                    if metadata:
-                        raw = await cast(RpcMetadataTransport, call.transport).request(
-                            route.method, params, metadata=metadata
-                        )
-                    else:
-                        raw = await call.transport.request(route.method, params)
+                    raw = await call.transport.request(
+                        route.method, params, metadata=metadata or None
+                    )
             except TimeoutError:
                 if not waiting.expired():
                     raise
@@ -423,7 +353,7 @@ class RpcClientCore:
         ):
             observed_error = logical_timeout[1]
         call.outcome = RpcClientCallOutcome(
-            raw if error is None else None, observed_error, perf_counter() - started
+            value if error is None else None, observed_error, perf_counter() - started
         )
         for manager in reversed(managers):
             try:
@@ -446,7 +376,7 @@ class RpcClientCore:
             ):
                 raise _AttemptFailure(error, retryable) from error
             raise error.with_traceback(traceback)
-        return _AttemptResult(raw, value)
+        return value
 
     def notifications(
         self,
@@ -511,13 +441,7 @@ class RpcClientCore:
                     str(uuid4()),
                     transport,
                 )
-                if isinstance(result, _AttemptResult):
-                    result = result.raw
-                if not isinstance(result, dict) or not isinstance(
-                    result.get("subscriptionId"), str
-                ):
-                    raise RpcTransportError("Invalid subscription response")
-                subscription_id = result["subscriptionId"]
+                subscription_id = result.subscription_id
                 while True:
                     item = await subscriber.next()
                     if self._closed:

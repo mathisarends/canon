@@ -25,16 +25,10 @@ from rpckit.errors import (
 )
 from rpckit.middleware import (
     RpcMiddlewareLike,
+    RpcRequestContext,
     RpcRequestOutcome,
     RpcRequestScope,
-    _middleware_observer,
     _middleware_scope,
-)
-from rpckit.observer import (
-    RpcObserverLike,
-    RpcRequestContext,
-    RpcResponseContext,
-    notify_observer,
 )
 from rpckit.protocol import RpcMethodDefinition, RpcProtocol
 from rpckit.request_metadata import observed_request_metadata
@@ -63,7 +57,6 @@ class RpcServer:
         *,
         resolver: RpcResolver | None = None,
         error_mapper: RpcErrorMapper | None = None,
-        observer: RpcObserverLike | None = None,
         connection: RpcConnection | None = None,
         limits: RpcLimits | None = None,
         strict_errors: bool = False,
@@ -75,7 +68,6 @@ class RpcServer:
         server._dispatcher = RpcDispatcher(protocol, resolver=resolver)
         server._error_mapper = error_mapper
         server._middleware = tuple(middleware)
-        server._observer = _middleware_observer(observer, middleware)
         server._endpoint = endpoint
         server._connection = connection
         server._codec = RpcCodec()
@@ -83,7 +75,7 @@ class RpcServer:
         server._semaphore = asyncio.Semaphore(server._limits.max_concurrency)
         server._strict_errors = strict_errors
         server._methods = {method.name: method for method in protocol.methods}
-        server._observed_methods = (
+        server._scope_methods = (
             {method.name: method for method in protocol.methods}
             if server._middleware
             else {}
@@ -91,7 +83,7 @@ class RpcServer:
         for subscription in protocol.subscriptions if server._middleware else ():
             for suffix in ("subscribe", "unsubscribe"):
                 name = f"{subscription.name}.{suffix}"
-                server._observed_methods[name] = RpcMethodDefinition(
+                server._scope_methods[name] = RpcMethodDefinition(
                     name=name,
                     handler_name=name,
                     request_name=name,
@@ -143,9 +135,7 @@ class RpcServer:
         )
         deadline = None if timeout is None else started + timeout
         async with (
-            self._observe_request(raw_request)
-            if self._observer is not None
-            else nullcontext(None)
+            self._request_scope(raw_request) if self._middleware else nullcontext(None)
         ) as scope:
             waiting = timeout_at(deadline)
             try:
@@ -178,7 +168,7 @@ class RpcServer:
         return None if response is None else self._codec.encode(response)
 
     @asynccontextmanager
-    async def _observe_request(
+    async def _request_scope(
         self, raw_request: object
     ) -> AsyncGenerator[RpcRequestScope, None]:
         request = RpcRequestContext(
@@ -192,17 +182,12 @@ class RpcServer:
         scope = RpcRequestScope(
             request,
             self._endpoint,
-            self._observed_methods.get(request.method or ""),
+            self._scope_methods.get(request.method or ""),
         )
         started = time.perf_counter()
         caught: BaseException | None = None
-        async with (
-            _middleware_scope(self._middleware, "request", scope)
-            if self._middleware
-            else nullcontext()
-        ):
+        async with _middleware_scope(self._middleware, "request", scope):
             try:
-                await notify_observer(self._observer, "request_started", request)
                 yield scope
             except BaseException as error:
                 caught = error
@@ -218,20 +203,13 @@ class RpcServer:
                     or (previous is not None and previous.cancelled),
                     error_code=None if previous is None else previous.error_code,
                 )
-                await notify_observer(
-                    self._observer,
-                    "request_finished",
-                    RpcResponseContext(
-                        request, scope.outcome.response, scope.outcome.duration, error
-                    ),
-                )
 
     async def _handle_one(
         self, raw_request: object, *, failure: Exception | None = None
     ) -> RpcResponse | None:
-        if self._observer is None:
+        if not self._middleware:
             return await self._dispatch_request(raw_request, failure=failure)
-        async with self._observe_request(raw_request) as scope:
+        async with self._request_scope(raw_request) as scope:
             return await self._dispatch_request(
                 raw_request, failure=failure, scope=scope
             )

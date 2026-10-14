@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -10,7 +11,7 @@ from rpckit import (
     RpcChannel,
     RpcConnectionClose,
     RpcConnectionExpiry,
-    RpcObserver,
+    RpcMiddleware,
     RpcRawSocket,
     RpcService,
 )
@@ -40,7 +41,7 @@ def expiry_clock(monkeypatch):
     return timers
 
 
-def expiring_service(timestamp, *, observer=None):
+def expiring_service(timestamp, *, middleware=()):
     channel = RpcChannel("expiry")
 
     @channel.method()
@@ -59,7 +60,7 @@ def expiring_service(timestamp, *, observer=None):
     async def authenticate(handshake):
         return {RpcConnectionExpiry: RpcConnectionExpiry(timestamp)}
 
-    service = RpcService(observer=observer)
+    service = RpcService(middleware=middleware)
     service.socket("/rpc", channels=[channel], before_accept=authenticate)
     service.stream("/binary", frames, before_accept=authenticate)
     service.raw_socket("/raw", raw, before_accept=authenticate)
@@ -71,14 +72,18 @@ async def test_expiry_closes_every_endpoint_with_exact_reason(path, expiry_clock
     before = asyncio.all_tasks()
     opened, closed = asyncio.Queue(), []
 
-    class Observer(RpcObserver):
+    class Instrumentation(RpcMiddleware):
         async def connection_opened(self, connection):
             opened.put_nowait(connection)
 
-        async def connection_closed(self, connection):
-            closed.append(connection)
+        @asynccontextmanager
+        async def connection(self, scope):
+            try:
+                yield
+            finally:
+                closed.append(scope.connection)
 
-    service = expiring_service(1000, observer=Observer())
+    service = expiring_service(1000, middleware=[Instrumentation()])
     async with InMemorySocketFactory(service) as factory:
         client = await factory("ws://test" + path)
         connection = await opened.get()
@@ -109,11 +114,11 @@ async def test_expiry_can_be_renewed_or_removed_and_disconnect_cancels_timer(
 ):
     opened = asyncio.Queue()
 
-    class Observer(RpcObserver):
+    class Instrumentation(RpcMiddleware):
         async def connection_opened(self, connection):
             opened.put_nowait(connection)
 
-    service = expiring_service(1000, observer=Observer())
+    service = expiring_service(1000, middleware=[Instrumentation()])
     async with InMemorySocketFactory(service) as factory:
         client = await factory("ws://test/rpc")
         connection = await opened.get()

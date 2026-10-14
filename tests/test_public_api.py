@@ -21,6 +21,10 @@ from rpckit import RpcRejection, RpcServer
         "event",
         "method",
         "notification",
+        "RpcObserver",
+        "RpcObserverLike",
+        "RpcResponseContext",
+        "RpcConnectionContext",
     ),
 )
 def test_removed_pre_v1_composition_symbols_are_not_public(name: str) -> None:
@@ -56,3 +60,21 @@ def test_public_signature_types_are_exported() -> None:
         "RpcErrorDeclaration",
     ):
         assert name in rpckit.__all__
+
+
+def test_observer_module_is_removed():
+    assert importlib.util.find_spec("rpckit.observer") is None
+
+
+@pytest.mark.parametrize("factory", ["service", "channel", "endpoint"])
+def test_observer_registration_is_removed(factory):
+    from rpckit import RpcChannel, RpcService
+
+    channel = RpcChannel("test")
+    with pytest.raises(TypeError, match="observer"):
+        if factory == "service":
+            RpcService(observer=object())
+        elif factory == "channel":
+            channel.create_server(observer=object())
+        else:
+            RpcService().socket("/rpc", channels=[channel], observer=object())

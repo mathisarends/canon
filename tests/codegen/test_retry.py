@@ -101,7 +101,7 @@ async def test_delivery_certainty_and_default_disabled(
     error = pool_runtime.RpcConnectionLostError(sent=sent)
 
     class Flaky(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             nonlocal count
             count += 1
             if count == 1:
@@ -144,7 +144,7 @@ async def test_retry_backoff_stays_within_logical_deadline_and_cleans_up(
     calls = 0
 
     class Flaky(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             nonlocal calls
             calls += 1
             raise pool_runtime.RpcConnectionLostError(sent=False)
@@ -191,7 +191,7 @@ async def test_per_attempt_timeout_can_retry_without_resetting_total_budget(
     attempts = 0
 
     class SlowFirst(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             nonlocal attempts
             attempts += 1
             if attempts == 1:

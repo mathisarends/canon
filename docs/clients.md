@@ -257,7 +257,7 @@ try {
 Methods without params accept the options directly, such as
 `client.tasks.list({ signal })`. For all-optional params, pass an empty params
 object first: `client.tasks.search({}, { signal })`. An already aborted signal
-rejects before hooks, connection acquisition, or request sending. Abort during a
+rejects before middleware, connection acquisition, or request sending. Abort during a
 hook or connection wait rejects locally; shared connection acquisition can finish
 for other callers. The signal's exact `reason` is preserved, including the
 default `AbortError`; abort failures are not wrapped in RPC error classes.
@@ -357,8 +357,8 @@ const client = await TasksClient.connect({
 Callbacks run in state-transition order per server: initial `connecting`, then
 `connected`; a retryable drop emits `reconnecting`, then `connected` or `closed`.
 Keep callbacks quick and synchronous. Callback failures are reported and contained.
-TypeScript's existing `onDisconnect` remains available, and its failures also cannot
-break cleanup. Every reconnect can imply a notification gap; resync application
+Intentional close also reports `closed`; inspect the server and error arguments
+to distinguish affected endpoints and failures. Every reconnect can imply a notification gap; resync application
 state when connectivity returns. Remote subscriptions reacquire their server
 subscription, and passive event iterators also resume on the replacement socket.
 See [Notification delivery](connections-and-events.md#notification-delivery-and-reconnects)
@@ -389,9 +389,8 @@ failure stops retrying and preserves the connection error. Automatic reconnect
 opens a new transport; it never replays the failed RPC request.
 
 The configured request timeout now covers connection acquisition, shared-attempt
-wait, backoff, and sending/waiting for the RPC result in one budget after before
-hooks. It no longer resets after connection acquisition. After-response hooks run
-outside that budget. SDK timeout types and the 30-second default stay unchanged;
+wait, backoff, middleware entry/body, and sending/waiting for the RPC result in
+one budget. It does not reset after connection acquisition. SDK timeout types and the 30-second default stay unchanged;
 cancellation of a sent call still uses the ticket 06 wire control. Regenerate both
 SDKs to receive this policy and the new lifecycle members. Generated root APIs
 must avoid names `closed`, `state`, and `states`; alias colliding namespaces with
@@ -452,15 +451,15 @@ const client = await TasksClient.connect({
 
 The map key and the endpoint returned by the factory must name the same server.
 
-## Custom transports and hooks
+## Custom transports and middleware
 
 Use `with_transports()` in Python or `withTransports()` in TypeScript for tests
 and custom adapters. Pass either one transport for a single-server contract or
 a transport map keyed by the generated server names. Set `close_transport=False`
 or `closeTransport: false` when another component owns those transports.
 
-Client hooks can observe or wrap every request through the `hooks` option on
-`connect()` and the custom-transport constructor. Socket factories are also
+Client middleware observes and wraps each attempt through the `middleware` option
+on `connect()` and the custom-transport constructor. Socket factories are also
 injectable, which keeps the generated runtime independent of a particular
 WebSocket package and makes connection behavior testable without a network.
 
@@ -473,12 +472,13 @@ Generated Python and TypeScript packages export the same client error hierarchy:
 
 ```text
 RpcClientError
-├── RpcRemoteError (including declared and built-in RPC errors)
-├── RpcTransportError
-│   ├── RpcRequestTimeoutError
-│   ├── RpcConnectionLostError
-│   └── RpcConnectError
-└── RpcConnectionClosed
+  RpcRemoteError (declared and built-in server errors)
+  RpcResponseValidationError
+  RpcNotificationValidationError (Python)
+  RpcTransportError
+    RpcRequestTimeoutError
+    RpcConnectionLostError
+    RpcConnectError
 ```
 
 Python response/notification validation errors and stream errors also inherit
@@ -586,9 +586,8 @@ initial/max delays and jitter source for retry backoff. Custom sources can expos
 (the actual wait ranges from zero to the capped delay).
 
 After ambiguous delivery, the original handler might still be running. Retry can
-therefore execute idempotent work concurrently. Legacy before/after hooks run once
-per logical call, with after hooks only on success. The internal attempt path
-carries a one-based attempt number for per-attempt middleware. Regenerate both
+therefore execute idempotent work concurrently. Middleware runs once per attempt
+and carries its one-based attempt number plus a shared logical call ID. Regenerate both
 SDKs to acquire retry options and idempotency metadata; method signatures and
 existing execution behavior remain unchanged until retry is enabled. Idempotency
 keys for non-idempotent work are a separate future extension.
@@ -657,18 +656,18 @@ and are visible to middleware. Python keeps Pydantic response validation. Treat
 outcome/routing fields as read-only; mutate `params` before yielding/calling next.
 Keep per-request tracing metadata separate from user params.
 
-Legacy `RpcClientHook` stays supported: before once per logical call, after once
-on the eventual success with raw JSON, outside per-attempt middleware. It does
-not gain error callbacks. With middleware enabled, response validation completes
-before that success hook. Legacy-hook failures and a deadline exhausted during
-backoff occur outside attempt scopes. Use middleware for per-attempt metrics,
-errors, and local span state; group attempts by logical ID for logical-call
-metrics. Subscribe and unsubscribe scopes are observable but never enter ordinary
-method retry. Passive notification payload delivery does not create request scopes.
+Middleware is the only client instrumentation API. Use it for per-attempt metrics,
+errors, and local span state; group attempts by logical ID for logical-call metrics.
+A deadline exhausted during backoff occurs outside an attempt scope. Subscribe and
+unsubscribe scopes are observable but never enter ordinary method retry. Passive
+notification payload delivery does not create request scopes.
 
-Regenerate both SDKs to obtain the optional middleware API and route adapters.
-Existing method signatures, transport adapters, and empty-middleware execution
-remain compatible. Python and TypeScript SDKs have no new dependency on tracing.
+All calls use the same attempt/validation pipeline, including an empty middleware
+chain. Successful outcomes contain the validated result returned to the caller.
+For subscriptions, Python validates the control acknowledgement before reading
+its subscription ID. Regenerate both SDKs and migrate `hooks` to `middleware`;
+there are no compatibility callbacks, raw-result wrappers, or deprecated aliases.
+Python and TypeScript SDKs have no dependency on tracing.
 
 Client middleware can mutate `call.metadata`, an initially empty string carrier
 separate from business params. For compatible contracts, the SDK validates and

@@ -14,6 +14,10 @@ def test_middleware_public_types_are_strictly_checked(cancellation_sdk):
         import {GreetingClient, type RpcClientMiddleware,
           type RpcClientCall, type RpcClientCallOutcome,
           RpcResponseValidationError} from "./generated";
+        // @ts-expect-error obsolete hook types are not exported
+        import type { RpcClientHook } from "./generated";
+        // @ts-expect-error connection loss has one current error type
+        import { RpcConnectionClosed } from "./generated";
         const middleware: RpcClientMiddleware = {
           async request(call: RpcClientCall, next: () => Promise<unknown>) {
             const id: string = call.callId;
@@ -31,6 +35,10 @@ def test_middleware_public_types_are_strictly_checked(cancellation_sdk):
           },
         };
         void GreetingClient.connect({middleware: [middleware]});
+        // @ts-expect-error obsolete client hooks are removed
+        void GreetingClient.connect({hooks: []});
+        // @ts-expect-error lifecycle state replaces onDisconnect
+        void GreetingClient.connect({onDisconnect: () => {}});
         void new RpcResponseValidationError("work");
     """),
         encoding="utf-8",
@@ -135,19 +143,28 @@ def test_client_middleware_outcomes_retry_abort_and_cleanup(cancellation_sdk):
             }
             await rpc.close(); assert.equal(timers.size, 0);
           }
-          let sent = 0; const calls = [], events = [], hooks = [];
+          {
+            const calls = [], events = [];
+            const rpc = new RpcClientCore(source(async () => "wire"), {
+              middleware: [record("results", events, calls)]
+            });
+            const result = await rpc.request(defineRoute({method: "converted",
+              validateResult: raw => ({validated: raw})}));
+            assert.equal(calls[0].outcome.result, result);
+            assert.deepEqual(result, {validated: "wire"});
+            await rpc.close();
+          }
+          let sent = 0; const calls = [], events = [];
           const rpc = new RpcClientCore(source(async () => {
             if (++sent === 1) throw new RpcConnectionLostError(false);
             return "ok";
           }), {retryAttempts: 1, middleware: [record("metrics", events, calls)],
-            hooks: [{beforeRequest() {hooks.push("before");},
-              afterResponse() {hooks.push("after");}}]});
+          });
           const task = rpc.request(defineRoute({method: "work"}));
           await settle(); const timer = [...timers][0];
           assert.equal(timer[1].delay, 0);
           timers.delete(timer[0]); timer[1].callback();
           assert.equal(await task, "ok");
-          assert.deepEqual(hooks, ["before", "after"]);
           assert.deepEqual(calls.map(c => c.attempt), [1, 2]);
           assert.equal(calls[0].callId, calls[1].callId);
           await rpc.close(); assert.equal(timers.size, 0);

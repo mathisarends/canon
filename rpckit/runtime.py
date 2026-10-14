@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from rpckit._activity import _Activity, notify_activity
 from rpckit._adapter import adapter
 from rpckit.codec import RpcCodec
 from rpckit.connected_client import RpcConnectedClient
@@ -54,7 +55,6 @@ from rpckit.middleware import (
     _serving_scope,
     _stream_scope,
 )
-from rpckit.observer import RpcConnectionContext, RpcObserverLike, notify_observer
 from rpckit.raw_sockets import RpcMessageType, RpcRawSocket
 from rpckit.server import _CLIENT_CANCEL, RpcErrorMapper, RpcServer
 from rpckit.service import RpcEndpoint, RpcRawSocketEndpoint, RpcStreamEndpoint
@@ -178,7 +178,7 @@ async def serve_endpoint(
             limits=limits,
             before_accept=before_accept,
             rejections=rejections,
-            observer=endpoint.observer if state is None else state.observer,
+            activity=None if state is None else state.activity,
             middleware=() if state is None else state.middleware,
         )
 
@@ -193,7 +193,7 @@ async def _serve_endpoint(
     limits: RpcLimits | None = None,
     before_accept: RpcBeforeAccept | None = None,
     rejections: RpcRejections | None = None,
-    observer: RpcObserverLike | None = None,
+    activity: _Activity | None = None,
     middleware: Sequence[RpcMiddlewareLike] = (),
 ) -> None:
     limits = limits or RpcLimits()
@@ -209,8 +209,7 @@ async def _serve_endpoint(
     if prepared is None:
         return
     connection, resolved, values, _ = prepared
-    started = time.perf_counter()
-    await notify_observer(observer, "connection_opened", connection)
+    await notify_activity(activity, "connection_opened", connection)
     close_event = asyncio.Event()
     close_value = [RpcConnectionClose.NORMAL, ""]
     client_closed = False
@@ -224,7 +223,7 @@ async def _serve_endpoint(
         if slow_consumer_reported:
             return
         slow_consumer_reported = True
-        await notify_observer(observer, "slow_consumer_closed", connection)
+        await notify_activity(activity, "slow_consumer_closed", connection)
 
     async def send_outgoing(message: str) -> None:
         try:
@@ -260,7 +259,6 @@ async def _serve_endpoint(
                 endpoint.protocol,
                 resolver=scoped,
                 error_mapper=error_mapper,
-                observer=endpoint.observer,
                 middleware=middleware,
                 endpoint=endpoint,
                 connection=connection,
@@ -273,7 +271,7 @@ async def _serve_endpoint(
                 send_outgoing,
                 limit=limits.max_subscriptions,
                 server=server,
-                observer=observer,
+                activity=activity,
             )
 
             async def writer():
@@ -573,7 +571,7 @@ async def _serve_endpoint(
                                 event,
                                 scoped,
                                 send_outgoing,
-                                observer,
+                                activity,
                                 rejections,
                                 server,
                             )
@@ -658,17 +656,6 @@ async def _serve_endpoint(
             with suppress(RpcDisconnect):
                 await socket.close(*close_value)
         connection._mark_closed()
-        await notify_observer(
-            observer,
-            "connection_closed",
-            RpcConnectionContext(
-                connection=connection,
-                close_code=connection.close_code,
-                close_reason=connection.close_reason,
-                duration=time.perf_counter() - started,
-                raw_close_code=connection.raw_close_code,
-            ),
-        )
 
 
 @dataclass
@@ -722,7 +709,7 @@ async def _flush(
         drained.cancel()
 
 
-async def _event_source(event, resolver, send, observer, rejections, server):
+async def _event_source(event, resolver, send, activity, rejections, server):
     try:
         arguments = {
             parameter.name: await resolver.resolve(parameter.dependency)
@@ -744,8 +731,8 @@ async def _event_source(event, resolver, send, observer, rejections, server):
                     raise
                 continue
             await send(message)
-            await notify_observer(
-                observer, "notification_sent", event.name, len(message.encode())
+            await notify_activity(
+                activity, "notification_sent", event.name, len(message.encode())
             )
     except asyncio.CancelledError:
         raise
@@ -810,7 +797,7 @@ async def serve_stream_endpoint(
             limits=limits,
             before_accept=before_accept,
             rejections=rejections,
-            observer=endpoint.observer if state is None else state.observer,
+            activity=None if state is None else state.activity,
             middleware=() if state is None else state.middleware,
         )
 
@@ -825,7 +812,7 @@ async def _serve_stream_endpoint(
     before_accept: RpcBeforeAccept | None = None,
     error_mapper: RpcErrorMapper | None = None,
     rejections: RpcRejections | None = None,
-    observer: RpcObserverLike | None = None,
+    activity: _Activity | None = None,
     middleware: Sequence[RpcMiddlewareLike] = (),
 ) -> None:
     limits = limits or RpcLimits()
@@ -843,7 +830,7 @@ async def _serve_stream_endpoint(
         return
     connection, resolved, values, path_values = prepared
     async with (
-        _accepted(socket, connection, observer),
+        _accepted(socket, connection, activity),
         (
             _stream_scope(RpcStreamScope(endpoint, connection), middleware)
             if middleware
@@ -860,7 +847,7 @@ async def _serve_stream_endpoint(
             limits,
             error_mapper,
             rejections,
-            observer,
+            activity,
         )
 
 
@@ -868,12 +855,11 @@ async def _serve_stream_endpoint(
 async def _accepted(
     socket: RpcSocket,
     connection: RpcConnection,
-    observer: RpcObserverLike | None,
+    activity: _Activity | None,
 ) -> AsyncGenerator[None, None]:
     """Report an accepted dedicated socket and close it however it ends."""
-    started = time.perf_counter()
     try:
-        await notify_observer(observer, "connection_opened", connection)
+        await notify_activity(activity, "connection_opened", connection)
         yield
     except BaseException as error:
         if not connection.closed and connection.close_code is None:
@@ -891,17 +877,6 @@ async def _accepted(
                     connection.close_reason,
                 )
             connection._mark_closed()
-        await notify_observer(
-            observer,
-            "connection_closed",
-            RpcConnectionContext(
-                connection,
-                connection.close_code,
-                connection.close_reason,
-                time.perf_counter() - started,
-                connection.raw_close_code,
-            ),
-        )
 
 
 async def _run_stream_endpoint(
@@ -914,7 +889,7 @@ async def _run_stream_endpoint(
     limits,
     error_mapper,
     rejections,
-    observer,
+    activity,
 ):
     stream = endpoint.stream
     close_event = asyncio.Event()
@@ -974,7 +949,7 @@ async def _run_stream_endpoint(
     if not stream.is_generator:
         values = {
             **values,
-            RpcBinaryOutput: RpcBinaryOutput._create(socket, connection, observer),
+            RpcBinaryOutput: RpcBinaryOutput._create(socket, connection, activity),
         }
         if binary_input is not None:
             values[RpcBinaryInput] = binary_input
@@ -1004,8 +979,8 @@ async def _run_stream_endpoint(
                             return
                         data = bytes(frame)
                         await socket.send_bytes(data)
-                        await notify_observer(
-                            observer,
+                        await notify_activity(
+                            activity,
                             "stream_frame_sent",
                             connection,
                             len(data),
@@ -1064,8 +1039,8 @@ async def _run_stream_endpoint(
                             return
                         else:
                             await binary_input._put(frame)
-                            await notify_observer(
-                                observer,
+                            await notify_activity(
+                                activity,
                                 "stream_frame_received",
                                 connection,
                                 len(frame),
@@ -1150,8 +1125,8 @@ async def serve_raw_socket_endpoint(
         if prepared is None:
             return
         connection, resolved, values, path_values = prepared
-        observer = endpoint.observer if state is None else state.observer
-        async with _accepted(socket, connection, observer):
+        activity = None if state is None else state.activity
+        async with _accepted(socket, connection, activity):
             await _run_raw_socket(
                 endpoint,
                 socket,
@@ -1161,7 +1136,7 @@ async def serve_raw_socket_endpoint(
                 path_values,
                 limits or RpcLimits(),
                 rejections,
-                observer,
+                activity,
             )
 
 
@@ -1174,7 +1149,7 @@ async def _run_raw_socket(
     path_values,
     limits: RpcLimits,
     rejections: RpcRejections | None,
-    observer: RpcObserverLike | None,
+    activity: _Activity | None,
 ) -> None:
     definition = endpoint.raw_socket
     closes = bind_contracts(definition.closes)
@@ -1230,7 +1205,7 @@ async def _run_raw_socket(
         connection,
         definition.messages,
         limits,
-        observer,
+        activity,
         request_close,
         client_disconnected,
     )
@@ -1280,8 +1255,8 @@ async def _run_raw_socket(
                             )
                             return
                         await raw_socket._put(message)
-                        await notify_observer(
-                            observer, "stream_frame_received", connection, size
+                        await notify_activity(
+                            activity, "stream_frame_received", connection, size
                         )
                 except RpcDisconnect as error:
                     client_disconnected(error)

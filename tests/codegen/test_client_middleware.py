@@ -47,7 +47,7 @@ async def test_onion_outcomes_and_original_error(pool_runtime, failure):
     denied = pool_runtime.RpcConnectError("Denied", permanent=True)
 
     class Adapter(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             if failure == "remote":
                 raise remote
             if failure == "transport":
@@ -93,25 +93,17 @@ async def test_onion_outcomes_and_original_error(pool_runtime, failure):
     await core.close()
 
 
-async def test_retry_attempt_ids_and_legacy_hooks_remain_once_per_call(pool_runtime):
-    events, calls, hooks = [], [], []
+async def test_retry_attempt_ids_share_one_logical_call(pool_runtime):
+    events, calls = [], []
     sent = 0
 
     class Adapter(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             nonlocal sent
             sent += 1
             if sent == 1:
                 raise pool_runtime.RpcConnectionLostError(sent=False)
             return "ok"
-
-    class Hook:
-        async def before_request(self, route, params):
-            hooks.append("before")
-
-        async def after_response(self, route, result):
-            assert result == "ok"
-            hooks.append("after")
 
     transport = Adapter()
 
@@ -124,11 +116,9 @@ async def test_retry_attempt_ids_and_legacy_hooks_remain_once_per_call(pool_runt
     core = pool_runtime.RpcClientCore(
         source,
         middleware=[recorder(events, calls, "metrics")],
-        hooks=[Hook()],
         retry_attempts=1,
     )
     assert await core.request(route(pool_runtime)) == "ok"
-    assert hooks == ["before", "after"]
     assert [call.attempt for call in calls] == [1, 2]
     assert calls[0].call_id == calls[1].call_id
     assert isinstance(calls[0].outcome.error, pool_runtime.RpcConnectionLostError)
@@ -146,7 +136,7 @@ async def test_cleanup_preserves_existing_error_and_cleanup_only_fault_never_ret
     sent = 0
 
     class Adapter(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             nonlocal sent
             sent += 1
             if failure:
@@ -224,7 +214,7 @@ async def test_mutated_params_revalidated_before_send(pool_runtime):
                 observed.append(call.outcome)
 
     class Adapter(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             sent.append(params)
             return "ok"
 
@@ -242,7 +232,7 @@ async def test_subscription_control_calls_have_scopes(pool_runtime):
     queue = asyncio.Queue()
 
     class Adapter(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             if method.endswith(".subscribe"):
                 queue.put_nowait(
                     {
@@ -292,7 +282,7 @@ async def test_middleware_entry_failure_is_application_error_without_retry(
             yield
 
     class Adapter(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             sent.append(method)
 
     core = pool_runtime.RpcClientCore(
@@ -308,4 +298,39 @@ async def test_middleware_entry_failure_is_application_error_without_retry(
     assert client_module.RpcClientCall is pool_runtime.RpcClientCall
     assert client_module.RpcClientCallOutcome is pool_runtime.RpcClientCallOutcome
     assert client_module.RpcClientMiddleware is pool_runtime.RpcClientMiddleware
+    await core.close()
+
+
+@pytest.mark.parametrize("factory", ["constructor", "with_transports", "connect"])
+def test_removed_hook_options_are_rejected(client_module, factory):
+    client = client_module.GreetingClient
+    with pytest.raises(TypeError, match="hooks"):
+        if factory == "constructor":
+            client(object(), hooks=[])
+        elif factory == "with_transports":
+            client.with_transports(object(), hooks=[])
+        else:
+            client.connect(hooks=[])
+    for name in ("RpcClientHook", "RpcMetadataTransport", "RpcConnectionClosed"):
+        assert not hasattr(client_module, name)
+    assert hasattr(client_module, "RpcTransport")
+
+
+async def test_outcome_success_is_the_validated_result(pool_runtime):
+    class Result(BaseModel):
+        value: int
+
+    class Adapter(Transport):
+        async def request(self, method, params=None, *, metadata=None):
+            return {"value": 7}
+
+    events, calls = [], []
+    core = pool_runtime.RpcClientCore(
+        Adapter(), middleware=[recorder(events, calls, "results")]
+    )
+    result = await core.request(
+        pool_runtime.RpcRouteInfo("work", TypeAdapter(Result), server="primary")
+    )
+    assert isinstance(result, Result)
+    assert calls[0].outcome.result is result
     await core.close()

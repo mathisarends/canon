@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from rpckit._activity import _Activity, notify_activity
 from rpckit._adapter import adapter
 from rpckit.codec import RpcCodec
 from rpckit.envelopes import (
@@ -17,7 +18,6 @@ from rpckit.envelopes import (
 )
 from rpckit.errors import RpcError, RpcInvalidParamsError
 from rpckit.middleware import RpcRequestOutcome, RpcRequestScope
-from rpckit.observer import RpcObserverLike, notify_observer
 from rpckit.protocol import RpcSubscriptionDefinition
 from rpckit.server import RpcResponse, RpcServer
 
@@ -43,13 +43,13 @@ class SubscriptionSession:
         *,
         limit: int,
         server: RpcServer,
-        observer: RpcObserverLike | None = None,
+        activity: _Activity | None = None,
     ) -> None:
         self._definitions = {item.name: item for item in definitions}
         self._resolver = resolver
         self._send = send
         self._limit = limit
-        self._observer = observer
+        self._activity = activity
         self._server = server
         self._next_id = 1
         self._tasks: dict[str, tuple[str, asyncio.Task[None]]] = {}
@@ -229,8 +229,8 @@ class SubscriptionSession:
 
     async def _send_notification(self, name: str, message: str) -> None:
         await self._send(message)
-        await notify_observer(
-            self._observer, "notification_sent", name, len(message.encode())
+        await notify_activity(
+            self._activity, "notification_sent", name, len(message.encode())
         )
 
 

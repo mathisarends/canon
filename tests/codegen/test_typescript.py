@@ -278,7 +278,6 @@ def test_the_index_exports_everything_a_caller_needs(
     for name in (
         "RpcClientError",
         "RpcConnectError",
-        "RpcConnectionClosed",
         "RpcConnectionLostError",
         "RpcRemoteError",
         "RpcRequestTimeoutError",

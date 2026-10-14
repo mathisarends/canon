@@ -3,7 +3,6 @@ export { {{ client_name }} } from "./client";
 {% endif %}export {
   RpcClientError,
   RpcConnectError,
-  RpcConnectionClosed,
   RpcConnectionLostError,
   RpcRemoteError,
   RpcRequestTimeoutError,
@@ -13,7 +12,6 @@ export { {{ client_name }} } from "./client";
 export type {
   JsonValue,
   RpcClientCore,
-  RpcClientHook,
   RpcClientMiddleware,
   RpcClientCall,
   RpcClientCallOutcome,

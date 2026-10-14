@@ -10,7 +10,10 @@ Minor releases may change public APIs and generated client layouts. Record each
 breaking change in `CHANGELOG.md` and add concrete migration steps. Consumers
 regenerate their Python and TypeScript clients from the new contract when they
 upgrade. Renamed names do not get compatibility aliases, and generated clients
-do not add a separate version handshake.
+do not add a separate version handshake. Keep only the intended API: remove
+superseded options, callbacks, wrappers, and parallel legacy implementations
+rather than introducing deprecation adapters. Document migrations for custom
+transports as well as generated client call sites.
 
 ## Release checklist
 

@@ -296,49 +296,56 @@ limits active subscriptions per connection (default 100). The OpenRPC document
 describes these streams in `x-rpc-subscriptions`. Existing server events remain
 broadcast notifications without subscription parameters.
 
-## Observe requests
+## Instrument requests and connections
 
-Configure one observer on the service or override it on an endpoint. Observer
-state belongs to that service instance, so tests and parallel apps remain
-isolated:
+Register `RpcMiddleware` on a service or endpoint. Request and connection scopes
+carry their final outcomes before teardown, and application state belongs to the
+middleware instance:
 
 ```python
-from rpckit import RpcObserver
+from contextlib import asynccontextmanager
+
+from rpckit import RpcMiddleware, RpcService, RpcSuccess
 
 
-class GatewayObserver(RpcObserver):
-    async def request_started(self, context: RpcRequestContext) -> None:
-        logger.info("rpc started method=%s", context.method)
+class GatewayMetrics(RpcMiddleware):
+    @asynccontextmanager
+    async def request(self, scope):
+        logger.info("rpc started method=%s", scope.request.method)
+        try:
+            yield
+        finally:
+            logger.info(
+                "rpc method=%s id=%s duration=%f success=%s",
+                scope.request.method,
+                scope.request.request_id,
+                scope.outcome.duration,
+                isinstance(scope.outcome.response, RpcSuccess),
+            )
 
-    async def request_finished(self, context: RpcResponseContext) -> None:
-        logger.info(
-            "rpc method=%s id=%s duration=%f success=%s",
-            context.request.method,
-            context.request.request_id,
-            context.duration,
-            isinstance(context.response, RpcSuccess),
-        )
+    @asynccontextmanager
+    async def connection(self, scope):
+        try:
+            yield
+        finally:
+            logger.info("rpc disconnected code=%s", scope.outcome.close_code)
 
-    async def connection_opened(self, connection: RpcConnection) -> None:
+    async def connection_opened(self, connection):
         logger.info("rpc connected endpoint=%s", connection.endpoint)
 
-    async def connection_closed(self, context: RpcConnectionContext) -> None:
-        logger.info("rpc disconnected code=%s", context.close_code)
 
-
-app = RpcService(observer=GatewayObserver())
+app = RpcService(middleware=[GatewayMetrics()])
 ```
 
-Observer failures are logged without replacing the RPC result. There is no
-module-level observer or global configuration.
-`RpcObserver` supplies no-op callbacks, so subclasses only override what they
-need. `RpcObserverLike` remains available for structural typing. Request
-contexts expose `connection` for socket requests and `None` when using a
-standalone `RpcServer`. The optional callbacks `notification_sent(name, size)`,
-`stream_frame_sent(connection, size)`,
-`stream_frame_received(connection, size)`, and
-`slow_consumer_closed(connection)` report activity and backpressure; `size` is
-the number of bytes sent or received.
+Scope failures are logged without replacing the serving error. `RpcMiddleware`
+provides no-op scopes and live activity callbacks; `RpcMiddlewareLike` supports
+structural lifecycle implementations. Requests expose `scope.request.connection`
+for socket calls and `None` for a standalone server. Optional callbacks
+`notification_sent(name, size)`, `stream_frame_sent(connection, size)`,
+`stream_frame_received(connection, size)`, and `slow_consumer_closed(connection)`
+report live activity and backpressure; size counts bytes. Use lifecycle scopes
+for completion rather than separate start/finish or connection-close callbacks.
+See [Observability](observability.md) for timing, failure policy, and OTel setup.
 
 ## Runtime limits
 

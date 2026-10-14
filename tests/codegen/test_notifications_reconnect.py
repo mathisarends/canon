@@ -23,7 +23,7 @@ class Notifications:
         self.processed = asyncio.Queue()
         self.active = 0
 
-    async def request(self, method, params=None):
+    async def request(self, method, params=None, *, metadata=None):
         return "ok"
 
     async def notifications(self):

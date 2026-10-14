@@ -17,7 +17,6 @@ from rpckit import (
     RpcConnectionClose,
     RpcConnectionScope,
     RpcMiddleware,
-    RpcObserver,
     RpcRejection,
     RpcRequestScope,
     RpcService,
@@ -282,14 +281,18 @@ async def test_notifications_invalid_json_and_invalid_batches_have_outcomes():
 
 
 @pytest.mark.parametrize("with_middleware", [False, True])
-async def test_request_cancellation_closes_observer_and_middleware(with_middleware):
+async def test_request_cancellation_finishes_all_middleware(with_middleware):
     started = asyncio.Event()
     recorder = Recorder()
     finished = []
 
-    class Observer(RpcObserver):
-        async def request_finished(self, context):
-            finished.append(context)
+    class Instrumentation(RpcMiddleware):
+        @asynccontextmanager
+        async def request(self, scope):
+            try:
+                yield
+            finally:
+                finished.append(scope.outcome)
 
     channel = RpcChannel("demo")
 
@@ -299,7 +302,7 @@ async def test_request_cancellation_closes_observer_and_middleware(with_middlewa
         await asyncio.Event().wait()
 
     server = channel.create_server(
-        middleware=[recorder] if with_middleware else [], observer=Observer()
+        middleware=[Instrumentation(), *([recorder] if with_middleware else [])]
     )
     task = asyncio.create_task(
         server.handle({"jsonrpc": "2.0", "id": 1, "method": "demo.wait"})
@@ -555,23 +558,27 @@ def test_custom_handlers_report_accepted_connections_and_close_codes(peer_discon
     assert scope.outcome.raw_close_code == (1001 if peer_disconnect else 4001)
 
 
-@pytest.mark.parametrize("with_observer", [False, True])
-def test_custom_handlers_keep_optional_observer_without_middleware(with_observer):
+@pytest.mark.parametrize("with_instrumentation", [False, True])
+def test_custom_handlers_support_activity_callbacks_on_middleware(with_instrumentation):
     opened, closed = [], []
 
-    class Observer(RpcObserver):
+    class Instrumentation(RpcMiddleware):
         async def connection_opened(self, connection):
             opened.append(connection)
 
-        async def connection_closed(self, context):
-            closed.append(context)
+        @asynccontextmanager
+        async def connection(self, scope):
+            try:
+                yield
+            finally:
+                closed.append(scope)
 
-    endpoint = RpcService(observer=Observer() if with_observer else None).socket(
-        "/rpc", channels=[RpcChannel("demo")]
-    )
+    endpoint = RpcService(
+        middleware=[Instrumentation()] if with_instrumentation else []
+    ).socket("/rpc", channels=[RpcChannel("demo")])
 
     async def handler(websocket: WebSocket) -> None:
-        if not with_observer:
+        if not with_instrumentation:
             assert middleware_module._current_serving() is None
             assert websocket.send.__func__ is WebSocket.send
             assert websocket.receive.__func__ is WebSocket.receive
@@ -584,12 +591,12 @@ def test_custom_handlers_keep_optional_observer_without_middleware(with_observer
     web.include_router(router)
     with TestClient(web) as client, client.websocket_connect("/rpc") as socket:
         assert socket.receive()["code"] == 4001
-    if with_observer:
+    if with_instrumentation:
         assert len(opened) == len(closed) == 1
         assert closed[0].connection is opened[0]
-        assert closed[0].close_code is RpcConnectionClose.OTHER
-        assert closed[0].raw_close_code == 4001
-        assert closed[0].duration >= 0
+        assert closed[0].outcome.close_code is RpcConnectionClose.OTHER
+        assert closed[0].outcome.raw_close_code == 4001
+        assert closed[0].outcome.duration >= 0
     else:
         assert not opened and not closed
 

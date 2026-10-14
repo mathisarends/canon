@@ -66,7 +66,6 @@ export type WebSocketOptions = {
   readonly notificationQueueSize?: number;
   readonly notificationOverflow?: "drop_oldest" | "close";
   readonly socketFactory?: WebSocketFactory;
-  readonly onDisconnect?: (error: unknown) => void;
   readonly signal?: AbortSignal;
   readonly onOverflow?: RpcNotificationOverflowHandler;
   readonly credentials?: WebSocketCredentialsProvider;
@@ -114,7 +113,6 @@ export class WebSocketTransport implements RpcTransport {
   #nextRequestId = 1;
   #closed = false;
   #failed = false;
-  readonly #onDisconnect?: (error: unknown) => void;
   readonly closed: Promise<RpcClientError | undefined>;
   readonly #resolveClosed: (error: RpcClientError | undefined) => void;
   #failure?: RpcClientError;
@@ -133,7 +131,6 @@ export class WebSocketTransport implements RpcTransport {
       resolveClosed = resolve;
     });
     this.#resolveClosed = resolveClosed;
-    this.#onDisconnect = options.onDisconnect;
     this.#heartbeatIntervalMs = options.heartbeatIntervalMs ?? undefined;
     this.#heartbeatTimeoutMs = options.heartbeatTimeoutMs ?? 10_000;
     this.#consecutiveTimeoutLimit = options.consecutiveTimeoutLimit ?? 0;
@@ -473,17 +470,6 @@ export class WebSocketTransport implements RpcTransport {
         this.#socket.close();
       } catch {
         /* Preserve the original failure. */
-      }
-    }
-    if (unexpected) {
-      try {
-        const returned: unknown = this.#onDisconnect?.(error);
-        if (returned instanceof Promise)
-          void returned.catch((error) =>
-            console.error("RPC disconnect callback failed", error),
-          );
-      } catch (error) {
-        console.error("RPC disconnect callback failed", error);
       }
     }
   }

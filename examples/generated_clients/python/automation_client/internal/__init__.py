@@ -7,11 +7,10 @@ from .client_methods import (
     current_client_method_metadata,
 )
 from .connection import ClientConnection, RpcTransportPool
-from .core import RpcClientCore, RpcClientHook, RpcClientMiddleware, RpcTransportSource
+from .core import RpcClientCore, RpcClientMiddleware, RpcTransportSource
 from .errors import (
     RpcClientError,
     RpcConnectError,
-    RpcConnectionClosed,
     RpcConnectionLostError,
     RpcNotificationValidationError,
     RpcRemoteError,
@@ -37,7 +36,7 @@ from .metadata import (
     RpcTransportDescriptor,
     resolve_url_template,
 )
-from .transport import RpcMetadataTransport, RpcTransport
+from .transport import RpcTransport
 from .unset import UNSET, UnsetType
 
 __all__ = [
@@ -47,16 +46,13 @@ __all__ = [
     "RpcClientCallOutcome",
     "RpcClientCore",
     "RpcClientError",
-    "RpcClientHook",
     "RpcClientMethodDispatcher",
     "RpcClientMethodInfo",
     "RpcClientMiddleware",
     "RpcConnectError",
-    "RpcConnectionClosed",
     "RpcConnectionLostError",
     "RpcConnectionState",
     "RpcContractInfo",
-    "RpcMetadataTransport",
     "RpcNotificationInfo",
     "RpcNotificationOverflowHandler",
     "RpcNotificationValidationError",
