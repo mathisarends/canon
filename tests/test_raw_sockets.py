@@ -13,7 +13,7 @@ from rpckit import (
     RpcHandshake,
     RpcLimits,
     RpcMessageType,
-    RpcObserver,
+    RpcMiddleware,
     RpcRawSocket,
     RpcRejection,
     RpcService,
@@ -247,8 +247,8 @@ async def test_messages_above_the_limit_close_the_socket() -> None:
         assert await client.closed() == (RpcConnectionClose.MESSAGE_TOO_BIG, "")
 
 
-async def test_observers_count_messages_in_both_directions() -> None:
-    class Counter(RpcObserver):
+async def test_middleware_counts_messages_in_both_directions() -> None:
+    class Counter(RpcMiddleware):
         def __init__(self) -> None:
             self.sent: list[int] = []
             self.received: list[int] = []
@@ -260,7 +260,7 @@ async def test_observers_count_messages_in_both_directions() -> None:
             self.received.append(size)
 
     counter = Counter()
-    service = _service(observer=counter)
+    service = _service(middleware=[counter])
     async with RpcTestClient(service, "/browser/cdp", context=Upstream()) as client:
         await client.send_message("äb")
         assert await client.next_message() == "äb"

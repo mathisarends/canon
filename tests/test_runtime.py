@@ -21,7 +21,6 @@ from rpckit import (
     RpcLimits,
     RpcMiddleware,
     RpcModel,
-    RpcObserver,
     RpcRejection,
     RpcRequestCancelledError,
     RpcRequestTimeoutError,
@@ -399,15 +398,17 @@ channel = RpcChannel("demo")
 connections = []
 
 
-class Observer(RpcObserver):
+class Instrumentation(RpcMiddleware):
     def __init__(self) -> None:
         self.closed = []
         self.opened = []
         self.started = []
         self.slow = []
 
-    async def request_started(self, context) -> None:
-        self.started.append(context)
+    @asynccontextmanager
+    async def request(self, scope):
+        self.started.append(scope.request)
+        yield
 
     async def connection_opened(self, connection) -> None:
         self.opened.append(connection)
@@ -415,11 +416,15 @@ class Observer(RpcObserver):
     async def slow_consumer_closed(self, connection) -> None:
         self.slow.append(connection)
 
-    async def connection_closed(self, context) -> None:
-        self.closed.append(context)
+    @asynccontextmanager
+    async def connection(self, scope):
+        try:
+            yield
+        finally:
+            self.closed.append(scope)
 
 
-observer = Observer()
+instrumentation = Instrumentation()
 
 
 @channel.server.method()
@@ -428,31 +433,31 @@ async def echo(params: Params, connection: Inject[RpcConnection]) -> Params:
     return params
 
 
-service = RpcService(observer=observer)
+service = RpcService(middleware=[instrumentation])
 service.socket("/rpc", channels=(channel,))
 
 
 async def test_request_and_connection_context() -> None:
     connections.clear()
-    observer.closed.clear()
-    observer.opened.clear()
-    observer.started.clear()
+    instrumentation.closed.clear()
+    instrumentation.opened.clear()
+    instrumentation.started.clear()
     async with RpcTestClient(service, "/rpc", headers={"Authorization": "x"}) as client:
         assert await client.request("demo.echo", {"value": "yes"}) == {"value": "yes"}
     assert connections[0].headers["authorization"] == "x"
     assert connections[0].closed
     assert connections[0].close_code == RpcConnectionClose.NORMAL
     assert connections[0].close_reason == ""
-    assert observer.closed[0].connection is connections[0]
-    assert observer.closed[0].close_code == RpcConnectionClose.NORMAL
-    assert observer.closed[0].duration >= 0
-    assert observer.opened == connections
-    assert observer.started[0].connection is connections[0]
+    assert instrumentation.closed[0].connection is connections[0]
+    assert instrumentation.closed[0].outcome.close_code == RpcConnectionClose.NORMAL
+    assert instrumentation.closed[0].outcome.duration >= 0
+    assert instrumentation.opened == connections
+    assert instrumentation.started[0].connection is connections[0]
 
 
 async def test_client_close_information_is_exposed_on_the_connection() -> None:
     connections.clear()
-    observer.closed.clear()
+    instrumentation.closed.clear()
     async with RpcTestClient(service, "/rpc") as client:
         await client.request("demo.echo", {"value": "yes"})
         await client.socket.client_disconnect(1001, "Going away")
@@ -460,13 +465,13 @@ async def test_client_close_information_is_exposed_on_the_connection() -> None:
     assert connections[0].close_code == RpcConnectionClose.SHUTDOWN
     assert connections[0].raw_close_code == 1001
     assert connections[0].close_reason == "Going away"
-    assert observer.closed[0].close_reason == "Going away"
+    assert instrumentation.closed[0].connection.close_reason == "Going away"
 
 
 async def test_binary_stream() -> None:
     streams = RpcChannel("streams")
 
-    class StreamObserver(RpcObserver):
+    class StreamMetrics(RpcMiddleware):
         def __init__(self) -> None:
             self.sent: list[int] = []
 
@@ -478,15 +483,15 @@ async def test_binary_stream() -> None:
     async def frames() -> AsyncIterator[bytes]:
         yield b"one"
 
-    stream_observer = StreamObserver()
-    rpc = RpcService(observer=stream_observer)
+    stream_metrics = StreamMetrics()
+    rpc = RpcService(middleware=[stream_metrics])
     rpc.stream("/frames", frames)
     async with RpcTestClient(rpc, "/frames") as client:
         assert await client.next_frame() == b"one"
         while client.socket.closed is None:
             await asyncio.sleep(0)
         assert client.socket.closed == (RpcConnectionClose.NORMAL, "")
-    assert stream_observer.sent == [3]
+    assert stream_metrics.sent == [3]
 
 
 async def test_unsupported_subprotocol_is_rejected_before_acceptance() -> None:
@@ -588,16 +593,22 @@ async def test_pending_rejection_logs_are_bounded_even_at_debug(caplog) -> None:
     channel = RpcChannel("flood")
     finished = []
 
-    class Observer(RpcObserver):
-        async def request_finished(self, context) -> None:
-            finished.append(context)
+    class Instrumentation(RpcMiddleware):
+        @asynccontextmanager
+        async def request(self, scope):
+            try:
+                yield
+            finally:
+                finished.append(scope.outcome)
 
     @channel.method
     async def wait() -> None:
         entered.set()
         await release.wait()
 
-    app = RpcService(observer=Observer(), limits=RpcLimits(max_pending_requests=1))
+    app = RpcService(
+        middleware=[Instrumentation()], limits=RpcLimits(max_pending_requests=1)
+    )
     app.socket("/rpc", channels=[channel])
     socket = InMemorySocket("/rpc")
     serving = asyncio.create_task(app.serve(socket))
@@ -930,12 +941,12 @@ async def test_documented_shared_capacity_releases_worker_permits(ending):
     assert capacity.active_requests == 0
 
 
-async def test_writer_failure_closes_connection_and_notifies_observer() -> None:
+async def test_writer_failure_closes_connection_and_finishes_middleware() -> None:
     class FailingSocket(InMemorySocket):
         async def send(self, message: str) -> None:
             raise RuntimeError("send failed")
 
-    observer.closed.clear()
+    instrumentation.closed.clear()
     socket = FailingSocket("/rpc")
     task = asyncio.create_task(service.serve(socket))
     await socket.client_send(
@@ -951,11 +962,14 @@ async def test_writer_failure_closes_connection_and_notifies_observer() -> None:
     await asyncio.wait_for(task, 1)
 
     assert socket.closed == (RpcConnectionClose.INTERNAL_ERROR, "Internal error")
-    assert observer.closed[-1].close_code == RpcConnectionClose.INTERNAL_ERROR
+    assert (
+        instrumentation.closed[-1].outcome.close_code
+        == RpcConnectionClose.INTERNAL_ERROR
+    )
 
 
 async def test_slow_socket_send_closes_with_policy_violation() -> None:
-    observer.slow.clear()
+    instrumentation.slow.clear()
 
     class SlowSocket(InMemorySocket):
         async def send(self, message: str) -> None:
@@ -978,8 +992,8 @@ async def test_slow_socket_send_closes_with_policy_violation() -> None:
     await asyncio.wait_for(task, 1)
 
     assert socket.closed == (RpcConnectionClose.POLICY_VIOLATION, "Client too slow")
-    assert len(observer.slow) == 1
-    assert observer.slow[0] is observer.closed[-1].connection
+    assert len(instrumentation.slow) == 1
+    assert instrumentation.slow[0] is instrumentation.closed[-1].connection
 
 
 @pytest.mark.parametrize(
@@ -1011,15 +1025,15 @@ async def test_server_events_are_sent_as_typed_notifications() -> None:
         yield Params(value="ready")
         await asyncio.Event().wait()
 
-    class EventObserver(RpcObserver):
+    class EventMetrics(RpcMiddleware):
         def __init__(self) -> None:
             self.sent: list[tuple[str, int]] = []
 
         async def notification_sent(self, name: str, size: int) -> None:
             self.sent.append((name, size))
 
-    event_observer = EventObserver()
-    rpc = RpcService(observer=event_observer)
+    event_metrics = EventMetrics()
+    rpc = RpcService(middleware=[event_metrics])
     rpc.socket("/events", channels=(events,))
 
     async with RpcTestClient(rpc, "/events", context=ready) as client:
@@ -1027,8 +1041,8 @@ async def test_server_events_are_sent_as_typed_notifications() -> None:
         notification = await client.next_notification()
 
     assert notification == ("events.changed", {"value": "ready"})
-    assert event_observer.sent[0][0] == "events.changed"
-    assert event_observer.sent[0][1] > 0
+    assert event_metrics.sent[0][0] == "events.changed"
+    assert event_metrics.sent[0][1] > 0
 
 
 async def test_invalid_server_event_does_not_close_connection() -> None:

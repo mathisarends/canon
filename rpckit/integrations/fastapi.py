@@ -31,6 +31,7 @@ except ImportError as error:
         name="fastapi",
     ) from error
 
+from rpckit._activity import notify_activity
 from rpckit.connection import (
     REJECTION_CLOSES,
     RpcBeforeAccept,
@@ -59,7 +60,6 @@ from rpckit.middleware import (
     _serving_scope,
     _ServingState,
 )
-from rpckit.observer import RpcConnectionContext, notify_observer
 from rpckit.runtime import _rejection
 from rpckit.server import RpcErrorMapper
 from rpckit.service import (
@@ -386,11 +386,7 @@ class RpcRoutes[ContextT]:
             raise ValueError(f"RPC endpoint {endpoint.name!r} is already mounted")
         self._check_context(endpoint)
         dependencies = []
-        if (
-            self._middleware
-            or endpoint.middleware
-            or (handler is not None and endpoint.observer is not None)
-        ):
+        if self._middleware or endpoint.middleware:
             dependencies.append(
                 Depends(
                     _middleware_dependency(
@@ -688,7 +684,7 @@ async def _custom_connection(
             connection._accepted = True
             state.scope.connection = connection
             state.accepted_at = time.perf_counter()
-            await notify_observer(state.observer, "connection_opened", connection)
+            await notify_activity(state.activity, "connection_opened", connection)
         elif message["type"] == "websocket.close":
             disconnected(message.get("code", 1000), message.get("reason") or "")
 
@@ -719,14 +715,3 @@ async def _custom_connection(
         websocket.send, websocket.receive = original_send, original_receive
         if connection is not None:
             connection._closed = True
-            await notify_observer(
-                state.observer,
-                "connection_closed",
-                RpcConnectionContext(
-                    connection,
-                    connection.close_code,
-                    connection.close_reason,
-                    time.perf_counter() - (state.accepted_at or state.started_at),
-                    connection.raw_close_code,
-                ),
-            )

@@ -27,7 +27,6 @@ from rpckit.errors import (
     rejecting_contracts,
 )
 from rpckit.middleware import RpcMiddlewareLike
-from rpckit.observer import RpcObserverLike
 from rpckit.protocol import (
     RpcClientMethod,
     RpcNotificationDefinition,
@@ -594,7 +593,6 @@ class RpcChannel(RpcServerDeclarations):
         context: object | Mapping[type[Any], object] | None = None,
         resolver: RpcResolverLike | None = None,
         error_mapper: RpcErrorMapper | None = None,
-        observer: RpcObserverLike | None = None,
         limits: RpcLimits | None = None,
         strict_errors: bool = False,
         middleware: Sequence[RpcMiddlewareLike] = (),
@@ -603,7 +601,6 @@ class RpcChannel(RpcServerDeclarations):
             self.protocol,
             resolver=resolver_with_context(resolver, context),
             error_mapper=error_mapper,
-            observer=observer,
             limits=limits,
             strict_errors=strict_errors,
             middleware=middleware,

@@ -20,7 +20,6 @@ from rpckit import (
     RpcDisconnect,
     RpcDrain,
     RpcMiddleware,
-    RpcObserver,
     RpcRawSocket,
     RpcService,
 )
@@ -32,7 +31,7 @@ def request(request_id, method="work.slow"):
     return json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method})
 
 
-def slow_service(*, observer=None, middleware=()):
+def slow_service(*, middleware=()):
     entered, release, cancelled = (asyncio.Event() for _ in range(3))
     channel = RpcChannel("work")
 
@@ -45,7 +44,7 @@ def slow_service(*, observer=None, middleware=()):
         finally:
             cancelled.set()
 
-    service = RpcService(observer=observer, middleware=middleware, strict_errors=True)
+    service = RpcService(middleware=middleware, strict_errors=True)
     service.socket("/rpc", channels=[channel])
     return service, entered, release, cancelled
 
@@ -54,9 +53,12 @@ async def test_drain_delivers_response_rejects_new_work_and_reports_restart():
     before = asyncio.all_tasks()
     observed, scopes = [], []
 
-    class Observer(RpcObserver):
-        async def connection_closed(self, connection):
-            observed.append(connection)
+    class Instrumentation(RpcMiddleware):
+        @asynccontextmanager
+        async def connection(self, scope):
+            yield
+            if scope.connection is not None:
+                observed.append(scope.connection)
 
     class Middleware(RpcMiddleware):
         @asynccontextmanager
@@ -65,7 +67,7 @@ async def test_drain_delivers_response_rejects_new_work_and_reports_restart():
             scopes.append(scope)
 
     service, entered, release, _ = slow_service(
-        observer=Observer(), middleware=[Middleware()]
+        middleware=[Instrumentation(), Middleware()]
     )
     async with InMemorySocketFactory(service) as factory:
         client = await factory("ws://test/rpc")

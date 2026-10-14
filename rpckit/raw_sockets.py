@@ -3,6 +3,7 @@ from collections.abc import Callable
 from enum import StrEnum
 from typing import Self
 
+from rpckit._activity import _Activity, notify_activity
 from rpckit.connection import (
     RpcConnection,
     RpcConnectionClose,
@@ -10,7 +11,6 @@ from rpckit.connection import (
     RpcLimits,
     RpcSocket,
 )
-from rpckit.observer import RpcObserverLike, notify_observer
 
 
 class RpcMessageType(StrEnum):
@@ -34,7 +34,7 @@ class RpcRawSocket:
         "_disconnected",
         "_lock",
         "_messages",
-        "_observer",
+        "_activity",
         "_queue",
         "_request_close",
         "_send_timeout",
@@ -51,7 +51,7 @@ class RpcRawSocket:
         connection: RpcConnection,
         messages: tuple[RpcMessageType, ...],
         limits: RpcLimits,
-        observer: RpcObserverLike | None,
+        activity: _Activity | None,
         request_close: Callable[[RpcConnectionClose, str], None],
         disconnected: Callable[[RpcDisconnect], None],
     ) -> Self:
@@ -59,7 +59,7 @@ class RpcRawSocket:
         self._socket = socket
         self._connection = connection
         self._messages = messages
-        self._observer = observer
+        self._activity = activity
         self._send_timeout = limits.send_timeout
         self._queue = asyncio.Queue[RpcRawMessage](limits.max_queue_size)
         self._lock = asyncio.Lock()
@@ -123,14 +123,14 @@ class RpcRawSocket:
                 self._request_close(
                     RpcConnectionClose.POLICY_VIOLATION, "Client too slow"
                 )
-                await notify_observer(
-                    self._observer, "slow_consumer_closed", self._connection
+                await notify_activity(
+                    self._activity, "slow_consumer_closed", self._connection
                 )
                 raise RpcDisconnect(
                     RpcConnectionClose.POLICY_VIOLATION, "Client too slow"
                 ) from None
-        await notify_observer(
-            self._observer, "stream_frame_sent", self._connection, size
+        await notify_activity(
+            self._activity, "stream_frame_sent", self._connection, size
         )
 
     async def close(
