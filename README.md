@@ -136,6 +136,9 @@ also calls into the client do you name both sides, `tasks.server` and
 
 ## Documentation
 
+Read the [hardening stack and SDK migration guide](docs/hardening-overview.md) for all
+15 ticket PRs, changed defaults, and integration steps.
+
 - [Services and channels](docs/services.md) — methods, namespaces, parameter
   styles, sockets, protocol versions
 - [Dependency injection](docs/dependencies.md) — `Inject[T]`, resolvers,

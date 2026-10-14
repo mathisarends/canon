@@ -669,3 +669,10 @@ method retry. Passive notification payload delivery does not create request scop
 Regenerate both SDKs to obtain the optional middleware API and route adapters.
 Existing method signatures, transport adapters, and empty-middleware execution
 remain compatible. Python and TypeScript SDKs have no new dependency on tracing.
+
+Client middleware can mutate `call.metadata`, an initially empty string carrier
+separate from business params. For compatible contracts, the SDK validates and
+sends it as the top-level `meta` extension. Older contracts reject nonempty
+carriers locally. TypeScript also accepts `RpcRequestOptions.metadata`.
+See [Per-request trace context](observability.md#per-request-trace-context) for
+Python/TypeScript OTel recipes, bounds, custom adapter changes, and reverse calls.

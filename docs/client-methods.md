@@ -191,4 +191,10 @@ generated transport:
 `WebSocketTransport(socket, request_handler=handler_dispatcher(Media()))`.
 Generated TypeScript clients do not implement client methods yet.
 
+Reverse calls may opt into bounded tracing metadata with `client.call(...,
+metadata=trace_metadata())`. Generated Python handlers expose the task-local
+`current_client_method_metadata()` accessor without an OTel dependency. See
+[Reverse calls and baggage](observability.md#reverse-calls-and-baggage) for the
+optional span recipe and cleanup semantics.
+
 [Back to documentation](README.md)

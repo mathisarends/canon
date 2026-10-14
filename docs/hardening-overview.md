@@ -1,0 +1,170 @@
+# Hardening stack: SDK changes and migration
+
+This guide covers all 15 production-readiness tickets. Each ticket has its own
+stacked PR, incremental commits, changelog entry, and SDK impact summary. Start
+here to understand the resulting behavior, then use the linked guides for setup.
+The changes are recorded under **0.11.0 Unreleased**; opening these PRs does not
+publish a package or change the package version.
+
+## Review and merge order
+
+Merge from the bottom of the stack upward. Each PR targets the preceding branch;
+after merging a base, verify or retarget its successor to `main` before merging
+that successor. Review each PR's own diff against its base. The tip contains all
+tickets, while each earlier PR contains only its own changes plus prerequisites.
+
+| Ticket | PR | What it changes |
+|---|---|---|
+| 01 | [#23](https://github.com/mathisarends/pyrpckit/pull/23) | Strict client envelopes, send/close cleanup, valid late replies |
+| 02 | [#24](https://github.com/mathisarends/pyrpckit/pull/24) | Deep/hostile input handling and bounded failure logging |
+| 15 | [#25](https://github.com/mathisarends/pyrpckit/pull/25) | Per-item pending capacity and bounded collectors/frames |
+| 03 | [#26](https://github.com/mathisarends/pyrpckit/pull/26) | Deterministic fault-injecting socket test tools |
+| 04 | [#27](https://github.com/mathisarends/pyrpckit/pull/27) | Matching SDK error taxonomy and original causes |
+| 05 | [#28](https://github.com/mathisarends/pyrpckit/pull/28) | Server deadlines and reserved cancellation control |
+| 06 | [#29](https://github.com/mathisarends/pyrpckit/pull/29) | Automatic cancel controls and TypeScript AbortSignal options |
+| 07 | [#30](https://github.com/mathisarends/pyrpckit/pull/30) | Opt-in reconnect, shared opening attempts, connection states |
+| 08 | [#31](https://github.com/mathisarends/pyrpckit/pull/31) | Iterator recovery, subscription renewal, overflow visibility |
+| 09 | [#32](https://github.com/mathisarends/pyrpckit/pull/32) | TypeScript idle heartbeat and optional timeout breaker |
+| 10 | [#33](https://github.com/mathisarends/pyrpckit/pull/33) | Declared idempotency and opt-in method retry |
+| 11 | [#34](https://github.com/mathisarends/pyrpckit/pull/34) | Coordinated drain before process shutdown |
+| 12 | [#35](https://github.com/mathisarends/pyrpckit/pull/35) | Credential expiry and fresh authentication per connection |
+| 13 | [#36](https://github.com/mathisarends/pyrpckit/pull/36) | Per-attempt middleware with error/validation outcomes |
+| 14 | [Ticket and PR](../tickets/14-per-request-trace-context.md) | Bounded request metadata and remote trace propagation |
+
+## What existing applications need to know
+
+Regenerate **both SDKs from the new OpenRPC document**. Runtime behavior is
+embedded in generated code; upgrading only the server does not update deployed
+client runtimes. Edit generators/templates, then regenerate instead of editing
+generated files:
+
+```bash
+uv run rpckit generate --config rpcgen.toml
+uv run rpckit generate --config rpcgen.toml --check
+```
+
+Existing ordinary Python method signatures stay unchanged. TypeScript methods
+gain an optional trailing `RpcRequestOptions` argument with `signal` and
+`metadata`. Required business params stay required. Static TypeScript model
+types still do not perform full runtime schema validation; custom routes can
+provide a synchronous `validateResult` callback. Python retains Pydantic checks.
+
+Malformed response envelopes now fail the connection instead of being silently
+ignored. Valid late/duplicate replies remain harmless. Deep invalid server input
+is normalized into protocol errors with bounded logging. Pending work is counted
+per request or notification, including executing and queued batch members; a
+batch no longer consumes one slot for many calls. Review `RpcLimits` for your
+traffic: defaults include 32 concurrent handlers, 1024 pending items, 32 batch
+members, 128 queued messages, a 1 MiB message bound, and a 10-second send timeout.
+See [Services and limits](services.md).
+
+The existing integration migration in this release also applies: import FastAPI,
+Dishka, and OTel from `rpckit.integrations.*`. The former top-level integration
+modules have been removed; there are no compatibility aliases.
+
+## Defaults and opt-ins
+
+| Feature | Default | How to opt in or change it |
+|---|---|---|
+| Server request deadline | Unlimited | `RpcLimits(request_timeout=...)`; method `timeout=` overrides, `None` disables inheritance |
+| SDK request budget | 30 seconds, now includes acquisition | Connection `request_timeout` / `requestTimeoutMs` |
+| Reconnect | Disabled | `reconnect=True` / `reconnect: true` |
+| Recovery attempt limit | Unlimited | `reconnect_max_attempts` / `reconnectMaxAttempts`; zero disables recovery |
+| Method retry | Zero additional attempts | `retry_attempts` / `retryAttempts`; optional per-attempt budget |
+| TypeScript heartbeat | 30-second idle interval, 10-second timeout for an exact advertised capability | `heartbeatIntervalMs`, `heartbeatTimeoutMs`; null interval disables |
+| TypeScript timeout breaker | Disabled | `consecutiveTimeoutLimit` |
+| Connection expiry | No expiry | Return `RpcConnectionExpiry(unix_seconds)` from `before_accept`; renew with `connection.expire_at()` |
+| TypeScript credential refresh | No provider | Async `credentials` provider; when configured, recovery defaults to three attempts unless explicitly overridden |
+| Client middleware | Empty | `middleware` on construction, transport setup, or connect |
+| Trace metadata | Omitted | Middleware `call.metadata` with the advertised contract capability |
+| Remote baggage | Disabled | Server `propagate_baggage=True`, plus explicit sender allowlisting |
+
+Python timeout/backoff settings use **seconds**; TypeScript names ending in `Ms`
+use **milliseconds**. Credential expiry uses Unix seconds. Middleware outcome
+durations use seconds in **both** SDKs. Reconnect attempt limits count physical
+connection openings in a recovery episode; request retry settings count extra
+method attempts after the first. Initial connect failures are still returned
+without the proactive recovery loop.
+
+## Error handling, cancellation, and retry
+
+Catch `RpcRemoteError` for server/domain failures. Local failures have matching
+Python and TS names: `RpcConnectError` exposes permanent/status/code information,
+`RpcConnectionLostError` exposes `sent`, code, and reason, and
+`RpcRequestTimeoutError` exposes the method and budget. Python also retains
+response/notification validation errors; TypeScript custom result validators
+report `RpcResponseValidationError`. Original causes remain available, so avoid
+logging them indiscriminately when URLs or credentials may be present.
+
+`sent=False` means the transport knows the request was not sent. `sent=True`
+means delivery is uncertain; it does not prove that the server executed or failed
+to execute the call. Opt-in retries may repeat unsent calls. Ambiguous loss or an
+attempt timeout may repeat only methods declared `idempotent=True`. Mark a method
+idempotent only when repeating it is safe for your application. Every attempt
+uses a fresh wire ID and consumes the same overall request budget. This does not
+add deduplication or exactly-once execution.
+
+Caller cancellation keeps Python `CancelledError` or the exact TS abort reason.
+After a sent call is abandoned, the SDK sends best-effort `$/cancelRequest` on its
+original socket. Server deadlines/cancellation include admission and queued work,
+but handlers must cooperate with cancellation. Remote errors, validation errors,
+middleware failures, explicit close, and caller cancellation never cause ordinary
+automatic retry. Subscription controls, reverse calls, and binary/raw streams do
+not enter ordinary method retry. See [Client cancellation and retry](clients.md)
+and [Protocol controls](protocol.md).
+
+## Connection recovery and notification gaps
+
+With reconnect enabled, transports recover proactively with shared connection
+attempts and full-jitter backoff. `state`, per-server `states`, and state callbacks
+describe connecting/connected/reconnecting/closed. `client.closed` now describes
+terminal closure and stays pending through recoverable drops. Explicit close
+interrupts opening, backoff, waiting iterators, and SDK-owned cleanup.
+
+Passive notification iterators resume and remote subscriptions obtain fresh
+server subscription IDs. Delivery remains at-most-once: reconnect can lose events,
+and bounded queues can drop the oldest item. Use state transitions to resync your
+application and `on_overflow` / `onOverflow` plus dropped counters to detect local
+loss. Durable replay, sequence numbers, and acknowledgements remain application
+responsibilities. See [Notification delivery](connections-and-events.md#notification-delivery-and-reconnects).
+
+## Shutdown and credentials
+
+Call `await service.drain.drain(timeout=...)` through an authenticated pre-stop
+path **before** process termination. It rejects new connections, denies new
+ordinary calls with `server_shutting_down`, stops passive producers, and allows
+admitted work/replies to finish within the budget. Remaining sockets close with
+1012 so reconnecting clients can recover. Uvicorn lifespan teardown alone happens
+too late to initiate this grace period. See [Graceful drain](transports.md).
+
+Use short-lived credentials and refresh them per physical opening. Python async
+header providers already run per attempt; TypeScript async `credentials` providers
+can supply fresh URL tickets/subprotocols. Server expiry closes with exactly
+`1008 / credentials_expired`, which is recoverable with reconnect enabled. Generic
+1008 policy rejection, visible permanent auth failures, and revocation remain
+terminal. Browser cookies/tickets, Origin checks, token redaction, and credential
+renewal are described in [Connection authentication](connections-and-events.md).
+
+## Middleware and tracing
+
+Legacy success hooks still run once per logical call. New middleware runs once
+per physical attempt, with a shared logical ID, attempt number, copied JSON params,
+selected transport, and success/error/duration outcome. Python uses async context
+managers; TS uses onion middleware with exactly one `await next()`. Inspect outcomes
+in teardown/finally. Cleanup failures preserve the original operation error;
+cleanup-only failures remain application errors. See [Client middleware](clients.md#client-middleware-and-per-attempt-outcomes).
+
+`call.metadata` is separate from business params. The top-level `meta` carrier
+accepts only W3C `traceparent`, `tracestate`, and optional `baggage` strings within
+4096 compact UTF-8 bytes. Explicit remote context parents a request span and links
+to an optional connection span; absent metadata retains handshake behavior. Older
+contracts reject nonempty client carriers locally. Python reverse handlers expose
+`current_client_method_metadata()`; TS reverse handlers remain unsupported.
+OTel is an application opt-in, with no new generated runtime dependency. Follow
+the [Python/TypeScript tracing recipes](observability.md#per-request-trace-context)
+and keep remote baggage out of authorization and automatic logging.
+
+For resilience tests, `rpckit.testing.SocketFaults` and `InMemorySocketFactory`
+provide deterministic disconnects, blocked sends, delayed/held responses,
+half-open sockets, and handshake rejection. Use controlled clocks and events to
+test your own retry, refresh, resync, and shutdown policy.

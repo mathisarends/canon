@@ -65,6 +65,7 @@ telemetry = OpenTelemetry(
     tracing=True,
     metrics=True,
     connection_spans=False,
+    propagate_baggage=False,
     record_exceptions=False,
     tracer_provider=None,
     meter_provider=None,
@@ -79,8 +80,9 @@ Each RPC call, subscription control call, or incoming notification gets a
 dependency resolution, execution, and cleanup. Application spans started in
 handlers inherit the active operation span.
 
-An existing valid trace context, including FastAPI's connection context, takes
-precedence. Otherwise the configured OTEL propagator extracts context from
+At connection time, an existing valid trace context, including FastAPI's
+connection context, takes precedence. Otherwise the configured OTEL propagator
+extracts context from
 case-insensitive handshake headers. `connection_spans=True` adds a connection
 span; the default avoids adding another connection span to FastAPI telemetry.
 
@@ -202,8 +204,8 @@ callbacks remain available without registering middleware. To disable telemetry
 with this fast path, omit `OpenTelemetry()` from `middleware=`; registering an
 instance with both signals disabled still enters middleware scopes.
 
-Generated-client instrumentation, browser trace propagation, and OTEL log
-exporting are separate from this server-side integration.
+Generated-client instrumentation and OTEL log exporting are configured by the
+application. Per-request trace propagation is described below.
 
 [Back to documentation](README.md)
 ## Observe generated-client calls
@@ -225,3 +227,192 @@ also fails, while cleanup-only failures remain application errors and do not
 retry. Legacy hooks stay once per logical call and remain success-oriented.
 Log safe method/server/attempt/error-class fields; params, peer reasons, and
 diagnostic causes can carry sensitive application or credential data.
+
+## Per-request trace context
+
+RPC requests and incoming notifications may include a top-level `meta` object:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "method": "tasks.list",
+  "meta": {
+    "traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+    "tracestate": "vendor=value"
+  }
+}
+```
+
+The only allowed keys are lowercase `traceparent`, `tracestate`, and `baggage`,
+and all values must be strings. The compact JSON object, encoded as UTF-8, must
+fit in **4096 bytes**, including keys and JSON syntax. Null, arrays, unknown keys,
+non-string values, invalid Unicode, or excess size produce `invalid_request`
+(-32600), without running the handler or adopting the supplied context. Invalid
+notifications get no response. Each batch member has its own carrier and context.
+The reserved heartbeat and cancellation controls do not carry this metadata.
+Metadata never enters business params: there is no reserved `_meta` parameter,
+no collision with existing models, and no need to add params to a no-argument
+call. Existing named-param validation and positional-param policy are unchanged.
+
+The server exposes a validated immutable mapping as `scope.metadata` and
+`scope.request.metadata`; observers see it as `RpcRequestContext.metadata`.
+Absent metadata means `None`. With OpenTelemetry, an explicit carrier is extracted
+as **remote W3C context** from a fresh context and parents that request's span.
+When `connection_spans=True`, the request also links to its connection span.
+Without metadata, current/handshake parenting continues as before. An empty
+carrier, or a syntactically invalid `traceparent` inside an otherwise valid
+carrier, starts a new root instead of inheriting the connection trace. Invalid
+`tracestate` follows the OTel W3C propagator's handling. Request context is detached
+on success, failure, and cancellation, including concurrent and batched calls.
+
+OpenRPC advertises the convention in `x-rpc-request-metadata`:
+
+```json
+{
+  "version": 1,
+  "location": "envelope",
+  "member": "meta",
+  "maxBytes": 4096,
+  "allowedKeys": ["traceparent", "tracestate", "baggage"]
+}
+```
+
+Request-envelope schemas also describe `meta`. Regenerated clients enable sending
+middleware metadata only for this exact capability. A nonempty carrier on a
+client generated from an older or unsupported contract fails locally before send;
+empty middleware carriers omit the extension. Non-rpckit clients may participate
+by following the advertised convention. Low-level transport users must check
+support themselves. Deploy the server and regenerate its contract before enabling
+client propagation; no handler signatures or existing parameter fields migrate.
+
+### Python client recipe
+
+Generated clients have no hard dependency on rpckit or OpenTelemetry. Install
+and configure OpenTelemetry in your application, then register this middleware
+with your generated client's constructor or `connect(middleware=[Tracing()])`.
+Replace `my_client` with the generated package:
+
+```python
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+from opentelemetry import propagate, trace
+from opentelemetry.trace import SpanKind, StatusCode
+
+from my_client import RpcClientCall
+
+tracer = trace.get_tracer("my-client")
+
+
+class Tracing:
+    @asynccontextmanager
+    async def request(self, call: RpcClientCall) -> AsyncGenerator[None, None]:
+        with tracer.start_as_current_span(
+            call.route.method, kind=SpanKind.CLIENT
+        ) as span:
+            carrier: dict[str, str] = {}
+            propagate.inject(carrier)
+            call.metadata.update(
+                {
+                    key: value
+                    for key, value in carrier.items()
+                    if key in ("traceparent", "tracestate")
+                }
+            )
+            try:
+                yield
+            finally:
+                if call.outcome is not None and call.outcome.error is not None:
+                    span.set_status(StatusCode.ERROR)
+```
+
+Use a W3C trace-context propagator in the application. Each retry creates a new
+attempt span under the caller's active context, shares the logical call ID, and
+injects fresh metadata. Subscribe/unsubscribe controls run through the same
+middleware; passive notification payload delivery does not. Python custom
+transports opting into propagation must accept a keyword-only
+`metadata: Mapping[str, str] | None = None` in `request()` and serialize it as
+`meta`. The generated `RpcMetadataTransport` protocol describes this opt-in
+adapter interface. Existing two-argument `RpcTransport` adapters keep runtime
+and structural typing compatibility when no metadata is sent.
+
+### TypeScript client recipe
+
+Install/configure the application OTel API, tracing SDK, W3C propagator, and a
+context manager appropriate for Node or the browser. The generated SDK adds no
+OTel import. This middleware forwards the active application context:
+
+```ts
+import { context, propagation } from "@opentelemetry/api";
+import type { RpcClientMiddleware } from "./generated";
+
+const tracing: RpcClientMiddleware = {
+  async request(call, next) {
+    const carrier: Record<string, string> = {};
+    propagation.inject(context.active(), carrier);
+    for (const key of ["traceparent", "tracestate"]) {
+      if (carrier[key] !== undefined) call.metadata[key] = carrier[key];
+    }
+    await next();
+  },
+};
+
+const client = await TasksClient.connect({ middleware: [tracing] });
+```
+
+`RpcRequestOptions.metadata` also accepts an explicit carrier; middleware receives
+its per-attempt copy and may add or replace values. Custom TS transports receive
+that carrier in their existing third options argument. Keep it out of params.
+
+### Reverse calls and baggage
+
+For Python server-to-client calls, opt into injecting the current server span:
+
+```python
+from rpckit.integrations.opentelemetry import trace_metadata
+
+result = await client.call(client_method, params, metadata=trace_metadata())
+```
+
+Generated Python handlers can read the validated immutable carrier from
+`current_client_method_metadata()` while handling the call. The accessor is
+`None` outside the handler, and its task-local value is reset on every exit.
+An application handler can attach the remote parent and create a span like this:
+
+```python
+from opentelemetry import context, trace
+from opentelemetry.trace import SpanKind
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+from my_client import DemoHandler, current_client_method_metadata
+
+tracer = trace.get_tracer("my-handler")
+
+
+class Demo(DemoHandler):
+    async def ping(self) -> str:
+        carrier = current_client_method_metadata()
+        parent = TraceContextTextMapPropagator().extract(
+            dict(carrier or {}), context=context.Context()
+        )
+        token = context.attach(parent)
+        try:
+            with tracer.start_as_current_span("demo.ping", kind=SpanKind.SERVER):
+                return "pong"
+        finally:
+            context.detach(token)
+```
+
+Only send reverse-call metadata to peers supporting the extension. TypeScript
+still has no typed reverse-call handlers; supported metadata leaves its existing
+`method_not_found` response intact, while invalid metadata gets `invalid_request`.
+
+Remote baggage propagation is **off by default**, including handshake baggage.
+Enable `OpenTelemetry(propagate_baggage=True)` only when the application needs it.
+For reverse injection, `trace_metadata(include_baggage=True)` is a separate opt-in;
+client recipes must explicitly add `baggage` to their allowlist. The same size
+bound applies. Baggage is untrusted remote data: do not use it for authorization
+or automatically copy it into logs or span attributes. Locally established
+application baggage is not stripped. Configure application propagators deliberately
+and keep credentials out of tracing carriers.
