@@ -31,7 +31,7 @@ from .metadata import (
     RpcNotificationOverflowHandler,
     RpcRouteInfo,
 )
-from .transport import RpcTransport
+from .transport import RpcMetadataTransport, RpcTransport, validate_request_metadata
 
 _STREAM_ENDED = object()
 
@@ -166,6 +166,7 @@ class RpcClientCore:
         close_transport: bool = True,
         hooks: Iterable[RpcClientHook] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
+        supports_metadata: bool = False,
         stream_opener: Any = None,
         raw_socket_opener: Any = None,
         variables: Mapping[str, str] | None = None,
@@ -196,6 +197,7 @@ class RpcClientCore:
         self._close_transport = close_transport
         self._hooks = tuple(hooks)
         self._middleware = tuple(middleware)
+        self._supports_metadata = supports_metadata
         self.stream_opener = stream_opener
         self.raw_socket_opener = raw_socket_opener
         self.variables = MappingProxyType(dict(variables or {}))
@@ -380,11 +382,19 @@ class RpcClientCore:
                     params = params.model_dump(
                         mode="json", by_alias=True, exclude_unset=True
                     )
+            metadata = validate_request_metadata(call.metadata)
+            if metadata and not self._supports_metadata:
+                raise ValueError("The contract does not support request metadata")
             waiting = asyncio.timeout(self._retry_attempt_timeout)
             try:
                 async with waiting:
                     call.transport = transport or await self._transport_for(call.server)
-                    raw = await call.transport.request(route.method, params)
+                    if metadata:
+                        raw = await cast(RpcMetadataTransport, call.transport).request(
+                            route.method, params, metadata=metadata
+                        )
+                    else:
+                        raw = await call.transport.request(route.method, params)
             except TimeoutError:
                 if not waiting.expired():
                     raise

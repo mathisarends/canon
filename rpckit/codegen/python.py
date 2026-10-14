@@ -169,9 +169,18 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
     ]
     if ir.client_methods:
         imports.add(
-            ".client_methods", "RpcClientMethodDispatcher", "RpcClientMethodInfo"
+            ".client_methods",
+            "RpcClientMethodDispatcher",
+            "RpcClientMethodInfo",
+            "current_client_method_metadata",
         )
-        exported.extend(["RpcClientMethodDispatcher", "RpcClientMethodInfo"])
+        exported.extend(
+            [
+                "RpcClientMethodDispatcher",
+                "RpcClientMethodInfo",
+                "current_client_method_metadata",
+            ]
+        )
     if options.with_transport == "websocket":
         imports.add(".connection", "ClientConnection", "RpcTransportPool")
         exported.extend(["ClientConnection", "RpcTransportPool"])
@@ -213,7 +222,7 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
         "RpcTransportDescriptor",
         "resolve_url_template",
     )
-    imports.add(".transport", "RpcTransport")
+    imports.add(".transport", "RpcMetadataTransport", "RpcTransport")
     imports.add(".unset", "UNSET", "UnsetType")
     exported.extend(
         [
@@ -239,6 +248,7 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
             "RpcStreamFailed",
             "RpcStreamRefused",
             "RpcStreamsUnavailableError",
+            "RpcMetadataTransport",
             "RpcTransport",
             "RpcTransportDescriptor",
             "RpcTransportError",
@@ -684,6 +694,7 @@ def _render_client(
         root_raw_sockets=root_raw_sockets,
         raw_sockets=ir.raw_sockets,
         client_methods=ir.client_methods,
+        request_metadata=ir.request_metadata,
         with_websocket=options.with_transport == "websocket",
     )
     return _module(options, imports, body)
@@ -716,6 +727,7 @@ def _render_package_init(
         _runtime_module(options),
         "RpcClientError",
         "RpcClientMiddleware",
+        "RpcMetadataTransport",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",
         "RpcClientCall",
@@ -733,6 +745,7 @@ def _render_package_init(
     exported = [
         client_name,
         "RpcClientMiddleware",
+        "RpcMetadataTransport",
         "RpcClientError",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",
@@ -770,6 +783,8 @@ def _render_package_init(
         imports.add(f"{options.package}.transport", "WebSocketTransport")
         exported.append("WebSocketTransport")
     if ir.client_methods:
+        imports.add(_runtime_module(options), "current_client_method_metadata")
+        exported.append("current_client_method_metadata")
         handler_exports = [
             *(group.class_name for group in _handler_groups(ir)),
             "Handler",
@@ -1194,6 +1209,7 @@ def _assert_unique_package_exports(
     if options.with_transport == "websocket":
         exports.append(("<transport>", "WebSocketTransport"))
     if ir.client_methods:
+        exports.append(("<runtime>", "current_client_method_metadata"))
         exports.extend(
             (group.namespace or "<root handlers>", group.class_name)
             for group in _handler_groups(ir)
@@ -1488,6 +1504,7 @@ _CONNECT_OPTIONS = (
 )
 
 _PACKAGE_EXPORTS = (
+    "RpcMetadataTransport",
     "RpcClientMiddleware",
     "RpcClientCall",
     "RpcClientCallOutcome",

@@ -73,7 +73,10 @@ export class AutomationClient {
       readonly variables?: Readonly<Record<string, string>>;
     },
   ) {
-    this.#rpc = new RpcClientCore(transport, options);
+    this.#rpc = new RpcClientCore(transport, {
+      ...options,
+      supportsMetadata: true,
+    });
     this.tasks = new Tasks(this.#rpc);
     this.browser = new Browser(this.#rpc);
   }

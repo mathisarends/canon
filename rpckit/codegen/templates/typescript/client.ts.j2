@@ -38,7 +38,10 @@ export class {{ client_name }} {
 {% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
 {% endif %}    },
   ) {
-    this.#rpc = new RpcClientCore(transport, options);
+    this.#rpc = new RpcClientCore(transport, {
+      ...options,
+      supportsMetadata: {{ "true" if request_metadata else "false" }},
+    });
 {% for node in nodes %}    this.{{ node.segment | identifier }} = new {{ node.path | api_class }}(this.#rpc);
 {% endfor %}  }
 

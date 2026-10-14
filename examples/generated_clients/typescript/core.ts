@@ -16,6 +16,7 @@ import type {
 
 export type RpcRequestOptions = {
   readonly signal?: AbortSignal;
+  readonly metadata?: Readonly<Record<string, string>>;
 };
 
 export type RpcConnectionState =
@@ -96,6 +97,7 @@ export type RpcClientCallOutcome =
 export type RpcClientCall = {
   readonly route: RpcRouteInfo;
   params?: object;
+  readonly metadata: Record<string, string>;
   readonly server?: string;
   readonly attempt: number;
   readonly callId: string;
@@ -110,6 +112,32 @@ export type RpcClientMiddleware = {
     next: () => Promise<unknown>,
   ): void | Promise<unknown>;
 };
+
+export function validateRequestMetadata(
+  value: unknown,
+): Record<string, string> {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new TypeError("Request meta must be an object");
+  const result: Record<string, string> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      !["traceparent", "tracestate", "baggage"].includes(key) ||
+      typeof item !== "string"
+    )
+      throw new TypeError(
+        "Request meta must contain only supported string fields",
+      );
+    for (const character of item) {
+      const point = character.codePointAt(0)!;
+      if (point >= 0xd800 && point <= 0xdfff)
+        throw new TypeError("Request meta must contain valid Unicode");
+    }
+    result[key] = item;
+  }
+  if (new TextEncoder().encode(JSON.stringify(result)).byteLength > 4096)
+    throw new RangeError("Request meta exceeds 4096 UTF-8 bytes");
+  return result;
+}
 
 let nextLogicalCallId = 1;
 
@@ -732,6 +760,7 @@ export class RpcStreamRefused extends RpcStreamFailed {}
 
 export class RpcClientCore {
   readonly #middleware: readonly RpcClientMiddleware[];
+  readonly #supportsMetadata: boolean;
   readonly #retryAttempts: number;
   readonly #retryAttemptTimeoutMs?: number;
   readonly #source: RpcTransportSource;
@@ -777,6 +806,7 @@ export class RpcClientCore {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
       readonly middleware?: readonly RpcClientMiddleware[];
+      readonly supportsMetadata?: boolean;
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
@@ -793,6 +823,7 @@ export class RpcClientCore {
     this.#closeTransport = options?.closeTransport ?? true;
     this.#hooks = options?.hooks ?? [];
     this.#middleware = options?.middleware ?? [];
+    this.#supportsMetadata = options?.supportsMetadata ?? false;
     this.#retryAttempts = options?.retryAttempts ?? 0;
     this.#retryAttemptTimeoutMs = options?.retryAttemptTimeoutMs;
     if (!Number.isInteger(this.#retryAttempts) || this.#retryAttempts < 0)
@@ -995,6 +1026,16 @@ export class RpcClientCore {
     knownTransport?: RpcTransport,
     call?: RpcClientCall,
   ): Promise<unknown> {
+    const metadata = validateRequestMetadata(
+      call === undefined
+        ? options?.metadata === undefined
+          ? {}
+          : options.metadata
+        : call.metadata,
+    );
+    const hasMetadata = Object.keys(metadata).length > 0;
+    if (hasMetadata && !this.#supportsMetadata)
+      throw new TypeError("The contract does not support request metadata");
     const controller = new AbortController();
     const operation = (async () => {
       const transport =
@@ -1009,6 +1050,7 @@ export class RpcClientCore {
       if (controller.signal.aborted) throw controller.signal.reason;
       return transport.request(route.method, payload, {
         ...options,
+        metadata: hasMetadata ? metadata : undefined,
         signal: controller.signal,
       });
     })();
@@ -1041,6 +1083,16 @@ export class RpcClientCore {
         { cause },
       );
     }
+    let metadata: Record<string, string> = {};
+    try {
+      metadata = validateRequestMetadata(
+        options?.metadata === undefined ? {} : options.metadata,
+      );
+    } catch (cause) {
+      inputError = new RpcTransportError("RPC request metadata is invalid", {
+        cause,
+      });
+    }
     const local = new AbortController();
     const abort = () => local.abort(signal?.reason);
     signal?.addEventListener("abort", abort, { once: true });
@@ -1048,6 +1100,7 @@ export class RpcClientCore {
     const call: RpcClientCall = {
       route,
       params: copied,
+      metadata,
       attempt,
       callId,
       server: route.server,

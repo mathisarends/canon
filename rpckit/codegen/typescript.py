@@ -391,6 +391,7 @@ class _Renderer:
             raw_sockets=self.ir.raw_sockets,
             with_websocket=self.options.with_transport == "websocket",
             heartbeat=self.ir.heartbeat,
+            request_metadata=self.ir.request_metadata,
         )
         return self.module(body)
 

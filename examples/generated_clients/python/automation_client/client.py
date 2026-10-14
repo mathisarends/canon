@@ -59,6 +59,7 @@ class AutomationClient:
             close_transport=close_transport,
             hooks=hooks,
             middleware=middleware,
+            supports_metadata=True,
             notification_queue_size=notification_queue_size,
             on_overflow=on_overflow,
             retry_attempts=retry_attempts,
