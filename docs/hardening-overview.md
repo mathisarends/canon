@@ -5,8 +5,7 @@ stacked PR, incremental commits, changelog entry, and SDK impact summary. A fina
 cleanup [PR #38](https://github.com/mathisarends/pyrpckit/pull/38) applies the
 current-API-only policy across client/server instrumentation. Start
 here to understand the resulting behavior, then use the linked guides for setup.
-The changes are recorded under **0.11.0 Unreleased**; opening these PRs does not
-publish a package or change the package version.
+The changes and migration steps are recorded in the **0.11.0** changelog entry.
 
 ## Implementation history
 

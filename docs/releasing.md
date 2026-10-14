@@ -1,8 +1,7 @@
 # Releasing rpckit
 
-The current development version is 0.10.0. Until a release is cut, its
-changelog heading stays `Unreleased`. Never assign a release date or tag to an
-unfinished version.
+The current release version is 0.11.0. During development, keep the changelog
+heading `Unreleased`. Assign a release date and tag only after validation passes.
 
 ## Compatibility during 0.x
 
@@ -32,3 +31,13 @@ transports as well as generated client call sites.
    new `Unreleased` heading.
 
 The release gate uses this repository's tests and generated-client checks.
+
+Publish only the artifacts for the intended version; `dist/` may contain older
+builds. For 0.11.0, use:
+
+```bash
+uv publish dist/pyrpckit-0.11.0-py3-none-any.whl dist/pyrpckit-0.11.0.tar.gz
+```
+
+Authenticate with a PyPI API token, using `__token__` as the username and the
+token as the password, or supply the token through `UV_PUBLISH_TOKEN`.
