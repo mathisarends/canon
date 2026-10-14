@@ -15,6 +15,7 @@ from automation_client.internal import (
     RpcRequestTimeoutError,
     RpcTransportError,
 )
+from automation_client.internal.transport import validate_request_metadata
 
 from .errors import error_from_response
 
@@ -130,6 +131,8 @@ class WebSocketTransport:
         self,
         method: str,
         params: JsonObject | None = None,
+        *,
+        metadata: Mapping[str, str] | None = None,
     ) -> Any:
         if self._closed:
             raise RpcConnectionLostError.from_exception(
@@ -146,6 +149,8 @@ class WebSocketTransport:
         }
         if params is not None:
             message["params"] = params
+        if metadata is not None:
+            message["meta"] = validate_request_metadata(metadata)
         try:
             frame = json.dumps(message, separators=(",", ":"))
         except (TypeError, ValueError, OverflowError) as error:
@@ -363,8 +368,24 @@ class WebSocketTransport:
                 self.closed.set_result(failure)
 
     async def _answer(self, message: JsonObject) -> None:
-        if self._request_handler is None:
+        valid_metadata = True
+        if "meta" in message:
+            try:
+                validate_request_metadata(message["meta"])
+            except ValueError:
+                valid_metadata = False
+        if not valid_metadata:
             response: JsonObject = {
+                "jsonrpc": "2.0",
+                "id": message["id"],
+                "error": {
+                    "code": -32600,
+                    "message": "Invalid request",
+                    "data": {"code": "invalid_request", "details": None},
+                },
+            }
+        elif self._request_handler is None:
+            response = {
                 "jsonrpc": "2.0",
                 "id": message["id"],
                 "error": {

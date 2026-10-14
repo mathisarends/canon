@@ -15,6 +15,7 @@ from .internal import (
     RpcConnectionClosed,
     RpcConnectionLostError,
     RpcConnectionState,
+    RpcMetadataTransport,
     RpcNotificationOverflowHandler,
     RpcNotificationValidationError,
     RpcRemoteError,
@@ -25,6 +26,7 @@ from .internal import (
     RpcStreamRefused,
     RpcStreamsUnavailableError,
     RpcTransportError,
+    current_client_method_metadata,
 )
 from .models import (
     ApprovalDecision,
@@ -106,6 +108,7 @@ __all__ = [
     "RpcConnectionClosed",
     "RpcConnectionLostError",
     "RpcConnectionState",
+    "RpcMetadataTransport",
     "RpcNotificationOverflowHandler",
     "RpcNotificationValidationError",
     "RpcRemoteError",
@@ -126,6 +129,7 @@ __all__ = [
     "TasksHandler",
     "TasksUpdatedNotification",
     "WebSocketTransport",
+    "current_client_method_metadata",
     "endpoints",
     "handler_dispatcher",
     "handlers",

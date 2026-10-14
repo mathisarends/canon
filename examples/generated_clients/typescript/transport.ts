@@ -10,6 +10,7 @@ import {
   RpcRequestTimeoutError,
   RpcTransportError,
   type RpcRequestOptions,
+  validateRequestMetadata,
   type RpcNotificationOverflowHandler,
 } from "./core";
 
@@ -217,6 +218,8 @@ export class WebSocketTransport implements RpcTransport {
     if (params !== undefined) message.params = params;
     let frame: string;
     try {
+      if (options.metadata !== undefined)
+        message.meta = validateRequestMetadata(options.metadata);
       frame = JSON.stringify(message);
     } catch (error) {
       return Promise.reject(
@@ -358,16 +361,24 @@ export class WebSocketTransport implements RpcTransport {
     try {
       const message = decodeMessage(raw);
       if ("id" in message && typeof message.method === "string") {
+        let validMetadata = true;
+        if ("meta" in message) {
+          try {
+            validateRequestMetadata(message.meta);
+          } catch {
+            validMetadata = false;
+          }
+        }
         this.#socket.send(
           JSON.stringify({
             jsonrpc: "2.0",
             id: message.id,
             error: {
-              code: -32601,
-              message: "Method not found",
+              code: validMetadata ? -32601 : -32600,
+              message: validMetadata ? "Method not found" : "Invalid request",
               data: {
-                code: "method_not_found",
-                details: { method: message.method },
+                code: validMetadata ? "method_not_found" : "invalid_request",
+                details: validMetadata ? { method: message.method } : null,
               },
             },
           }),

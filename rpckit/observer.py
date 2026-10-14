@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -16,6 +17,7 @@ class RpcRequestContext:
     request_id: RpcRequestId
     notification: bool
     connection: RpcConnection | None = None
+    metadata: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)

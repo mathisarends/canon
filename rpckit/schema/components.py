@@ -152,6 +152,13 @@ def _request_schema(
             },
             "method": {"const": name, "type": "string"},
             "params": params,
+            "meta": {
+                "type": "object",
+                "additionalProperties": {"type": "string", "maxLength": 4096},
+                "propertyNames": {"enum": ["traceparent", "tracestate", "baggage"]},
+                "maxProperties": 3,
+                "x-rpc-max-bytes": 4096,
+            },
         },
         "required": required,
     }

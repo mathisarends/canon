@@ -18,6 +18,9 @@ def test_middleware_public_types_are_strictly_checked(cancellation_sdk):
           async request(call: RpcClientCall, next: () => Promise<unknown>) {
             const id: string = call.callId;
             const attempt: number = call.attempt;
+            call.metadata.traceparent = id;
+            // @ts-expect-error metadata values must be strings
+            call.metadata.baggage = 42;
             call.params = {name: id + attempt};
             try {await next();} finally {
               const outcome: RpcClientCallOutcome | undefined = call.outcome;

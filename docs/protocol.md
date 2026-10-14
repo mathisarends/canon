@@ -55,3 +55,11 @@ See [Request deadlines](services.md#request-deadlines) for cooperative cancellat
 and subscription handshake semantics. This wire control is implemented by RPC
 socket serving; a custom transport built on `RpcServer.handle()` owns its registry
 and cancellation routing.
+
+## Request metadata
+
+The optional top-level `meta` extension carries bounded W3C tracing strings.
+OpenRPC advertises `x-rpc-request-metadata`; params remain unchanged, including
+no-argument requests. Metadata is independent per batch member and is never an
+authorization source. See [Per-request trace context](observability.md#per-request-trace-context)
+for the exact capability, validation, interoperability, and SDK recipes.

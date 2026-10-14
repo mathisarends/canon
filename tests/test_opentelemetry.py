@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 import pytest
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.testclient import TestClient
-from opentelemetry import trace
+from opentelemetry import baggage, trace
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
@@ -62,6 +62,215 @@ def total(reader, name, **labels):
         for point in points(reader, name)
         if all(point.attributes.get(k) == v for k, v in labels.items())
     )
+
+
+@pytest.mark.parametrize("include_baggage", [False, True])
+async def test_per_request_contexts_are_remote_independent_and_detached(
+    providers, include_baggage
+):
+    tracer, meter, exporter, _ = providers
+    channel = RpcChannel("trace")
+    entered = asyncio.Queue()
+    release = asyncio.Event()
+    baggage_values = []
+
+    @channel.method()
+    async def wait() -> str:
+        baggage_values.append(baggage.get_baggage("tenant"))
+        await entered.put(trace.get_current_span().get_span_context().trace_id)
+        await release.wait()
+        return "ok"
+
+    server = channel.create_server(
+        middleware=[
+            OpenTelemetry(
+                tracer_provider=tracer,
+                meter_provider=meter,
+                propagate_baggage=include_baggage,
+            )
+        ]
+    )
+    parent_ids = ["1" * 32, "2" * 32]
+    requests = [
+        {
+            "jsonrpc": "2.0",
+            "id": i,
+            "method": "trace.wait",
+            "meta": {
+                "traceparent": f"00-{trace_id}-{'3' * 16}-01",
+                "baggage": "tenant=private",
+            },
+        }
+        for i, trace_id in enumerate(parent_ids, 1)
+    ]
+    batch = asyncio.create_task(server.handle(requests))
+    assert {await entered.get(), await entered.get()} == {
+        int(x, 16) for x in parent_ids
+    }
+    assert not trace.get_current_span().get_span_context().is_valid
+    release.set()
+    assert all(result.result == "ok" for result in await batch)
+    assert baggage_values == (["private"] * 2 if include_baggage else [None] * 2)
+    assert baggage.get_baggage("tenant") is None
+    release.clear()
+    task = asyncio.create_task(server.handle(requests[0]))
+    await entered.get()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not trace.get_current_span().get_span_context().is_valid
+    release.set()
+    await server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "trace.wait",
+            "meta": {"traceparent": "invalid"},
+        }
+    )
+    last = exporter.get_finished_spans()[-1]
+    assert last.parent is None
+    assert last.context.trace_id not in {int(x, 16) for x in parent_ids}
+    assert all(
+        "private" not in str(span.attributes) for span in exporter.get_finished_spans()
+    )
+
+
+async def test_request_metadata_overrides_handshake_and_links_connection(providers):
+    import json
+
+    tracer, meter, exporter, _ = providers
+    channel = RpcChannel("trace")
+
+    @channel.method()
+    async def ping() -> str:
+        return "pong"
+
+    service = RpcService(
+        middleware=[
+            OpenTelemetry(
+                tracer_provider=tracer, meter_provider=meter, connection_spans=True
+            )
+        ]
+    )
+    service.socket("/rpc", channels=[channel])
+    handshake_id, request_id = "1" * 32, "2" * 32
+    socket = InMemorySocket(
+        "/rpc", headers={"traceparent": f"00-{handshake_id}-{'3' * 16}-01"}
+    )
+    serving = asyncio.create_task(service.serve(socket))
+    try:
+        await socket._handshake_complete.wait()
+        for identifier, metadata in [
+            (1, {"traceparent": f"00-{request_id}-{'4' * 16}-01"}),
+            (2, None),
+            (3, {}),
+        ]:
+            request = {"jsonrpc": "2.0", "id": identifier, "method": "trace.ping"}
+            if metadata is not None:
+                request["meta"] = metadata
+            await socket.client_send(json.dumps(request))
+            assert json.loads(await socket.client_receive())["result"] == "pong"
+    finally:
+        await socket.client_disconnect()
+        await serving
+    spans = exporter.get_finished_spans()
+    connection = next(span for span in spans if span.name == "WS /rpc")
+    calls = [span for span in spans if span.name == "trace.ping"]
+    assert calls[0].context.trace_id == int(request_id, 16)
+    assert calls[0].parent.is_remote
+    assert calls[0].parent.span_id == int("4" * 16, 16)
+    assert calls[0].links[0].context.span_id == connection.context.span_id
+    assert calls[1].context.trace_id == int(handshake_id, 16)
+    assert calls[1].parent.span_id == connection.context.span_id
+    assert not calls[1].links
+    assert calls[2].parent is None
+    assert calls[2].context.trace_id not in {int(handshake_id, 16), int(request_id, 16)}
+    assert calls[2].links[0].context.span_id == connection.context.span_id
+    assert not trace.get_current_span().get_span_context().is_valid
+
+
+@pytest.mark.parametrize("include_baggage", [False, True])
+async def test_remote_handshake_baggage_requires_opt_in(providers, include_baggage):
+    tracer, meter, _, _ = providers
+    channel = RpcChannel("trace")
+
+    @channel.method()
+    async def baggage_value() -> str | None:
+        return baggage.get_baggage("tenant")
+
+    service = RpcService(
+        middleware=[
+            OpenTelemetry(
+                tracer_provider=tracer,
+                meter_provider=meter,
+                propagate_baggage=include_baggage,
+            )
+        ]
+    )
+    service.socket("/rpc", channels=[channel])
+    async with RpcTestClient(
+        service, "/rpc", headers={"baggage": "tenant=private"}
+    ) as client:
+        result = await client.request("trace.baggage_value")
+        assert result == ("private" if include_baggage else None)
+    assert baggage.get_baggage("tenant") is None
+
+
+async def test_subscription_metadata_parents_controls_and_generator(providers):
+    import json
+
+    tracer, meter, exporter, _ = providers
+    channel = RpcChannel("updates")
+    stream_parent = asyncio.get_running_loop().create_future()
+
+    @channel.subscription()
+    async def values() -> AsyncIterator[int]:
+        stream_parent.set_result(trace.get_current_span().get_span_context())
+        yield 1
+        await asyncio.Event().wait()
+
+    service = RpcService(
+        middleware=[OpenTelemetry(tracer_provider=tracer, meter_provider=meter)]
+    )
+    service.socket("/rpc", channels=[channel])
+    socket = InMemorySocket("/rpc")
+    serving = asyncio.create_task(service.serve(socket))
+    try:
+        await socket.client_send(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "updates.values.subscribe",
+                    "meta": {"traceparent": f"00-{'1' * 32}-{'2' * 16}-01"},
+                }
+            )
+        )
+        ack = json.loads(await socket.client_receive())
+        await socket.client_receive()  # First payload is outside the control span.
+        parent = await stream_parent
+        await socket.client_send(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "updates.values.unsubscribe",
+                    "params": ack["result"],
+                    "meta": {"traceparent": f"00-{'3' * 32}-{'4' * 16}-01"},
+                }
+            )
+        )
+        assert json.loads(await socket.client_receive())["result"] is None
+    finally:
+        await socket.client_disconnect()
+        await serving
+    spans = {span.name: span for span in exporter.get_finished_spans()}
+    subscribed = spans["updates.values.subscribe"]
+    assert subscribed.context.trace_id == int("1" * 32, 16)
+    assert parent.span_id == subscribed.context.span_id
+    assert spans["updates.values.unsubscribe"].context.trace_id == int("3" * 32, 16)
+    assert not trace.get_current_span().get_span_context().is_valid
 
 
 async def test_stream_tracing_and_metrics_are_live_and_parent_child(providers):

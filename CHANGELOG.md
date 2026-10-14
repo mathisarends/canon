@@ -12,6 +12,21 @@
 
 ### Added
 
+- Bounded per-request W3C tracing metadata in the top-level `meta` envelope
+  extension, advertised as `x-rpc-request-metadata` in OpenRPC. Allowed string
+  fields are `traceparent`, `tracestate`, and `baggage`, with a 4096-byte compact
+  UTF-8 bound. Request scopes expose an immutable carrier; business params and
+  no-param calls keep their shape. Explicit context parents RPC spans and links
+  to optional connection spans; absent metadata keeps handshake behavior.
+  `OpenTelemetry(propagate_baggage=True)` opts into remote baggage. Both SDKs
+  expose middleware `call.metadata`, validate it before send, and reject nonempty
+  carriers for older contracts. Python reverse calls accept `metadata=`, the
+  optional integration provides `trace_metadata()`, and generated handlers expose
+  task-local `current_client_method_metadata()`. SDK tracing recipes require
+  application-installed OTel only; no generated runtime dependency is added.
+  Service-restart drain closes are normal telemetry outcomes. The complete
+  hardening stack and migration defaults are explained in
+  `docs/hardening-overview.md`.
 - Both SDKs expose per-attempt `RpcClientMiddleware`, `RpcClientCall`, and
   `RpcClientCallOutcome`: shared logical IDs, JSON params, routing/transport,
   success/error, and duration in seconds. Scopes cover wire work, acquisition,

@@ -6,10 +6,12 @@ from pydantic import (
     Field,
     PrivateAttr,
     field_serializer,
+    field_validator,
 )
 
 from rpckit._adapter import adapter
 from rpckit.errors import RpcError
+from rpckit.request_metadata import validate_request_metadata
 
 JSONRPC_VERSION = "2.0"
 
@@ -27,6 +29,12 @@ class RpcRequestEnvelope(RpcSchema):
     id: RpcRequestId = None
     method: str
     params: dict[str, Any] | list[Any] = Field(default_factory=dict)
+    meta: dict[str, str] | None = None
+
+    @field_validator("meta", mode="before")
+    @classmethod
+    def _metadata(cls, value: object) -> dict[str, str]:
+        return validate_request_metadata(value)
 
     @property
     def expects_response(self) -> bool:

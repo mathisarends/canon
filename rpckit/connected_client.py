@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from functools import cache
 from typing import Any, Self
 
@@ -11,6 +11,7 @@ from rpckit.connection import RpcConnection, RpcLimits
 from rpckit.constants import LOGGER_NAME
 from rpckit.errors import RpcError
 from rpckit.protocol import RpcClientMethod
+from rpckit.request_metadata import validate_request_metadata
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -105,6 +106,7 @@ class RpcConnectedClient:
         params: ParamsT | None = None,
         *,
         timeout: float | None | object = _DEFAULT_TIMEOUT,
+        metadata: Mapping[str, str] | None = None,
     ) -> ResultT:
         """Call a method implemented by this client and validate its answer."""
         definition = self._client_methods.get(client_method.name)
@@ -117,7 +119,7 @@ class RpcConnectedClient:
             raise RpcClientClosedError("The RPC connection is closed")
         self._next_id += 1
         request_id = f"{REQUEST_ID_PREFIX}{self._next_id}"
-        frame = _request_frame(request_id, definition, params)
+        frame = _request_frame(request_id, definition, params, metadata)
         limit = self._limits.max_message_bytes
         if limit is not None and len(frame.encode()) > limit:
             raise ValueError(
@@ -199,12 +201,15 @@ def _request_frame(
     request_id: str,
     client_method: RpcClientMethod[Any, Any],
     params: BaseModel | None,
+    metadata: Mapping[str, str] | None = None,
 ) -> str:
     message: dict[str, Any] = {
         "jsonrpc": "2.0",
         "id": request_id,
         "method": client_method.name,
     }
+    if metadata is not None:
+        message["meta"] = validate_request_metadata(metadata)
     if client_method.params is None:
         if params is not None:
             raise TypeError(f"RPC client method {client_method.name!r} takes no params")

@@ -498,6 +498,22 @@
           "params": {
             "additionalProperties": false,
             "type": "object"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "propertyNames": {
+              "enum": [
+                "traceparent",
+                "tracestate",
+                "baggage"
+              ]
+            },
+            "maxProperties": 3,
+            "x-rpc-max-bytes": 4096
           }
         },
         "required": [
@@ -535,6 +551,22 @@
           },
           "params": {
             "$ref": "#/components/schemas/CreateTaskParams"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "propertyNames": {
+              "enum": [
+                "traceparent",
+                "tracestate",
+                "baggage"
+              ]
+            },
+            "maxProperties": 3,
+            "x-rpc-max-bytes": 4096
           }
         },
         "required": [
@@ -573,6 +605,22 @@
           },
           "params": {
             "$ref": "#/components/schemas/DeleteTaskParams"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "propertyNames": {
+              "enum": [
+                "traceparent",
+                "tracestate",
+                "baggage"
+              ]
+            },
+            "maxProperties": 3,
+            "x-rpc-max-bytes": 4096
           }
         },
         "required": [
@@ -611,6 +659,22 @@
           },
           "params": {
             "$ref": "#/components/schemas/OpenTabParams"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "propertyNames": {
+              "enum": [
+                "traceparent",
+                "tracestate",
+                "baggage"
+              ]
+            },
+            "maxProperties": 3,
+            "x-rpc-max-bytes": 4096
           }
         },
         "required": [
@@ -649,6 +713,22 @@
           },
           "params": {
             "$ref": "#/components/schemas/StartScreencastParams"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "propertyNames": {
+              "enum": [
+                "traceparent",
+                "tracestate",
+                "baggage"
+              ]
+            },
+            "maxProperties": 3,
+            "x-rpc-max-bytes": 4096
           }
         },
         "required": [
@@ -686,6 +766,22 @@
           },
           "params": {
             "$ref": "#/components/schemas/ApprovalRequest"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "propertyNames": {
+              "enum": [
+                "traceparent",
+                "tracestate",
+                "baggage"
+              ]
+            },
+            "maxProperties": 3,
+            "x-rpc-max-bytes": 4096
           }
         },
         "required": [
@@ -724,6 +820,22 @@
           },
           "params": {
             "$ref": "#/components/schemas/DialogRequest"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "propertyNames": {
+              "enum": [
+                "traceparent",
+                "tracestate",
+                "baggage"
+              ]
+            },
+            "maxProperties": 3,
+            "x-rpc-max-bytes": 4096
           }
         },
         "required": [
@@ -764,6 +876,17 @@
     "method": "$/ping",
     "params": {},
     "result": null
+  },
+  "x-rpc-request-metadata": {
+    "version": 1,
+    "location": "envelope",
+    "member": "meta",
+    "maxBytes": 4096,
+    "allowedKeys": [
+      "traceparent",
+      "tracestate",
+      "baggage"
+    ]
   },
   "x-rpc-request-cancellation": {
     "method": "$/cancelRequest",

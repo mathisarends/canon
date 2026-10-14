@@ -1,5 +1,8 @@
 # Documentation
 
+Read the [hardening stack and SDK migration guide](hardening-overview.md) for all
+15 ticket PRs, changed defaults, and integration steps.
+
 The README explains why rpckit exists and gets a first service running. These
 guides cover the individual parts of the API in more detail:
 
