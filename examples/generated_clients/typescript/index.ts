@@ -11,12 +11,16 @@ export {
   RpcConnectionLostError,
   RpcRemoteError,
   RpcRequestTimeoutError,
+  RpcResponseValidationError,
   RpcTransportError,
 } from "./core";
 export type {
   JsonValue,
   RpcClientCore,
   RpcClientHook,
+  RpcClientMiddleware,
+  RpcClientCall,
+  RpcClientCallOutcome,
   RpcConnectionState,
   RpcNotificationOverflowHandler,
   RpcRouteInfo,

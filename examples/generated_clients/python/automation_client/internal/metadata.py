@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, TypeAdapter
 
 from .errors import RpcRemoteError
+from .transport import RpcTransport
 
 type RpcNotificationOverflowHandler = Callable[
     [str | None, int, Literal["transport", "subscriber"]], None
@@ -35,6 +36,29 @@ class RpcRouteInfo[ParamsT: BaseModel | None, ResultT]:
     result_adapter: TypeAdapter[ResultT]
     server: str | None = None
     idempotent: bool = False
+    params_adapter: TypeAdapter[Any] | None = None
+
+
+@dataclass(slots=True)
+class RpcClientCallOutcome:
+    result: Any = None
+    error: BaseException | None = None
+    duration: float = 0.0
+
+
+@dataclass(slots=True)
+class RpcClientCall:
+    route: RpcRouteInfo[Any, Any]
+    params: "JsonValue"
+    attempt: int
+    call_id: str
+    server: str | None = None
+    transport: RpcTransport | None = None
+    outcome: RpcClientCallOutcome | None = None
+
+    @property
+    def duration(self) -> float | None:
+        return None if self.outcome is None else self.outcome.duration
 
 
 @dataclass(frozen=True, slots=True)

@@ -284,6 +284,7 @@ class _Renderer:
         core_imports = [
             "RpcClientCore",
             "type RpcClientHook",
+            "type RpcClientMiddleware",
             "type RpcConnectionState",
             "type RpcNotificationOverflowHandler",
             "type RpcTransport",
@@ -923,6 +924,7 @@ _PRIMITIVES = {
 }
 
 _CONNECT_OPTIONS = (
+    "middleware",
     "credentials",
     "retryAttempts",
     "retryAttemptTimeoutMs",
@@ -991,6 +993,10 @@ _RUNTIME_NAMES = frozenset(
         "WebSocketCredentials",
         "WebSocketCredentialsProvider",
         "RpcClientCore",
+        "RpcClientCall",
+        "RpcClientCallOutcome",
+        "RpcClientMiddleware",
+        "RpcResponseValidationError",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",
         "RpcClientError",

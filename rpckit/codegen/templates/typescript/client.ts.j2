@@ -28,6 +28,7 @@ export class {{ client_name }} {
 {% endif %}    options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
@@ -48,6 +49,7 @@ export class {{ client_name }} {
 {% endif %}    options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
@@ -93,6 +95,7 @@ export class {{ client_name }} {
 {% endif %}{% if raw_sockets %}      readonly rawSocketFactory?: RawWebSocketFactory;
       readonly rawSocketQueueSize?: number;
 {% endif %}      readonly hooks?: readonly RpcClientHook[];
+      readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
     } = {},
@@ -146,6 +149,7 @@ export class {{ client_name }} {
     if (!options.lazy) await pool.openAll();
     return new {{ client_name }}(pool, {
       hooks: options.hooks,
+      middleware: options.middleware,
       retryAttempts: options.retryAttempts,
       retryAttemptTimeoutMs: options.retryAttemptTimeoutMs,
       notificationQueueSize: options.notificationQueueSize,
