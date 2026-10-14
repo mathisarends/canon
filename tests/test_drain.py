@@ -192,6 +192,45 @@ async def test_drain_stops_event_producer_and_flushes_queued_response():
         assert client.close_code == 1012
 
 
+@pytest.mark.parametrize("drain", [False, True])
+async def test_shutdown_cleans_subscription_while_another_request_is_stuck(drain):
+    before = asyncio.all_tasks()
+    subscribed, stopped, working = (asyncio.Event() for _ in range(3))
+    channel = RpcChannel("work")
+
+    @channel.subscription()
+    async def events() -> AsyncIterator[int]:
+        subscribed.set()
+        try:
+            await asyncio.Future()
+            yield 1
+        finally:
+            stopped.set()
+
+    @channel.method()
+    async def slow() -> None:
+        working.set()
+        await asyncio.Future()
+
+    service = RpcService()
+    service.socket("/rpc", channels=[channel])
+    async with InMemorySocketFactory(service) as factory:
+        client = await factory("ws://test/rpc")
+        await client.send(request(1, "work.events.subscribe"))
+        await asyncio.wait_for(subscribed.wait(), 1)
+        await client.recv()
+        await client.send(request(2))
+        await asyncio.wait_for(working.wait(), 1)
+        if drain:
+            await service.drain.drain(timeout=0.2)
+        else:
+            factory._tasks[0].cancel()
+        await asyncio.gather(*factory._tasks, return_exceptions=True)
+        assert stopped.is_set()
+        assert service.drain.connection_count == 0
+    assert not asyncio.all_tasks() - before
+
+
 async def test_blocked_flush_is_cancelled_at_grace_expiry(monkeypatch):
     import rpckit.drain as module
 

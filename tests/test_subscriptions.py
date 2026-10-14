@@ -256,3 +256,58 @@ async def test_subscription_limit_and_contract() -> None:
         assert ("result" in response) is (request_id == 1)
     await socket.client_disconnect()
     await task
+
+
+@pytest.mark.parametrize("cancel_handshake", [False, True])
+async def test_subscription_limit_reserves_blocked_handshakes(cancel_handshake):
+    from rpckit.dependencies import as_resolver
+    from rpckit.envelopes import RpcRequestEnvelope
+    from rpckit.subscriptions import SubscriptionSession
+
+    channel = RpcChannel("session")
+    sending, release = asyncio.Event(), asyncio.Event()
+    responses = []
+
+    @channel.subscription()
+    async def events() -> AsyncIterator[int]:
+        await asyncio.Future()
+        yield 1
+
+    async def send(message):
+        if json.loads(message)["id"] == 1:
+            sending.set()
+            await release.wait()
+        responses.append(json.loads(message))
+
+    session = SubscriptionSession(
+        channel.protocol.subscriptions,
+        as_resolver(None),
+        send,
+        limit=1,
+        server=channel.create_server(),
+    )
+
+    def envelope(request_id):
+        return RpcRequestEnvelope(
+            jsonrpc="2.0", id=request_id, method="session.events.subscribe"
+        )
+
+    first = asyncio.create_task(session.handle(envelope(1)))
+    try:
+        await asyncio.wait_for(sending.wait(), 1)
+        await session.handle(envelope(2))
+        assert responses[0]["error"]["data"]["code"] == "subscription_limit"
+        if cancel_handshake:
+            first.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await first
+            await session.handle(envelope(3))
+            assert responses[-1]["result"] == {"subscriptionId": "2"}
+        else:
+            release.set()
+            await first
+            assert responses[-1]["result"] == {"subscriptionId": "1"}
+    finally:
+        first.cancel()
+        await asyncio.gather(first, return_exceptions=True)
+        await session.close()

@@ -298,7 +298,10 @@ async def test_duplicate_in_flight_ids_close_without_overwriting_original(batch)
             assert stopped.is_set()
 
 
-@pytest.mark.parametrize("invalid", ["42", "{", "[]"])
+@pytest.mark.parametrize(
+    "invalid",
+    ["42", "{", "[]", '{"jsonrpc":"2.0","id":42,"method":"$/ping"}'],
+)
 async def test_cancel_is_processed_while_writer_and_outgoing_queue_are_full(invalid):
     from rpckit.testing import SocketFaults
 
@@ -328,11 +331,15 @@ async def test_cancel_is_processed_while_writer_and_outgoing_queue_are_full(inva
             await entered.wait()
             await socket.client_send(invalid)
             await faults.blocked.wait()
-            await recorder.finished.get()
+            if "$/ping" not in invalid:
+                await recorder.finished.get()
             await socket.client_send(invalid)
-            await recorder.finished.get()
+            if "$/ping" not in invalid:
+                await recorder.finished.get()
             # The second invalid response fills the queue behind the blocked writer.
             await asyncio.sleep(0)
+            if "$/ping" in invalid:
+                await socket.client_send(invalid)
             await socket.client_send(json.dumps(cancel_notification(1)))
             await stopped.wait()
             faults.unblock()

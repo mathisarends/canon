@@ -53,6 +53,7 @@ class SubscriptionSession:
         self._server = server
         self._next_id = 1
         self._tasks: dict[str, tuple[str, asyncio.Task[None]]] = {}
+        self._pending_subscriptions = 0
         self._codec = RpcCodec()
         self._request: ContextVar[RpcRequestScope | None] = ContextVar(
             "rpckit.subscription.request", default=None
@@ -88,7 +89,7 @@ class SubscriptionSession:
         if name.endswith(".subscribe"):
             definition = self._definitions[name[: -len(".subscribe")]]
             try:
-                if len(self._tasks) >= self._limit:
+                if len(self._tasks) + self._pending_subscriptions >= self._limit:
                     raise RpcSubscriptionLimitError()
                 params = _params(definition, request.params)
             except RpcError as error:
@@ -99,10 +100,16 @@ class SubscriptionSession:
                 return
             subscription_id = str(self._next_id)
             self._next_id += 1
-            await self._respond(
-                request,
-                RpcSuccess(id=request.id, result={"subscriptionId": subscription_id}),
-            )
+            self._pending_subscriptions += 1
+            try:
+                await self._respond(
+                    request,
+                    RpcSuccess(
+                        id=request.id, result={"subscriptionId": subscription_id}
+                    ),
+                )
+            finally:
+                self._pending_subscriptions -= 1
             task = asyncio.create_task(self._run(definition, subscription_id, params))
             self._tasks[subscription_id] = (definition.name, task)
             task.add_done_callback(lambda _: self._tasks.pop(subscription_id, None))
@@ -121,7 +128,7 @@ class SubscriptionSession:
                 ),
             )
             return
-        _, task = self._tasks.pop(subscription_id)
+        _, task = self._tasks[subscription_id]
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
         await self._respond(request, RpcSuccess(id=request.id, result=None))

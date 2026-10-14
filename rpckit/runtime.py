@@ -547,12 +547,16 @@ async def _serve_endpoint(
                                 lambda _, call=call, key=key: call_done(call, key)
                             )
                             items.append(call)
-                        if not items:
-                            if controls:
-                                await send_outgoing(
-                                    codec.encode(controls if batch else controls[0])
-                                )
+                        if not items and not controls:
                             continue
+                        if len(tasks) >= (
+                            limits.max_pending_requests + limits.max_queue_size
+                        ):
+                            request_close(
+                                RpcConnectionClose.POLICY_VIOLATION,
+                                "Too many response collectors",
+                            )
+                            return
                         task = asyncio.create_task(invoke(items, batch, controls))
                         tasks.add(task)
                         task.add_done_callback(invocation_done)
@@ -632,9 +636,16 @@ async def _serve_endpoint(
             finally:
                 for task in (writer_task, *producers, *tasks, *call_tasks):
                     task.cancel()
-                await asyncio.gather(
-                    writer_task, *producers, *tasks, *call_tasks, return_exceptions=True
-                )
+                try:
+                    await asyncio.gather(
+                        writer_task,
+                        *producers,
+                        *tasks,
+                        *call_tasks,
+                        return_exceptions=True,
+                    )
+                finally:
+                    await subscriptions.close()
     except asyncio.CancelledError:
         shutdown = connection.close_code or RpcConnectionClose.SHUTDOWN
         close_value[:] = [shutdown, connection.close_reason]

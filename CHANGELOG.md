@@ -2,6 +2,15 @@
 
 ## 0.11.0 - Unreleased
 
+### Release hardening
+
+- Subscription capacity is reserved while acknowledgements are queued and stays
+  occupied during unsubscribe cleanup. Cancelled handshakes release their slots.
+  Connection cancellation and drain deadlines now always stop subscription tasks
+  before releasing connection dependencies.
+- Heartbeat replies use bounded response collectors, so a blocked outgoing queue
+  cannot stop the reader from processing request cancellation or reverse replies.
+
 ### Migration from 0.10
 
 - Client instrumentation now uses only `middleware`. Remove `hooks`,
