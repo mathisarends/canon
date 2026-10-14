@@ -37,6 +37,7 @@ from rpckit.observer import (
     notify_observer,
 )
 from rpckit.protocol import RpcMethodDefinition, RpcProtocol
+from rpckit.request_metadata import observed_request_metadata
 
 if TYPE_CHECKING:
     from rpckit.service import RpcEndpoint
@@ -186,6 +187,7 @@ class RpcServer:
             request_id=_request_id(raw_request),
             notification=_looks_like_notification(raw_request),
             connection=self._connection,
+            metadata=observed_request_metadata(raw_request),
         )
         scope = RpcRequestScope(
             request,

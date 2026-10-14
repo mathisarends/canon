@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -89,6 +89,10 @@ class RpcRequestScope:
     endpoint: RpcEndpointInfo | None = None
     method: RpcMethodDefinition | None = None
     outcome: RpcRequestOutcome | None = None
+
+    @property
+    def metadata(self) -> Mapping[str, str] | None:
+        return self.request.metadata
 
 
 @dataclass(slots=True)

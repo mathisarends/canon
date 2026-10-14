@@ -1,10 +1,12 @@
 from collections.abc import Iterable, Mapping
+from copy import deepcopy
 from typing import Any
 
 from pydantic import TypeAdapter
 
 from rpckit.errors import ProtocolDefinitionError
 from rpckit.protocol import RpcClientMethod, RpcMethodDefinition, RpcProtocol
+from rpckit.request_metadata import REQUEST_METADATA_CAPABILITY
 from rpckit.schema.components import (
     client_method_schema_name,
     components,
@@ -46,6 +48,7 @@ def render_openrpc(
         "components": {"schemas": schemas},
         "x-rpc-protocol-version": protocol.version,
         "x-rpc-heartbeat": {"method": "$/ping", "params": {}, "result": None},
+        "x-rpc-request-metadata": deepcopy(REQUEST_METADATA_CAPABILITY),
         "x-rpc-request-cancellation": {
             "method": "$/cancelRequest",
             "notification": True,

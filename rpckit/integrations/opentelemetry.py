@@ -1,13 +1,24 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Generator
+from collections.abc import AsyncGenerator, Callable, Generator, Mapping
 from contextlib import asynccontextmanager, contextmanager, nullcontext
 from contextvars import ContextVar
 
 try:
     from opentelemetry import context, propagate, trace
     from opentelemetry import metrics as otel_metrics
+    from opentelemetry.baggage.propagation import W3CBaggagePropagator
     from opentelemetry.metrics import MeterProvider
-    from opentelemetry.trace import Span, SpanKind, StatusCode, TracerProvider
+    from opentelemetry.trace import (
+        Link,
+        Span,
+        SpanContext,
+        SpanKind,
+        StatusCode,
+        TracerProvider,
+    )
+    from opentelemetry.trace.propagation.tracecontext import (
+        TraceContextTextMapPropagator,
+    )
 except ImportError as error:
     raise ModuleNotFoundError(
         "rpckit.integrations.opentelemetry requires the 'otel' extra; "
@@ -23,11 +34,47 @@ from rpckit.middleware import (
     RpcStreamScope,
     _current_serving,
 )
+from rpckit.request_metadata import validate_request_metadata
 
 type RpcTelemetryExclude = Callable[[RpcConnectionScope | RpcRequestScope], bool]
 type _Attributes = dict[str, str | bool]
 
-_REGULAR_CLOSES = (None, RpcConnectionClose.NORMAL, RpcConnectionClose.SHUTDOWN)
+_REGULAR_CLOSES = (
+    None,
+    RpcConnectionClose.NORMAL,
+    RpcConnectionClose.SHUTDOWN,
+    RpcConnectionClose.SERVICE_RESTART,
+)
+
+
+def trace_metadata(*, include_baggage: bool = False) -> dict[str, str]:
+    """Inject the current W3C context for an explicit server-to-client call."""
+    carrier: dict[str, str] = {}
+    TraceContextTextMapPropagator().inject(carrier)
+    if include_baggage:
+        W3CBaggagePropagator().inject(carrier)
+    return validate_request_metadata(carrier)
+
+
+def _remote_context(
+    carrier: Mapping[str, str], include_baggage: bool
+) -> context.Context:
+    parent = TraceContextTextMapPropagator().extract(
+        dict(carrier), context=context.Context()
+    )
+    if include_baggage:
+        parent = W3CBaggagePropagator().extract(dict(carrier), context=parent)
+    return parent
+
+
+@contextmanager
+def _attached_context(parent: context.Context | None) -> Generator[None, None, None]:
+    token = None if parent is None else context.attach(parent)
+    try:
+        yield
+    finally:
+        if token is not None:
+            context.detach(token)
 
 
 class OpenTelemetry(RpcMiddleware):
@@ -39,6 +86,7 @@ class OpenTelemetry(RpcMiddleware):
         tracing: bool = True,
         metrics: bool = True,
         connection_spans: bool = False,
+        propagate_baggage: bool = False,
         record_exceptions: bool = False,
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
@@ -47,6 +95,10 @@ class OpenTelemetry(RpcMiddleware):
         self._tracing = tracing
         self._metrics = metrics
         self._connection_spans = connection_spans
+        self._propagate_baggage = propagate_baggage
+        self._connection_span: ContextVar[SpanContext | None] = ContextVar(
+            "rpckit.otel.connection_span", default=None
+        )
         self._record_exceptions = record_exceptions
         self._exclude = exclude
         self._excluded: ContextVar[bool] = ContextVar(
@@ -86,18 +138,30 @@ class OpenTelemetry(RpcMiddleware):
 
     @contextmanager
     def _span(
-        self, name: str, kind: SpanKind, attributes: _Attributes
+        self,
+        name: str,
+        kind: SpanKind,
+        attributes: _Attributes,
+        *,
+        parent: context.Context | None = None,
+        links: tuple[Link, ...] = (),
     ) -> Generator[Span | None, None, None]:
         if not self._tracing:
-            yield None
+            with _attached_context(parent):
+                yield None
             return
-        with self._tracer.start_as_current_span(
-            name,
-            kind=kind,
-            attributes=attributes,
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
+        with (
+            _attached_context(parent),
+            self._tracer.start_as_current_span(
+                name,
+                kind=kind,
+                attributes=attributes,
+                context=parent,
+                links=links,
+                record_exception=False,
+                set_status_on_exception=False,
+            ) as span,
+        ):
             yield span
 
     def _finish(
@@ -130,9 +194,10 @@ class OpenTelemetry(RpcMiddleware):
                 return
             parent = context.get_current()
             if not trace.get_current_span().get_span_context().is_valid:
-                parent = propagate.extract(
-                    {k.lower(): v for k, v in scope.handshake.headers.items()}
-                )
+                headers = {k.lower(): v for k, v in scope.handshake.headers.items()}
+                if not self._propagate_baggage:
+                    headers.pop("baggage", None)
+                parent = propagate.extract(headers)
             attached = context.attach(parent)
             attributes = _endpoint_attributes(scope)
             manager = (
@@ -141,9 +206,13 @@ class OpenTelemetry(RpcMiddleware):
                 else nullcontext(None)
             )
             with manager as span:
+                connection_token = self._connection_span.set(
+                    None if span is None else span.get_span_context()
+                )
                 try:
                     yield
                 finally:
+                    self._connection_span.reset(connection_token)
                     outcome = scope.outcome
                     if outcome is not None:
                         error_type = (
@@ -194,7 +263,16 @@ class OpenTelemetry(RpcMiddleware):
             attributes.update(_endpoint_attributes(scope))
         if self._metrics:
             self._active_requests.add(1, attributes)
-        with self._span(name, SpanKind.SERVER, attributes) as span:
+        parent = None
+        links: tuple[Link, ...] = ()
+        if scope.metadata is not None:
+            parent = _remote_context(scope.metadata, self._propagate_baggage)
+            connection_span = self._connection_span.get()
+            if connection_span is not None and connection_span.is_valid:
+                links = (Link(connection_span),)
+        with self._span(
+            name, SpanKind.SERVER, attributes, parent=parent, links=links
+        ) as span:
             try:
                 yield
             finally:

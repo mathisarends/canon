@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from rpckit.request_metadata import REQUEST_METADATA_CAPABILITY
+
 type TypeExpr = (
     PrimitiveType
     | LiteralType
@@ -258,6 +260,7 @@ class ClientIr:
     version: str
     protocol_version: int | None = None
     heartbeat: bool = False
+    request_metadata: bool = False
     servers: tuple[ServerDecl, ...] = ()
     declarations: tuple[Declaration, ...] = ()
     root_operations: tuple[RouteDecl, ...] = ()
@@ -325,6 +328,10 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         protocol_version=document.get("x-rpc-protocol-version"),
         heartbeat=document.get("x-rpc-heartbeat")
         == {"method": "$/ping", "params": {}, "result": None},
+        request_metadata=document.get("x-rpc-request-metadata")
+        == REQUEST_METADATA_CAPABILITY
+        and type(document["x-rpc-request-metadata"].get("version")) is int
+        and type(document["x-rpc-request-metadata"].get("maxBytes")) is int,
         servers=servers,
         declarations=_reachable(
             declarations,
