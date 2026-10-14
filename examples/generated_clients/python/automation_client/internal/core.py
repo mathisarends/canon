@@ -4,7 +4,7 @@ import asyncio
 import logging
 import random
 from collections.abc import AsyncIterator, Iterable, Mapping
-from contextlib import AbstractAsyncContextManager, aclosing, suppress
+from contextlib import AbstractAsyncContextManager, aclosing, nullcontext, suppress
 from copy import deepcopy
 from math import isfinite
 from time import perf_counter
@@ -34,6 +34,28 @@ from .metadata import (
 from .transport import RpcTransport, validate_request_metadata
 
 _STREAM_ENDED = object()
+_CLIENT_CLOSED = object()
+
+
+class _RequestState:
+    def __init__(self) -> None:
+        self.task = asyncio.current_task()
+        assert self.task is not None
+        self.cancelling = self.task.cancelling()
+        self.sent = False
+
+    def normalize(self, error: BaseException) -> BaseException:
+        if (
+            isinstance(error, asyncio.CancelledError)
+            and error.args
+            and error.args[0] is _CLIENT_CLOSED
+            and self.task.cancelling() == self.cancelling + 1
+        ):
+            self.task.uncancel()
+            return RpcConnectionLostError(
+                sent=self.sent, reason="The client was closed"
+            )
+        return error
 
 
 class _Subscriber:
@@ -181,6 +203,7 @@ class RpcClientCore:
         self.variables = MappingProxyType(dict(variables or {}))
         self._closed = False
         self._closing = asyncio.Event()
+        self._active_requests: dict[asyncio.Task[Any], list[_RequestState]] = {}
         self._dropped_notifications = 0
         self._on_overflow = on_overflow
         self._overflow_callback_failed = False
@@ -232,7 +255,7 @@ class RpcClientCore:
         )
         timeout = getattr(self._source, "request_timeout", None)
         waiting = asyncio.timeout(timeout)
-        call_id = str(uuid4())
+        call_id = str(uuid4()) if self._middleware else ""
         timeout_error = RpcRequestTimeoutError(route.method, timeout)
         try:
             async with waiting:
@@ -296,6 +319,96 @@ class RpcClientCore:
         transport: RpcTransport | None = None,
         logical_timeout: tuple[asyncio.Timeout, RpcRequestTimeoutError] | None = None,
     ) -> Any:
+        if self._closed:
+            raise RpcConnectionLostError(sent=False, reason="The client was closed")
+        state = _RequestState()
+        task = state.task
+        self._active_requests.setdefault(task, []).append(state)
+        try:
+            if not self._middleware:
+                return await self._invoke_attempt(route, payload, transport, state)
+            return await self._instrumented_attempt(
+                route, payload, attempt, call_id, transport, logical_timeout, state
+            )
+        except BaseException as error:
+            normalized = state.normalize(error)
+            if normalized is not error:
+                raise normalized from None
+            if transport is not None and isinstance(error, _AttemptFailure):
+                raise error.error from error.error.__cause__
+            if transport is None and isinstance(
+                error, (RpcConnectionLostError, RpcRequestTimeoutError)
+            ):
+                raise _AttemptFailure(error, False) from error
+            raise
+        finally:
+            self._active_requests[task].pop()
+            if not self._active_requests[task]:
+                del self._active_requests[task]
+
+    async def _invoke_attempt(
+        self,
+        route: RpcRouteInfo[Any, Any],
+        payload: Any,
+        transport: RpcTransport | None,
+        state: _RequestState,
+        call: RpcClientCall | None = None,
+    ) -> Any:
+        params = payload if call is None else call.params
+        if route.params_adapter is not None:
+            params = route.params_adapter.validate_python(params)
+            if isinstance(params, BaseModel):
+                params = params.model_dump(
+                    mode="json", by_alias=True, exclude_unset=True
+                )
+        elif call is None and self._retry_attempts:
+            params = deepcopy(params)
+        metadata = None if call is None else validate_request_metadata(call.metadata)
+        if metadata and not self._supports_metadata:
+            raise ValueError("The contract does not support request metadata")
+        waiting = (
+            asyncio.timeout(self._retry_attempt_timeout)
+            if self._retry_attempt_timeout is not None
+            else None
+        )
+        try:
+            async with waiting if waiting is not None else nullcontext():
+                live = transport or await self._transport_for(
+                    route.server if call is None else call.server
+                )
+                if self._closed:
+                    raise RpcConnectionLostError(
+                        sent=False, reason="The client was closed"
+                    )
+                if call is not None:
+                    call.transport = live
+                state.sent = True
+                raw = await live.request(
+                    route.method, params, metadata=metadata or None
+                )
+        except TimeoutError:
+            if waiting is None or not waiting.expired():
+                raise
+            raise _AttemptFailure(
+                RpcRequestTimeoutError(route.method, self._retry_attempt_timeout), True
+            ) from None
+        except (RpcConnectionLostError, RpcRequestTimeoutError) as error:
+            raise _AttemptFailure(error, True) from error
+        try:
+            return route.result_adapter.validate_python(raw)
+        except ValidationError as error:
+            raise RpcResponseValidationError(route.method, error) from error
+
+    async def _instrumented_attempt(
+        self,
+        route: RpcRouteInfo[Any, Any],
+        payload: Any,
+        attempt: int,
+        call_id: str,
+        transport: RpcTransport | None,
+        logical_timeout: tuple[asyncio.Timeout, RpcRequestTimeoutError] | None,
+        state: _RequestState,
+    ) -> Any:
         call = RpcClientCall(
             route, deepcopy(payload), attempt, call_id, route.server, transport
         )
@@ -304,47 +417,20 @@ class RpcClientCore:
         error: BaseException | None = None
         traceback = None
         retryable = False
-        raw = value = None
+        value = None
         try:
             for middleware in self._middleware:
                 manager = middleware.request(call)
                 await manager.__aenter__()
                 managers.append(manager)
-            params = call.params
-            if route.params_adapter is not None:
-                params = route.params_adapter.validate_python(params)
-                if isinstance(params, BaseModel):
-                    params = params.model_dump(
-                        mode="json", by_alias=True, exclude_unset=True
-                    )
-            metadata = validate_request_metadata(call.metadata)
-            if metadata and not self._supports_metadata:
-                raise ValueError("The contract does not support request metadata")
-            waiting = asyncio.timeout(self._retry_attempt_timeout)
-            try:
-                async with waiting:
-                    call.transport = transport or await self._transport_for(call.server)
-                    raw = await call.transport.request(
-                        route.method, params, metadata=metadata or None
-                    )
-            except TimeoutError:
-                if not waiting.expired():
-                    raise
-                retryable = True
-                raise RpcRequestTimeoutError(
-                    route.method, self._retry_attempt_timeout
-                ) from None
-            except (RpcConnectionLostError, RpcRequestTimeoutError):
-                retryable = True
-                raise
-            try:
-                value = route.result_adapter.validate_python(raw)
-            except ValidationError as validation:
-                raise RpcResponseValidationError(
-                    route.method, validation
-                ) from validation
+            value = await self._invoke_attempt(route, payload, transport, state, call)
+        except _AttemptFailure as failure:
+            error = failure.error
+            traceback = error.__traceback__
+            retryable = failure.retryable
         except BaseException as failure:
-            error, traceback = failure, failure.__traceback__
+            error = state.normalize(failure)
+            traceback = error.__traceback__
         observed_error = error
         if (
             isinstance(error, asyncio.CancelledError)
@@ -361,6 +447,7 @@ class RpcClientCore:
                     type(error) if error is not None else None, error, traceback
                 )
             except BaseException as teardown:
+                teardown = state.normalize(teardown)
                 if error is not None:
                     logging.getLogger(__name__).error(
                         "RPC client middleware cleanup failed", exc_info=teardown
@@ -654,6 +741,10 @@ class RpcClientCore:
             return
         self._closed = True
         self._closing.set()
+        current = asyncio.current_task()
+        for task, states in tuple(self._active_requests.items()):
+            if task is not current and task.cancelling() == states[-1].cancelling:
+                task.cancel(_CLIENT_CLOSED)
         tasks = tuple(hub.task for hub in self._hubs.values() if hub.task is not None)
         for task in tasks:
             task.cancel()
@@ -671,4 +762,7 @@ class RpcClientCore:
     async def _transport_for(self, server: str | None) -> RpcTransport:
         if self._closed:
             raise RpcConnectionLostError(sent=False, reason="The RPC client is closed")
-        return await self._source.get(server)
+        transport = await self._source.get(server)
+        if self._closed:
+            raise RpcConnectionLostError(sent=False, reason="The RPC client is closed")
+        return transport

@@ -334,3 +334,157 @@ async def test_outcome_success_is_the_validated_result(pool_runtime):
     assert isinstance(result, Result)
     assert calls[0].outcome.result is result
     await core.close()
+
+
+@pytest.mark.parametrize("phase", ["acquisition", "wire", "enter", "exit"])
+async def test_close_interrupts_borrowed_requests_and_reports_outcome(
+    pool_runtime, phase
+):
+    started = asyncio.Event()
+    events, calls, sent = [], [], []
+
+    async def block():
+        started.set()
+        await asyncio.Future()
+
+    class Adapter(Transport):
+        async def request(self, method, params=None, *, metadata=None):
+            sent.append(method)
+            if phase == "wire":
+                await block()
+            return "ok"
+
+    transport = Adapter()
+
+    async def acquire(server):
+        if phase == "acquisition":
+            await block()
+        return transport
+
+    async def close():
+        pytest.fail("Borrowed source must remain open")
+
+    class Blocking:
+        @asynccontextmanager
+        async def request(self, call):
+            if phase == "enter":
+                await block()
+            yield
+            if phase == "exit":
+                await block()
+
+    core = pool_runtime.RpcClientCore(
+        SimpleNamespace(get=acquire, close=close),
+        close_transport=False,
+        middleware=[recorder(events, calls, "metrics"), Blocking()],
+    )
+    task = asyncio.create_task(core.request(route(pool_runtime)))
+    try:
+        await asyncio.wait_for(started.wait(), 1)
+        await core.close()
+        with pytest.raises(pool_runtime.RpcConnectionLostError) as raised:
+            await asyncio.wait_for(task, 1)
+        assert raised.value.sent is (phase in ("wire", "exit"))
+        assert calls[0].outcome.error is raised.value
+        assert len(sent) == (phase in ("wire", "exit"))
+        assert task.cancelling() == 0
+        assert not core._active_requests
+        assert not transport.closed.done()
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_close_preserves_prior_caller_cancellation(pool_runtime):
+    started = asyncio.Event()
+
+    async def acquire(server):
+        started.set()
+        await asyncio.Future()
+
+    core = pool_runtime.RpcClientCore(
+        SimpleNamespace(get=acquire), close_transport=False
+    )
+    task = asyncio.create_task(core.request(route(pool_runtime)))
+    await asyncio.wait_for(started.wait(), 1)
+    task.cancel("caller stopped")
+    await core.close()
+    with pytest.raises(asyncio.CancelledError, match="caller stopped"):
+        await task
+    assert not core._active_requests
+
+
+async def test_close_cannot_send_after_cancellation_resistant_acquisition(pool_runtime):
+    started, cancelled, release = (asyncio.Event() for _ in range(3))
+    sent = []
+
+    class Adapter(Transport):
+        async def request(self, method, params=None, *, metadata=None):
+            sent.append(method)
+            return "ok"
+
+    transport = Adapter()
+
+    async def acquire(server):
+        started.set()
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            cancelled.set()
+            await release.wait()
+        return transport
+
+    core = pool_runtime.RpcClientCore(
+        SimpleNamespace(get=acquire), close_transport=False
+    )
+    task = asyncio.create_task(core.request(route(pool_runtime)))
+    try:
+        await asyncio.wait_for(started.wait(), 1)
+        await core.close()
+        await asyncio.wait_for(cancelled.wait(), 1)
+        release.set()
+        with pytest.raises(pool_runtime.RpcConnectionLostError) as raised:
+            await asyncio.wait_for(task, 1)
+        assert not raised.value.sent
+        assert not sent
+        assert not core._active_requests
+    finally:
+        release.set()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.parametrize("instrumented", [False, True])
+async def test_attempts_validate_params_and_isolate_transport_mutations(
+    pool_runtime, instrumented
+):
+    class Params(BaseModel):
+        values: list[int]
+
+    sent = []
+
+    class Adapter(Transport):
+        async def request(self, method, params=None, *, metadata=None):
+            sent.append(params["values"].copy())
+            params["values"].clear()
+            if len(sent) == 1:
+                raise pool_runtime.RpcConnectionLostError(sent=False)
+            return "ok"
+
+    transport = Adapter()
+    source = SimpleNamespace(
+        get=lambda server: asyncio.sleep(0, result=transport),
+        close=transport.close,
+        retry_delay=lambda _: 0,
+    )
+    core = pool_runtime.RpcClientCore(
+        source,
+        retry_attempts=1,
+        middleware=[recorder([], [], "metrics")] if instrumented else [],
+    )
+    method = route(pool_runtime, params_adapter=TypeAdapter(Params))
+    params = Params(values=[1, 2])
+    assert await core.request(method, params=params) == "ok"
+    assert sent == [[1, 2], [1, 2]]
+    assert params.values == [1, 2]
+    await core.close()

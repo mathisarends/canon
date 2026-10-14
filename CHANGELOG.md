@@ -17,6 +17,13 @@
   activity callbacks, connection scopes, and binary/raw dependency resolution.
   Expired connections close with `1008 / credentials_expired` even before their
   normal reader and writer tasks have started.
+- Python SDK close interrupts active acquisition, requests, and middleware even
+  when the source is borrowed. A late acquisition cannot send after close; caller
+  cancellation remains distinct, and borrowed sources remain open. Regenerate
+  Python clients to receive the fix.
+- Uninstrumented Python SDK attempts skip middleware call objects, UUIDs, and
+  redundant deep copies. The same request and result validators serve both paths;
+  retry attempts remain isolated from parameter mutations by custom transports.
 
 ### Migration from 0.10
 
@@ -176,7 +183,7 @@
   endpoints, standalone servers, or FastAPI adapters. Scopes expose final
   outcomes, including rejection, original failures, and cancellation, before
   cleanup. Middleware composes in order and preserves independent context for
-  concurrent requests; existing observers continue to work alongside it.
+  concurrent requests. The final middleware-only API replaces observers.
 - Optional `pyrpckit[otel]` integration through
   `rpckit.integrations.opentelemetry.OpenTelemetry`, using application providers
   for RPC and stream spans, connection measurements, active-operation metrics,
@@ -211,7 +218,7 @@
 
 ### Changed
 
-- Requests and subscriptions without middleware or observers skip observation
+- Requests and subscriptions without middleware skip observation
   scopes, outcomes, and timing. Uninstrumented streams and FastAPI routes also
   avoid middleware scopes, extra dependencies, and custom-handler socket wrappers.
 - Annotate async context-manager generators as `AsyncGenerator[T, None]` and
