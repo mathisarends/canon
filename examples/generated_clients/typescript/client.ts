@@ -26,7 +26,12 @@ import {
   type EndpointOverrides,
   type ServerName,
 } from "./endpoints";
-import { WebSocketTransport, type WebSocketFactory } from "./transport";
+import {
+  WebSocketTransport,
+  type WebSocketFactory,
+  type WebSocketCredentialsProvider,
+  resolveWebSocketCredentials,
+} from "./transport";
 import { Tasks, Browser } from "./namespaces";
 
 export class AutomationClient {
@@ -103,6 +108,7 @@ export class AutomationClient {
       readonly notificationOverflow?: "drop_oldest" | "close";
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly socketFactory?: WebSocketFactory;
+      readonly credentials?: WebSocketCredentialsProvider;
       readonly onDisconnect?: (error: unknown) => void;
       readonly reconnect?: boolean;
       readonly reconnectInitialDelayMs?: number;
@@ -133,7 +139,11 @@ export class AutomationClient {
       reconnect: options.reconnect,
       reconnectInitialDelayMs: options.reconnectInitialDelayMs,
       reconnectMaxDelayMs: options.reconnectMaxDelayMs,
-      reconnectMaxAttempts: options.reconnectMaxAttempts,
+      reconnectMaxAttempts:
+        options.reconnectMaxAttempts === undefined &&
+        options.credentials !== undefined
+          ? 3
+          : options.reconnectMaxAttempts,
       reconnectShouldRetry: options.reconnectShouldRetry,
       reconnectRandom: options.reconnectRandom,
       onStateChange: (server, state, error) =>
@@ -153,6 +163,7 @@ export class AutomationClient {
           notificationOverflow: options.notificationOverflow,
           onOverflow: options.onOverflow,
           socketFactory: options.socketFactory,
+          credentials: options.credentials,
           signal,
           onDisconnect: (error) => {
             disconnected(error);
@@ -167,16 +178,34 @@ export class AutomationClient {
       retryAttemptTimeoutMs: options.retryAttemptTimeoutMs,
       notificationQueueSize: options.notificationQueueSize,
       onOverflow: options.onOverflow,
-      streamOpener: (endpoint) =>
-        BinaryWebSocketStream.open(endpoint, {
-          socketFactory: options.streamSocketFactory,
-          incomingQueueSize: options.streamQueueSize,
-        }),
-      rawSocketOpener: (endpoint) =>
-        RawWebSocketStream.open(endpoint, {
-          socketFactory: options.rawSocketFactory,
-          incomingQueueSize: options.rawSocketQueueSize,
-        }),
+      streamOpener: async (endpoint) => {
+        const credentials = await resolveWebSocketCredentials(
+          endpoint.url,
+          endpoint.subprotocols,
+          options.credentials,
+        );
+        return BinaryWebSocketStream.open(
+          { ...endpoint, ...credentials },
+          {
+            socketFactory: options.streamSocketFactory,
+            incomingQueueSize: options.streamQueueSize,
+          },
+        );
+      },
+      rawSocketOpener: async (endpoint) => {
+        const credentials = await resolveWebSocketCredentials(
+          endpoint.url,
+          endpoint.subprotocols,
+          options.credentials,
+        );
+        return RawWebSocketStream.open(
+          { ...endpoint, ...credentials },
+          {
+            socketFactory: options.rawSocketFactory,
+            incomingQueueSize: options.rawSocketQueueSize,
+          },
+        );
+      },
       variables: definedVariables(variables),
     });
   }

@@ -356,8 +356,16 @@ class _Renderer:
         if self.options.with_transport == "websocket":
             imports.extend(
                 [
-                    "import { WebSocketTransport, type WebSocketFactory } "
-                    'from "./transport";',
+                    "import {",
+                    "  WebSocketTransport,",
+                    "  type WebSocketFactory,",
+                    "  type WebSocketCredentialsProvider,",
+                    *(
+                        ["  resolveWebSocketCredentials,"]
+                        if self.ir.binary_streams or self.ir.raw_sockets
+                        else []
+                    ),
+                    '} from "./transport";',
                 ]
             )
         if self.nodes:
@@ -915,6 +923,7 @@ _PRIMITIVES = {
 }
 
 _CONNECT_OPTIONS = (
+    "credentials",
     "retryAttempts",
     "retryAttemptTimeoutMs",
     "heartbeatIntervalMs",
@@ -979,6 +988,8 @@ _RESERVED_WORDS = frozenset(
 
 _RUNTIME_NAMES = frozenset(
     {
+        "WebSocketCredentials",
+        "WebSocketCredentialsProvider",
         "RpcClientCore",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",

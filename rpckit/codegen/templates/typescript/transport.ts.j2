@@ -27,6 +27,34 @@ export type WebSocketFactory = (
   protocols?: readonly string[],
 ) => WebSocketSocket;
 
+export type WebSocketCredentials = {
+  readonly url?: string | URL;
+  readonly subprotocols?: readonly string[];
+};
+
+export type WebSocketCredentialsProvider = (
+  endpoint: {
+    readonly url: string | URL;
+    readonly subprotocols?: readonly string[];
+  },
+  signal?: AbortSignal,
+) => WebSocketCredentials | Promise<WebSocketCredentials>;
+
+export async function resolveWebSocketCredentials(
+  url: string | URL,
+  subprotocols?: readonly string[],
+  provider?: WebSocketCredentialsProvider,
+  signal?: AbortSignal,
+): Promise<{ url: string | URL; subprotocols?: readonly string[] }> {
+  if (signal?.aborted) throw signal.reason;
+  const value = await provider?.({ url: new URL(url), subprotocols }, signal);
+  if (signal?.aborted) throw signal.reason;
+  return {
+    url: value?.url ?? url,
+    subprotocols: value?.subprotocols ?? subprotocols,
+  };
+}
+
 export type WebSocketOptions = {
   readonly subprotocols?: readonly string[];
   readonly requestTimeoutMs?: number | null;
@@ -36,6 +64,7 @@ export type WebSocketOptions = {
   readonly onDisconnect?: (error: unknown) => void;
   readonly signal?: AbortSignal;
   readonly onOverflow?: RpcNotificationOverflowHandler;
+  readonly credentials?: WebSocketCredentialsProvider;
   readonly heartbeatIntervalMs?: number | null;
   readonly heartbeatTimeoutMs?: number;
   readonly consecutiveTimeoutLimit?: number;
@@ -143,7 +172,16 @@ export class WebSocketTransport implements RpcTransport {
     const factory = options.socketFactory ?? defaultWebSocketFactory;
     let socket: WebSocketSocket | undefined;
     try {
-      socket = factory(url, options.subprotocols);
+      const credentials =
+        options.credentials === undefined
+          ? { url, subprotocols: options.subprotocols }
+          : await resolveWebSocketCredentials(
+              url,
+              options.subprotocols,
+              options.credentials,
+              options.signal,
+            );
+      socket = factory(credentials.url, credentials.subprotocols);
       await waitForOpen(socket, options.signal);
       return new WebSocketTransport(socket, options);
     } catch (error) {

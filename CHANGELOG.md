@@ -12,6 +12,15 @@
 
 ### Added
 
+- `RpcConnectionExpiry` from `before_accept`, plus `RpcConnection.expires_at`
+  and `expire_at()`, bound long-lived credentials using Unix seconds and a
+  monotonic timer. RPC, binary, and raw sockets close with exactly
+  `1008 / credentials_expired`; timers retire on disconnect. Python async header
+  providers refresh on reconnect. TypeScript adds async `credentials` providers
+  for URLs/subprotocols on RPC reconnect and new dedicated sockets, with three
+  recovery attempts by default when a provider is configured. Generic 1008 and
+  visible credential rejection remain terminal. Normalized connection messages
+  omit raw exception text; original causes remain available for diagnostics.
 - `RpcDrain` coordinates service shutdown across RPC, binary, and raw sockets.
   It rejects new connections, returns built-in `server_shutting_down` for new
   requests, stops passive producers, and lets admitted work and queued replies
