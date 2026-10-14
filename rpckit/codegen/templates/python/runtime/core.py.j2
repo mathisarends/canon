@@ -87,7 +87,9 @@ class _StaticTransports:
             if self._single is not None
             else tuple(dict.fromkeys(self._transports.values()))
         )
-        await asyncio.gather(*(transport.close() for transport in transports))
+        await asyncio.gather(
+            *(transport.close() for transport in transports), return_exceptions=True
+        )
 
 
 class RpcClientHook(Protocol):
@@ -375,10 +377,12 @@ class RpcClientCore:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-        if self._close_transport:
-            await self._source.close()
-        if not self.closed.done():
-            self.closed.set_result(None)
+        try:
+            if self._close_transport:
+                await self._source.close()
+        finally:
+            if not self.closed.done():
+                self.closed.set_result(None)
 
     async def _request_transport(self, server: str | None) -> RpcTransport:
         timeout = getattr(self._source, "request_timeout", None)

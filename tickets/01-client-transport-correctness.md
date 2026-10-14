@@ -1,6 +1,7 @@
 # 01: Client transport correctness
 
-- **Status:** open
+- **Status:** done
+- **PR:** https://github.com/mathisarends/pyrpckit/pull/23
 - **Priority:** critical
 - **Area:** generated clients (Python + TypeScript)
 - **Depends on:** –

@@ -65,6 +65,14 @@
 
 ### Fixed
 
+- Generated Python and TypeScript clients ignore valid late, duplicate, and
+  unknown responses without interrupting other calls, while rejecting malformed
+  response envelopes. TypeScript clients answer server-to-client requests with
+  `method_not_found` instead of disconnecting. Python request timeouts include
+  sending; interrupted sends retire the transport and settle pending futures.
+  Python clients close every owned static transport despite individual failures
+  and finalize client state while preserving caller cancellation. Regenerate
+  clients to pick up these fixes; public call signatures and defaults are unchanged.
 - FastAPI connection middleware covers `RpcRoutes` context dependency setup
   and cleanup, including rejections. Custom handlers using FastAPI's
   `WebSocket` directly report acceptance, close codes, and connection lifetime.
