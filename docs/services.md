@@ -158,6 +158,113 @@ at most one warning per connection. On connection cleanup, a debug message
 reports the total for each category. This remains bounded with debug logging
 enabled; request observers and middleware still receive each rejection.
 
+## Pending work per connection
+
+`max_pending_requests` counts admitted request and notification items, including
+each batch member, while they wait for concurrency capacity or execute. Admission
+reserves slots synchronously in wire order before scheduling work. A batch can be
+partially admitted: excess calls return `pending_limit` in the batch response;
+excess notifications are dropped without a response. Invalid items retain
+`invalid_request`, and empty or oversized batches remain invalid requests.
+
+Reservations are released when dispatch finishes or is cancelled, with fallback
+cleanup for tasks cancelled before they start. Executing items count toward both
+pending capacity and `max_concurrency`. Response collectors are separately bounded
+by `max_pending_requests + max_queue_size`, and outgoing frames use the bounded
+queue and send timeout. Responses to server-to-client calls bypass admission,
+including responses received inside batches. The reader checks this control path
+before reserving work; later cancellation and heartbeat controls use the same
+location and do not need a handler slot.
+
+The default pending limit remains 1024. This fixes the former batch multiplier,
+so workloads depending on that accidental extra capacity may now receive
+`pending_limit` earlier. Configure a larger explicit limit only after estimating
+the associated memory and handler costs.
+
+## Capacity across connections
+
+`RpcLimits` is per connection. Share one application-owned middleware instance
+within a worker to bound connection admission and concurrent request execution.
+The connection scope owns permits through cleanup; `before_accept` checks its
+decision and rejects excess handshakes. A handshake hook alone cannot release a
+connection permit on disconnect. Middleware scopes are observational and contain
+ordinary hook errors, so do not raise the rejection inside the middleware itself.
+
+```python
+import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
+
+from rpckit import (
+    RpcConnectionScope,
+    RpcHandshake,
+    RpcMiddleware,
+    RpcReject,
+    RpcRejection,
+    RpcRequestScope,
+)
+
+
+class SharedCapacity(RpcMiddleware):
+    def __init__(self, *, connections: int, requests: int) -> None:
+        if connections < 1 or requests < 1:
+            raise ValueError("Capacity must be positive")
+        self.active_connections = 0
+        self.active_requests = 0
+        self._connection_limit = connections
+        self._requests = asyncio.Semaphore(requests)
+        self._admitted = ContextVar("connection_admitted", default=False)
+
+    @asynccontextmanager
+    async def connection(self, scope: RpcConnectionScope) -> AsyncGenerator[None, None]:
+        admitted = self.active_connections < self._connection_limit
+        if admitted:
+            self.active_connections += 1
+        token = self._admitted.set(admitted)
+        try:
+            yield
+        finally:
+            self._admitted.reset(token)
+            if admitted:
+                self.active_connections -= 1
+
+    async def before_accept(self, handshake: RpcHandshake) -> None:
+        if not self._admitted.get():
+            raise RpcReject(RpcRejection.UNAVAILABLE, "Connection capacity reached")
+
+    @asynccontextmanager
+    async def request(self, scope: RpcRequestScope) -> AsyncGenerator[None, None]:
+        async with self._requests:
+            self.active_requests += 1
+            try:
+                yield
+            finally:
+                self.active_requests -= 1
+```
+
+Register that same instance on the service and handshake hook:
+
+```python
+capacity = SharedCapacity(connections=200, requests=64)
+app = RpcService(middleware=[capacity], limits=RpcLimits(max_pending_requests=128))
+app.socket("/rpc", channels=[tasks], before_accept=capacity.before_accept)
+web.include_router(create_router(app))
+```
+
+Custom transports using `app.serve()` also run the registered handshake hook.
+Alternatively pass `before_accept=capacity.before_accept` to an endpoint's `serve()`.
+The shared request semaphore limits requests across sockets, while per-connection
+admission bounds requests waiting for that semaphore. Both scopes use `finally`,
+so handler failures, rejected handshakes, disconnects, and cancellation release
+their permits. Long-lived subscription streams and custom raw handlers need
+their own application limits; the request scope covers subscription control
+calls, not the entire stream lifetime.
+
+This is a worker-local bound for one asyncio event loop. Multiple workers each
+own independent counters; use deployment connection limits or coordinated
+accounting when the required bound spans workers or hosts.
+
 ## Use Pydantic directly
 
 `RpcModel` is rpckit's strict Pydantic base model. Existing Pydantic

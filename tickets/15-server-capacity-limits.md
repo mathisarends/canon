@@ -1,6 +1,7 @@
 # 15: Pending accounting and capacity limits
 
-- **Status:** open
+- **Status:** done
+- **PR:** https://github.com/mathisarends/pyrpckit/pull/25
 - **Priority:** high
 - **Area:** server (`rpckit/runtime.py`, `rpckit/connection.py`), docs
 - **Depends on:** –

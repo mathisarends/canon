@@ -65,6 +65,14 @@
 
 ### Fixed
 
+- Served RPC connections reserve pending capacity per request or notification,
+  including each batch member, so batches cannot multiply
+  `RpcLimits.max_pending_requests`. Admission is per item in wire order; excess
+  calls retain batch response shape, notifications remain unanswered, and
+  server-to-client responses bypass admission. Capacity is released on dispatch
+  completion and cleanup, with bounded response collectors. The default remains
+  1024, but batch-heavy clients may now reach the intended limit sooner.
+  Document worker-wide middleware limits and transport message-size/queue tuning.
 - Deeply nested JSON produces `parse_error` on served connections and
   `RpcServer.handle_json()` instead of escaping as `RecursionError`. Generated
   Python clients normalize the same input to `RpcTransportError` and settle
