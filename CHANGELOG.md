@@ -4,6 +4,33 @@
 
 ### Migration from 0.10
 
+- Client instrumentation now uses only `middleware`. Remove `hooks`,
+  `RpcClientHook`, `before_request` / `beforeRequest`, and `after_response` /
+  `afterResponse`. Move before work into middleware entry and after work into
+  teardown/finally around `yield` (Python) or `await next()` (TypeScript).
+  Middleware runs per physical attempt, including retries and subscription
+  controls; correlate logical calls with `call_id` / `callId`. All attempts use
+  the same validation path, and successful outcomes contain the validated result.
+  Middleware entry/body run within the overall request budget; backoff remains
+  outside an attempt scope. There are no hook adapters or deprecation aliases.
+- Server instrumentation now uses only `middleware=`. Remove `observer=` and
+  `RpcObserver` / `RpcObserverLike`; `rpckit.observer` is removed. Replace
+  request-start/finish callbacks with `RpcMiddleware.request(scope)` and
+  connection-close callbacks with `connection(scope)`, reading `scope.outcome`
+  in teardown. `RpcResponseContext` and `RpcConnectionContext` are removed;
+  request metadata stays on `RpcRequestContext` through `scope.request`.
+  Live acceptance, notification, frame, and slow-consumer activity callbacks
+  belong to `RpcMiddleware` and remain available there.
+- Python custom transports implement the single generated `RpcTransport.request`
+  interface, including keyword-only `metadata: Mapping[str, str] | None = None`.
+  The core always supplies this keyword. Update two-argument adapters;
+  `RpcMetadataTransport` and its compatibility dispatch branch are removed.
+- Replace the unused SDK `RpcConnectionClosed` error with
+  `RpcConnectionLostError` in catches/imports. TypeScript `onDisconnect` is
+  removed; use `onStateChange` for client lifecycle transitions and
+  `transport.closed` for direct transports. State callbacks also report intentional
+  closure and identify the server. `RpcTransportPool.open` receives only
+  `(endpoint, signal)` and tracks disconnects through `transport.closed`.
 - Optional integrations now live in `rpckit.integrations`. Replace
   `rpckit.fastapi` with `rpckit.integrations.fastapi`, `rpckit.dishka` with
   `rpckit.integrations.dishka`, and `rpckit.opentelemetry` with
@@ -31,7 +58,7 @@
   `RpcClientCallOutcome`: shared logical IDs, JSON params, routing/transport,
   success/error, and duration in seconds. Scopes cover wire work, acquisition,
   validation, and subscription control calls; cancellation reasons and original
-  failures survive cleanup errors. Legacy hooks retain once-per-call behavior.
+  failures survive cleanup errors. Middleware is the only instrumentation API.
   Mutated Python params are revalidated; TypeScript custom routes can supply
   `validateResult` and receive `RpcResponseValidationError`. Middleware faults
   never trigger automatic request retry.

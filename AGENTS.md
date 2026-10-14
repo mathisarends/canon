@@ -35,3 +35,8 @@ from the templates under `codegen/templates/python/runtime/`.
 - Generated code must pass `ruff check` and `ruff format` in the consuming repository.
 - Tests live in `tests/` and mirror the package structure.
 - Keep `pyproject.toml` as the single source of truth for metadata and tool config.
+
+- Use the current intended API only. Remove superseded APIs, compatibility aliases,
+  deprecated wrappers, and parallel legacy implementations instead of preserving
+  them. Document breaking changes and concrete migration steps in `CHANGELOG.md`,
+  update guides/tests, and regenerate clients. This applies throughout the project.

@@ -234,8 +234,8 @@ error details or raise `RpcResponseValidationError` /
 payloads at compile time but does not perform runtime schema validation.
 
 Connection and stream lifecycle failures are separate from remote application
-errors. TypeScript exports `RpcConnectionClosed`; Python transport failures are
-available through `RpcClientError` and its exported subclasses. Direct binary
+errors. Both SDKs expose `RpcConnectionLostError` and other typed local failures
+through `RpcClientError`. Direct binary
 stream reads use `RpcStreamClosed` for a regular remote close, while async
 iteration treats that condition as normal completion.
 

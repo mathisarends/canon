@@ -31,9 +31,9 @@ class RpcClientMiddleware(Protocol):
 `RpcClientCall` exposes `route`, `params` (JSON), `server`, `attempt`, and
 after the block an `outcome`: `result` or `error`, plus `duration`.
 
-- Keep `RpcClientHook` working: adapt it internally to the new mechanism, or
-  deprecate it with a clear migration note. Decide in the PR. `after_response`
-  semantics stay unchanged for success.
+- Replace `RpcClientHook` with middleware. The user explicitly accepts breaking
+  changes before release; document the migration in CHANGELOG.md and remove hook
+  options/exports/adapters instead of keeping a legacy path.
 - Run middleware around retries (ticket 10) per attempt, or once around all
   attempts: use per-attempt execution when retry is available, with `attempt`
   starting at 1 and a shared logical-call identifier. Before 10 is implemented,
@@ -48,15 +48,15 @@ after the block an `outcome`: `result` or `error`, plus `duration`.
   teardown or an observer callback also fails; define this policy explicitly.
 - Define parameter mutation and metadata injection before validation/send
   for ticket 14. Middleware exceptions remain application exceptions, and
-  cancellation is not converted to a retryable error. Legacy hooks keep their
-  existing per-call semantics if retry adds per-attempt middleware.
+  cancellation is not converted to a retryable error. All attempts use the same
+  middleware/validation path, including an empty middleware chain.
 
 ## Acceptance criteria
 
 - Errors (remote, transport, validation) are observable by client
   middleware in Python and TS.
 - Middleware can keep per-call state without context variables.
-- Existing hooks keep working, or have a documented migration path.
+- Removed hooks have a documented migration to the single middleware API.
 - `docs/clients.md` and `docs/observability.md` updated.
 
 ## Tests
@@ -64,7 +64,7 @@ after the block an `outcome`: `result` or `error`, plus `duration`.
 - Middleware sees success with result and duration, a remote error, a
   transport error, and a response validation error.
 - Ordering of several middlewares (onion order) is tested.
-- Legacy `RpcClientHook` still receives `before_request` and
-  `after_response`.
+- Removed hook options and exports are rejected; successful outcomes match the
+  validated result returned to the caller.
 - Cancellation, acquisition failure, middleware failure during cleanup, and
   an optional retry attempt all produce the documented ordering and outcome.
