@@ -12,6 +12,18 @@
 
 ### Added
 
+- Opt-in server deadlines through `RpcLimits.request_timeout` and per-method
+  `timeout=` overrides. The default remains unlimited; explicit method `None`
+  disables inheritance. Monotonic budgets include admission scheduling, semaphore
+  wait, dependencies, and execution; timeout errors are built-in `request_timeout`
+  failures. Subscription handshakes share the budget while streams remain unbounded.
+- RPC socket request cancellation through validated `$/cancelRequest`
+  notifications, with typed IDs and per-item batch tracking. Controls bypass
+  admission and blocked response queues, returning built-in `request_cancelled`
+  (-32800) after cleanup. Duplicate in-flight IDs close with a protocol error;
+  disconnect and shutdown retain outer cancellation without cancellation replies.
+  OpenRPC documents the control and explicit method budgets. Generated SDK method
+  signatures remain unchanged and expose these server failures as remote errors.
 - Matching generated Python and TypeScript client error hierarchies with
   `RpcRequestTimeoutError` (`method`, `timeout`), `RpcConnectionLostError`
   (`sent`, `code`, `reason`), and `RpcConnectError` (`permanent`, `status`, `code`).
@@ -81,6 +93,9 @@
 
 ### Fixed
 
+- `pending_limit` remains a built-in error under `strict_errors=True`, matching
+  deadline and cancellation failures. Bound rejection and malformed-message
+  response collectors keep the socket reader available for cancellation.
 - Served RPC connections reserve pending capacity per request or notification,
   including each batch member, so batches cannot multiply
   `RpcLimits.max_pending_requests`. Admission is per item in wire order; excess

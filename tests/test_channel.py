@@ -24,6 +24,35 @@ class Event(RpcModel):
     value: str
 
 
+@pytest.mark.parametrize("timeout", [0, -1, True, float("nan"), float("inf"), "5"])
+def test_method_deadline_requires_positive_finite_seconds(timeout):
+    with pytest.raises(ProtocolDefinitionError, match="timeout"):
+        RpcChannel("limits").method(timeout=timeout)
+
+
+def test_method_deadline_keeps_inheritance_distinct_from_explicit_none():
+    channel = RpcChannel("limits")
+
+    @channel.method()
+    async def inherited() -> None: ...
+
+    @channel.method(timeout=None)
+    async def unbounded() -> None: ...
+
+    @channel.method(timeout=5)
+    async def bounded() -> None: ...
+
+    first, second, third = channel.freeze().methods
+    assert first.timeout is None and not first._has_timeout
+    assert second.timeout is None and second._has_timeout
+    assert third.timeout == 5 and third._has_timeout
+
+
+def test_control_method_prefix_is_reserved():
+    with pytest.raises(ProtocolDefinitionError):
+        RpcChannel("controls").method("$/cancelRequest")
+
+
 def test_channel_defaults_and_bare_decorators() -> None:
     channel = RpcChannel("control", raises=[SharedError])
 

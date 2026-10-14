@@ -7,7 +7,94 @@ import pytest
 from rpckit import RpcChannel, RpcErrorBinding, RpcLimits, RpcModel, RpcService
 from rpckit.testing import RpcTestClient
 
+from .deadlines import ControlledDeadlines
 from .testing import InMemorySocket
+
+
+async def test_deadline_bounds_subscription_handshake_but_does_not_limit_stream(
+    monkeypatch,
+):
+    clock = ControlledDeadlines(monkeypatch)
+    entered = asyncio.Event()
+    stream_started = asyncio.Event()
+    release_stream = asyncio.Event()
+    stream_stopped = asyncio.Event()
+    channel = RpcChannel("session")
+
+    @channel.method(timeout=None)
+    async def occupy() -> None:
+        entered.set()
+        await asyncio.Future()
+
+    @channel.server.subscription()
+    async def events() -> AsyncIterator[str]:
+        stream_started.set()
+        try:
+            await release_stream.wait()
+            yield "after handshake"
+        finally:
+            stream_stopped.set()
+
+    service = RpcService(limits=RpcLimits(max_concurrency=1, request_timeout=5))
+    service.socket("/rpc", channels=[channel])
+    socket = InMemorySocket("/rpc")
+    serving = asyncio.create_task(service.serve(socket))
+    try:
+        async with asyncio.timeout(2):
+            await socket.client_send(
+                json.dumps({"jsonrpc": "2.0", "method": "session.occupy", "id": 1})
+            )
+            await entered.wait()
+            await socket.client_send(
+                json.dumps(
+                    {"jsonrpc": "2.0", "method": "session.events.subscribe", "id": 2}
+                )
+            )
+            _, handshake_timeout = await clock.next()
+            clock.expire(handshake_timeout)
+            response = json.loads(await socket.client_receive())
+            assert response["id"] == 2
+            assert response["error"]["data"]["code"] == "request_timeout"
+            assert not stream_started.is_set()
+            await socket.client_send(
+                json.dumps(
+                    {"jsonrpc": "2.0", "method": "$/cancelRequest", "params": {"id": 1}}
+                )
+            )
+            assert (
+                json.loads(await socket.client_receive())["error"]["data"]["code"]
+                == "request_cancelled"
+            )
+            await socket.client_send(
+                json.dumps(
+                    {"jsonrpc": "2.0", "method": "session.events.subscribe", "id": 3}
+                )
+            )
+            _, successful_handshake = await clock.next()
+            subscription = json.loads(await socket.client_receive())["result"][
+                "subscriptionId"
+            ]
+            await stream_started.wait()
+            # A finished timeout has no timer left to affect the subscription task.
+            with pytest.raises(RuntimeError, match="finished"):
+                successful_handshake.reschedule(asyncio.get_running_loop().time())
+            await socket.client_send(
+                json.dumps(
+                    {"jsonrpc": "2.0", "method": "$/cancelRequest", "params": {"id": 3}}
+                )
+            )
+            release_stream.set()
+            message = json.loads(await socket.client_receive())
+            assert message["params"] == {
+                "subscriptionId": subscription,
+                "payload": "after handshake",
+            }
+            terminal = json.loads(await socket.client_receive())
+            assert terminal["params"]["complete"] is True
+            assert stream_stopped.is_set()
+    finally:
+        await socket.client_disconnect()
+        await asyncio.wait_for(serving, 1)
 
 
 class SessionParams(RpcModel):

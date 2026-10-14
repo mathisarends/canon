@@ -3,6 +3,8 @@ import re
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from enum import Enum
+from math import isfinite
 from types import FunctionType
 from typing import Any, overload
 
@@ -48,6 +50,13 @@ from rpckit.server import (
 )
 
 
+class _TimeoutDefault(Enum):
+    INHERIT = "inherit"
+
+
+_INHERIT_TIMEOUT = _TimeoutDefault.INHERIT
+
+
 @dataclass(frozen=True, slots=True)
 class RpcRoute:
     name: str
@@ -55,6 +64,8 @@ class RpcRoute:
     summary: str | None
     raises: tuple[type[RpcError], ...]
     resolver_scope: RpcResolverScope
+    timeout: float | None = None
+    _has_timeout: bool = False
 
 
 class RpcServerDeclarations:
@@ -75,6 +86,7 @@ class RpcServerDeclarations:
         *,
         summary: str | None = None,
         raises: Iterable[RpcErrorDeclaration] = (),
+        timeout: float | None | _TimeoutDefault = _INHERIT_TIMEOUT,
     ) -> Callable[[FunctionType], FunctionType]: ...
 
     def method(
@@ -84,9 +96,24 @@ class RpcServerDeclarations:
         *,
         summary: str | None = None,
         raises: Iterable[RpcErrorDeclaration] = (),
+        timeout: float | None | _TimeoutDefault = _INHERIT_TIMEOUT,
     ) -> Any:
         channel = self._channel
         channel._ensure_mutable()
+        has_timeout = timeout is not _INHERIT_TIMEOUT
+        if (
+            has_timeout
+            and timeout is not None
+            and (
+                not isinstance(timeout, (int, float))
+                or isinstance(timeout, bool)
+                or not isfinite(timeout)
+                or timeout <= 0
+            )
+        ):
+            raise ProtocolDefinitionError(
+                "Method timeout must be finite and positive or None"
+            )
         if isinstance(name, FunctionType):
             return self.method()(name)
         if name is not None and not isinstance(name, str):
@@ -112,6 +139,8 @@ class RpcServerDeclarations:
                     summary or _docstring_summary(function),
                     merged_raises,
                     channel.resolver_scope,
+                    timeout if isinstance(timeout, (int, float)) else None,
+                    has_timeout,
                 )
             )
             return function
@@ -503,6 +532,8 @@ class RpcChannel(RpcServerDeclarations):
                     raises=r.raises,
                     server=None,
                     resolver_scope=r.resolver_scope,
+                    timeout=r.timeout,
+                    has_timeout=r._has_timeout,
                 )
                 for r in self.routes
             ]

@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from math import isfinite
 from types import MappingProxyType
 from typing import Protocol
 
@@ -157,8 +158,16 @@ class RpcLimits:
     max_subscriptions: int = 100
     # Admitted request/notification items, including executing batch members.
     max_pending_requests: int = 1024
+    request_timeout: float | None = None
 
     def __post_init__(self) -> None:
+        if self.request_timeout is not None and (
+            not isinstance(self.request_timeout, (int, float))
+            or isinstance(self.request_timeout, bool)
+            or not isfinite(self.request_timeout)
+            or self.request_timeout <= 0
+        ):
+            raise ValueError("request_timeout must be finite and positive or None")
         if self.max_concurrency < 1 or self.max_queue_size < 1:
             raise ValueError("RPC limits must be at least 1")
         if self.max_message_bytes is not None and self.max_message_bytes < 1:

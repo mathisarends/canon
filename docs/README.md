@@ -4,6 +4,7 @@ The README explains why rpckit exists and gets a first service running. These
 guides cover the individual parts of the API in more detail:
 
 - [Services and channels](services.md) — define methods and assemble endpoints
+- [JSON-RPC protocol](protocol.md) — request cancellation and wire conventions
 - [Dependency injection](dependencies.md) — pass application services into handlers
 - [Connections and events](connections-and-events.md) — inspect connections and push updates
 - [Client methods](client-methods.md) — let the server call the connected client

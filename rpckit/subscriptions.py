@@ -19,7 +19,7 @@ from rpckit.errors import RpcError, RpcInvalidParamsError
 from rpckit.middleware import RpcRequestOutcome, RpcRequestScope
 from rpckit.observer import RpcObserverLike, notify_observer
 from rpckit.protocol import RpcSubscriptionDefinition
-from rpckit.server import RpcServer
+from rpckit.server import RpcResponse, RpcServer
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +53,19 @@ class SubscriptionSession:
             "rpckit.subscription.request", default=None
         )
 
-    async def handle(self, request: RpcRequestEnvelope) -> None:
-        if self._server._observer is None:
-            await self._handle(request)
-            return
-        async with self._server._observe_request(
-            request.model_dump(exclude_unset=True)
-        ) as scope:
+    async def handle(
+        self, request: RpcRequestEnvelope, *, admitted_at: float | None = None
+    ) -> RpcResponse | None:
+        async def handshake(scope: "RpcRequestScope | None") -> None:
             token = self._request.set(scope)
             try:
                 await self._handle(request)
             finally:
                 self._request.reset(token)
+
+        return await self._server._run_bounded(
+            request.model_dump(exclude_unset=True), handshake, admitted_at=admitted_at
+        )
 
     async def _handle(self, request: RpcRequestEnvelope) -> None:
         if not request.expects_response:

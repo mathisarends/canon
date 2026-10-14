@@ -42,6 +42,8 @@ from .errors import (
     RpcInvalidRequestError,
     RpcMethodNotFoundError,
     RpcParseError,
+    RpcRequestCancelledError,
+    RpcRequestTimeoutError,
     RpcValidationIssue,
     error_message,
 )
@@ -132,6 +134,8 @@ __all__ = [
     "RpcObserver",
     "RpcObserverLike",
     "RpcParseError",
+    "RpcRequestCancelledError",
+    "RpcRequestTimeoutError",
     "RpcRawMessage",
     "RpcRawSocket",
     "RpcRawSocketEndpoint",

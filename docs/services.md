@@ -158,6 +158,54 @@ at most one warning per connection. On connection cleanup, a debug message
 reports the total for each category. This remains bounded with debug logging
 enabled; request observers and middleware still receive each rejection.
 
+## Request deadlines
+
+Set `RpcLimits(request_timeout=30.0)` on a service, endpoint, or standalone
+server to bound each admitted request. The default is `None`, preserving existing
+long-running methods until the application chooses a budget. Values are finite,
+positive seconds.
+
+```python
+@tasks.method(timeout=5.0)
+async def quick_lookup() -> str:
+    return "ready"
+
+
+@tasks.method(timeout=None)
+async def long_running() -> None:
+    await finish_long_running_work()
+
+
+app = RpcService(limits=RpcLimits(request_timeout=30.0))
+app.socket("/rpc", channels=[tasks])
+```
+
+An omitted method override inherits the serving limit; explicit `None` disables
+it. Socket deadlines start at per-item admission using the event loop's monotonic
+clock. Scheduling, semaphore wait, dependency resolution, and method execution
+consume that budget. `RpcServer.handle()` and `handle_json()` use the same rules,
+starting at dispatch. Middleware entry time consumes the budget, but entry itself
+is not interrupted by the timer. Observer and middleware exit run after the timer
+has stopped; ordinary response queueing and transport sending use `send_timeout`.
+
+Expiry cancels the invocation, releases its concurrency and pending slots after
+cleanup, and answers calls with `request_timeout` (`-32000`). Notifications have
+no response. `RpcRequestTimeoutError` is a built-in server error, so it survives
+`strict_errors=True` without a `raises=` declaration. Middleware and observers
+receive that error distinctly from an internal failure. Cancellation is cooperative:
+handlers and dependency scopes must propagate `asyncio.CancelledError`; synchronous
+CPU work cannot be preempted, and cleanup can extend elapsed time beyond the budget.
+
+Subscriptions apply the serving deadline and semaphore to the subscribe or
+unsubscribe handshake, including queueing its acknowledgement. The subscription
+iterator and its dependency scope have their own lifetime and continue after a
+successful handshake. End a stream with unsubscribe, not request cancellation.
+
+See [Request cancellation](protocol.md#request-cancellation) for the wire control
+used to stop a queued or executing call. Standalone `handle()` transports can
+cancel their own invocation task, but must implement their own request registry
+to interpret that notification.
+
 ## Pending work per connection
 
 `max_pending_requests` counts admitted request and notification items, including
@@ -173,8 +221,12 @@ pending capacity and `max_concurrency`. Response collectors are separately bound
 by `max_pending_requests + max_queue_size`, and outgoing frames use the bounded
 queue and send timeout. Responses to server-to-client calls bypass admission,
 including responses received inside batches. The reader checks this control path
-before reserving work; later cancellation and heartbeat controls use the same
-location and do not need a handler slot.
+before reserving work; `$/cancelRequest` uses the same location and does not need
+a handler slot. Invalid requests, parse failures, and admission rejections run
+in bounded response collectors so a blocked outgoing queue cannot block the
+reader. Once collector capacity is exhausted, additional ordinary messages close
+the connection with `POLICY_VIOLATION`; cancellation and reverse responses still
+bypass that check.
 
 The default pending limit remains 1024. This fixes the former batch multiplier,
 so workloads depending on that accidental extra capacity may now receive
