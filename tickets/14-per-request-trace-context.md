@@ -1,6 +1,6 @@
 # 14: Per-request trace context propagation
 
-- **Status:** open
+- **Status:** done ([PR #37](https://github.com/mathisarends/pyrpckit/pull/37))
 - **Priority:** medium
 - **Area:** wire protocol convention, server (`rpckit/runtime.py`,
   `rpckit/integrations/opentelemetry.py`), generated clients

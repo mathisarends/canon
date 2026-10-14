@@ -9,7 +9,8 @@ finding against the implementation branch before changing code; names and
 behaviour may change as earlier tickets land.
 
 Work through them in the order below. A ticket lists its prerequisites under
-**Depends on**; do not start it before those are merged.
+**Depends on**; implement prerequisites first. The current stack is authorized
+to build on unmerged branches; merge prerequisites before dependent PRs.
 
 ## Rules for every ticket
 
@@ -90,9 +91,12 @@ Merge the stack from the bottom up; subsequent PR descriptions link their base.
 | 11 | done | [#34](https://github.com/mathisarends/pyrpckit/pull/34) | #33 |
 | 12 | done | [#35](https://github.com/mathisarends/pyrpckit/pull/35) | #34 |
 | 13 | done | [#36](https://github.com/mathisarends/pyrpckit/pull/36) | #35 |
+| 14 | done | [#37](https://github.com/mathisarends/pyrpckit/pull/37) | #36 |
 
-Tickets 13–14 remain open. Ticket 13 is next and can build on #35. Review and
-merge prerequisite PRs before merging the dependent work.
+All 15 tickets are implemented and have their own PRs, changelog updates,
+and SDK impact summaries. Review and merge from #23 upward. The consolidated
+[SDK migration guide](../docs/hardening-overview.md) explains changed defaults,
+compatibility, and integration steps.
 
 ## Review coverage
 

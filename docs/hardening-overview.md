@@ -29,7 +29,7 @@ tickets, while each earlier PR contains only its own changes plus prerequisites.
 | 11 | [#34](https://github.com/mathisarends/pyrpckit/pull/34) | Coordinated drain before process shutdown |
 | 12 | [#35](https://github.com/mathisarends/pyrpckit/pull/35) | Credential expiry and fresh authentication per connection |
 | 13 | [#36](https://github.com/mathisarends/pyrpckit/pull/36) | Per-attempt middleware with error/validation outcomes |
-| 14 | [Ticket and PR](../tickets/14-per-request-trace-context.md) | Bounded request metadata and remote trace propagation |
+| 14 | [#37](https://github.com/mathisarends/pyrpckit/pull/37) | Bounded request metadata and remote trace propagation |
 
 ## What existing applications need to know
 
