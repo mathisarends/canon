@@ -12,6 +12,14 @@
 
 ### Added
 
+- Both SDKs expose per-attempt `RpcClientMiddleware`, `RpcClientCall`, and
+  `RpcClientCallOutcome`: shared logical IDs, JSON params, routing/transport,
+  success/error, and duration in seconds. Scopes cover wire work, acquisition,
+  validation, and subscription control calls; cancellation reasons and original
+  failures survive cleanup errors. Legacy hooks retain once-per-call behavior.
+  Mutated Python params are revalidated; TypeScript custom routes can supply
+  `validateResult` and receive `RpcResponseValidationError`. Middleware faults
+  never trigger automatic request retry.
 - `RpcConnectionExpiry` from `before_accept`, plus `RpcConnection.expires_at`
   and `expire_at()`, bound long-lived credentials using Unix seconds and a
   monotonic timer. RPC, binary, and raw sockets close with exactly
