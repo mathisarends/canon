@@ -760,6 +760,11 @@
     }
   },
   "x-rpc-protocol-version": 1,
+  "x-rpc-heartbeat": {
+    "method": "$/ping",
+    "params": {},
+    "result": null
+  },
   "x-rpc-request-cancellation": {
     "method": "$/cancelRequest",
     "notification": true,

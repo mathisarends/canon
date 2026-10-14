@@ -12,6 +12,13 @@
 
 ### Added
 
+- OpenRPC advertises the reserved `$/ping` heartbeat. The server answers it
+  outside handler capacity, middleware, and request observation. Generated
+  TypeScript clients enable idle heartbeats (30 s interval, 10 s timeout) only
+  for contracts advertising the exact capability; unsupported replies disable
+  probing. Heartbeat settings and a disabled-by-default consecutive-timeout
+  breaker are configurable. Dead sockets enter the existing reconnect lifecycle,
+  and paused browser timers recheck liveness with one fresh probe.
 - Generated passive event and notification iterators resume after transient loss
   when reconnect is enabled, alongside remote subscriptions. Connection state
   callbacks signal possible gaps without changing payload types; no durable
