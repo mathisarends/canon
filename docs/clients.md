@@ -560,3 +560,35 @@ it does not imply an operation failed to execute. Caller aborts do not count.
 Python's default `websockets` factory uses its protocol-level keepalive (20 s ping
 interval and timeout). A custom socket factory must provide its own keepalive;
 the generated Python runtime does not add application probes.
+## Opt-in request retries
+
+Set `retry_attempts=2` (Python) or `retryAttempts: 2` (TypeScript) on `connect`
+to allow two retries after the initial attempt: at most three total attempts.
+The default is zero. Use `reconnect=True` / `reconnect: true` for connection
+recovery. Constructors and `with_transports` / `withTransports` also accept the
+retry settings for custom adapters.
+
+`RpcConnectionLostError(sent=False)` permits retry for any ordinary method.
+When delivery may have occurred (`sent=True`), or an attempt times out, only a
+route with contract-declared idempotency permits retry. Remote/domain errors,
+response validation failures, permanent connect errors, caller cancellation,
+and explicit client close never trigger retry. Unknown delivery is conservatively
+sent. Streams, subscriptions, and reverse client methods do not enter this loop.
+
+One request timeout bounds connection acquisition, wire work, and retry backoff.
+The deadline is never restarted. An optional `retry_attempt_timeout` (seconds) /
+`retryAttemptTimeoutMs` bounds each attempt, including acquisition, and can leave
+time for another attempt within the overall deadline. Without it, a transport
+timeout can permit retry only while the overall budget remains. Retries reuse
+params and allocate a fresh request ID; connection pools reuse their configured
+initial/max delays and jitter source for retry backoff. Custom sources can expose
+`retry_delay` / `retryDelay`, otherwise the default full jitter is 0.25–5 seconds
+(the actual wait ranges from zero to the capped delay).
+
+After ambiguous delivery, the original handler might still be running. Retry can
+therefore execute idempotent work concurrently. Legacy before/after hooks run once
+per logical call, with after hooks only on success. The internal attempt path
+carries a one-based attempt number for per-attempt middleware. Regenerate both
+SDKs to acquire retry options and idempotency metadata; method signatures and
+existing execution behavior remain unchanged until retry is enabled. Idempotency
+keys for non-idempotent work are a separate future extension.

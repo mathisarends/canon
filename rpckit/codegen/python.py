@@ -1453,6 +1453,8 @@ def _import_group(module: str) -> int:
 
 
 _CONNECT_OPTIONS = (
+    "retry_attempts",
+    "retry_attempt_timeout",
     "eager",
     "hooks",
     "notification_queue_size",

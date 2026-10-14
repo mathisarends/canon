@@ -66,6 +66,7 @@ class RpcRoute:
     resolver_scope: RpcResolverScope
     timeout: float | None = None
     _has_timeout: bool = False
+    idempotent: bool = False
 
 
 class RpcServerDeclarations:
@@ -87,6 +88,7 @@ class RpcServerDeclarations:
         summary: str | None = None,
         raises: Iterable[RpcErrorDeclaration] = (),
         timeout: float | None | _TimeoutDefault = _INHERIT_TIMEOUT,
+        idempotent: bool = False,
     ) -> Callable[[FunctionType], FunctionType]: ...
 
     def method(
@@ -97,9 +99,12 @@ class RpcServerDeclarations:
         summary: str | None = None,
         raises: Iterable[RpcErrorDeclaration] = (),
         timeout: float | None | _TimeoutDefault = _INHERIT_TIMEOUT,
+        idempotent: bool = False,
     ) -> Any:
         channel = self._channel
         channel._ensure_mutable()
+        if type(idempotent) is not bool:
+            raise ProtocolDefinitionError("Method idempotent must be a bool")
         has_timeout = timeout is not _INHERIT_TIMEOUT
         if (
             has_timeout
@@ -141,6 +146,7 @@ class RpcServerDeclarations:
                     channel.resolver_scope,
                     timeout if isinstance(timeout, (int, float)) else None,
                     has_timeout,
+                    idempotent,
                 )
             )
             return function
@@ -534,6 +540,7 @@ class RpcChannel(RpcServerDeclarations):
                     resolver_scope=r.resolver_scope,
                     timeout=r.timeout,
                     has_timeout=r._has_timeout,
+                    idempotent=r.idempotent,
                 )
                 for r in self.routes
             ]

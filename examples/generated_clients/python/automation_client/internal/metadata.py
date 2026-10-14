@@ -34,6 +34,7 @@ class RpcRouteInfo[ParamsT: BaseModel | None, ResultT]:
     method: str
     result_adapter: TypeAdapter[ResultT]
     server: str | None = None
+    idempotent: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -100,6 +100,15 @@ class RpcTransportPool[ServerT: str]:
     def request_timeout(self) -> float | None:
         return self._request_timeout
 
+    def retry_delay(self, retry: int) -> float:
+        fraction = self._random()
+        if not isfinite(fraction) or not 0 <= fraction <= 1:
+            raise ValueError("reconnect_random must return a value between 0 and 1")
+        return fraction * min(
+            self._reconnect_initial_delay * 2 ** min(retry - 1, 30),
+            self._reconnect_max_delay,
+        )
+
     @property
     def states(self) -> Mapping[ServerT, RpcConnectionState]:
         return MappingProxyType(dict(self._states))

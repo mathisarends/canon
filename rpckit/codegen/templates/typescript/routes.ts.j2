@@ -6,7 +6,8 @@ import { defineNotification, defineRoute } from "./core";
 export const routes = {
 {% for route in routes %}  {{ route | route_key }}: defineRoute<{{ route | route_params }}, {{ route.result | type }}>({
     method: {{ route.rpc_name | literal }},
-{% if route.server is not none %}    server: {{ route.server | literal }},
+{% if route.idempotent %}    idempotent: true,
+{% endif %}{% if route.server is not none %}    server: {{ route.server | literal }},
 {% endif %}  }),
 {% endfor %}} as const;
 {% endif %}{% if notifications %}

@@ -915,6 +915,8 @@ _PRIMITIVES = {
 }
 
 _CONNECT_OPTIONS = (
+    "retryAttempts",
+    "retryAttemptTimeoutMs",
     "heartbeatIntervalMs",
     "heartbeatTimeoutMs",
     "consecutiveTimeoutLimit",

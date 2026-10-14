@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import random
 from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import aclosing, suppress
+from math import isfinite
 from types import MappingProxyType
 from typing import Any, Protocol, cast
 
@@ -142,9 +144,23 @@ class RpcClientCore:
         variables: Mapping[str, str] | None = None,
         notification_queue_size: int = 100,
         on_overflow: RpcNotificationOverflowHandler | None = None,
+        retry_attempts: int = 0,
+        retry_attempt_timeout: float | None = None,
     ) -> None:
         if notification_queue_size <= 0:
             raise ValueError("notification_queue_size must be positive")
+        if type(retry_attempts) is not int or retry_attempts < 0:
+            raise ValueError("retry_attempts must be a nonnegative integer")
+        if retry_attempt_timeout is not None and (
+            isinstance(retry_attempt_timeout, bool)
+            or not isfinite(retry_attempt_timeout)
+            or retry_attempt_timeout <= 0
+        ):
+            raise ValueError(
+                "retry_attempt_timeout must be finite and positive or None"
+            )
+        self._retry_attempts = retry_attempts
+        self._retry_attempt_timeout = retry_attempt_timeout
         if isinstance(transports, Mapping) or hasattr(transports, "request"):
             static = cast(RpcTransport | Mapping[ServerT, RpcTransport], transports)
             self._source = _StaticTransports(static)
@@ -212,8 +228,30 @@ class RpcClientCore:
         waiting = asyncio.timeout(timeout)
         try:
             async with waiting:
-                transport = await self._transport_for(route.server)
-                result = await transport.request(route.method, payload)
+                for attempt in range(1, self._retry_attempts + 2):
+                    try:
+                        result = await self._request_attempt(route, payload, attempt)
+                        break
+                    except (RpcConnectionLostError, RpcRequestTimeoutError) as error:
+                        if (
+                            self._closed
+                            or attempt > self._retry_attempts
+                            or not (
+                                isinstance(error, RpcConnectionLostError)
+                                and not error.sent
+                                or route.idempotent
+                            )
+                        ):
+                            raise
+                        delay = getattr(self._source, "retry_delay", self._retry_delay)(
+                            attempt
+                        )
+                        with suppress(TimeoutError):
+                            await asyncio.wait_for(self._closing.wait(), timeout=delay)
+                        if self._closed:
+                            raise RpcConnectionLostError(
+                                sent=False, reason="The client was closed"
+                            ) from None
         except TimeoutError:
             if not waiting.expired():
                 raise
@@ -224,6 +262,25 @@ class RpcClientCore:
             return route.result_adapter.validate_python(result)
         except ValidationError as error:
             raise RpcResponseValidationError(route.method, error) from error
+
+    @staticmethod
+    def _retry_delay(retry: int) -> float:
+        return random.random() * min(0.25 * 2 ** min(retry - 1, 30), 5.0)
+
+    async def _request_attempt(
+        self, route: RpcRouteInfo[Any, Any], payload: Any, attempt: int
+    ) -> Any:
+        waiting = asyncio.timeout(self._retry_attempt_timeout)
+        try:
+            async with waiting:
+                transport = await self._transport_for(route.server)
+                return await transport.request(route.method, payload)
+        except TimeoutError:
+            if not waiting.expired():
+                raise
+            raise RpcRequestTimeoutError(
+                route.method, self._retry_attempt_timeout
+            ) from None
 
     def notifications(
         self,
