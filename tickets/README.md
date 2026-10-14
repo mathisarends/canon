@@ -82,9 +82,10 @@ Merge the stack from the bottom up; subsequent PR descriptions link their base.
 | 03 | done | [#26](https://github.com/mathisarends/pyrpckit/pull/26) | #25 |
 | 04 | done | [#27](https://github.com/mathisarends/pyrpckit/pull/27) | #26 |
 | 05 | done | [#28](https://github.com/mathisarends/pyrpckit/pull/28) | #27 |
+| 06 | done | [#29](https://github.com/mathisarends/pyrpckit/pull/29) | #28 |
 
-Tickets 06–14 remain open. Ticket 06 is next and can build on #28; its prerequisites
-are implemented in #27 and #28. Review and merge those prerequisite PRs before
+Tickets 07–14 remain open. Ticket 07 is next and can build on #29; its prerequisite
+is implemented in #27. Review and merge that prerequisite PR before
 merging the dependent work.
 
 ## Review coverage

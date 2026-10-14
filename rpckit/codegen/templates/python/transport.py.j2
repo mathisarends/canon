@@ -17,6 +17,8 @@ from .errors import error_from_response
 
 type JsonObject = dict[str, Any]
 _STREAM_ENDED = object()
+_CANCEL_SEND_TIMEOUT = 1.0
+_MAX_CANCEL_SENDS = 128
 
 
 class WebSocket(Protocol):
@@ -72,6 +74,7 @@ class WebSocketTransport:
         )
         self._request_handler = request_handler
         self._answers: set[asyncio.Task[None]] = set()
+        self._cancellations: set[asyncio.Task[None]] = set()
         self._reader = asyncio.create_task(self._receive())
 
     @classmethod
@@ -164,6 +167,8 @@ class WebSocketTransport:
                         failure, sent=True, socket=self._socket
                     )
                 )
+            elif not response.done():
+                self._cancel_request(request_id)
             raise failure from error
         except asyncio.CancelledError as error:
             if sending:
@@ -172,6 +177,8 @@ class WebSocketTransport:
                         error, sent=True, socket=self._socket
                     )
                 )
+            elif not response.done():
+                self._cancel_request(request_id)
             raise
         except RpcClientError:
             raise
@@ -188,6 +195,32 @@ class WebSocketTransport:
                 response.cancel()
             elif not response.cancelled():
                 response.exception()
+
+    def _cancel_request(self, request_id: int) -> None:
+        if self._closed or len(self._cancellations) >= _MAX_CANCEL_SENDS:
+            return
+        task = asyncio.create_task(self._send_cancellation(request_id))
+        self._cancellations.add(task)
+        task.add_done_callback(self._cancellations.discard)
+
+    async def _send_cancellation(self, request_id: int) -> None:
+        if self._closed:
+            return
+        try:
+            async with asyncio.timeout(_CANCEL_SEND_TIMEOUT):
+                await self._socket.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "$/cancelRequest",
+                            "params": {"id": request_id},
+                        },
+                        separators=(",", ":"),
+                    )
+                )
+        except Exception:
+            # Cancellation is best effort and never changes the caller's outcome.
+            pass
 
     async def _retire(self, failure: RpcTransportError) -> None:
         if not self.closed.done():
@@ -220,6 +253,9 @@ class WebSocketTransport:
         self._closed = True
         failure = None
         try:
+            for task in tuple(self._cancellations):
+                task.cancel()
+            await asyncio.gather(*self._cancellations, return_exceptions=True)
             await self._socket.close()
         except Exception as error:
             failure = RpcConnectionLostError.from_exception(
@@ -227,9 +263,14 @@ class WebSocketTransport:
             )
             raise failure from error
         finally:
-            for task in (self._reader, *self._answers):
+            for task in (self._reader, *self._answers, *self._cancellations):
                 task.cancel()
-            await asyncio.gather(self._reader, *self._answers, return_exceptions=True)
+            await asyncio.gather(
+                self._reader,
+                *self._answers,
+                *self._cancellations,
+                return_exceptions=True,
+            )
             self._fail_pending(
                 failure
                 or RpcConnectionLostError(
@@ -284,9 +325,11 @@ class WebSocketTransport:
             self._fail_pending(failure)
         finally:
             if failure is not None:
-                for task in tuple(self._answers):
+                for task in (*self._answers, *self._cancellations):
                     task.cancel()
-                await asyncio.gather(*self._answers, return_exceptions=True)
+                await asyncio.gather(
+                    *self._answers, *self._cancellations, return_exceptions=True
+                )
                 with suppress(Exception):
                     await self._socket.close()
             self._finish_notifications(failure)

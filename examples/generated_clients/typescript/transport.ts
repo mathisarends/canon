@@ -9,10 +9,15 @@ import {
   RpcConnectionLostError,
   RpcRequestTimeoutError,
   RpcTransportError,
+  type RpcRequestOptions,
 } from "./core";
 
 export type RpcTransport = {
-  request(method: string, params?: object): Promise<unknown>;
+  request(
+    method: string,
+    params?: object,
+    options?: RpcRequestOptions,
+  ): Promise<unknown>;
   notifications(): AsyncIterable<unknown>;
   startNotifications?(): void;
   close(): Promise<void>;
@@ -52,7 +57,10 @@ type PendingRequest = {
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: unknown) => void;
   readonly timeout?: ReturnType<typeof setTimeout>;
+  readonly removeAbortListener: () => void;
   sent: boolean;
+  sendComplete: boolean;
+  cancelRequested: boolean;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -119,7 +127,13 @@ export class WebSocketTransport implements RpcTransport {
     }
   }
 
-  request(method: string, params?: object): Promise<unknown> {
+  request(
+    method: string,
+    params?: object,
+    options: RpcRequestOptions = {},
+  ): Promise<unknown> {
+    const signal = options.signal;
+    if (signal?.aborted) return Promise.reject(signal.reason);
     if (this.#closed)
       return Promise.reject(
         RpcConnectionLostError.fromCause(this.#failure, false),
@@ -138,21 +152,39 @@ export class WebSocketTransport implements RpcTransport {
         ),
       );
     }
+    if (signal?.aborted) return Promise.reject(signal.reason);
     return new Promise((resolve, reject) => {
+      const abort = () => this.#abandon(id, signal?.reason);
       const timeout =
         this.#requestTimeoutMs === undefined
           ? undefined
           : setTimeout(() => {
-              this.#pending.delete(id);
-              reject(
+              this.#abandon(
+                id,
                 new RpcRequestTimeoutError(method, this.#requestTimeoutMs),
               );
             }, this.#requestTimeoutMs);
-      const pending = { method, resolve, reject, timeout, sent: false };
+      const pending: PendingRequest = {
+        method,
+        resolve,
+        reject,
+        timeout,
+        removeAbortListener: () => signal?.removeEventListener("abort", abort),
+        sent: false,
+        sendComplete: false,
+        cancelRequested: false,
+      };
       this.#pending.set(id, pending);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
       try {
         pending.sent = true;
         this.#socket.send(frame);
+        pending.sendComplete = true;
+        if (pending.cancelRequested) this.#sendCancellation(id);
       } catch (error) {
         this.#fail(RpcConnectionLostError.fromCause(error, pending.sent));
         try {
@@ -162,6 +194,36 @@ export class WebSocketTransport implements RpcTransport {
         }
       }
     });
+  }
+
+  #abandon(id: number, error: unknown): void {
+    const pending = this.#pending.get(id);
+    if (pending === undefined) return;
+    this.#pending.delete(id);
+    this.#cleanupPending(pending);
+    pending.cancelRequested = true;
+    pending.reject(error);
+    if (pending.sendComplete) this.#sendCancellation(id);
+  }
+
+  #cleanupPending(pending: PendingRequest): void {
+    if (pending.timeout !== undefined) clearTimeout(pending.timeout);
+    pending.removeAbortListener();
+  }
+
+  #sendCancellation(id: number): void {
+    if (this.#closed || this.#socket.readyState !== 1) return;
+    try {
+      this.#socket.send(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "$/cancelRequest",
+          params: { id },
+        }),
+      );
+    } catch {
+      /* Best effort: preserve the timeout or abort outcome. */
+    }
   }
 
   notifications(): AsyncIterable<JsonObject> {
@@ -250,7 +312,7 @@ export class WebSocketTransport implements RpcTransport {
     const pending = this.#pending.get(id);
     if (pending === undefined) return;
     this.#pending.delete(id);
-    if (pending.timeout !== undefined) clearTimeout(pending.timeout);
+    this.#cleanupPending(pending);
     if (isObject(message.error)) {
       pending.reject(
         errorFromResponse(
@@ -274,7 +336,7 @@ export class WebSocketTransport implements RpcTransport {
     this.#failure = error;
     if (!this.#closed) this.#closed = true;
     for (const pending of this.#pending.values()) {
-      if (pending.timeout !== undefined) clearTimeout(pending.timeout);
+      this.#cleanupPending(pending);
       pending.reject(
         error instanceof RpcConnectionLostError
           ? RpcConnectionLostError.fromCause(error, pending.sent)

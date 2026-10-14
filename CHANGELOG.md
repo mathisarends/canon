@@ -12,6 +12,14 @@
 
 ### Added
 
+- Generated WebSocket clients send best-effort `$/cancelRequest` controls after
+  sent calls time out or are cancelled. Python retains `CancelledError` and tracks
+  bounded background control sends through cleanup. TypeScript exposes
+  `RpcRequestOptions` with `signal?: AbortSignal` on transports, core requests,
+  and trailing generated method options; abort reasons retain their identity.
+  Controls stay on the original transport, and settlement clears pending state,
+  timers, and abort listeners. Regenerate SDKs; existing calls and the default
+  30-second timeout remain compatible. Python method signatures are unchanged.
 - Opt-in server deadlines through `RpcLimits.request_timeout` and per-method
   `timeout=` overrides. The default remains unlimited; explicit method `None`
   disables inheritance. Monotonic budgets include admission scheduling, semaphore

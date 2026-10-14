@@ -134,6 +134,8 @@ class _Renderer:
             "literal": _ts_literal,
             "model_decl": lambda declaration: isinstance(declaration, ModelDecl),
             "null_type": _is_null,
+            "operation_signature": self._operation_signature,
+            "operation_call": self._operation_call,
             "optional_field": lambda field: (
                 not field.required and not _is_discriminator(field.name, field.type)
             ),
@@ -225,7 +227,10 @@ class _Renderer:
     def api(self, root_node: NamespaceViewNode) -> str:
         root = "../"
         nodes = tuple(_walk((root_node,)))
-        imports = [f'import type {{ RpcClientCore }} from "{root}core";']
+        core_types = ["RpcClientCore"]
+        if any(node.operations for node in nodes):
+            core_types.append("RpcRequestOptions")
+        imports = [_type_import(core_types, f"{root}core")]
         if any(node.streams for node in nodes):
             imports.append(
                 _value_import(
@@ -282,6 +287,8 @@ class _Renderer:
             "type RpcTransport",
             "type RpcTransportSource",
         ]
+        if self.root_operations:
+            core_imports.append("type RpcRequestOptions")
         if self.options.with_transport == "websocket":
             core_imports.insert(1, "RpcTransportPool")
         imports = [_value_import(core_imports, "./core")]
@@ -374,6 +381,39 @@ class _Renderer:
             with_websocket=self.options.with_transport == "websocket",
         )
         return self.module(body)
+
+    def _operation_signature(self, route: RouteDecl) -> str:
+        parameters = []
+        if route.params:
+            default = " = {}" if all(not p.required for p in route.params) else ""
+            parameters.append(f"params: {route.params_model}{default}")
+        parameters.append("options?: RpcRequestOptions")
+        prefix = "async " if _is_null(route.result) else ""
+        returns = "void" if _is_null(route.result) else self._type(route.result)
+        name = f"  {prefix}{_identifier(route.operation_name)}"
+        suffix = f"): Promise<{returns}> {{"
+        inline = f"{name}({', '.join(parameters)}{suffix}"
+        if len(inline) <= 80:
+            return inline
+        return f"{name}(\n" + "".join(f"    {p},\n" for p in parameters) + f"  {suffix}"
+
+    def _operation_call(self, route: RouteDecl, root: bool) -> str:
+        rpc = "this.#rpc" if root else "this.rpc"
+        prefix = "await" if _is_null(route.result) else "return"
+        arguments = [
+            f"routes.{_route_key(route)}",
+            "params" if route.params else "undefined",
+            "options",
+        ]
+        statement = f"    {prefix} {rpc}.request"
+        inline = f"{statement}({', '.join(arguments)});"
+        if len(inline) <= 80:
+            return inline
+        return (
+            f"{statement}(\n"
+            + "".join(f"      {arg},\n" for arg in arguments)
+            + "    );"
+        )
 
     def _transport_module(self) -> str:
         if self.options.with_transport == "websocket":
@@ -929,6 +969,7 @@ _RUNTIME_NAMES = frozenset(
         "RpcConnectionLostError",
         "RpcRemoteError",
         "RpcRequestTimeoutError",
+        "RpcRequestOptions",
         "RpcRouteInfo",
         "RpcTransport",
         "RpcTransportError",

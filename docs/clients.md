@@ -198,8 +198,85 @@ the [websockets send cancellation guidance](https://websockets.readthedocs.io/en
 TypeScript clients answer server-to-client method requests with
 `method_not_found` and keep the connection open. Typed TypeScript client-method
 handlers are not available yet. Regenerate existing clients to receive these
-transport fixes; public call signatures and the default 30-second timeout are
-unchanged.
+transport fixes. Existing calls still work, and the default 30-second timeout
+is unchanged. TypeScript methods also accept trailing request options.
+
+## Cancel a request
+
+The generated WebSocket transports send the [request cancellation control](protocol.md#request-cancellation)
+when a sent call times out or is abandoned. It uses the same socket and original
+request ID, and is never replayed onto a replacement connection. Cancellation is
+best effort: a lost socket or completed server invocation can prevent an abort.
+The client removes local pending state immediately and ignores the server's valid
+late `request_cancelled` reply. Other calls remain usable on the same connection.
+
+In Python, cancel the task running the generated method. Its outcome stays
+`asyncio.CancelledError`, including the cancellation message:
+
+```python
+import asyncio
+
+call = asyncio.create_task(client.tasks.create(title="Write docs"))
+await user_cancelled.wait()
+call.cancel("Cancelled by the user")
+try:
+    await call
+except asyncio.CancelledError:
+    pass
+```
+
+A configured `request_timeout` still raises the SDK's `RpcRequestTimeoutError`.
+For an application-owned per-call budget, `asyncio.timeout(seconds)` around a
+generated call also triggers this cancellation path; that outer context raises
+Python's `TimeoutError`. Generated method signatures are unchanged, so an RPC
+parameter named `timeout` keeps its existing meaning.
+
+Python sends controls in background tasks with a one-second send bound and at
+most 128 simultaneous control sends per transport. A full control capacity skips
+that best-effort send. Errors are consumed, and close or disconnect cancels and
+awaits outstanding sends. Cancellation before sending emits no control. If the
+original request send is interrupted, the transport is retired because delivery
+is uncertain; it cannot safely carry a subsequent control.
+
+TypeScript methods accept an optional trailing `RpcRequestOptions` object:
+
+```ts
+const controller = new AbortController();
+const call = client.tasks.create(
+  { title: "Write docs" },
+  { signal: controller.signal },
+);
+controller.abort();
+try {
+  await call;
+} catch (error) {
+  if (error !== controller.signal.reason) throw error;
+}
+```
+
+Methods without params accept the options directly, such as
+`client.tasks.list({ signal })`. For all-optional params, pass an empty params
+object first: `client.tasks.search({}, { signal })`. An already aborted signal
+rejects before hooks, connection acquisition, or request sending. Abort during a
+hook or connection wait rejects locally; shared connection acquisition can finish
+for other callers. The signal's exact `reason` is preserved, including the
+default `AbortError`; abort failures are not wrapped in RPC error classes.
+Timers and abort listeners are removed on every terminal path.
+
+Low-level TypeScript calls accept
+`transport.request(method, params, { signal })` and
+`core.request(route, params, { signal })`; use `undefined` for absent params.
+Custom transports should honor this third argument to stop remote work. Existing
+two-argument transport implementations remain structurally compatible; the core
+can abandon its local wait even if such an adapter ignores the signal. The built-in
+WebSocket factory uses the native synchronous `send()` contract, so control sends
+create no background promises or timers. A control-send failure preserves the
+original abort or timeout.
+
+Configure the existing connection-level `request_timeout` / `requestTimeoutMs`
+to change the default budget; TypeScript has no per-call timeout override yet.
+Regenerate both SDKs to receive automatic cancellation and the TypeScript options
+API. Existing call sites and timeout defaults are compatible.
 
 ## Lazy connections and multiple servers
 
