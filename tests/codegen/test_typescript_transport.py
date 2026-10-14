@@ -215,15 +215,15 @@ def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) 
                 assert(invalidParams instanceof RpcTransportError,
                   "serialization error untyped");
                 assert(hookedSocket.readyState === 1, "serialization closed socket");
-                const applicationError = new Error("application hook failed");
-                const core = new RpcClientCore(hookedTransport, { hooks: [{
-                  beforeRequest() { throw applicationError; },
+                const applicationError = new Error("application middleware failed");
+                const core = new RpcClientCore(hookedTransport, { middleware: [{
+                  request() { throw applicationError; },
                 }] });
                 const hookFailure = await core.request(
                   defineRoute<undefined, unknown>({ method: "hooked" }),
                 ).catch(e => e);
-                assert(hookFailure === applicationError, "hook exception wrapped");
-                assert(hookedSocket.sent.length === 0, "failed hook sent a call");
+                assert(hookFailure === applicationError, "middleware error wrapped");
+                assert(hookedSocket.sent.length === 0, "failed middleware sent a call");
                 await core.close();
                 assert(timers.size === 0, "taxonomy tests leaked timers");
 

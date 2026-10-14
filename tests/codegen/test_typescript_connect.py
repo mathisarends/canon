@@ -188,12 +188,15 @@ def test_generated_client_connect_behavior_in_node(
                   sockets.push(socket);
                   return socket;
                 },
-                onDisconnect: () => { disconnected += 1; },
+                onStateChange: (_server, state) => {
+                  if (_server === "primary" && state === "closed") disconnected += 1;
+                },
               });
               sockets[0].disconnect();
-              assert(disconnected === 1, "disconnect callback was not called");
+              await observed.closed;
+              assert(disconnected === 1, "closed state was not reported");
               await observed.close();
-              assert(disconnected === 1, "explicit close called onDisconnect");
+              assert(disconnected === 1, "explicit close repeated closed state");
 
               const reconnectSockets: FakeSocket[] = [];
               let reconnectAttempts = 0;

@@ -20,7 +20,7 @@ class Transport:
     def __init__(self):
         self.closed = asyncio.get_running_loop().create_future()
 
-    async def request(self, method, params=None):
+    async def request(self, method, params=None, *, metadata=None):
         return "ok"
 
     async def notifications(self):
@@ -359,7 +359,7 @@ async def test_request_deadline_bounds_shared_connection_wait_and_wire_work(
     entered, release, sent, cancelled = (asyncio.Event() for _ in range(4))
 
     class SlowTransport(Transport):
-        async def request(self, method, params=None):
+        async def request(self, method, params=None, *, metadata=None):
             sent.set()
             try:
                 await asyncio.Future()

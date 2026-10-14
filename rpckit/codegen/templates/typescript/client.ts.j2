@@ -27,7 +27,7 @@ export class {{ client_name }} {
 {% else %}    transport: RpcTransport | RpcTransportSource,
 {% endif %}    options?: {
       readonly closeTransport?: boolean;
-      readonly hooks?: readonly RpcClientHook[];
+
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
@@ -51,7 +51,7 @@ export class {{ client_name }} {
 {% else %}    transports: RpcTransport,
 {% endif %}    options?: {
       readonly closeTransport?: boolean;
-      readonly hooks?: readonly RpcClientHook[];
+
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
@@ -81,7 +81,6 @@ export class {{ client_name }} {
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly socketFactory?: WebSocketFactory;
       readonly credentials?: WebSocketCredentialsProvider;
-      readonly onDisconnect?: (error: unknown) => void;
       readonly reconnect?: boolean;
       readonly reconnectInitialDelayMs?: number;
       readonly reconnectMaxDelayMs?: number;
@@ -97,7 +96,7 @@ export class {{ client_name }} {
       readonly streamQueueSize?: number;
 {% endif %}{% if raw_sockets %}      readonly rawSocketFactory?: RawWebSocketFactory;
       readonly rawSocketQueueSize?: number;
-{% endif %}      readonly hooks?: readonly RpcClientHook[];
+{% endif %}
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
@@ -127,7 +126,7 @@ export class {{ client_name }} {
       onStateChange: (server, state, error) =>
         options.onStateChange?.(server as ServerName, state, error),
       requestTimeoutMs: options.requestTimeoutMs,
-      open: (endpoint, disconnected, signal) =>
+      open: (endpoint, signal) =>
         WebSocketTransport.open(endpoint.url, {
           subprotocols: endpoint.subprotocols,
           requestTimeoutMs: options.requestTimeoutMs,
@@ -143,15 +142,10 @@ export class {{ client_name }} {
           socketFactory: options.socketFactory,
           credentials: options.credentials,
           signal,
-          onDisconnect: (error) => {
-            disconnected(error);
-            options.onDisconnect?.(error);
-          },
         }),
     });
     if (!options.lazy) await pool.openAll();
     return new {{ client_name }}(pool, {
-      hooks: options.hooks,
       middleware: options.middleware,
       retryAttempts: options.retryAttempts,
       retryAttemptTimeoutMs: options.retryAttemptTimeoutMs,

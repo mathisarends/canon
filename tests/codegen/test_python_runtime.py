@@ -3,6 +3,7 @@ import importlib
 import json
 import sys
 from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -23,6 +24,8 @@ class StubTransport:
         self,
         method: str,
         params: dict[str, Any] | None = None,
+        *,
+        metadata=None,
     ) -> Any:
         return self.result
 
@@ -182,6 +185,8 @@ class ClosingTransport:
         self,
         method: str,
         params: dict[str, Any] | None = None,
+        *,
+        metadata=None,
     ) -> Any:
         return None
 
@@ -836,20 +841,19 @@ async def test_simultaneous_interrupted_sends_keep_their_own_delivery_state(
 
 
 @pytest.mark.parametrize("phase", ["before", "after"])
-async def test_application_hook_errors_retain_identity(runtime, phase):
-    original = ValueError("application hook failed")
+async def test_application_middleware_errors_retain_identity(runtime, phase):
+    original = ValueError("application middleware failed")
 
-    class Hook:
-        async def before_request(self, route, params):
+    class Middleware:
+        @asynccontextmanager
+        async def request(self, call):
             if phase == "before":
                 raise original
+            yield
+            raise original
 
-        async def after_response(self, route, result):
-            if phase == "after":
-                raise original
-
-    core = runtime.RpcClientCore(StubTransport(1), hooks=[Hook()])
-    route = runtime.RpcRouteInfo(method="hooked", result_adapter=TypeAdapter(int))
+    core = runtime.RpcClientCore(StubTransport(1), middleware=[Middleware()])
+    route = runtime.RpcRouteInfo(method="instrumented", result_adapter=TypeAdapter(int))
     with pytest.raises(ValueError) as raised:
         await core.request(route)
     assert raised.value is original

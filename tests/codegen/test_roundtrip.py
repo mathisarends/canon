@@ -27,6 +27,8 @@ class LoopbackTransport:
         self,
         method: str,
         params: dict[str, Any] | None = None,
+        *,
+        metadata=None,
     ) -> Any:
         self._next_id += 1
         request: dict[str, Any] = {

@@ -5,7 +5,6 @@
 import {
   RpcClientCore,
   RpcTransportPool,
-  type RpcClientHook,
   type RpcClientMiddleware,
   type RpcConnectionState,
   type RpcNotificationOverflowHandler,
@@ -62,7 +61,7 @@ export class AutomationClient {
       | RpcTransportSource,
     options?: {
       readonly closeTransport?: boolean;
-      readonly hooks?: readonly RpcClientHook[];
+
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
@@ -86,7 +85,7 @@ export class AutomationClient {
     transports: RpcTransport | Readonly<Record<ServerName, RpcTransport>>,
     options?: {
       readonly closeTransport?: boolean;
-      readonly hooks?: readonly RpcClientHook[];
+
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
@@ -115,7 +114,6 @@ export class AutomationClient {
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly socketFactory?: WebSocketFactory;
       readonly credentials?: WebSocketCredentialsProvider;
-      readonly onDisconnect?: (error: unknown) => void;
       readonly reconnect?: boolean;
       readonly reconnectInitialDelayMs?: number;
       readonly reconnectMaxDelayMs?: number;
@@ -131,7 +129,7 @@ export class AutomationClient {
       readonly streamQueueSize?: number;
       readonly rawSocketFactory?: RawWebSocketFactory;
       readonly rawSocketQueueSize?: number;
-      readonly hooks?: readonly RpcClientHook[];
+
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
@@ -156,7 +154,7 @@ export class AutomationClient {
       onStateChange: (server, state, error) =>
         options.onStateChange?.(server as ServerName, state, error),
       requestTimeoutMs: options.requestTimeoutMs,
-      open: (endpoint, disconnected, signal) =>
+      open: (endpoint, signal) =>
         WebSocketTransport.open(endpoint.url, {
           subprotocols: endpoint.subprotocols,
           requestTimeoutMs: options.requestTimeoutMs,
@@ -172,15 +170,10 @@ export class AutomationClient {
           socketFactory: options.socketFactory,
           credentials: options.credentials,
           signal,
-          onDisconnect: (error) => {
-            disconnected(error);
-            options.onDisconnect?.(error);
-          },
         }),
     });
     if (!options.lazy) await pool.openAll();
     return new AutomationClient(pool, {
-      hooks: options.hooks,
       middleware: options.middleware,
       retryAttempts: options.retryAttempts,
       retryAttemptTimeoutMs: options.retryAttemptTimeoutMs,

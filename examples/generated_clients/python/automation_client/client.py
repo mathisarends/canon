@@ -10,7 +10,6 @@ from automation_client.handlers import Handler, handler_dispatcher
 from automation_client.internal import (
     ClientConnection,
     RpcClientCore,
-    RpcClientHook,
     RpcClientMiddleware,
     RpcConnectionState,
     RpcNotificationOverflowHandler,
@@ -44,7 +43,6 @@ class AutomationClient:
         ),
         *,
         close_transport: bool = True,
-        hooks: Iterable[RpcClientHook] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
         notification_queue_size: int = 100,
         on_overflow: RpcNotificationOverflowHandler | None = None,
@@ -57,7 +55,6 @@ class AutomationClient:
         self._rpc = RpcClientCore(
             transport,
             close_transport=close_transport,
-            hooks=hooks,
             middleware=middleware,
             supports_metadata=True,
             notification_queue_size=notification_queue_size,
@@ -93,7 +90,6 @@ class AutomationClient:
         transports: RpcTransport | Mapping[ServerName, RpcTransport],
         *,
         close_transport: bool = True,
-        hooks: Iterable[RpcClientHook] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
         notification_queue_size: int = 100,
         on_overflow: RpcNotificationOverflowHandler | None = None,
@@ -107,7 +103,6 @@ class AutomationClient:
         return cls(
             transports,
             close_transport=close_transport,
-            hooks=hooks,
             middleware=middleware,
             notification_queue_size=notification_queue_size,
             on_overflow=on_overflow,
@@ -137,7 +132,6 @@ class AutomationClient:
         stream_socket_factory: BinaryWebSocketFactory | None = None,
         raw_socket_factory: RawWebSocketFactory | None = None,
         handlers: Handler | Iterable[Handler] = (),
-        hooks: Iterable[RpcClientHook] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
         lazy: bool = False,
         reconnect: bool = False,
@@ -212,7 +206,6 @@ class AutomationClient:
         return ClientConnection(
             client_factory=lambda transports: cls(
                 transports,
-                hooks=hooks,
                 middleware=middleware,
                 on_overflow=on_overflow,
                 retry_attempts=retry_attempts,

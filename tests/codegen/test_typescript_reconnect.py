@@ -199,7 +199,7 @@ def test_reconnect_policy_state_and_cleanup_in_node(cancellation_sdk):
           const opening = deferred();
           let sharedCalls = 0,
             openerSignal;
-          const shared = pool(async (_, __, signal) => {
+          const shared = pool(async (_, signal) => {
             sharedCalls++;
             openerSignal = signal;
             return opening.promise;
