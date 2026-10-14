@@ -163,6 +163,7 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
         "UNSET",
         "RpcClientCore",
         "RpcClientHook",
+        "RpcClientMiddleware",
         "RpcTransportSource",
         "UnsetType",
     ]
@@ -174,7 +175,13 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
     if options.with_transport == "websocket":
         imports.add(".connection", "ClientConnection", "RpcTransportPool")
         exported.extend(["ClientConnection", "RpcTransportPool"])
-    imports.add(".core", "RpcClientCore", "RpcClientHook", "RpcTransportSource")
+    imports.add(
+        ".core",
+        "RpcClientCore",
+        "RpcClientHook",
+        "RpcClientMiddleware",
+        "RpcTransportSource",
+    )
     imports.add(
         ".errors",
         "RpcClientError",
@@ -198,6 +205,8 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
         "RpcContractInfo",
         "RpcNotificationInfo",
         "RpcNotificationOverflowHandler",
+        "RpcClientCall",
+        "RpcClientCallOutcome",
         "RpcRouteInfo",
         "RpcServerInfo",
         "RpcServerVariable",
@@ -217,6 +226,8 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
             "RpcContractInfo",
             "RpcNotificationInfo",
             "RpcNotificationOverflowHandler",
+            "RpcClientCall",
+            "RpcClientCallOutcome",
             "RpcNotificationValidationError",
             "RpcRemoteError",
             "RpcRequestTimeoutError",
@@ -595,6 +606,7 @@ def _render_client(
         _runtime_module(options),
         "RpcClientCore",
         "RpcClientHook",
+        "RpcClientMiddleware",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",
         "RpcTransport",
@@ -703,8 +715,11 @@ def _render_package_init(
     imports.add(
         _runtime_module(options),
         "RpcClientError",
+        "RpcClientMiddleware",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",
+        "RpcClientCall",
+        "RpcClientCallOutcome",
         "RpcConnectError",
         "RpcConnectionClosed",
         "RpcConnectionLostError",
@@ -717,9 +732,12 @@ def _render_package_init(
     imports.add(f"{options.package}.client", client_name)
     exported = [
         client_name,
+        "RpcClientMiddleware",
         "RpcClientError",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",
+        "RpcClientCall",
+        "RpcClientCallOutcome",
         "RpcConnectError",
         "RpcConnectionClosed",
         "RpcConnectionLostError",
@@ -1453,6 +1471,7 @@ def _import_group(module: str) -> int:
 
 
 _CONNECT_OPTIONS = (
+    "middleware",
     "retry_attempts",
     "retry_attempt_timeout",
     "eager",
@@ -1469,6 +1488,9 @@ _CONNECT_OPTIONS = (
 )
 
 _PACKAGE_EXPORTS = (
+    "RpcClientMiddleware",
+    "RpcClientCall",
+    "RpcClientCallOutcome",
     "RpcClientError",
     "RpcConnectionState",
     "RpcNotificationOverflowHandler",
@@ -1516,6 +1538,8 @@ _RUNTIME_NAMES = frozenset(
         "RpcClientCore",
         "RpcConnectionState",
         "RpcNotificationOverflowHandler",
+        "RpcClientCall",
+        "RpcClientCallOutcome",
         "RpcRemoteError",
         "RpcTransport",
         "Self",
