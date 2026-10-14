@@ -18,6 +18,7 @@ class RpcRejection(StrEnum):
 class RpcConnectionClose(StrEnum):
     NORMAL = "normal"
     SHUTDOWN = "shutdown"
+    SERVICE_RESTART = "service_restart"
     PROTOCOL_ERROR = "protocol_error"
     POLICY_VIOLATION = "policy_violation"
     MESSAGE_TOO_BIG = "message_too_big"
@@ -43,6 +44,7 @@ class RpcDisconnect(Exception):
                 1008: RpcConnectionClose.POLICY_VIOLATION,
                 1009: RpcConnectionClose.MESSAGE_TOO_BIG,
                 1011: RpcConnectionClose.INTERNAL_ERROR,
+                1012: RpcConnectionClose.SERVICE_RESTART,
                 1013: RpcConnectionClose.TRY_AGAIN_LATER,
             }.get(close, RpcConnectionClose.OTHER)
             self.raw_close_code = close

@@ -12,6 +12,13 @@
 
 ### Added
 
+- `RpcDrain` coordinates service shutdown across RPC, binary, and raw sockets.
+  It rejects new connections, returns built-in `server_shutting_down` for new
+  requests, stops passive producers, and lets admitted work and queued replies
+  finish within a bounded grace period. Remaining work closes with the new
+  `SERVICE_RESTART` (1012); new handshakes use unavailable (1013 or HTTP 503).
+  A real Uvicorn shutdown test verifies an explicit drain before process stop;
+  lifespan teardown alone is final cleanup, not the pre-shutdown trigger.
 - Methods can declare `idempotent=True`, exported as `x-rpc-idempotent` and
   generated route metadata in both SDKs. Optional `retry_attempts` /
   `retryAttempts` (default zero extra attempts) retry unsent calls and declared

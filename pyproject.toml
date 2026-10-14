@@ -39,6 +39,8 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=5.0",
     "pyright==1.1.414",
+    "uvicorn>=0.38",
+    "websockets>=15",
 ]
 
 [tool.ruff]

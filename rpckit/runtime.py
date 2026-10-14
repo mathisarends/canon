@@ -31,6 +31,7 @@ from rpckit.dependencies import (
     connection_scope,
     context_values,
 )
+from rpckit.drain import _current_drain_session
 from rpckit.envelopes import RpcFailure, RpcNotification, RpcRequestEnvelope, RpcSuccess
 from rpckit.errors import (
     RpcError,
@@ -38,6 +39,7 @@ from rpckit.errors import (
     RpcInvalidRequestError,
     RpcParseError,
     RpcRequestCancelledError,
+    RpcServerShuttingDownError,
     bind_contracts,
     contract_for,
     contract_of,
@@ -90,6 +92,11 @@ async def _prepare(
         socket.handshake.path_params or endpoint.match(socket.handshake.path) or {}
     )
     connection = RpcConnection._create(endpoint, socket, path_params)
+    drain_session = _current_drain_session()
+    if drain_session is not None:
+        drain_session.connection = connection
+        if not isinstance(endpoint, RpcEndpoint):
+            drain_session.ready.set()
     state = _current_serving()
     if state is not None:
         state.scope.connection = connection
@@ -127,6 +134,10 @@ async def _prepare(
             return None
         if accepted_values is not None:
             base_values.update(accepted_values)
+    if endpoint.service.drain.draining:
+        _record_rejection(RpcRejection.UNAVAILABLE)
+        await socket.reject(RpcRejection.UNAVAILABLE, "Server restarting")
+        return None
     await socket.accept(endpoint.subprotocol)
     connection._accepted = True
     if state is not None:
@@ -146,7 +157,13 @@ async def serve_endpoint(
     rejections: RpcRejections | None = None,
     middleware: Sequence[RpcMiddlewareLike] = (),
 ) -> None:
-    async with _serving_scope(endpoint, socket, middleware) as state:
+    async with (
+        endpoint.service.drain._session(socket) as session,
+        _serving_scope(endpoint, socket, middleware) as state,
+    ):
+        if session is None:
+            _record_rejection(RpcRejection.UNAVAILABLE)
+            return
         await _serve_endpoint(
             endpoint,
             socket,
@@ -288,6 +305,10 @@ async def _serve_endpoint(
                     if call.invalid:
                         return await server._handle_failure(
                             message, RpcInvalidRequestError()
+                        )
+                    if call.shutting_down:
+                        return await server._handle_failure(
+                            message, RpcServerShuttingDownError()
                         )
                     if call.reservation is None:
                         return await reject_pending(message)
@@ -490,7 +511,11 @@ async def _serve_endpoint(
                                 reservation = None
                             else:
                                 invalid = False
-                                reservation = pending.reserve()
+                                reservation = (
+                                    None
+                                    if endpoint.service.drain.draining
+                                    else pending.reserve()
+                                )
                             key = None
                             if not invalid and type(item.get("id")) in (str, int):
                                 key = (type(item["id"]), item["id"])
@@ -508,6 +533,8 @@ async def _serve_endpoint(
                                 invalid,
                                 batch,
                                 asyncio.get_running_loop().time(),
+                                shutting_down=not invalid
+                                and endpoint.service.drain.draining,
                             )
                             call.task = asyncio.create_task(invoke_one(call))
                             call_tasks.add(call.task)
@@ -569,6 +596,23 @@ async def _serve_endpoint(
                 asyncio.create_task(reader()),
                 asyncio.create_task(events()),
             ]
+
+            async def graceful():
+                producers[1].cancel()
+                await asyncio.gather(producers[1], return_exceptions=True)
+                await asyncio.gather(*tuple(tasks), return_exceptions=True)
+                await subscriptions.wait_finished()
+                producers[0].cancel()
+                await asyncio.gather(
+                    producers[0], *tuple(tasks), return_exceptions=True
+                )
+                await _flush(outgoing, writer_task, None)
+                request_close(RpcConnectionClose.SERVICE_RESTART, "Server restarting")
+
+            drain_session = _current_drain_session()
+            if drain_session is not None:
+                drain_session.begin = graceful
+                drain_session.ready.set()
             try:
                 await close_event.wait()
                 for task in (*producers, *tasks, *call_tasks):
@@ -589,9 +633,9 @@ async def _serve_endpoint(
                     writer_task, *producers, *tasks, *call_tasks, return_exceptions=True
                 )
     except asyncio.CancelledError:
-        close_value[:] = [RpcConnectionClose.SHUTDOWN, ""]
-        connection._close_code = RpcConnectionClose.SHUTDOWN
-        connection._close_reason = ""
+        shutdown = connection.close_code or RpcConnectionClose.SHUTDOWN
+        close_value[:] = [shutdown, connection.close_reason]
+        connection._close_code = shutdown
         if not client_closed:
             with suppress(RpcDisconnect):
                 await socket.close(*close_value)
@@ -629,6 +673,7 @@ class _PendingCall:
     invalid: bool
     batch: bool
     admitted_at: float
+    shutting_down: bool = False
     task: asyncio.Task = field(init=False)
     started: bool = False
     cancel_requested: bool = False
@@ -744,7 +789,13 @@ async def serve_stream_endpoint(
     rejections: RpcRejections | None = None,
     middleware: Sequence[RpcMiddlewareLike] = (),
 ) -> None:
-    async with _serving_scope(endpoint, socket, middleware) as state:
+    async with (
+        endpoint.service.drain._session(socket) as session,
+        _serving_scope(endpoint, socket, middleware) as state,
+    ):
+        if session is None:
+            _record_rejection(RpcRejection.UNAVAILABLE)
+            return
         await _serve_stream_endpoint(
             endpoint,
             socket,
@@ -820,7 +871,7 @@ async def _accepted(
         await notify_observer(observer, "connection_opened", connection)
         yield
     except BaseException as error:
-        if not connection.closed:
+        if not connection.closed and connection.close_code is None:
             connection._close_code = (
                 RpcConnectionClose.SHUTDOWN
                 if isinstance(error, asyncio.CancelledError)
@@ -1038,9 +1089,9 @@ async def _run_stream_endpoint(
                         close_stream_error(error)
                     generator = None
     except asyncio.CancelledError:
-        close_value[:] = [RpcConnectionClose.SHUTDOWN, ""]
-        connection._close_code = RpcConnectionClose.SHUTDOWN
-        connection._close_reason = ""
+        shutdown = connection.close_code or RpcConnectionClose.SHUTDOWN
+        close_value[:] = [shutdown, connection.close_reason]
+        connection._close_code = shutdown
         raise
     except Exception as error:
         close_stream_error(error)
@@ -1075,7 +1126,13 @@ async def serve_raw_socket_endpoint(
     rejections: RpcRejections | None = None,
     middleware: Sequence[RpcMiddlewareLike] = (),
 ) -> None:
-    async with _serving_scope(endpoint, socket, middleware) as state:
+    async with (
+        endpoint.service.drain._session(socket) as session,
+        _serving_scope(endpoint, socket, middleware) as state,
+    ):
+        if session is None:
+            _record_rejection(RpcRejection.UNAVAILABLE)
+            return
         prepared = await _prepare(
             endpoint,
             socket,
@@ -1236,9 +1293,9 @@ async def _run_raw_socket(
                     task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.CancelledError:
-        close_value[:] = [RpcConnectionClose.SHUTDOWN, ""]
-        connection._close_code = RpcConnectionClose.SHUTDOWN
-        connection._close_reason = ""
+        shutdown = connection.close_code or RpcConnectionClose.SHUTDOWN
+        close_value[:] = [shutdown, connection.close_reason]
+        connection._close_code = shutdown
         raise
     except Exception as error:
         close_failure(error)

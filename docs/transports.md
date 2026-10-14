@@ -391,3 +391,52 @@ an otherwise responsive connection appear dead.
 Configure protocol ping settings in your WebSocket server separately. Those
 pings let the server detect lost peers; browsers cannot originate WebSocket ping
 frames, so client-side application heartbeats provide the reverse check.
+## Drain before stopping an ASGI server
+
+Trigger drain while the server still handles traffic, then stop the process.
+For example, your deployment controller can call an authenticated internal
+pre-stop endpoint and wait for completion before sending the termination signal:
+
+```python
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from rpckit import RpcDrain, RpcService
+from rpckit.integrations.fastapi import create_router
+
+drain = RpcDrain()
+rpc = RpcService(drain=drain)
+# Register rpc.socket(...), rpc.stream(...), and rpc.raw_socket(...) here.
+
+
+@asynccontextmanager
+async def lifespan(web):
+    yield
+    await drain.drain(timeout=0)  # Final cleanup if pre-stop already drained.
+
+
+web = FastAPI(lifespan=lifespan)
+web.include_router(create_router(rpc))
+
+
+@web.post("/internal/drain")  # Protect this with your deployment authentication.
+async def prepare_stop():
+    await drain.drain(timeout=30)
+    return {"drained": True}
+```
+
+The pre-stop call must run outside an RPC handler being drained. Allow the
+deployment controller at least the drain budget plus the process shutdown budget.
+`--timeout-graceful-shutdown` limits Uvicorn's subsequent task shutdown; it does
+not schedule this application drain. A signal sent before the pre-stop call
+finishes can still interrupt work.
+
+[Uvicorn 0.54.0 shutdown ordering](https://github.com/Kludex/uvicorn/blob/0.54.0/uvicorn/server.py#L257)
+requests connection shutdown and waits/cancels tasks before sending the lifespan
+shutdown event. Its [graceful shutdown settings](https://uvicorn.dev/settings/#timeouts)
+therefore cannot make teardown after lifespan `yield` into a pre-close hook.
+The repository's real TCP smoke test uses Uvicorn's `websockets-sansio` backend,
+drains through HTTP while a WebSocket call is in flight, receives the result and
+1012 close, then stops Uvicorn and verifies lifespan cleanup. This verifies the
+deployment ordering beyond a lifespan-only unit test. FastAPI `RpcRoutes` and
+`create_router` inherit the mounted service's coordinator automatically.

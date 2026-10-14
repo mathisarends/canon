@@ -6,6 +6,7 @@ CLOSE_CODES = MappingProxyType(
     {
         RpcConnectionClose.NORMAL: 1000,
         RpcConnectionClose.SHUTDOWN: 1001,
+        RpcConnectionClose.SERVICE_RESTART: 1012,
         RpcConnectionClose.PROTOCOL_ERROR: 1002,
         RpcConnectionClose.POLICY_VIOLATION: 1008,
         RpcConnectionClose.MESSAGE_TOO_BIG: 1009,
