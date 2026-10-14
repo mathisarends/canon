@@ -178,8 +178,12 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
     imports.add(
         ".errors",
         "RpcClientError",
+        "RpcConnectError",
+        "RpcConnectionClosed",
+        "RpcConnectionLostError",
         "RpcNotificationValidationError",
         "RpcRemoteError",
+        "RpcRequestTimeoutError",
         "RpcResponseValidationError",
         "RpcStreamClosed",
         "RpcStreamFailed",
@@ -204,10 +208,14 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
         [
             "JsonValue",
             "RpcClientError",
+            "RpcConnectError",
+            "RpcConnectionClosed",
+            "RpcConnectionLostError",
             "RpcContractInfo",
             "RpcNotificationInfo",
             "RpcNotificationValidationError",
             "RpcRemoteError",
+            "RpcRequestTimeoutError",
             "RpcResponseValidationError",
             "RpcRouteInfo",
             "RpcServerInfo",
@@ -689,8 +697,12 @@ def _render_package_init(
     imports.add(
         _runtime_module(options),
         "RpcClientError",
+        "RpcConnectError",
+        "RpcConnectionClosed",
+        "RpcConnectionLostError",
         "RpcNotificationValidationError",
         "RpcRemoteError",
+        "RpcRequestTimeoutError",
         "RpcResponseValidationError",
         "RpcTransportError",
     )
@@ -698,8 +710,12 @@ def _render_package_init(
     exported = [
         client_name,
         "RpcClientError",
+        "RpcConnectError",
+        "RpcConnectionClosed",
+        "RpcConnectionLostError",
         "RpcNotificationValidationError",
         "RpcRemoteError",
+        "RpcRequestTimeoutError",
         "RpcResponseValidationError",
         "RpcTransportError",
     ]
@@ -1433,8 +1449,12 @@ _CONNECT_OPTIONS = (
 
 _PACKAGE_EXPORTS = (
     "RpcClientError",
+    "RpcConnectError",
+    "RpcConnectionClosed",
+    "RpcConnectionLostError",
     "RpcNotificationValidationError",
     "RpcRemoteError",
+    "RpcRequestTimeoutError",
     "RpcResponseValidationError",
     "RpcTransportError",
 )

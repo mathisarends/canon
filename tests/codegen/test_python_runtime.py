@@ -430,6 +430,232 @@ async def test_deep_json_fails_all_client_calls_without_leaked_futures(
     assert socket.closed
 
 
+async def test_socket_reset_is_a_client_error_with_cause_and_sent_state(
+    websocket_runtime,
+):
+    broken = asyncio.Event()
+    original = ConnectionResetError("connection reset")
+
+    class Socket(ControlledSocket):
+        async def recv(self):
+            await broken.wait()
+            raise original
+
+    socket = Socket()
+    transport = websocket_runtime.WebSocketTransport(socket, request_timeout=None)
+    call = asyncio.create_task(transport.request("inflight"))
+    await socket.sent.get()
+    broken.set()
+    with pytest.raises(websocket_runtime.RpcClientError) as raised:
+        await call
+    assert isinstance(raised.value, websocket_runtime.RpcConnectionLostError)
+    assert raised.value.sent is True
+    assert raised.value.__cause__ is original
+    closed = await transport.closed
+    assert isinstance(closed, websocket_runtime.RpcConnectionLostError)
+    assert closed.__cause__ is original
+    with pytest.raises(websocket_runtime.RpcConnectionLostError) as unsent:
+        await transport.request("never sent")
+    assert unsent.value.sent is False
+    assert socket.sent.empty()
+    assert not transport._pending
+
+
+async def test_send_that_delivers_then_raises_is_never_classified_unsent(
+    websocket_runtime,
+):
+    original = ConnectionResetError("failed after delivery")
+
+    class Socket(ControlledSocket):
+        async def send(self, message):
+            await super().send(message)
+            raise original
+
+    socket = Socket()
+    transport = websocket_runtime.WebSocketTransport(socket, request_timeout=None)
+    with pytest.raises(websocket_runtime.RpcClientError) as raised:
+        await transport.request("delivered")
+    assert isinstance(raised.value, websocket_runtime.RpcConnectionLostError)
+    assert raised.value.sent is True
+    assert raised.value.__cause__ is original
+    assert (await socket.sent.get())["method"] == "delivered"
+    assert socket.closed
+    assert transport._reader.done()
+
+
+async def test_request_timeout_has_method_and_timeout_fields(websocket_runtime):
+    socket = ControlledSocket()
+    transport = websocket_runtime.WebSocketTransport(socket, request_timeout=0)
+    try:
+        with pytest.raises(websocket_runtime.RpcTransportError) as raised:
+            await transport.request("slow")
+        assert isinstance(raised.value, websocket_runtime.RpcRequestTimeoutError)
+        assert raised.value.method == "slow"
+        assert raised.value.timeout == 0
+        assert not transport.closed.done()
+    finally:
+        await transport.close()
+
+
+async def test_unserializable_params_do_not_register_a_pending_request(
+    websocket_runtime,
+):
+    socket = ControlledSocket()
+    transport = websocket_runtime.WebSocketTransport(socket)
+    try:
+        with pytest.raises(websocket_runtime.RpcTransportError):
+            await transport.request("invalid", {"value": object()})
+        assert not transport._pending
+        assert not transport._sent
+        assert socket.sent.empty()
+        assert not transport.closed.done()
+    finally:
+        await transport.close()
+
+
+@pytest.mark.parametrize(
+    "status,code,permanent",
+    [
+        (401, None, True),
+        (403, None, True),
+        (404, None, True),
+        (503, None, False),
+        (None, 1008, True),
+        (None, None, False),
+    ],
+)
+async def test_connect_errors_preserve_handshake_classification(
+    websocket_runtime, status, code, permanent
+):
+    from types import SimpleNamespace
+
+    original = OSError("handshake failed")
+    original.response = SimpleNamespace(status_code=status)
+    original.rcvd = SimpleNamespace(code=code, reason="rejection")
+
+    async def factory(url, **kwargs):
+        raise original
+
+    with pytest.raises(websocket_runtime.RpcClientError) as raised:
+        await websocket_runtime.WebSocketTransport.open(
+            "ws://test", socket_factory=factory
+        )
+    assert isinstance(raised.value, websocket_runtime.RpcConnectError)
+    assert raised.value.permanent is permanent
+    assert raised.value.status == status
+    assert raised.value.code == code
+    assert raised.value.__cause__ is original
+
+
+async def test_served_close_preserves_code_in_requests_notifications_and_closed(
+    websocket_runtime,
+):
+    from rpckit import Inject, RpcChannel, RpcConnection, RpcConnectionClose, RpcService
+    from rpckit.testing import InMemorySocketFactory
+
+    channel = RpcChannel("disconnect")
+
+    @channel.method
+    async def fail(connection: Inject[RpcConnection]) -> None:
+        await connection.close(
+            RpcConnectionClose.INTERNAL_ERROR, reason="server failure"
+        )
+        await asyncio.Event().wait()
+
+    app = RpcService()
+    app.socket("/rpc", channels=[channel])
+    async with InMemorySocketFactory(app) as factory:
+        transport = await websocket_runtime.WebSocketTransport.open(
+            "ws://test/rpc", socket_factory=factory, request_timeout=None
+        )
+        notifications = transport.notifications()
+        listening = asyncio.create_task(anext(notifications))
+        with pytest.raises(websocket_runtime.RpcClientError) as raised:
+            await transport.request("disconnect.fail")
+        assert isinstance(raised.value, websocket_runtime.RpcConnectionLostError)
+        assert raised.value.code == 1011
+        assert raised.value.reason == "server failure"
+        assert raised.value.sent is True
+        with pytest.raises(websocket_runtime.RpcConnectionLostError):
+            await listening
+        assert (await transport.closed).code == 1011
+        await notifications.aclose()
+
+
+async def test_simultaneous_interrupted_sends_keep_their_own_delivery_state(
+    websocket_runtime,
+):
+    from rpckit import RpcChannel, RpcConnectionClose, RpcService
+    from rpckit.testing import InMemoryClientSocket, InMemorySocketFactory
+
+    app = RpcService()
+    app.socket("/rpc", channels=[RpcChannel("pending")])
+    entered = asyncio.Queue()
+
+    class ClientSocket(InMemoryClientSocket):
+        async def send(self, message):
+            entered.put_nowait(message)
+            await super().send(message)
+
+    async with InMemorySocketFactory(app) as factory:
+        socket = (await factory("ws://test/rpc")).server_socket
+        socket.client_to_server.block()
+        transport = websocket_runtime.WebSocketTransport(
+            ClientSocket(socket), request_timeout=None
+        )
+        calls = [
+            asyncio.create_task(transport.request(name)) for name in ("one", "two")
+        ]
+        for _ in calls:
+            await entered.get()
+        await socket.close(RpcConnectionClose.INTERNAL_ERROR, "interrupted")
+        outcomes = await asyncio.gather(*calls, return_exceptions=True)
+        assert all(
+            isinstance(e, websocket_runtime.RpcConnectionLostError) for e in outcomes
+        )
+        assert all(e.sent is True and e.code == 1011 for e in outcomes)
+        with pytest.raises(websocket_runtime.RpcConnectionLostError) as unsent:
+            await transport.request("never sent")
+        assert unsent.value.sent is False
+        await transport.closed
+        assert not transport._pending
+        assert not transport._sent
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+async def test_application_hook_errors_retain_identity(runtime, phase):
+    original = ValueError("application hook failed")
+
+    class Hook:
+        async def before_request(self, route, params):
+            if phase == "before":
+                raise original
+
+        async def after_response(self, route, result):
+            if phase == "after":
+                raise original
+
+    core = runtime.RpcClientCore(StubTransport(1), hooks=[Hook()])
+    route = runtime.RpcRouteInfo(method="hooked", result_adapter=TypeAdapter(int))
+    with pytest.raises(ValueError) as raised:
+        await core.request(route)
+    assert raised.value is original
+    await core.close()
+
+
+async def test_header_factory_errors_retain_application_exception_identity(
+    websocket_runtime,
+):
+    original = ValueError("credential refresh failed")
+
+    async def headers():
+        raise original
+
+    with pytest.raises(ValueError) as raised:
+        await websocket_runtime.GreetingClient.connect(headers=headers)
+    assert raised.value is original
+
+
 async def test_static_transport_close_waits_for_all_and_finalizes_client(
     runtime: ModuleType,
 ) -> None:

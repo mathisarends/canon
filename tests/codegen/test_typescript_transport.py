@@ -34,6 +34,14 @@ def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) 
         dedent(
             """
             import { WebSocketTransport } from "./generated/transport";
+            import {
+              RpcClientError, RpcConnectError, RpcConnectionLostError,
+              RpcRequestTimeoutError, RpcTransportError,
+              type WebSocketFactory,
+            } from "./generated";
+            import { RpcClientCore, defineRoute } from "./generated/core";
+            const browserFactory: WebSocketFactory = url => new WebSocket(url);
+            void browserFactory;
 
             function assert(value: unknown, message: string): asserts value {
               if (!value) throw new Error(message);
@@ -41,6 +49,7 @@ def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) 
 
             class Socket {
               readyState = 1;
+              sendError?: Error;
               sent: Record<string, unknown>[] = [];
               listeners = new Map<string, ((event: { data: unknown }) => void)[]>();
               addEventListener(
@@ -49,11 +58,19 @@ def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) 
                 const listeners = this.listeners.get(type) ?? [];
                 this.listeners.set(type, [...listeners, listener]);
               }
-              send(data: string) { this.sent.push(JSON.parse(data)); }
+              send(data: string) {
+                this.sent.push(JSON.parse(data));
+                if (this.sendError) throw this.sendError;
+              }
               close() { this.readyState = 3; }
               receive(message: object) {
                 for (const listener of this.listeners.get("message") ?? []) {
                   listener({ data: JSON.stringify({ jsonrpc: "2.0", ...message }) });
+                }
+              }
+              emit(type: string, event: unknown) {
+                for (const listener of this.listeners.get(type) ?? []) {
+                  listener(event as { data: unknown });
                 }
               }
             }
@@ -78,7 +95,12 @@ def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) 
                 });
                 const slow = transport.request("slow").then(
                   () => { throw new Error("slow call unexpectedly succeeded"); },
-                  error => assert(String(error).includes("timed out"), "wrong timeout"),
+                  error => {
+                    assert(error instanceof RpcRequestTimeoutError, "untyped timeout");
+                    assert(error instanceof RpcTransportError, "wrong timeout base");
+                    assert(error.method === "slow", "timeout lost method");
+                    assert(error.timeout === 30_000, "timeout lost duration");
+                  },
                 );
                 const [timer, expire] = [...timers.entries()][0];
                 timers.delete(timer);
@@ -104,7 +126,106 @@ def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) 
                 socket.receive({ id: 3, result: "alive" });
                 assert(await later === "alive", "client method killed transport");
                 await transport.close();
+                assert(await transport.closed === undefined, "normal close failed");
                 assert(timers.size === 0, "timers leaked after close");
+
+                const lostSocket = new Socket();
+                const lost = await WebSocketTransport.open("ws://test", {
+                  socketFactory: () => lostSocket,
+                });
+                const notifications = lost.notifications()[Symbol.asyncIterator]();
+                const notification = notifications.next().catch(error => error);
+                const sent = lost.request("sent").catch(error => error);
+                const close = { code: 1011, reason: "server failure" };
+                lostSocket.emit("close", close);
+                const unsent = lost.request("unsent").catch(error => error);
+                const failures = await Promise.all([sent, unsent]);
+                for (const failure of failures) {
+                  assert(failure instanceof RpcConnectionLostError, "untyped loss");
+                  assert(failure instanceof RpcClientError, "wrong loss base");
+                  assert(failure.code === 1011, "close code lost");
+                  assert(failure.reason === "server failure", "reason lost");
+                  assert(failure.cause === close, "original close cause lost");
+                }
+                assert(failures[0] instanceof RpcConnectionLostError,
+                  "sent failure untyped");
+                assert(failures[1] instanceof RpcConnectionLostError,
+                  "unsent failure untyped");
+                assert(failures[0].sent === true, "sent call marked unsent");
+                assert(failures[1].sent === false, "unsent call marked sent");
+                assert(await notification instanceof RpcConnectionLostError,
+                  "notification lost its error type");
+                assert(await lost.closed instanceof RpcConnectionLostError,
+                  "closed lost its error type");
+
+                const sendSocket = new Socket();
+                const original = new Error("failed after delivery");
+                sendSocket.sendError = original;
+                const sending = await WebSocketTransport.open("ws://test", {
+                  socketFactory: () => sendSocket,
+                });
+                const failure = await sending.request("delivered").catch(e => e);
+                assert(failure instanceof RpcConnectionLostError, "raw send failure");
+                assert(failure.sent === true, "partial send marked unsent");
+                assert(failure.cause === original, "send cause lost");
+                assert(sendSocket.sent.length === 1, "test frame wasn't delivered");
+
+                for (const status of [401, 403, 404, 503]) {
+                  const cause = Object.assign(new Error("rejected"), {
+                    response: { statusCode: status },
+                  });
+                  const rejection = await WebSocketTransport.open("ws://test", {
+                    socketFactory: () => { throw cause; },
+                  }).catch(e => e);
+                  assert(rejection instanceof RpcConnectError, "raw connect failure");
+                  assert(rejection.permanent === (status !== 503), "wrong permanence");
+                  assert(rejection.status === status, "handshake status lost");
+                  assert(rejection.cause === cause, "handshake cause lost");
+                }
+                const opaqueSocket = new Socket();
+                opaqueSocket.readyState = 0;
+                const opaque = WebSocketTransport.open("ws://test", {
+                  socketFactory: () => opaqueSocket,
+                }).catch(e => e);
+                opaqueSocket.emit("error", {});
+                const hidden = await opaque;
+                assert(hidden instanceof RpcConnectError, "opaque failure untyped");
+                assert(hidden.status === undefined, "invented browser status");
+                assert(hidden.permanent === false, "opaque failure permanent");
+
+                const policySocket = new Socket();
+                policySocket.readyState = 0;
+                const policy = WebSocketTransport.open("ws://test", {
+                  socketFactory: () => policySocket,
+                }).catch(e => e);
+                policySocket.emit("close", { code: 1008, reason: "policy" });
+                const refused = await policy;
+                assert(refused instanceof RpcConnectError, "policy failure untyped");
+                assert(refused.code === 1008 && refused.permanent, "wrong policy");
+
+                const hookedSocket = new Socket();
+                const hookedTransport = await WebSocketTransport.open("ws://test", {
+                  socketFactory: () => hookedSocket,
+                });
+                const circular: Record<string, unknown> = {};
+                circular.self = circular;
+                const invalidParams = await hookedTransport.request(
+                  "invalid", circular,
+                ).catch(e => e);
+                assert(invalidParams instanceof RpcTransportError,
+                  "serialization error untyped");
+                assert(hookedSocket.readyState === 1, "serialization closed socket");
+                const applicationError = new Error("application hook failed");
+                const core = new RpcClientCore(hookedTransport, { hooks: [{
+                  beforeRequest() { throw applicationError; },
+                }] });
+                const hookFailure = await core.request(
+                  defineRoute<undefined, unknown>({ method: "hooked" }),
+                ).catch(e => e);
+                assert(hookFailure === applicationError, "hook exception wrapped");
+                assert(hookedSocket.sent.length === 0, "failed hook sent a call");
+                await core.close();
+                assert(timers.size === 0, "taxonomy tests leaked timers");
 
                 for (const invalid of [
                   { id: "bad", result: 1 },

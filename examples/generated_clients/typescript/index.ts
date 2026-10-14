@@ -4,7 +4,15 @@
 
 export { AutomationClient } from "./client";
 export * from "./namespaces";
-export { RpcConnectionClosed, RpcRemoteError } from "./core";
+export {
+  RpcClientError,
+  RpcConnectError,
+  RpcConnectionClosed,
+  RpcConnectionLostError,
+  RpcRemoteError,
+  RpcRequestTimeoutError,
+  RpcTransportError,
+} from "./core";
 export type {
   JsonValue,
   RpcClientCore,

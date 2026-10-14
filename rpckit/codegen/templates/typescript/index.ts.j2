@@ -1,6 +1,14 @@
 export { {{ client_name }} } from "./client";
 {% if nodes %}export * from "./namespaces";
-{% endif %}export { RpcConnectionClosed, RpcRemoteError } from "./core";
+{% endif %}export {
+  RpcClientError,
+  RpcConnectError,
+  RpcConnectionClosed,
+  RpcConnectionLostError,
+  RpcRemoteError,
+  RpcRequestTimeoutError,
+  RpcTransportError,
+} from "./core";
 export type {
   JsonValue,
   RpcClientCore,

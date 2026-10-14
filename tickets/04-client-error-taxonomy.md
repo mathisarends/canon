@@ -1,6 +1,7 @@
 # 04: Client error taxonomy
 
-- **Status:** open
+- **Status:** done
+- **PR:** https://github.com/mathisarends/pyrpckit/pull/27
 - **Priority:** high
 - **Area:** generated clients (Python + TypeScript)
 - **Depends on:** 01

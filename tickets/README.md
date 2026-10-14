@@ -68,6 +68,24 @@ Ticket numbers are stable identifiers; the table gives implementation order.
 Tickets 01, 02, 03, and 15 are independent. Ticket 03 is recommended test
 infrastructure for the later resilience work, rather than a mandatory dependency.
 
+## Implementation progress
+
+The current PRs are stacked in implementation order. Each PR targets the preceding
+branch and includes its SDK impact, rationale, validation, and changelog update.
+Merge the stack from the bottom up; subsequent PR descriptions link their base.
+
+| Ticket | Status | PR | Builds on |
+|--------|--------|----|-----------|
+| 01 | done | [#23](https://github.com/mathisarends/pyrpckit/pull/23) | main |
+| 02 | done | [#24](https://github.com/mathisarends/pyrpckit/pull/24) | #23 |
+| 15 | done | [#25](https://github.com/mathisarends/pyrpckit/pull/25) | #24 |
+| 03 | done | [#26](https://github.com/mathisarends/pyrpckit/pull/26) | #25 |
+| 04 | done | [#27](https://github.com/mathisarends/pyrpckit/pull/27) | #26 |
+
+Tickets 05–14 remain open. Ticket 05 is next and can build on #27; its prerequisites
+are implemented in #23 and #25. Review and merge those prerequisite PRs before
+merging the dependent work.
+
 ## Review coverage
 
 The later numbered findings are grouped as follows; the earlier findings

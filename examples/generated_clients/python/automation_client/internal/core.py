@@ -10,8 +10,11 @@ from typing import Any, Protocol, cast
 from pydantic import BaseModel, ValidationError
 
 from .errors import (
+    RpcClientError,
+    RpcConnectionLostError,
     RpcNotificationValidationError,
     RpcRemoteError,
+    RpcRequestTimeoutError,
     RpcResponseValidationError,
     RpcTransportError,
 )
@@ -159,7 +162,7 @@ class RpcClientCore:
         )
         for hook in self._hooks:
             await hook.before_request(route, payload)
-        transport = await self._request_transport(route.server)
+        transport = await self._request_transport(route.server, route.method)
         result = await transport.request(route.method, payload)
         for hook in reversed(self._hooks):
             await hook.after_response(route, result)
@@ -230,6 +233,8 @@ class RpcClientCore:
                     if item is _STREAM_ENDED:
                         return
                     if isinstance(item, BaseException):
+                        if isinstance(item, RpcClientError):
+                            raise item
                         raise RpcTransportError(
                             "The notification stream failed"
                         ) from item
@@ -336,6 +341,8 @@ class RpcClientCore:
                 if item is _STREAM_ENDED:
                     return
                 if isinstance(item, BaseException):
+                    if isinstance(item, RpcClientError):
+                        raise item
                     raise RpcTransportError("The notification stream failed") from item
                 assert isinstance(item, dict)
                 yield item
@@ -362,7 +369,11 @@ class RpcClientCore:
         except asyncio.CancelledError:
             raise
         except BaseException as error:
-            terminal = error
+            terminal = (
+                error
+                if isinstance(error, RpcClientError)
+                else RpcConnectionLostError.from_exception(error, sent=False)
+            )
         finally:
             hub.terminal = terminal
             for subscriber in tuple(hub.subscribers):
@@ -386,7 +397,7 @@ class RpcClientCore:
             if not self.closed.done():
                 self.closed.set_result(None)
 
-    async def _request_transport(self, server: str | None) -> RpcTransport:
+    async def _request_transport(self, server: str | None, method: str) -> RpcTransport:
         timeout = getattr(self._source, "request_timeout", None)
         waiting = asyncio.timeout(timeout)
         try:
@@ -395,11 +406,9 @@ class RpcClientCore:
         except TimeoutError:
             if not waiting.expired():
                 raise
-            raise RpcTransportError(
-                "Could not connect within the request timeout"
-            ) from None
+            raise RpcRequestTimeoutError(method, timeout) from None
 
     async def _transport_for(self, server: str | None) -> RpcTransport:
         if self._closed:
-            raise RpcTransportError("The RPC client is closed")
+            raise RpcConnectionLostError(sent=False, reason="The RPC client is closed")
         return await self._source.get(server)

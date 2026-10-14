@@ -4,7 +4,10 @@ import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Protocol
 
-from .errors import RpcTransportError
+from .errors import (
+    RpcConnectionLostError,
+    RpcTransportError,
+)
 from .transport import RpcTransport
 
 
@@ -101,7 +104,7 @@ class RpcTransportPool[ServerT: str]:
 
     async def get(self, server: str | None) -> RpcTransport:
         if self._closing.is_set():
-            raise RpcTransportError("The RPC client is closed")
+            raise RpcConnectionLostError(sent=False, reason="The RPC client is closed")
         name = self._server_name(server)
         transport = self._transports.get(name)
         if transport is not None and self.reconnect and _failed(transport):
@@ -111,7 +114,9 @@ class RpcTransportPool[ServerT: str]:
             return transport
         async with self._locks.setdefault(name, asyncio.Lock()):
             if self._closing.is_set():
-                raise RpcTransportError("The RPC client is closed")
+                raise RpcConnectionLostError(
+                    sent=False, reason="The RPC client is closed"
+                )
             transport = self._transports.get(name)
             if transport is not None and self.reconnect and _failed(transport):
                 self._transports.pop(name, None)
@@ -137,7 +142,9 @@ class RpcTransportPool[ServerT: str]:
                         except TimeoutError:
                             delay = min(delay * 2, self._reconnect_max_delay)
                             continue
-                        raise RpcTransportError("The RPC client is closed") from None
+                        raise RpcConnectionLostError(
+                            sent=False, reason="The RPC client is closed"
+                        ) from None
                 self._transports[name] = transport
                 self._ever_connected.add(name)
                 closed = getattr(transport, "closed", None)

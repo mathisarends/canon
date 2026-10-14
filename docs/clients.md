@@ -310,6 +310,65 @@ WebSocket package and makes connection behavior testable without a network.
 Contracts with [client methods](client-methods.md) also generate abstract Python
 handler classes that `connect(handlers=...)` registers.
 
+## Errors on the client
+
+Generated Python and TypeScript packages export the same client error hierarchy:
+
+```text
+RpcClientError
+├── RpcRemoteError (including declared and built-in RPC errors)
+├── RpcTransportError
+│   ├── RpcRequestTimeoutError
+│   ├── RpcConnectionLostError
+│   └── RpcConnectError
+└── RpcConnectionClosed
+```
+
+Python response/notification validation errors and stream errors also inherit
+`RpcClientError`. TypeScript's existing remote, connection-close, and stream
+errors now share that base. Catch `RpcClientError` for SDK failures, or the
+existing `RpcTransportError` base for transport failures. Cancellation and
+application hook exceptions propagate with their original semantics.
+
+`RpcRequestTimeoutError` carries `method` and `timeout`; the timeout is in seconds
+in Python and milliseconds in TypeScript. `RpcConnectionLostError` carries
+`sent`, `code`, and `reason`. `sent=False` means this call provably never began a
+socket send. Once send begins, including a send that raises before completing,
+`sent=True` means the server may have received and executed it. Retry such a call
+only when the application knows it is safe. This is per-call state; two calls on
+the same failed connection can have different delivery certainty.
+
+```python
+from tasks_client import RpcConnectionLostError, RpcRequestTimeoutError
+
+try:
+    await client.tasks.create(title="Write docs")
+except RpcRequestTimeoutError as error:
+    print(f"{error.method} exceeded its {error.timeout}s timeout")
+except RpcConnectionLostError as error:
+    print(f"Connection lost: {error.code} {error.reason}; may be sent: {error.sent}")
+```
+
+Connection setup failures raise `RpcConnectError`. Its `permanent` flag is true
+for observed HTTP 401/403/404 or policy close code 1008; other failures remain
+unclassified as permanent. HTTP `status` and close `code` are retained when
+available. Python extracts those fields from the socket library without importing
+its exception classes. Browser WebSockets generally hide handshake HTTP status,
+so opaque events leave `status` undefined and `permanent` false; an injected
+factory may provide more information. The flag is classification metadata for
+reconnect policy; this change does not add a new retry policy.
+
+Original transport errors are chained as Python `__cause__` or TypeScript `cause`.
+Request failures, notification/subscription iterators, and the WebSocket
+transport's `closed` result preserve SDK error types. TypeScript now exposes
+`transport.closed`, resolving with the typed failure or `undefined` after explicit
+normal close; Python keeps its existing future, with `None` after normal close.
+
+Regenerate SDKs to obtain these types and runtime changes. Existing Python
+`except RpcClientError` / `except RpcTransportError` clauses continue to catch the
+new subclasses; code that caught raw socket exceptions should move to the client
+hierarchy. Generated schemas cannot shadow the new exported runtime error names.
+
 The exact client class, method arguments, endpoint names, and server variables
 come from the document. See
 [`examples/generated_clients`](../examples/generated_clients) for complete

@@ -143,13 +143,19 @@ export class RpcTransportPool implements RpcTransportSource {
     this.#initialDelayMs = options.reconnectInitialDelayMs ?? 250;
     this.#maxDelayMs = options.reconnectMaxDelayMs ?? 5_000;
     if (this.#initialDelayMs <= 0 || this.#maxDelayMs < this.#initialDelayMs) {
-      throw new Error("Invalid reconnect backoff delays");
+      throw new RpcTransportError("Invalid reconnect backoff delays");
     }
   }
 
   get(server?: string): Promise<RpcTransport> {
     if (this.#closed)
-      return Promise.reject(new Error("The RPC client is closed"));
+      return Promise.reject(
+        new RpcConnectionLostError(
+          false,
+          undefined,
+          "The RPC client is closed",
+        ),
+      );
     const name = this.#serverName(server);
     let transport = this.#transports.get(name);
     if (transport === undefined) {
@@ -186,12 +192,20 @@ export class RpcTransportPool implements RpcTransportSource {
         this.#everConnected.add(name);
         return opened;
       } catch (error) {
-        if (!this.reconnect || !this.#everConnected.has(name)) throw error;
+        if (!this.reconnect || !this.#everConnected.has(name)) {
+          throw error instanceof RpcClientError
+            ? error
+            : RpcConnectError.fromCause(error);
+        }
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(delay * 2, this.#maxDelayMs);
       }
     }
-    throw new Error("The RPC client is closed");
+    throw new RpcConnectionLostError(
+      false,
+      undefined,
+      "The RPC client is closed",
+    );
   }
 
   async openAll(): Promise<void> {
@@ -219,10 +233,12 @@ export class RpcTransportPool implements RpcTransportSource {
   #serverName(server?: string): string {
     if (server !== undefined) {
       if (this.#endpoints.has(server)) return server;
-      throw new Error(`No endpoint is configured for server ${server}`);
+      throw new RpcTransportError(
+        `No endpoint is configured for server ${server}`,
+      );
     }
     if (this.#endpoints.size === 1) return [...this.#endpoints.keys()][0];
-    throw new Error(
+    throw new RpcTransportError(
       "The route has no server and cannot be dispatched across multiple transports",
     );
   }
@@ -245,13 +261,15 @@ class StaticTransports implements RpcTransportSource {
       const transport = this.#transports?.[server];
       if (transport !== undefined) return Promise.resolve(transport);
       return Promise.reject(
-        new Error(`No transport is configured for server ${server}`),
+        new RpcTransportError(
+          `No transport is configured for server ${server}`,
+        ),
       );
     }
     const transports = Object.values(this.#transports ?? {});
     if (transports.length === 1) return Promise.resolve(transports[0]);
     return Promise.reject(
-      new Error(
+      new RpcTransportError(
         "The route has no server and cannot be dispatched across multiple transports",
       ),
     );
@@ -265,7 +283,116 @@ class StaticTransports implements RpcTransportSource {
   }
 }
 
-export class RpcRemoteError extends Error {
+type RpcErrorOptions = { readonly cause?: unknown };
+
+export class RpcClientError extends Error {
+  declare readonly cause?: unknown;
+
+  constructor(message: string, options?: RpcErrorOptions) {
+    super(message);
+    if (options && "cause" in options) {
+      Object.defineProperty(this, "cause", {
+        value: options.cause,
+        writable: true,
+        configurable: true,
+      });
+    }
+    this.name = new.target.name;
+  }
+}
+
+export class RpcTransportError extends RpcClientError {}
+
+export class RpcRequestTimeoutError extends RpcTransportError {
+  constructor(
+    readonly method: string,
+    readonly timeout: number | undefined,
+  ) {
+    super(
+      `RPC request ${method} timed out after ${timeout}ms (request timeout)`,
+    );
+  }
+}
+
+export class RpcConnectionLostError extends RpcTransportError {
+  constructor(
+    readonly sent: boolean,
+    readonly code: number | undefined = undefined,
+    readonly reason = "",
+    options?: RpcErrorOptions,
+  ) {
+    super(`RPC connection lost (${code}): ${reason}`, options);
+  }
+
+  static fromCause(error: unknown, sent: boolean): RpcConnectionLostError {
+    const { code, reason } = closeInfo(error);
+    return new RpcConnectionLostError(sent, code, reason, {
+      cause:
+        error instanceof RpcConnectionLostError
+          ? (error.cause ?? error)
+          : error,
+    });
+  }
+}
+
+export class RpcConnectError extends RpcTransportError {
+  constructor(
+    message: string,
+    readonly permanent = false,
+    readonly status: number | undefined = undefined,
+    readonly code: number | undefined = undefined,
+    options?: RpcErrorOptions,
+  ) {
+    super(message, options);
+  }
+
+  static fromCause(error: unknown): RpcConnectError {
+    const source = errorObject(error);
+    const response = errorObject(source.response);
+    const value =
+      response.status_code ??
+      response.statusCode ??
+      source.status_code ??
+      source.statusCode ??
+      source.status;
+    const status = typeof value === "number" ? value : undefined;
+    const { code } = closeInfo(error);
+    return new RpcConnectError(
+      `Could not open the RPC connection: ${String(error)}`,
+      status === 401 || status === 403 || status === 404 || code === 1008,
+      status,
+      code,
+      { cause: error },
+    );
+  }
+}
+
+function errorObject(error: unknown): Record<string, unknown> {
+  return typeof error === "object" && error !== null
+    ? (error as Record<string, unknown>)
+    : {};
+}
+
+function closeInfo(error: unknown): { code?: number; reason: string } {
+  const source = errorObject(error);
+  const received = errorObject(source.rcvd);
+  const code =
+    received.code ??
+    source.raw_close_code ??
+    source.close_code ??
+    source.closeCode ??
+    source.code;
+  const reason = received.reason ?? source.reason ?? source.close_reason;
+  return {
+    code: typeof code === "number" ? code : undefined,
+    reason:
+      typeof reason === "string"
+        ? reason
+        : String(error ?? "The WebSocket is closed"),
+  };
+}
+
+export class RpcRemoteError extends RpcClientError {
   constructor(
     readonly rpcCode: number,
     readonly code: string,
@@ -277,7 +404,7 @@ export class RpcRemoteError extends Error {
   }
 }
 
-export class RpcConnectionClosed extends Error {
+export class RpcConnectionClosed extends RpcClientError {
   constructor(
     readonly code: number | undefined,
     readonly reason: string,
@@ -288,13 +415,13 @@ export class RpcConnectionClosed extends Error {
 }
 
 /** No opener was configured for a stream or raw socket of this client. */
-export class RpcStreamsUnavailableError extends Error {}
+export class RpcStreamsUnavailableError extends RpcClientError {}
 
 /** Raised when a stream or raw socket ended because the server closed it. */
-export class RpcStreamClosed extends Error {}
+export class RpcStreamClosed extends RpcClientError {}
 
 /** Raised when the server closed a stream or raw socket with an error code. */
-export class RpcStreamFailed extends Error {
+export class RpcStreamFailed extends RpcClientError {
   readonly code: number;
   readonly reason: string;
 
@@ -395,6 +522,7 @@ export class RpcClientCore {
     const transport = await withTimeout(
       this.#transportFor(route.server),
       this.#source.requestTimeoutMs,
+      route.method,
     );
     const result = await transport.request(route.method, payload);
     for (const hook of [...this.#hooks].reverse()) {
@@ -432,7 +560,7 @@ export class RpcClientCore {
         this.#hubs.set(transport, hub);
       }
       if (hub.ended !== undefined) {
-        throw new Error("The notification stream is closed");
+        throw new RpcTransportError("The notification stream is closed");
       }
       hub.subscribers.add(subscriber);
       if (!hub.pumping) {
@@ -452,7 +580,7 @@ export class RpcClientCore {
           !("subscriptionId" in result) ||
           typeof result.subscriptionId !== "string"
         ) {
-          throw new Error("Invalid subscription response");
+          throw new RpcTransportError("Invalid subscription response");
         }
         subscriptionId = result.subscriptionId;
         for await (const message of subscriber.queue) {
@@ -480,7 +608,7 @@ export class RpcClientCore {
               !("code" in error.data) ||
               typeof error.data.code !== "string"
             ) {
-              throw new Error("Invalid subscription error");
+              throw new RpcTransportError("Invalid subscription error");
             }
             const details =
               "details" in error.data ? error.data.details : undefined;
@@ -500,7 +628,9 @@ export class RpcClientCore {
             );
           }
           if (!("payload" in values)) {
-            throw new Error("Subscription notification has no payload");
+            throw new RpcTransportError(
+              "Subscription notification has no payload",
+            );
           }
           yield values.payload as Payload;
         }
@@ -572,7 +702,7 @@ export class RpcClientCore {
     try {
       for await (const message of transport.notifications()) {
         if (!isNotification(message)) {
-          throw new Error(
+          throw new RpcTransportError(
             "The transport returned an invalid JSON-RPC notification",
           );
         }
@@ -584,13 +714,22 @@ export class RpcClientCore {
       hub.ended = {};
       for (const subscriber of hub.subscribers) subscriber.queue.end();
     } catch (error) {
-      hub.ended = { error };
-      for (const subscriber of hub.subscribers) subscriber.queue.fail(error);
+      const failure =
+        error instanceof RpcClientError
+          ? error
+          : RpcConnectionLostError.fromCause(error, false);
+      hub.ended = { error: failure };
+      for (const subscriber of hub.subscribers) subscriber.queue.fail(failure);
     }
   }
 
   #transportFor(server?: string): Promise<RpcTransport> {
-    if (this.#closed) throw new Error("The RPC client is closed");
+    if (this.#closed)
+      throw new RpcConnectionLostError(
+        false,
+        undefined,
+        "The RPC client is closed",
+      );
     return this.#source.get(server);
   }
 }
@@ -655,12 +794,13 @@ class AsyncQueue<Value> implements AsyncIterableIterator<Value> {
 function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number | undefined,
+  method: string,
 ): Promise<T> {
   if (timeoutMs === undefined) return promise;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {
     timer = setTimeout(
-      () => reject(new Error("Could not connect within the request timeout")),
+      () => reject(new RpcRequestTimeoutError(method, timeoutMs)),
       timeoutMs,
     );
   });
