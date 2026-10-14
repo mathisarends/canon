@@ -7,7 +7,10 @@ from .endpoints import Endpoint, ServerName
 from .errors import ApprovalUnavailableError
 from .handlers import BrowserDialogsHandler, Handler, TasksHandler, handler_dispatcher
 from .internal import (
+    RpcClientCall,
+    RpcClientCallOutcome,
     RpcClientError,
+    RpcClientMiddleware,
     RpcConnectError,
     RpcConnectionClosed,
     RpcConnectionLostError,
@@ -95,7 +98,10 @@ __all__ = [
     "RawSocketOpener",
     "RawSocketTransport",
     "RawWebSocketStream",
+    "RpcClientCall",
+    "RpcClientCallOutcome",
     "RpcClientError",
+    "RpcClientMiddleware",
     "RpcConnectError",
     "RpcConnectionClosed",
     "RpcConnectionLostError",

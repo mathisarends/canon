@@ -50,6 +50,7 @@ export type RpcRouteInfo<
 > = {
   readonly method: string;
   readonly idempotent?: boolean;
+  readonly validateResult?: (result: unknown) => unknown;
   readonly server?: string;
   readonly errorMapper?: (
     rpcCode: number,
@@ -87,6 +88,44 @@ export type RpcClientHook = {
   beforeRequest?(route: RpcRouteInfo, params?: object): void | Promise<void>;
   afterResponse?(route: RpcRouteInfo, result: unknown): void | Promise<void>;
 };
+
+export type RpcClientCallOutcome =
+  | { readonly result: unknown; readonly duration: number }
+  | { readonly error: unknown; readonly duration: number };
+
+export type RpcClientCall = {
+  readonly route: RpcRouteInfo;
+  params?: object;
+  readonly server?: string;
+  readonly attempt: number;
+  readonly callId: string;
+  transport?: RpcTransport;
+  outcome?: RpcClientCallOutcome;
+  readonly duration?: number;
+};
+
+export type RpcClientMiddleware = {
+  request(
+    call: RpcClientCall,
+    next: () => Promise<unknown>,
+  ): void | Promise<unknown>;
+};
+
+let nextLogicalCallId = 1;
+
+class AttemptFailure {
+  constructor(
+    readonly error: unknown,
+    readonly retryable: boolean,
+  ) {}
+}
+
+class AttemptResult {
+  constructor(
+    readonly raw: unknown,
+    readonly value: unknown,
+  ) {}
+}
 
 type JsonRpcNotification = {
   readonly method: string;
@@ -549,6 +588,15 @@ export class RpcClientError extends Error {
 
 export class RpcTransportError extends RpcClientError {}
 
+export class RpcResponseValidationError extends RpcClientError {
+  constructor(
+    readonly method: string,
+    options?: RpcErrorOptions,
+  ) {
+    super(`Invalid response for RPC method ${method}`, options);
+  }
+}
+
 export class RpcRequestTimeoutError extends RpcTransportError {
   constructor(
     readonly method: string,
@@ -683,6 +731,7 @@ export class RpcStreamFailed extends RpcClientError {
 export class RpcStreamRefused extends RpcStreamFailed {}
 
 export class RpcClientCore {
+  readonly #middleware: readonly RpcClientMiddleware[];
   readonly #retryAttempts: number;
   readonly #retryAttemptTimeoutMs?: number;
   readonly #source: RpcTransportSource;
@@ -727,6 +776,7 @@ export class RpcClientCore {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
@@ -742,6 +792,7 @@ export class RpcClientCore {
     void this.#source.closed?.then(this.#resolveClosed, this.#resolveClosed);
     this.#closeTransport = options?.closeTransport ?? true;
     this.#hooks = options?.hooks ?? [];
+    this.#middleware = options?.middleware ?? [];
     this.#retryAttempts = options?.retryAttempts ?? 0;
     this.#retryAttemptTimeoutMs = options?.retryAttemptTimeoutMs;
     if (!Number.isInteger(this.#retryAttempts) || this.#retryAttempts < 0)
@@ -823,6 +874,7 @@ export class RpcClientCore {
     }
     if (signal?.aborted) throw signal.reason;
     const controller = new AbortController();
+    const callId = String(nextLogicalCallId++);
     const closing = () =>
       controller.abort(
         new RpcConnectionLostError(false, undefined, "The client was closed"),
@@ -839,10 +891,14 @@ export class RpcClientCore {
             options,
             controller.signal,
             attempt,
+            callId,
           );
-        } catch (error) {
+        } catch (failure) {
+          const error =
+            failure instanceof AttemptFailure ? failure.error : failure;
           if (
             controller.signal.aborted ||
+            (failure instanceof AttemptFailure && !failure.retryable) ||
             this.#closed ||
             attempt > this.#retryAttempts ||
             !(
@@ -889,13 +945,20 @@ export class RpcClientCore {
     }
     for (const hook of [...this.#hooks].reverse()) {
       await withTimeout(
-        Promise.resolve(hook.afterResponse?.(route, result)),
+        Promise.resolve(
+          hook.afterResponse?.(
+            route,
+            result instanceof AttemptResult ? result.raw : result,
+          ),
+        ),
         undefined,
         route.method,
         signal,
       );
     }
-    return result as RouteResult<Route>;
+    return (
+      result instanceof AttemptResult ? result.value : result
+    ) as RouteResult<Route>;
   }
 
   async #requestAttempt(
@@ -903,11 +966,46 @@ export class RpcClientCore {
     payload: object | undefined,
     options: RpcRequestOptions | undefined,
     signal: AbortSignal,
-    _attempt: number,
+    attempt: number,
+    callId: string,
+  ): Promise<unknown> {
+    if (this.#middleware.length > 0)
+      return this.#scopedAttempt(
+        route,
+        payload,
+        options,
+        signal,
+        attempt,
+        callId,
+      );
+    const raw = await this.#wireAttempt(route, payload, options, signal);
+    if (route.validateResult === undefined) return raw;
+    try {
+      return new AttemptResult(raw, route.validateResult(raw));
+    } catch (cause) {
+      throw new RpcResponseValidationError(route.method, { cause });
+    }
+  }
+
+  async #wireAttempt(
+    route: RpcRouteInfo,
+    payload: object | undefined,
+    options: RpcRequestOptions | undefined,
+    signal: AbortSignal | undefined,
+    knownTransport?: RpcTransport,
+    call?: RpcClientCall,
   ): Promise<unknown> {
     const controller = new AbortController();
     const operation = (async () => {
-      const transport = await this.#transportFor(route.server);
+      const transport =
+        knownTransport ??
+        (await withTimeout(
+          this.#transportFor(route.server),
+          undefined,
+          route.method,
+          controller.signal,
+        ));
+      if (call !== undefined) call.transport = transport;
       if (controller.signal.aborted) throw controller.signal.reason;
       return transport.request(route.method, payload, {
         ...options,
@@ -921,6 +1019,193 @@ export class RpcClientCore {
       signal,
       (error) => controller.abort(error),
     );
+  }
+
+  async #scopedAttempt(
+    route: RpcRouteInfo,
+    payload: object | undefined,
+    options: RpcRequestOptions | undefined,
+    signal: AbortSignal | undefined,
+    attempt: number,
+    callId: string,
+    transport?: RpcTransport,
+  ): Promise<unknown> {
+    const started = performance.now();
+    let copied = payload;
+    let inputError: RpcTransportError | undefined;
+    try {
+      if (payload !== undefined) copied = JSON.parse(JSON.stringify(payload));
+    } catch (cause) {
+      inputError = new RpcTransportError(
+        "RPC request parameters are not JSON serializable",
+        { cause },
+      );
+    }
+    const local = new AbortController();
+    const abort = () => local.abort(signal?.reason);
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+    const call: RpcClientCall = {
+      route,
+      params: copied,
+      attempt,
+      callId,
+      server: route.server,
+      transport,
+      get duration() {
+        return this.outcome?.duration;
+      },
+    };
+    let retryable = false;
+    let rawResult: unknown;
+    const invoke = async (index: number): Promise<unknown> => {
+      const middleware = this.#middleware[index];
+      if (middleware === undefined) {
+        if (inputError !== undefined) {
+          call.outcome = {
+            error: inputError,
+            duration: (performance.now() - started) / 1000,
+          };
+          throw inputError;
+        }
+        let raw: unknown;
+        try {
+          raw = await this.#wireAttempt(
+            route,
+            call.params,
+            options,
+            local.signal,
+            transport,
+            call,
+          );
+        } catch (error) {
+          retryable =
+            error instanceof RpcConnectionLostError ||
+            error instanceof RpcRequestTimeoutError;
+          call.outcome = {
+            error,
+            duration: (performance.now() - started) / 1000,
+          };
+          throw error;
+        }
+        let result = raw;
+        rawResult = raw;
+        try {
+          if (route.validateResult !== undefined)
+            result = route.validateResult(raw);
+        } catch (cause) {
+          const error = new RpcResponseValidationError(route.method, { cause });
+          call.outcome = {
+            error,
+            duration: (performance.now() - started) / 1000,
+          };
+          throw error;
+        }
+        call.outcome = {
+          result: raw,
+          duration: (performance.now() - started) / 1000,
+        };
+        return result;
+      }
+      let next: Promise<unknown> | undefined;
+      const proceed = () => {
+        if (next !== undefined)
+          throw new Error("RPC client middleware called next() twice");
+        next = invoke(index + 1);
+        void next.catch(() => {});
+        return next;
+      };
+      try {
+        await withTimeout(
+          Promise.resolve(middleware.request(call, proceed)),
+          undefined,
+          route.method,
+          local.signal,
+        );
+      } catch (cleanup) {
+        if (
+          next !== undefined &&
+          call.outcome !== undefined &&
+          "error" in call.outcome
+        ) {
+          try {
+            await next;
+          } catch (original) {
+            if (original !== cleanup)
+              console.error("RPC client middleware cleanup failed", cleanup);
+            throw original;
+          }
+        }
+        local.abort(cleanup);
+        if (next !== undefined) await next.catch(() => {});
+        retryable = false;
+        call.outcome = {
+          error: cleanup,
+          duration: (performance.now() - started) / 1000,
+        };
+        throw cleanup;
+      }
+      if (next === undefined)
+        throw new Error("RPC client middleware must call next()");
+      return next;
+    };
+    try {
+      const value = await invoke(0);
+      return new AttemptResult(rawResult, value);
+    } catch (error) {
+      if (call.outcome === undefined || "result" in call.outcome)
+        call.outcome = {
+          error,
+          duration: (performance.now() - started) / 1000,
+        };
+      if (
+        transport === undefined &&
+        (error instanceof RpcConnectionLostError ||
+          error instanceof RpcRequestTimeoutError)
+      )
+        throw new AttemptFailure(error, retryable);
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+    }
+  }
+
+  #controlRequest(
+    transport: RpcTransport,
+    method: string,
+    params: object | undefined,
+    server: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    if (this.#middleware.length === 0)
+      return transport.request(
+        method,
+        params,
+        signal === undefined ? undefined : { signal },
+      );
+    return this.#scopedAttempt(
+      {
+        method,
+        server,
+        validateResult: (result) => {
+          if (
+            method.endsWith(".subscribe") &&
+            (typeof result !== "object" ||
+              result === null ||
+              !("subscriptionId" in result) ||
+              typeof result.subscriptionId !== "string")
+          )
+            throw new Error("Invalid subscription response");
+          return result;
+        },
+      },
+      params,
+      undefined,
+      signal,
+      1,
+      String(nextLogicalCallId++),
+      transport,
+    ).then((result) => (result instanceof AttemptResult ? result.raw : result));
   }
 
   notifications<Payload>(
@@ -973,10 +1258,12 @@ export class RpcClientCore {
       }
       let subscriptionId: string | undefined;
       try {
-        const result = await transport.request(
+        const result = await this.#controlRequest(
+          transport,
           `${route.method}.subscribe`,
           params === undefined ? undefined : withoutUndefined(params),
-          { signal },
+          route.server,
+          signal,
         );
         if (
           typeof result !== "object" ||
@@ -1054,9 +1341,14 @@ export class RpcClientCore {
         hub.subscribers.delete(subscriber);
         if (subscriptionId !== undefined) {
           try {
-            await transport.request(`${route.method}.unsubscribe`, {
-              subscriptionId,
-            });
+            await this.#controlRequest(
+              transport,
+              `${route.method}.unsubscribe`,
+              {
+                subscriptionId,
+              },
+              route.server,
+            );
           } catch {
             /* the connection may already be closed */
           }

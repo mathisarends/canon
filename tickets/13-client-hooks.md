@@ -1,6 +1,6 @@
 # 13: Client hooks for errors and per-call state
 
-- **Status:** open
+- **Status:** done ([PR #36](https://github.com/mathisarends/pyrpckit/pull/36))
 - **Priority:** medium
 - **Area:** generated clients (Python `runtime/core.py.j2`, TS `core.ts.j2`)
 - **Depends on:** 04

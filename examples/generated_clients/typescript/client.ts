@@ -6,6 +6,7 @@ import {
   RpcClientCore,
   RpcTransportPool,
   type RpcClientHook,
+  type RpcClientMiddleware,
   type RpcConnectionState,
   type RpcNotificationOverflowHandler,
   type RpcTransport,
@@ -62,6 +63,7 @@ export class AutomationClient {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
@@ -82,6 +84,7 @@ export class AutomationClient {
     options?: {
       readonly closeTransport?: boolean;
       readonly hooks?: readonly RpcClientHook[];
+      readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
       readonly notificationQueueSize?: number;
@@ -126,6 +129,7 @@ export class AutomationClient {
       readonly rawSocketFactory?: RawWebSocketFactory;
       readonly rawSocketQueueSize?: number;
       readonly hooks?: readonly RpcClientHook[];
+      readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
       readonly retryAttemptTimeoutMs?: number;
     } = {},
@@ -174,6 +178,7 @@ export class AutomationClient {
     if (!options.lazy) await pool.openAll();
     return new AutomationClient(pool, {
       hooks: options.hooks,
+      middleware: options.middleware,
       retryAttempts: options.retryAttempts,
       retryAttemptTimeoutMs: options.retryAttemptTimeoutMs,
       notificationQueueSize: options.notificationQueueSize,

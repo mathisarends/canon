@@ -19,30 +19,35 @@ from automation_client.models import (
 TASKS_LIST: RpcRouteInfo[None, TaskList] = RpcRouteInfo(
     method="tasks.list",
     result_adapter=TypeAdapter(TaskList),
+    params_adapter=TypeAdapter(None),
     server="production",
 )
 
 TASKS_CREATE: RpcRouteInfo[CreateTaskParams, Task] = RpcRouteInfo(
     method="tasks.create",
     result_adapter=TypeAdapter(Task),
+    params_adapter=TypeAdapter(CreateTaskParams),
     server="production",
 )
 
 TASKS_DELETE: RpcRouteInfo[DeleteTaskParams, bool] = RpcRouteInfo(
     method="tasks.delete",
     result_adapter=TypeAdapter(bool),
+    params_adapter=TypeAdapter(DeleteTaskParams),
     server="production",
 )
 
 BROWSER_TABS_OPEN: RpcRouteInfo[OpenTabParams, Tab] = RpcRouteInfo(
     method="browser.tabs.open",
     result_adapter=TypeAdapter(Tab),
+    params_adapter=TypeAdapter(OpenTabParams),
     server="browser",
 )
 
 BROWSER_SCREENCAST_START: RpcRouteInfo[StartScreencastParams, None] = RpcRouteInfo(
     method="browser.screencast.start",
     result_adapter=TypeAdapter(None),
+    params_adapter=TypeAdapter(StartScreencastParams),
     server="streaming",
 )
 

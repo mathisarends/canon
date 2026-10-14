@@ -592,3 +592,80 @@ carries a one-based attempt number for per-attempt middleware. Regenerate both
 SDKs to acquire retry options and idempotency metadata; method signatures and
 existing execution behavior remain unchanged until retry is enabled. Idempotency
 keys for non-idempotent work are a separate future extension.
+## Client middleware and per-attempt outcomes
+
+Pass `middleware=` / `middleware` to constructors, `with_transports` /
+`withTransports`, or `connect`. The default is empty. Python middleware supplies
+an async context manager; TypeScript supplies `request(call, next)` and awaits
+`next()` exactly once. Registration order is outer-to-inner; teardown reverses it.
+
+```python
+from contextlib import asynccontextmanager
+
+
+class Metrics:
+    @asynccontextmanager
+    async def request(self, call):
+        local_state = start_metric(call.route.method)
+        try:
+            yield
+        finally:
+            finish_metric(local_state, call.outcome)
+```
+
+```typescript
+const metrics = {
+  async request(call: RpcClientCall, next: () => Promise<unknown>) {
+    const localState = startMetric(call.route.method);
+    try {
+      await next();
+    } finally {
+      finishMetric(localState, call.outcome);
+    }
+  },
+};
+```
+
+Import the call/middleware types from the generated package. Metric functions are
+application-owned. `route`, JSON `params`, `server`, `transport`, one-based
+`attempt`, and `call_id` / `callId` are available on each call. Each retry has a
+fresh scope and the same logical ID, which is local correlation metadata rather
+than a wire ID. Failed acquisition leaves `transport` unset. After the body,
+`outcome` records result or original error and `duration`; `call.duration` reads
+the same value. Durations use **seconds in both SDKs**, start after initial JSON
+normalization, and include middleware entry, connection acquisition, send/wait,
+and response validation. They exclude retry backoff and normal teardown. For
+subscription control calls, the iterator has already acquired its transport;
+that acquisition is outside the subscribe/unsubscribe call scope.
+
+Caller cancellation keeps `CancelledError` and its message in Python, and the
+exact AbortSignal reason in TypeScript. A whole-call timeout during an attempt
+is observable as `RpcRequestTimeoutError`. If teardown also fails, the original
+error wins and the cleanup failure is logged; after a successful body, a teardown
+failure becomes the application error. Middleware application errors never cause
+automatic retry, even when their class is otherwise retryable. Python managers
+cannot suppress RPC failures. TypeScript ignores replacement return values and
+requires `next()` once, so instrumentation cannot silently skip or duplicate a
+wire call. Async middleware and custom adapters must cooperate with cancellation.
+
+Each attempt receives its own JSON params copy. Python validates modified params
+against the generated params adapter before send. TypeScript keeps its generated
+static types and validates serialization at the transport boundary; it does not
+gain a full runtime schema validator. Custom TypeScript routes may provide a
+synchronous `validateResult` callback; failures become `RpcResponseValidationError`
+and are visible to middleware. Python keeps Pydantic response validation. Treat
+outcome/routing fields as read-only; mutate `params` before yielding/calling next.
+Keep per-request tracing metadata separate from user params.
+
+Legacy `RpcClientHook` stays supported: before once per logical call, after once
+on the eventual success with raw JSON, outside per-attempt middleware. It does
+not gain error callbacks. With middleware enabled, response validation completes
+before that success hook. Legacy-hook failures and a deadline exhausted during
+backoff occur outside attempt scopes. Use middleware for per-attempt metrics,
+errors, and local span state; group attempts by logical ID for logical-call
+metrics. Subscribe and unsubscribe scopes are observable but never enter ordinary
+method retry. Passive notification payload delivery does not create request scopes.
+
+Regenerate both SDKs to obtain the optional middleware API and route adapters.
+Existing method signatures, transport adapters, and empty-middleware execution
+remain compatible. Python and TypeScript SDKs have no new dependency on tracing.

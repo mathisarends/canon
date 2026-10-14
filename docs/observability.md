@@ -206,3 +206,22 @@ Generated-client instrumentation, browser trace propagation, and OTEL log
 exporting are separate from this server-side integration.
 
 [Back to documentation](README.md)
+## Observe generated-client calls
+
+Generated clients accept `middleware` in addition to legacy success hooks. Wrap
+each attempt with a Python async context manager or a TypeScript `request(call,
+next)` function, retain local span/metric state in that block, and inspect
+`call.outcome` during teardown. Registration order nests middleware. The call
+includes its route/server, selected transport when acquired, one-based attempt,
+shared logical ID, JSON params, and duration in seconds. See the
+[client middleware guide](clients.md#client-middleware-and-per-attempt-outcomes)
+for timing, mutation, retry, and cancellation rules.
+
+Outcome errors include remote/domain failures, connection/acquisition failures,
+response validation, timeout, and caller cancellation. Failed attempts and
+subscribe/unsubscribe control calls are observable. Keep tracing/export callbacks
+cancellation-aware: the SDK preserves the original operation error if cleanup
+also fails, while cleanup-only failures remain application errors and do not
+retry. Legacy hooks stay once per logical call and remain success-oriented.
+Log safe method/server/attempt/error-class fields; params, peer reasons, and
+diagnostic causes can carry sensitive application or credential data.

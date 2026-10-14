@@ -3,7 +3,7 @@
 
 from .client_methods import RpcClientMethodDispatcher, RpcClientMethodInfo
 from .connection import ClientConnection, RpcTransportPool
-from .core import RpcClientCore, RpcClientHook, RpcTransportSource
+from .core import RpcClientCore, RpcClientHook, RpcClientMiddleware, RpcTransportSource
 from .errors import (
     RpcClientError,
     RpcConnectError,
@@ -21,6 +21,8 @@ from .errors import (
 )
 from .metadata import (
     JsonValue,
+    RpcClientCall,
+    RpcClientCallOutcome,
     RpcConnectionState,
     RpcContractInfo,
     RpcNotificationInfo,
@@ -37,11 +39,14 @@ from .unset import UNSET, UnsetType
 __all__ = [
     "ClientConnection",
     "JsonValue",
+    "RpcClientCall",
+    "RpcClientCallOutcome",
     "RpcClientCore",
     "RpcClientError",
     "RpcClientHook",
     "RpcClientMethodDispatcher",
     "RpcClientMethodInfo",
+    "RpcClientMiddleware",
     "RpcConnectError",
     "RpcConnectionClosed",
     "RpcConnectionLostError",
