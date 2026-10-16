@@ -62,11 +62,13 @@ LF/CRLF/CR, multiline data, comments, heartbeats and final EOF events.
 
 Python accepts an injected `httpx.AsyncClient` and per-call `RequestOptions`.
 Injected clients stay caller-owned. Cancelling a consuming task closes its
-response. Use `aclosing` for deterministic cleanup when exiting early:
+response.
 
 Requests inherit an injected HTTPX client's timeout unless explicitly overridden
 with `RequestOptions(timeout=seconds)`. `RequestOptions(timeout=None)` disables
 timeouts for that request. The SDK-owned client defaults to no timeout for streams.
+
+Use `aclosing` for deterministic cleanup when exiting early:
 
 ```python
 from contextlib import aclosing
