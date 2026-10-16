@@ -36,6 +36,7 @@ def main() -> None:
         "pyproject.toml",
         "--extra",
         "codegen",
+        "httpx>=0.28",
     )
     # Keep test tooling current; only the published runtime/codegen bounds vary.
     run("uv", "pip", "install", "--python", str(python), "--group", "test")
