@@ -372,6 +372,7 @@ async def test_python_stream_close_cancellation_and_validation():
         assert source.closed
 
 
+@pytest.mark.snapshot
 def test_python_codegen_cli_and_snapshot(tmp_path):
     from examples.agent_runs import app
 

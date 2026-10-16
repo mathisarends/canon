@@ -10,6 +10,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -35,8 +36,15 @@ jobs:
       - run: uv run pylint fastapi_streams
       - run: uv run pre-commit run --all-files
       - run: npm run typecheck
-      - run: npm test
-      - run: uv run pytest -q
+      - run: npm run test:coverage
+      - run: uv run pytest -q --cov --cov-report=term-missing --cov-report=xml:coverage-python.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-python-${{ matrix.python }}
+          path: |
+            coverage-python.xml
+            coverage-typescript.lcov
       - run: uv run python scripts/codegen.py --check
       - run: uv build
       - run: uv run --isolated --no-project --with ./dist/fastapi_streams-0.1.0-py3-none-any.whl python -I scripts/smoke_package.py --core-only

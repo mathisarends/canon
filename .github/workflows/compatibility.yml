@@ -1,0 +1,47 @@
+name: Dependency compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 7 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }} / ${{ matrix.dependencies }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.12', '3.13', '3.14']
+        dependencies: [lowest, latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.2'
+          enable-cache: true
+      - run: npm ci --ignore-scripts
+      - name: Resolve dependencies and run native FastAPI and client integration tests
+        run: python scripts/test_compat.py --python ${{ matrix.python }} --dependencies ${{ matrix.dependencies }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compatibility-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.dependencies }}
+          include-hidden-files: true
+          path: |
+            .pytest_cache/dependencies-*.txt
+            .pytest_cache/results-*.xml
