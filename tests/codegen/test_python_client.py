@@ -40,6 +40,37 @@ class Chunks(httpx.AsyncByteStream):
         self.closed = True
 
 
+class FailingChunks(Chunks):
+    async def __aiter__(self):
+        async for chunk in super().__aiter__():
+            yield chunk
+        raise httpx.ReadError("connection lost")
+
+
+@pytest.mark.parametrize("chunks", [[], [b'{"detail":']])
+async def test_failed_error_body_preserves_status_response_and_cause(chunks):
+    source = FailingChunks(chunks)
+    async with (
+        httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    503, headers={"X-Error": "upstream"}, stream=source
+                )
+            )
+        ) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        with pytest.raises(HttpError) as raised:
+            _ = [
+                event async for event in client.agent_runs.stream_run_events(run_id="x")
+            ]
+        assert raised.value.status == 503
+        assert raised.value.response.headers["X-Error"] == "upstream"
+        assert isinstance(raised.value.__cause__, httpx.ReadError)
+        assert raised.value.details == ('{"detail":' if chunks else None)
+        assert source.closed
+
+
 def test_optional_literal_defaults_produce_valid_discriminator_models(tmp_path):
     from examples.agent_runs import app
 

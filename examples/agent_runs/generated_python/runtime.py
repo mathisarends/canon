@@ -171,10 +171,14 @@ class Transport:
             ) as response:
                 if not response.is_success:
                     raw = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        raw.extend(chunk[: 65536 - len(raw)])
-                        if len(raw) >= 65536:
-                            break
+                    failure: httpx.HTTPError | None = None
+                    try:
+                        async for chunk in response.aiter_bytes():
+                            raw.extend(chunk[: 65536 - len(raw)])
+                            if len(raw) >= 65536:
+                                break
+                    except httpx.HTTPError as exc:
+                        failure = exc
                     text = raw.decode("utf-8", errors="replace")
                     try:
                         details = (
@@ -182,7 +186,7 @@ class Transport:
                         )
                     except ValidationError:
                         details = text
-                    raise HttpError(response, details)
+                    raise HttpError(response, details) from failure
                 media = (
                     response.headers.get("content-type", "")
                     .split(";", 1)[0]
