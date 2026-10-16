@@ -81,7 +81,7 @@ class StreamRouter(APIRouter):
             method.upper() for method in (methods if methods is not None else ["GET"])
         ]
         if not selected or not set(selected) <= {"GET", "POST"}:
-            raise ValueError("v0.1 streams support GET and POST only")
+            raise ValueError("Streams support GET and POST only")
         if "response_class" in options or "response_model" in options:
             raise TypeError(
                 "Streams infer their response model and use EventSourceResponse"

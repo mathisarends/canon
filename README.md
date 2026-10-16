@@ -211,7 +211,7 @@ and committed OpenAPI regression fixtures in `tests/fixtures/`. Verify all gener
 | [Architecture](docs/architecture.md) | Native SSE, shared IR, templates, and transports. |
 | [Development](docs/development.md) | Tests, supported scope, and roadmap. |
 
-v0.1 supports GET/POST JSON SSE streams. Ordinary REST endpoints stay in the
+v0.0.1 supports GET/POST JSON SSE streams. Ordinary REST endpoints stay in the
 contract for your existing REST SDK. See the [supported scope](docs/development.md#supported-scope-and-roadmap).
 
 Python 3.12+ · FastAPI 0.143.3+ · Pydantic v2 · [MIT](LICENSE)

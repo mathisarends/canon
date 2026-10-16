@@ -74,7 +74,7 @@ async def stream_prompt(run_id: str, body: RunRequest) -> AsyncIterator[RunEvent
     yield RunCompleted(type="run.completed", run_id=run_id)
 
 
-app = FastAPI(title="Agent runs", version="0.1.0")
+app = FastAPI(title="Agent runs", version="0.0.1")
 app.include_router(router, prefix="/v1")
 
 

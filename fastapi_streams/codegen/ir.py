@@ -236,9 +236,7 @@ class _Types:
             return Scalar(kind)
         if kind == "array":
             if "prefixItems" in node:
-                raise ContractError(
-                    "Tuple schemas (prefixItems) are not supported in v0.1"
-                )
+                raise ContractError("Tuple schemas (prefixItems) are not supported")
             return Array(self.parse(node.get("items", {})))
         if kind == "object" or "properties" in node or "additionalProperties" in node:
             properties: Document = node.get("properties", {})
