@@ -50,10 +50,10 @@ export function appendQuery(
 export function setHeader(
   headers: Headers,
   name: string,
-  value: string | number | boolean | null | readonly (string | number | boolean | null)[] | undefined,
+  value: string | number | boolean | null | undefined,
 ): void {
   if (value !== undefined) {
-    headers.set(name, Array.isArray(value) ? value.map(String).join(",") : String(value));
+    headers.set(name, String(value));
   }
 }
 

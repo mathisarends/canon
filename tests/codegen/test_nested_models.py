@@ -102,3 +102,14 @@ def test_array_path_parameters_fail_before_rendering():
     path["schema"] = {"type": "array", "items": {"type": "string"}}
     with pytest.raises(ContractError, match="parameters"):
         build_ir(document)
+
+
+@pytest.mark.parametrize("nullable", [False, True])
+def test_header_arrays_are_rejected_before_either_generator(nullable):
+    document = export_schema(app)
+    operation = document["paths"]["/nested/{item_id}"]["get"]
+    header = next(param for param in operation["parameters"] if param["in"] == "header")
+    schema = {"type": "array", "items": {"type": "string"}}
+    header["schema"] = {"anyOf": [schema, {"type": "null"}]} if nullable else schema
+    with pytest.raises(ContractError, match="Only scalar header parameters"):
+        build_ir(document)

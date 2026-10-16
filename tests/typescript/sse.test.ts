@@ -198,8 +198,8 @@ test("query arrays preserve explode semantics and optional header values", () =>
   appendQuery(query, "missing", undefined, true);
   assert.equal(query.toString(), "repeated=a+b&repeated=c&joined=1%2C2");
   const headers = new Headers();
-  setHeader(headers, "x-list", ["a", "b"]);
+  setHeader(headers, "x-trace", "trace");
   setHeader(headers, "x-missing", undefined);
-  assert.equal(headers.get("x-list"), "a,b");
+  assert.equal(headers.get("x-trace"), "trace");
   assert.equal(headers.has("x-missing"), false);
 });

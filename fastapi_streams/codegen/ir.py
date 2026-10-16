@@ -409,9 +409,10 @@ def build_ir(document: Document) -> Contract:
                         f"Unsupported serialization for parameter {param_name}"
                     )
                 param_type = types.parse(param.get("schema", {}))
-                if not _parameter_type(param_type, types, arrays=location != "path"):
+                if not _parameter_type(param_type, types, arrays=location == "query"):
+                    supported = "scalar/array" if location == "query" else "scalar"
                     raise ContractError(
-                        f"Only scalar/array parameters are supported: {param_name}"
+                        f"Only {supported} {location} parameters are supported: {param_name}"
                     )
                 argument = identifier(param_name)
                 if argument in arguments:

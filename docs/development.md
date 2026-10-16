@@ -27,13 +27,14 @@ and behavior tests; its generator owns formatting.
 
 ## Supported scope and roadmap
 
-GET/POST JSON SSE data; scalar paths; scalar/array query and header parameters;
+GET/POST JSON SSE data; scalar path and header parameters; scalar/array query parameters;
 JSON bodies; local component references; nested objects, maps, arrays, string
 enums and discriminated unions. Query form arrays support both `explode` values.
 Python `allOf` supports compatible object intersections. TypeScript does not
 express validation constraints such as numeric ranges as refinement types.
 
-External references, cookies, deepObject/matrix/label styles, multipart bodies,
+Header arrays (Fetch combines repeated headers), external references, cookies,
+deepObject/matrix/label styles, multipart bodies,
 tuple schemas and object/array enum values are rejected. No REST SDK replacement,
 WebSockets, JSON-RPC, persistence, automatic reconnect or replay.
 

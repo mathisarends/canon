@@ -72,15 +72,11 @@ def append_query(
 
 
 def set_header(
-    headers: dict[str, str], name: str, value: ParameterValue | Sequence[ParameterValue]
+    headers: dict[str, str], name: str, value: ParameterValue
 ) -> None:
     if value is None:
         return
-    headers[name] = (
-        scalar(value)
-        if isinstance(value, str | int | float | bool)
-        else ",".join(scalar(item) for item in value)
-    )
+    headers[name] = scalar(value)
 
 
 async def iter_sse(response: httpx.Response) -> AsyncGenerator[str, None]:
