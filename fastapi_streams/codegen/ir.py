@@ -412,7 +412,8 @@ def build_ir(document: Document) -> Contract:
                 if not _parameter_type(param_type, types, arrays=location == "query"):
                     supported = "scalar/array" if location == "query" else "scalar"
                     raise ContractError(
-                        f"Only {supported} {location} parameters are supported: {param_name}"
+                        f"Only {supported} {location} parameters are supported: "
+                        f"{param_name}"
                     )
                 argument = identifier(param_name)
                 if argument in arguments:

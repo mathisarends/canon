@@ -14,6 +14,7 @@ from examples.agent_runs.generated_python import (
     RequestOptions,
     RunEventType,
     StreamParseError,
+    TransportError,
 )
 from examples.agent_runs.generated_python.models import RunEvent, RunRequest
 from examples.agent_runs.generated_python.runtime import iter_sse
@@ -69,6 +70,127 @@ async def test_failed_error_body_preserves_status_response_and_cause(chunks):
         assert isinstance(raised.value.__cause__, httpx.ReadError)
         assert raised.value.details == ('{"detail":' if chunks else None)
         assert source.closed
+
+
+@pytest.mark.parametrize(
+    ("payload", "details"),
+    [
+        (b'{"detail":"denied"}', {"detail": "denied"}),
+        (b"proxy failed", "proxy failed"),
+        (b"", None),
+    ],
+)
+async def test_http_errors_keep_json_text_empty_details_and_close(payload, details):
+    source = Chunks([payload])
+    async with (
+        httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: httpx.Response(403, stream=source))
+        ) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        with pytest.raises(HttpError) as raised:
+            _ = [
+                event async for event in client.agent_runs.stream_run_events(run_id="x")
+            ]
+        assert raised.value.details == details
+        assert raised.value.status == 403
+        assert source.closed
+
+
+async def test_error_diagnostics_stop_at_64_kib_and_close():
+    source = FailingChunks([b"x" * 100_000])
+    async with (
+        httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: httpx.Response(502, stream=source))
+        ) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        with pytest.raises(HttpError) as raised:
+            _ = [
+                event async for event in client.agent_runs.stream_run_events(run_id="x")
+            ]
+        assert raised.value.details == "x" * 65536
+        assert raised.value.__cause__ is None
+        assert source.closed
+
+
+@pytest.mark.parametrize(
+    ("media", "payload", "message"),
+    [
+        ("text/html", b"html", "Expected text/event-stream"),
+        ("", b"", "Expected text/event-stream"),
+        ("text/event-stream", b"\xff", "Invalid UTF-8"),
+        ("text/event-stream", b"data: \xe2", "Invalid UTF-8"),
+    ],
+)
+async def test_transport_failures_close_responses(media, payload, message):
+    source = Chunks([payload])
+    async with (
+        httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    200, headers={"Content-Type": media}, stream=source
+                )
+            )
+        ) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        with pytest.raises(TransportError, match=message):
+            _ = [
+                event async for event in client.agent_runs.stream_run_events(run_id="x")
+            ]
+        assert source.closed
+
+
+async def test_connect_failure_retains_original_cause():
+    def handler(request):
+        raise httpx.ConnectError("offline", request=request)
+
+    async with (
+        httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        with pytest.raises(TransportError) as raised:
+            _ = [
+                event async for event in client.agent_runs.stream_run_events(run_id="x")
+            ]
+        assert isinstance(raised.value.__cause__, httpx.ConnectError)
+
+
+async def test_read_failure_after_an_event_closes_response():
+    source = FailingChunks([b'data: {"type":"run.completed","run_id":"ok"}\n\n'])
+    async with (
+        httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    200, headers={"Content-Type": "text/event-stream"}, stream=source
+                )
+            )
+        ) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        events = client.agent_runs.stream_run_events(run_id="x")
+        assert (await anext(events)).run_id == "ok"
+        with pytest.raises(TransportError) as raised:
+            await anext(events)
+        assert isinstance(raised.value.__cause__, httpx.ReadError)
+        assert source.closed
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+async def test_python_parser_line_endings_metadata_and_eof(newline):
+    payload = newline.join(
+        [": ping", "", "event: ignored", "id: 1", "", "data: 1", "", "data: 2"]
+    )
+    response = httpx.Response(200, stream=Chunks([payload.encode()]))
+    assert [item async for item in iter_sse(response)] == ["1", "2"]
+
+
+async def test_sdk_owned_client_is_closed_by_context_manager():
+    async with Client("http://example.test") as client:
+        http = client._transport.http_client
+        assert not http.is_closed
+    assert http.is_closed
 
 
 def test_optional_literal_defaults_produce_valid_discriminator_models(tmp_path):
