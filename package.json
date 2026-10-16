@@ -1,0 +1,13 @@
+{
+  "name": "fastapi-streams-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tests/typescript/tsconfig.json --noEmit",
+    "test": "tsc -p tests/typescript/tsconfig.json && node --test tests/typescript/dist/tests/typescript/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,5 +1,3 @@
-"""A small declarative layer over FastAPI's native typed SSE support."""
-
 import inspect
 from collections.abc import (
     AsyncGenerator,
@@ -10,13 +8,12 @@ from collections.abc import (
     Iterable,
     Iterator,
 )
-from typing import Any, TypeVar, get_args, get_origin, get_type_hints
+from typing import Any, get_args, get_origin, get_type_hints
 
 from fastapi import APIRouter
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import TypeAdapter
 
-_Endpoint = TypeVar("_Endpoint", bound=Callable[..., Any])
 _ASYNC = (AsyncIterator, AsyncIterable, AsyncGenerator)
 _SYNC = (Iterator, Iterable, Generator)
 
@@ -57,13 +54,13 @@ def _validate_endpoint(endpoint: Callable[..., Any]) -> None:
 class StreamRouter(APIRouter):
     """An APIRouter with typed SSE routes; normal FastAPI routes work unchanged."""
 
-    def stream(
+    def stream[Endpoint: Callable[..., Any]](
         self,
         path: str,
         *,
         methods: list[str] | None = None,
         **options: Any,
-    ) -> Callable[[_Endpoint], _Endpoint]:
+    ) -> Callable[[Endpoint], Endpoint]:
         """Register a GET (default) or POST JSON-data SSE generator.
 
         Other options are forwarded to ``APIRouter.api_route``, including tags,
@@ -83,7 +80,7 @@ class StreamRouter(APIRouter):
             raise ValueError("A stream must use a successful status code with a body")
         options.setdefault("response_description", "Stream of JSON events")
 
-        def decorator(endpoint: _Endpoint) -> _Endpoint:
+        def decorator(endpoint: Endpoint) -> Endpoint:
             _validate_endpoint(endpoint)
             self.api_route(
                 path,

@@ -1,0 +1,403 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import Any, Literal, cast
+
+from fastapi_streams.codegen.names import identifier, slug
+from fastapi_streams.codegen.openapi import (
+    ContractError,
+    Document,
+    resolve_ref,
+    validate_contract,
+)
+
+
+@dataclass(frozen=True)
+class Scalar:
+    name: Literal["string", "number", "boolean", "null", "never", "JsonValue"]
+
+
+@dataclass(frozen=True)
+class LiteralType:
+    value: str | int | float | bool | None
+
+
+@dataclass(frozen=True)
+class Reference:
+    name: str
+
+
+@dataclass(frozen=True)
+class Array:
+    item: Type
+
+
+@dataclass(frozen=True)
+class Field:
+    name: str
+    type: Type
+    required: bool
+
+
+@dataclass(frozen=True)
+class Object:
+    fields: tuple[Field, ...]
+    additional: Type | None = None
+
+
+@dataclass(frozen=True)
+class Union:
+    members: tuple[Type, ...]
+    discriminator: str | None = None
+
+
+@dataclass(frozen=True)
+class Intersection:
+    members: tuple[Type, ...]
+
+
+type Type = Scalar | LiteralType | Reference | Array | Object | Union | Intersection
+
+
+@dataclass(frozen=True)
+class Declaration:
+    name: str
+    type: Type
+
+
+@dataclass(frozen=True)
+class Parameter:
+    name: str
+    argument: str
+    location: Literal["path", "query", "header"]
+    type: Type
+    required: bool
+    explode: bool = True
+
+
+@dataclass(frozen=True)
+class Body:
+    type: Type
+    required: bool
+    media_type: str = "application/json"
+
+
+@dataclass(frozen=True)
+class ErrorResponse:
+    status: str
+    type: Type
+    media_type: str
+
+
+@dataclass(frozen=True)
+class SecurityScheme:
+    name: str
+    kind: str
+    location: str | None
+    parameter: str | None
+
+
+@dataclass(frozen=True)
+class Operation:
+    operation_id: str
+    name: str
+    group: str
+    directory: str
+    path: str
+    method: str
+    parameters: tuple[Parameter, ...]
+    body: Body | None
+    event: Type
+    response_status: str
+    errors: tuple[ErrorResponse, ...]
+    security: tuple[dict[str, list[str]], ...]
+
+
+@dataclass(frozen=True)
+class Contract:
+    operations: tuple[Operation, ...]
+    declarations: tuple[Declaration, ...]
+    security_schemes: tuple[SecurityScheme, ...]
+
+
+class _Types:
+    def __init__(self, document: Document) -> None:
+        self.document = document
+        self.names: dict[str, str] = {}
+        self.pending: dict[str, Document | bool] = {}
+
+    def parse(self, schema: Any) -> Type:
+        if schema is True or schema == {}:
+            return Scalar("JsonValue")
+        if schema is False:
+            return Scalar("never")
+        if not isinstance(schema, dict):
+            raise ContractError(f"Expected a Schema Object, got {schema!r}")
+        node = cast(Document, schema)
+        if "$ref" in node:
+            ref: str = node["$ref"]
+            if not ref.startswith("#/components/schemas/"):
+                raise ContractError(
+                    f"Type references must point to components/schemas: {ref}"
+                )
+            # Keep references in the IR so recursive models stay recursive.
+            target = resolve_ref(self.document, {"$ref": ref})
+            name = identifier(
+                ref.rsplit("/", 1)[-1].replace("~1", "/").replace("~0", "~"), upper=True
+            )
+            if name == "JsonValue" or (name in self.names and self.names[name] != ref):
+                raise ContractError(f"TypeScript type name collision: {name}")
+            self.names[name] = ref
+            self.pending[name] = target
+            siblings = {key: value for key, value in node.items() if key != "$ref"}
+            if any(
+                key in siblings
+                for key in ("type", "properties", "allOf", "anyOf", "oneOf")
+            ):
+                return Intersection((Reference(name), self.parse(siblings)))
+            return Reference(name)
+        if "const" in node:
+            return self.literal(node["const"])
+        if "enum" in node:
+            return Union(tuple(self.literal(value) for value in node["enum"]))
+        for keyword in ("oneOf", "anyOf", "allOf"):
+            if keyword in node:
+                members = tuple(self.parse(part) for part in node[keyword])
+                if keyword == "allOf":
+                    return Intersection(members)
+                return Union(members, node.get("discriminator", {}).get("propertyName"))
+        kind = node.get("type")
+        if isinstance(kind, list):
+            return Union(
+                tuple(
+                    self.parse({**node, "type": part}) for part in cast(list[str], kind)
+                )
+            )
+        if kind in ("string", "boolean", "null"):
+            return Scalar(kind)
+        if kind in ("number", "integer"):
+            return Scalar("number")
+        if kind == "array":
+            if "prefixItems" in node:
+                raise ContractError(
+                    "Tuple schemas (prefixItems) are not supported in v0.1"
+                )
+            return Array(self.parse(node.get("items", {})))
+        if kind == "object" or "properties" in node or "additionalProperties" in node:
+            properties: Document = node.get("properties", {})
+            required: list[str] = node.get("required", [])
+            extra = node.get("additionalProperties", False)
+            return Object(
+                tuple(
+                    Field(name, self.parse(value), name in required)
+                    for name, value in sorted(properties.items())
+                ),
+                self.parse(extra) if extra is not False else None,
+            )
+        if set(node) <= {
+            "title",
+            "description",
+            "default",
+            "examples",
+            "deprecated",
+            "readOnly",
+            "writeOnly",
+        }:
+            return Scalar("JsonValue")
+        raise ContractError(f"Unsupported or ambiguous JSON Schema: {node!r}")
+
+    @staticmethod
+    def literal(value: Any) -> LiteralType:
+        if value is not None and not isinstance(value, str | int | float | bool):
+            raise ContractError("Object and array enum/const values are not supported")
+        return LiteralType(value)
+
+    def declarations(self) -> tuple[Declaration, ...]:
+        result: dict[str, Declaration] = {}
+        while todo := sorted(set(self.pending) - set(result)):
+            for name in todo:
+                result[name] = Declaration(name, self.parse(self.pending[name]))
+        return tuple(result[name] for name in sorted(result))
+
+
+def _parameter_type(
+    type_: Type, types: _Types, seen: frozenset[str] = frozenset()
+) -> bool:
+    match type_:
+        case Scalar(name=name):
+            return name not in {"JsonValue", "never"}
+        case LiteralType():
+            return True
+        case Array(item=item):
+            return not isinstance(item, Array) and _parameter_type(item, types, seen)
+        case Union(members=members):
+            return all(_parameter_type(member, types, seen) for member in members)
+        case Reference(name=name) if name not in seen:
+            return _parameter_type(
+                types.parse(types.pending[name]), types, seen | {name}
+            )
+        case _:
+            return False
+
+
+def build_ir(document: Document) -> Contract:
+    validate_contract(document)
+    types = _Types(document)
+    operations: list[Operation] = []
+    ids: set[str] = set()
+    names: set[tuple[str, str]] = set()
+    groups: dict[str, str] = {}
+    directories: dict[str, str] = {}
+    paths: Document = document.get("paths", {})
+    for path, raw_path in sorted(paths.items()):
+        path_item = resolve_ref(document, raw_path)
+        for method in (
+            "get",
+            "post",
+            "put",
+            "patch",
+            "delete",
+            "options",
+            "head",
+            "trace",
+        ):
+            if method not in path_item:
+                continue
+            raw: Document = path_item[method]
+            responses: Document = raw.get("responses", {})
+            streams: list[tuple[str, Document]] = []
+            errors: list[ErrorResponse] = []
+            for status, value in sorted(responses.items()):
+                response = resolve_ref(document, value)
+                content: Document = response.get("content", {})
+                if status.startswith("2") and "text/event-stream" in content:
+                    streams.append((status, content["text/event-stream"]))
+            if not streams:
+                continue
+            if len(streams) != 1 or method not in {"get", "post"}:
+                raise ContractError(
+                    f"Expected one GET/POST SSE success response: {method} {path}"
+                )
+            status, media = streams[0]
+            envelope = resolve_ref(document, media.get("itemSchema", {}))
+            data = resolve_ref(document, envelope.get("properties", {}).get("data", {}))
+            if (
+                data.get("contentMediaType") != "application/json"
+                or "contentSchema" not in data
+            ):
+                raise ContractError(
+                    f"SSE data needs application/json contentSchema: {path}"
+                )
+            operation_id: str = raw.get("operationId", "")
+            if not operation_id or operation_id in ids:
+                raise ContractError(
+                    f"Missing or duplicate streaming operationId: {operation_id!r}"
+                )
+            ids.add(operation_id)
+            tag: str = (raw.get("tags") or ["streams"])[0]
+            group, directory = identifier(tag), slug(tag)
+            if (group in groups and groups[group] != tag) or (
+                directory in directories and directories[directory] != tag
+            ):
+                raise ContractError(f"Tag name collision: {tag}")
+            if group in {"transport", "types", "client", "index"}:
+                raise ContractError(f"Reserved stream tag: {tag}")
+            groups[group], directories[directory] = tag, tag
+            name = identifier(operation_id)
+            if (group, name) in names:
+                raise ContractError(f"Operation name collision: {group}.{name}")
+            names.add((group, name))
+            merged: dict[tuple[str, str], Document] = {}
+            for value in [*path_item.get("parameters", []), *raw.get("parameters", [])]:
+                param = resolve_ref(document, value)
+                merged[(param["in"], param["name"])] = param
+            params: list[Parameter] = []
+            arguments: set[str] = set()
+            for (location, param_name), param in sorted(merged.items()):
+                if location not in {"path", "query", "header"}:
+                    raise ContractError(f"Unsupported parameter location: {location}")
+                if "content" in param:
+                    raise ContractError("Parameters with content are not supported")
+                style = "form" if location == "query" else "simple"
+                if param.get("style", style) != style or param.get(
+                    "allowReserved", False
+                ):
+                    raise ContractError(
+                        f"Unsupported serialization for parameter {param_name}"
+                    )
+                param_type = types.parse(param.get("schema", {}))
+                if not _parameter_type(param_type, types):
+                    raise ContractError(
+                        f"Only scalar/array parameters are supported: {param_name}"
+                    )
+                argument = identifier(param_name)
+                if argument in arguments:
+                    raise ContractError(f"Parameter name collision: {argument}")
+                arguments.add(argument)
+                params.append(
+                    Parameter(
+                        param_name,
+                        argument,
+                        cast(Any, location),
+                        param_type,
+                        param.get("required", False),
+                        param.get("explode", location == "query"),
+                    )
+                )
+            expected = set(re.findall(r"\{([^{}]+)\}", path))
+            actual = {param.name for param in params if param.location == "path"}
+            if expected != actual:
+                raise ContractError(
+                    f"Path placeholders do not match parameters: {path}"
+                )
+            body: Body | None = None
+            if "requestBody" in raw:
+                request = resolve_ref(document, raw["requestBody"])
+                content = request.get("content", {})
+                if method != "post" or set(content) != {"application/json"}:
+                    raise ContractError(
+                        "Streaming request bodies must be POST application/json"
+                    )
+                if "body" in arguments:
+                    raise ContractError(
+                        "Parameter 'body' conflicts with the request body"
+                    )
+                body = Body(
+                    types.parse(content["application/json"].get("schema", {})),
+                    request.get("required", False),
+                )
+            for code, value in sorted(responses.items()):
+                if code.startswith("2"):
+                    continue
+                content = resolve_ref(document, value).get("content", {})
+                for media_type, error_media in sorted(content.items()):
+                    if "schema" in error_media:
+                        errors.append(
+                            ErrorResponse(
+                                code, types.parse(error_media["schema"]), media_type
+                            )
+                        )
+            operations.append(
+                Operation(
+                    operation_id,
+                    name,
+                    group,
+                    directory,
+                    path,
+                    method.upper(),
+                    tuple(params),
+                    body,
+                    types.parse(data["contentSchema"]),
+                    status,
+                    tuple(errors),
+                    tuple(raw.get("security", document.get("security", []))),
+                )
+            )
+    security: Document = document.get("components", {}).get("securitySchemes", {})
+    schemes = tuple(
+        SecurityScheme(name, scheme["type"], scheme.get("in"), scheme.get("name"))
+        for name, value in sorted(security.items())
+        for scheme in [resolve_ref(document, value)]
+    )
+    return Contract(tuple(operations), types.declarations(), schemes)

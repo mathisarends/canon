@@ -1,5 +1,3 @@
-"""Export and validate native FastAPI contracts as OpenAPI 3.2."""
-
 import copy
 import json
 from importlib.resources import files

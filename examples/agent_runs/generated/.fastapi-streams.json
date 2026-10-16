@@ -1,0 +1,11 @@
+{
+  "files": [
+    "agent-runs/api.ts",
+    "agent-runs/index.ts",
+    "client.ts",
+    "index.ts",
+    "transport/errors.ts",
+    "transport/sse.ts",
+    "types.ts"
+  ]
+}
