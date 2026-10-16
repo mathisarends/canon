@@ -7,23 +7,30 @@ export type HTTPValidationError = {
 };
 export type RunCompleted = {
   "run_id": string;
-  "type": "run.completed";
+  "type": typeof RunEventType.RUN_COMPLETED;
 };
 export type RunEvent = (RunStarted | TokenDelta | RunCompleted | RunFailed);
+export const RunEventType = {
+  RUN_COMPLETED: "run.completed",
+  RUN_FAILED: "run.failed",
+  RUN_STARTED: "run.started",
+  TOKEN_DELTA: "token.delta",
+} as const;
+export type RunEventType = (typeof RunEventType)[keyof typeof RunEventType];
 export type RunFailed = {
   "message": string;
-  "type": "run.failed";
+  "type": typeof RunEventType.RUN_FAILED;
 };
 export type RunRequest = {
   "prompt": string;
 };
 export type RunStarted = {
   "run_id": string;
-  "type": "run.started";
+  "type": typeof RunEventType.RUN_STARTED;
 };
 export type TokenDelta = {
   "text": string;
-  "type": "token.delta";
+  "type": typeof RunEventType.TOKEN_DELTA;
 };
 export type ValidationError = {
   "ctx"?: {

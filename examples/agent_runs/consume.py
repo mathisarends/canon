@@ -1,6 +1,7 @@
 import asyncio
+from typing import assert_never
 
-from examples.agent_runs.generated_python import Client
+from examples.agent_runs.generated_python import Client, RunEventType
 
 
 async def main() -> None:
@@ -9,14 +10,16 @@ async def main() -> None:
     ) as client:
         async for event in client.agent_runs.stream_run_events(run_id="demo"):
             match event.type:
-                case "run.started":
+                case RunEventType.RUN_STARTED:
                     print(f"Started {event.run_id}")
-                case "token.delta":
+                case RunEventType.TOKEN_DELTA:
                     print(event.text, end="", flush=True)
-                case "run.completed":
+                case RunEventType.RUN_COMPLETED:
                     print(f"\nCompleted {event.run_id}")
-                case "run.failed":
+                case RunEventType.RUN_FAILED:
                     print(event.message)
+                case _:
+                    assert_never(event)
 
 
 if __name__ == "__main__":

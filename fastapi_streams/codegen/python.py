@@ -6,6 +6,8 @@ from fastapi_streams.codegen.ir import (
     Array,
     Contract,
     Declaration,
+    EnumAlias,
+    EnumValue,
     Field,
     Intersection,
     LiteralType,
@@ -14,6 +16,7 @@ from fastapi_streams.codegen.ir import (
     Parameter,
     Reference,
     Scalar,
+    StringEnum,
     Type,
     Union,
 )
@@ -58,6 +61,12 @@ class _Models:
                 return "None"
             case LiteralType(value=value):
                 return f"Literal[{value!r}]"
+            case EnumValue(enum=enum, member=member):
+                return f"Literal[{prefix}{enum}.{member}]"
+            case EnumAlias(target=target):
+                return prefix + target
+            case StringEnum():
+                raise ContractError("Enums must be named declarations")
             case Reference(name=name):
                 return prefix + name
             case Array(item=item):
@@ -75,6 +84,17 @@ class _Models:
             case Object() | Intersection():
                 reference = self.add(hint, type_)
                 return prefix + reference.name
+
+    def nullable(self, type_: Type, seen: frozenset[str] = frozenset()) -> bool:
+        match type_:
+            case Scalar(name="null" | "JsonValue") | LiteralType(value=None):
+                return True
+            case Union(members=members):
+                return any(self.nullable(member, seen) for member in members)
+            case Reference(name=name) if name not in seen:
+                return self.nullable(self.declarations[name], seen | {name})
+            case _:
+                return False
 
     def _object(self, type_: Type, seen: frozenset[str] = frozenset()) -> Object:
         match type_:
@@ -109,7 +129,15 @@ class _Models:
         while pending := sorted(set(self.declarations) - set(blocks)):
             for name in pending:
                 type_ = self.declarations[name]
-                if isinstance(type_, Object | Intersection):
+                if isinstance(type_, StringEnum):
+                    members = "\n".join(
+                        f"    {member.name} = {member.value!r}"
+                        for member in type_.members
+                    )
+                    blocks[name] = f"class {name}(StrEnum):\n{members}"
+                elif isinstance(type_, EnumAlias):
+                    blocks[name] = f"{name} = {type_.target}"
+                elif isinstance(type_, Object | Intersection):
                     obj = self._object(type_)
                     if obj.additional is not None and not obj.fields:
                         value = self.render_type(obj.additional, hint=name + "Value")
@@ -126,6 +154,7 @@ class _Models:
                             "    model_config = ConfigDict(populate_by_name=True)"
                         )
                     field_names: set[str] = set()
+                    nonnullable_optional: list[str] = []
                     for field in obj.fields:
                         field_name = python_identifier(field.name)
                         if field_name in field_names:
@@ -136,8 +165,9 @@ class _Models:
                         annotation = self.render_type(
                             field.type, hint=name + identifier(field.name, upper=True)
                         )
-                        if not field.required:
+                        if not field.required and not self.nullable(field.type):
                             annotation = f"{annotation} | None"
+                            nonnullable_optional.append(field_name)
                         default = "None" if not field.required else "..."
                         assignment = (
                             f" = Field(default={default}, alias={field.name!r})"
@@ -145,6 +175,29 @@ class _Models:
                             else (" = None" if not field.required else "")
                         )
                         lines.append(f"    {field_name}: {annotation}{assignment}")
+                    if obj.additional is not None:
+                        annotation = self.render_type(
+                            obj.additional, hint=name + "Extra"
+                        )
+                        lines.append(
+                            f"    __pydantic_extra__: dict[str, {annotation}]"
+                            " = Field(init=False)"
+                        )
+                    if nonnullable_optional:
+                        args = ", ".join(repr(name) for name in nonnullable_optional)
+                        lines.extend(
+                            [
+                                "",
+                                f"    @field_validator({args}, mode='before')",
+                                "    @classmethod",
+                                "    def _reject_explicit_null("
+                                "cls, value: object) -> object:",
+                                "        if value is None:",
+                                "            raise ValueError("
+                                "'Field may be omitted but cannot be null')",
+                                "        return value",
+                            ]
+                        )
                     blocks[name] = "\n".join(lines)
                     classes.append(name)
                 else:
@@ -154,10 +207,18 @@ class _Models:
         typing_names = [name for name in ("Annotated", "Literal") if name + "[" in text]
         pydantic_names = [
             name
-            for name in ("BaseModel", "ConfigDict", "Field", "JsonValue")
+            for name in (
+                "BaseModel",
+                "ConfigDict",
+                "Field",
+                "JsonValue",
+                "field_validator",
+            )
             if re.search(r"\b" + name + r"\b", text)
         ]
         imports = [_HEADER, "from __future__ import annotations", ""]
+        if any(isinstance(type_, StringEnum) for type_ in self.declarations.values()):
+            imports.append("from enum import StrEnum")
         if typing_names:
             imports.append("from typing import " + ", ".join(typing_names))
         if pydantic_names:
@@ -272,5 +333,8 @@ def generate_python(contract: Contract) -> dict[str, str]:
         "    StreamParseError as StreamParseError, TransportError as TransportError,\n"
         ")\n"
     )
+    for name, type_ in sorted(models.declarations.items()):
+        if isinstance(type_, StringEnum | EnumAlias):
+            output["__init__.py"] += f"from .models import {name} as {name}\n"
     output["py.typed"] = ""
     return output

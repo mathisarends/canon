@@ -30,13 +30,25 @@ def main(argv: list[str] | None = None) -> int:
     schema.add_argument("--app", required=True)
     schema.add_argument("--output", required=True, type=Path)
     schema.add_argument("--check", action="store_true")
-    generate = commands.add_parser("generate", help="Generate a typed streaming SDK")
-    generate.add_argument("--schema", required=True, type=Path)
-    generate.add_argument(
-        "--language", choices=["typescript", "python"], default="typescript"
-    )
-    generate.add_argument("--output", required=True, type=Path)
-    generate.add_argument("--check", action="store_true")
+    for name in ("generate", "check"):
+        command = commands.add_parser(
+            name,
+            help="Generate a client"
+            if name == "generate"
+            else "Check schema and generated-client drift",
+        )
+        command.add_argument("--schema", required=True, type=Path)
+        command.add_argument(
+            "--language", choices=["typescript", "python"], default="typescript"
+        )
+        command.add_argument("--output", required=True, type=Path)
+        if name == "generate":
+            command.add_argument("--check", action="store_true")
+        else:
+            command.set_defaults(check=True)
+            command.add_argument(
+                "--app", help="Also compare the app's contract with --schema"
+            )
     args = parser.parse_args(argv)
     try:
         if args.command == "schema":
@@ -67,6 +79,14 @@ def main(argv: list[str] | None = None) -> int:
             document = json.loads(args.schema.read_text(encoding="utf-8"))
             if not isinstance(document, dict):
                 raise ContractError("The OpenAPI document must be an object")
+            if args.command == "check" and args.app:
+                expected = export_schema(_load_app(args.app))
+                if expected != document:
+                    print(
+                        f"Out of date: {args.schema} (application contract changed)",
+                        file=sys.stderr,
+                    )
+                    return 1
             contract = build_ir(cast(Document, document))
             render = (
                 generate_python if args.language == "python" else generate_typescript

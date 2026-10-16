@@ -1,4 +1,4 @@
-import { createClient } from "./generated/index.js";
+import { createClient, RunEventType } from "./generated/index.js";
 
 const client = createClient({
   baseUrl: "http://127.0.0.1:8000",
@@ -7,16 +7,16 @@ const client = createClient({
 
 for await (const event of client.agentRuns.streamRunEvents({ runId: "demo" })) {
   switch (event.type) {
-    case "run.started":
+    case RunEventType.RUN_STARTED:
       console.log(`Started ${event.run_id}`);
       break;
-    case "token.delta":
+    case RunEventType.TOKEN_DELTA:
       process.stdout.write(event.text);
       break;
-    case "run.completed":
+    case RunEventType.RUN_COMPLETED:
       console.log(`\nCompleted ${event.run_id}`);
       break;
-    case "run.failed":
+    case RunEventType.RUN_FAILED:
       console.error(event.message);
       break;
     default: {

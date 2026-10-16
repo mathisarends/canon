@@ -4,3 +4,4 @@ from .runtime import (
     HttpError as HttpError, RequestOptions as RequestOptions,
     StreamParseError as StreamParseError, TransportError as TransportError,
 )
+from .models import RunEventType as RunEventType

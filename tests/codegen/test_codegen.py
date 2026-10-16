@@ -92,3 +92,28 @@ def test_generator_rejects_untyped_streams_and_name_collisions():
 def test_example_contract_snapshot():
     snapshot = Path(__file__).parents[2] / "schema/openapi.json"
     assert json.loads(snapshot.read_text(encoding="utf-8")) == export_schema(app)
+
+
+@pytest.mark.parametrize("language", ["typescript", "python"])
+def test_check_command_detects_both_contract_and_client_drift(tmp_path, language):
+    schema = tmp_path / "openapi.json"
+    output = tmp_path / "sdk"
+    assert (
+        main(["schema", "--app", "examples.agent_runs:app", "--output", str(schema)])
+        == 0
+    )
+    flags = ["--schema", str(schema), "--language", language, "--output", str(output)]
+    assert main(["generate", *flags]) == 0
+    check = ["check", "--app", "examples.agent_runs:app", *flags]
+    assert main(check) == 0
+    model = output / ("types.ts" if language == "typescript" else "models.py")
+    model.write_text("stale")
+    assert main(check) == 1
+    assert model.read_text() == "stale"
+    assert main(["generate", *flags]) == 0
+    document = json.loads(schema.read_text())
+    document["info"]["title"] = "old title"
+    schema.write_text(json.dumps(document))
+    before = schema.read_bytes()
+    assert main(check) == 1
+    assert schema.read_bytes() == before

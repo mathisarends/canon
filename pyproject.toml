@@ -31,13 +31,13 @@ dev = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-extend-exclude = ["examples/agent_runs/generated_python"]
+extend-exclude = ["examples/agent_runs/generated_python", "tests/fixtures/generated_python"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pyright]
-include = ["fastapi_streams", "examples"]
+include = ["fastapi_streams", "examples", "tests/fixtures/generated_python"]
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "strict"

@@ -36,7 +36,7 @@ class {{ class_name }}:
 {% endfor %}
 {% if operation.body %}
         adapter = TypeAdapter({{ operation.body.type | py_type }})
-        content = adapter.dump_json(adapter.validate_python(body), by_alias=True){{ ' if body is not None else None' if not operation.body.required else '' }}
+        content = adapter.dump_json(adapter.validate_python(body), by_alias=True, exclude_unset=True){{ ' if body is not None else None' if not operation.body.required else '' }}
 {% endif %}
         return self._transport.stream(
             {{ operation | py_path }},

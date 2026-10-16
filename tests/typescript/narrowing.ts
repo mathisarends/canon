@@ -1,16 +1,17 @@
 import type { RunEvent, RunRequest } from "../../examples/agent_runs/generated/types.js";
 import { createClient } from "../../examples/agent_runs/generated/index.js";
+import { RunEventType } from "../../examples/agent_runs/generated/index.js";
 
 export function describe(event: RunEvent): string {
   switch (event.type) {
-    case "run.started": return event.run_id;
-    case "run.completed": return event.run_id;
-    case "token.delta": {
+    case RunEventType.RUN_STARTED: return event.run_id;
+    case RunEventType.RUN_COMPLETED: return event.run_id;
+    case RunEventType.TOKEN_DELTA: {
       // @ts-expect-error Tokens have no run_id.
       event.run_id;
       return event.text;
     }
-    case "run.failed": return event.message;
+    case RunEventType.RUN_FAILED: return event.message;
     default: {
       const unreachable: never = event;
       return unreachable;

@@ -1,4 +1,5 @@
 import asyncio
+from enum import StrEnum
 from pathlib import Path
 
 import httpx
@@ -8,6 +9,7 @@ from pydantic import TypeAdapter
 from examples.agent_runs.generated_python import (
     Client,
     HttpError,
+    RunEventType,
     StreamParseError,
 )
 from examples.agent_runs.generated_python.models import RunEvent, RunRequest
@@ -75,6 +77,8 @@ async def test_python_generated_requests_models_errors_and_client_ownership():
                 )
             ]
             assert events[0].type == "run.completed"
+            assert isinstance(events[0].type, StrEnum)
+            assert events[0].type is RunEventType.RUN_COMPLETED
             assert events[0].run_id == "ok"
             assert requests[-1].url.raw_path == b"/v1/runs/a%2Fb%20%3F/events?delay=0"
             events = [

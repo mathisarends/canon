@@ -8,6 +8,7 @@ from fastapi_streams.codegen.names import identifier, slug
 from fastapi_streams.codegen.openapi import (
     ContractError,
     Document,
+    resolve_pointer,
     resolve_ref,
     validate_contract,
 )
@@ -23,6 +24,28 @@ class Scalar:
 @dataclass(frozen=True)
 class LiteralType:
     value: str | int | float | bool | None
+
+
+@dataclass(frozen=True)
+class EnumMember:
+    name: str
+    value: str
+
+
+@dataclass(frozen=True)
+class StringEnum:
+    members: tuple[EnumMember, ...]
+
+
+@dataclass(frozen=True)
+class EnumAlias:
+    target: str
+
+
+@dataclass(frozen=True)
+class EnumValue:
+    enum: str
+    member: str
 
 
 @dataclass(frozen=True)
@@ -59,7 +82,18 @@ class Intersection:
     members: tuple[Type, ...]
 
 
-type Type = Scalar | LiteralType | Reference | Array | Object | Union | Intersection
+type Type = (
+    Scalar
+    | LiteralType
+    | Reference
+    | Array
+    | Object
+    | Union
+    | Intersection
+    | StringEnum
+    | EnumAlias
+    | EnumValue
+)
 
 
 @dataclass(frozen=True)
@@ -144,7 +178,9 @@ class _Types:
                     f"Type references must point to components/schemas: {ref}"
                 )
             # Keep references in the IR so recursive models stay recursive.
-            target = resolve_ref(self.document, {"$ref": ref})
+            target = resolve_pointer(self.document, ref)
+            if isinstance(target, dict):
+                target = resolve_ref(self.document, cast(Document, target))
             name = identifier(
                 ref.rsplit("/", 1)[-1].replace("~1", "/").replace("~0", "~"), upper=True
             )
@@ -167,8 +203,25 @@ class _Types:
             if keyword in node:
                 members = tuple(self.parse(part) for part in node[keyword])
                 if keyword == "allOf":
-                    return Intersection(members)
-                return Union(members, node.get("discriminator", {}).get("propertyName"))
+                    combined: Type = Intersection(members)
+                else:
+                    combined = Union(
+                        members, node.get("discriminator", {}).get("propertyName")
+                    )
+                siblings = {key: value for key, value in node.items() if key != keyword}
+                if any(
+                    key in siblings
+                    for key in (
+                        "type",
+                        "properties",
+                        "additionalProperties",
+                        "oneOf",
+                        "anyOf",
+                        "allOf",
+                    )
+                ):
+                    return Intersection((combined, self.parse(siblings)))
+                return combined
         kind = node.get("type")
         if isinstance(kind, list):
             return Union(
@@ -224,7 +277,11 @@ class _Types:
 
 
 def _parameter_type(
-    type_: Type, types: _Types, seen: frozenset[str] = frozenset()
+    type_: Type,
+    types: _Types,
+    seen: frozenset[str] = frozenset(),
+    *,
+    arrays: bool = True,
 ) -> bool:
     match type_:
         case Scalar(name=name):
@@ -232,12 +289,15 @@ def _parameter_type(
         case LiteralType():
             return True
         case Array(item=item):
-            return not isinstance(item, Array) and _parameter_type(item, types, seen)
+            return arrays and _parameter_type(item, types, seen, arrays=False)
         case Union(members=members):
-            return all(_parameter_type(member, types, seen) for member in members)
+            return all(
+                _parameter_type(member, types, seen, arrays=arrays)
+                for member in members
+            )
         case Reference(name=name) if name not in seen:
             return _parameter_type(
-                types.parse(types.pending[name]), types, seen | {name}
+                types.parse(types.pending[name]), types, seen | {name}, arrays=arrays
             )
         case _:
             return False
@@ -248,6 +308,7 @@ def build_ir(document: Document) -> Contract:
     types = _Types(document)
     operations: list[Operation] = []
     ids: set[str] = set()
+    public_names: set[str] = set()
     names: set[tuple[str, str]] = set()
     groups: dict[str, str] = {}
     directories: dict[str, str] = {}
@@ -287,6 +348,9 @@ def build_ir(document: Document) -> Contract:
             if (
                 data.get("contentMediaType") != "application/json"
                 or "contentSchema" not in data
+                or data.get("type") != "string"
+                or "data" not in envelope.get("required", [])
+                or envelope.get("type") != "object"
             ):
                 raise ContractError(
                     f"SSE data needs application/json contentSchema: {path}"
@@ -297,6 +361,10 @@ def build_ir(document: Document) -> Contract:
                     f"Missing or duplicate streaming operationId: {operation_id!r}"
                 )
             ids.add(operation_id)
+            public_name = identifier(operation_id, upper=True)
+            if public_name in public_names:
+                raise ContractError(f"Operation identifier collision: {public_name}")
+            public_names.add(public_name)
             tag: str = (raw.get("tags") or ["streams"])[0]
             group, directory = identifier(tag), slug(tag)
             if (group in groups and groups[group] != tag) or (
@@ -329,7 +397,7 @@ def build_ir(document: Document) -> Contract:
                         f"Unsupported serialization for parameter {param_name}"
                     )
                 param_type = types.parse(param.get("schema", {}))
-                if not _parameter_type(param_type, types):
+                if not _parameter_type(param_type, types, arrays=location != "path"):
                     raise ContractError(
                         f"Only scalar/array parameters are supported: {param_name}"
                     )
@@ -402,4 +470,6 @@ def build_ir(document: Document) -> Contract:
         for name, value in sorted(security.items())
         for scheme in [resolve_ref(document, value)]
     )
-    return Contract(tuple(operations), types.declarations(), schemes)
+    from fastapi_streams.codegen.enums import with_enums
+
+    return with_enums(Contract(tuple(operations), types.declarations(), schemes))

@@ -5,12 +5,15 @@ from importlib.resources import files
 from fastapi_streams.codegen.ir import (
     Array,
     Contract,
+    EnumAlias,
+    EnumValue,
     Intersection,
     LiteralType,
     Object,
     Operation,
     Reference,
     Scalar,
+    StringEnum,
     Type,
     Union,
 )
@@ -34,6 +37,12 @@ def render_type(type_: Type, prefix: str = "") -> str:
             return name
         case LiteralType(value=value):
             return json.dumps(value, ensure_ascii=False)
+        case EnumValue(enum=enum, member=member):
+            return f"typeof {prefix}{enum}.{member}"
+        case StringEnum(members=members):
+            return " | ".join(json.dumps(member.value) for member in members)
+        case EnumAlias(target=target):
+            return prefix + target
         case Reference(name=name):
             return prefix + name
         case Array(item=item):
@@ -117,10 +126,25 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         path=_path,
     )
     output: dict[str, str] = {}
-    declarations = [
-        f"export type {declaration.name} = {render_type(declaration.type)};"
-        for declaration in contract.declarations
-    ]
+    declarations: list[str] = []
+    for declaration in contract.declarations:
+        name, type_ = declaration.name, declaration.type
+        if isinstance(type_, StringEnum):
+            members = "\n".join(
+                f"  {member.name}: {json.dumps(member.value)},"
+                for member in type_.members
+            )
+            declarations.append(
+                f"export const {name} = {{\n{members}\n}} as const;\n"
+                f"export type {name} = (typeof {name})[keyof typeof {name}];"
+            )
+        elif isinstance(type_, EnumAlias):
+            declarations.append(
+                f"export const {name} = {type_.target};\n"
+                f"export type {name} = {type_.target};"
+            )
+        else:
+            declarations.append(f"export type {name} = {render_type(type_)};")
     output["types.ts"] = "\n".join([_HEADER, _JSON, "", *declarations]) + "\n"
     for template in ("sse.ts", "errors.ts"):
         output[f"transport/{template}"] = (
@@ -135,7 +159,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
     exports = [
         _HEADER,
         'export { createClient } from "./client.js";',
-        'export type * from "./types.js";',
+        'export * from "./types.js";',
         'export type { ClientOptions, RequestOptions } from "./transport/sse.js";',
         "export { HttpError, TransportError, StreamParseError } "
         'from "./transport/errors.js";',

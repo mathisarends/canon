@@ -148,6 +148,17 @@ test("wrong content types, empty bodies and network failures are transport error
   }
 });
 
+test("a broken network stream preserves the transport error type", async () => {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.error(new Error("disconnected")); },
+  });
+  const fetch: typeof globalThis.fetch = async () => new Response(body, {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+  await assert.rejects(collect(stream({ baseUrl: "http://example.test", fetch }, { path: "/", method: "GET" })), TransportError);
+  assert.equal(body.locked, false);
+});
+
 test("generated GET/POST methods serialize input and merge headers", async () => {
   const calls: { url: string; init: RequestInit }[] = [];
   const fetch: typeof globalThis.fetch = async (url, init) => {

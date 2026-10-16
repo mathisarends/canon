@@ -1,4 +1,5 @@
 import json
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -47,9 +48,13 @@ def write_files(
         changed.append(path)
         if not check:
             path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = path.with_name(path.name + ".tmp")
-            temporary.write_text(content, encoding="utf-8", newline="\n")
-            temporary.replace(path)
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+                temporary = Path(handle.name)
+                handle.write(content.encode("utf-8"))
+            try:
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
     for name in sorted(previous - set(expected)):
         path = paths[name]
         if path.is_file():

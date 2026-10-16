@@ -23,7 +23,7 @@ class AgentRunsApi:
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
         adapter = TypeAdapter(Models.RunRequest)
-        content = adapter.dump_json(adapter.validate_python(body), by_alias=True)
+        content = adapter.dump_json(adapter.validate_python(body), by_alias=True, exclude_unset=True)
         return self._transport.stream(
             '/v1/runs/' + encode_path(run_id) + '/events',
             'POST',

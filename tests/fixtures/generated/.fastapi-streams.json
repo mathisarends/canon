@@ -1,0 +1,11 @@
+{
+  "files": [
+    "client.ts",
+    "fixtures/api.ts",
+    "fixtures/index.ts",
+    "index.ts",
+    "transport/errors.ts",
+    "transport/sse.ts",
+    "types.ts"
+  ]
+}

@@ -195,6 +195,7 @@ export async function* stream<T>(
   options.signal?.addEventListener("abort", onAbort, { once: true });
   if (options.signal?.aborted) onAbort();
   let response: Response | undefined;
+  let bodyHandled = false;
   try {
     controller.signal.throwIfAborted();
     const base = client.baseUrl.replace(/\/+$/, "");
@@ -216,6 +217,7 @@ export async function* stream<T>(
       throw new TransportError("Failed to fetch SSE stream", { cause });
     }
     if (!response.ok) {
+      bodyHandled = true;
       throw new HttpError(response.status, await errorDetails(response, controller.signal), response);
     }
     const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
@@ -223,6 +225,7 @@ export async function* stream<T>(
       throw new TransportError(`Expected text/event-stream, received ${media ?? "no Content-Type"}`);
     }
     if (!response.body) throw new TransportError("SSE response has no body");
+    bodyHandled = true;
     try {
       yield* parseSSE<T>(response.body, controller.signal);
     } catch (cause) {
@@ -233,7 +236,7 @@ export async function* stream<T>(
   } finally {
     options.signal?.removeEventListener("abort", onAbort);
     try {
-      if (response?.body && !response.body.locked) await response.body.cancel();
+      if (!bodyHandled && response?.body && !response.body.locked) await response.body.cancel();
     } finally {
       controller.abort();
     }

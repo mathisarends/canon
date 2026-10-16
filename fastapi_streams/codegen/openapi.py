@@ -13,22 +13,32 @@ class ContractError(ValueError):
     """An invalid or unsupported OpenAPI contract."""
 
 
+def resolve_pointer(document: Document, ref: str) -> Any:
+    if not ref.startswith("#/"):
+        raise ContractError(f"Only local OpenAPI references are supported: {ref!r}")
+    target: Any = document
+    try:
+        for part in unquote(ref[2:]).split("/"):
+            key = part.replace("~1", "/").replace("~0", "~")
+            target = (
+                cast(list[Any], target)[int(key)]
+                if isinstance(target, list)
+                else target[key]
+            )
+    except (KeyError, TypeError, IndexError, ValueError) as exc:
+        raise ContractError(f"Unresolved reference: {ref}") from exc
+    return target
+
+
 def resolve_ref(document: Document, value: Document) -> Document:
     """Resolve local JSON Pointer references, detecting reference-only cycles."""
     seen: set[str] = set()
     while "$ref" in value:
-        ref = value["$ref"]
-        if not isinstance(ref, str) or not ref.startswith("#/"):
-            raise ContractError(f"Only local OpenAPI references are supported: {ref!r}")
+        ref: str = value["$ref"]
         if ref in seen:
             raise ContractError(f"Cyclic reference: {ref}")
         seen.add(ref)
-        target: Any = document
-        try:
-            for part in unquote(ref[2:]).split("/"):
-                target = target[part.replace("~1", "/").replace("~0", "~")]
-        except (KeyError, TypeError, IndexError) as exc:
-            raise ContractError(f"Unresolved reference: {ref}") from exc
+        target = resolve_pointer(document, ref)
         if not isinstance(target, dict):
             raise ContractError(f"Reference does not point to an object: {ref}")
         value = {**target, **{k: v for k, v in value.items() if k != "$ref"}}
@@ -68,33 +78,51 @@ def validate_contract(document: Document) -> None:
     }:
         raise ContractError(f"Unsupported JSON Schema dialect: {dialect}")
 
-    def walk(node: Any, path: str, *, schema: bool = False) -> None:
-        if schema:
-            try:
-                Draft202012Validator.check_schema(node)
-            except SchemaError as exc:
-                raise ContractError(
-                    f"Invalid JSON Schema at {path}: {exc.message}"
-                ) from exc
+    def walk_schema(node: Any, path: str) -> None:
+        try:
+            Draft202012Validator.check_schema(node)
+        except SchemaError as exc:
+            raise ContractError(
+                f"Invalid JSON Schema at {path}: {exc.message}"
+            ) from exc
+        if not isinstance(node, dict):
+            return
+        schema = cast(Document, node)
+        if "$ref" in schema:
+            resolve_pointer(document, schema["$ref"])
+        for keyword in ("$defs", "properties", "patternProperties", "dependentSchemas"):
+            for name, child in schema.get(keyword, {}).items():
+                walk_schema(child, f"{path}/{keyword}/{name}")
+        for keyword in ("allOf", "anyOf", "oneOf", "prefixItems"):
+            for index, child in enumerate(schema.get(keyword, [])):
+                walk_schema(child, f"{path}/{keyword}/{index}")
+        for keyword in (
+            "items",
+            "additionalProperties",
+            "unevaluatedProperties",
+            "unevaluatedItems",
+            "contains",
+            "not",
+            "if",
+            "then",
+            "else",
+            "propertyNames",
+            "contentSchema",
+        ):
+            if keyword in schema:
+                walk_schema(schema[keyword], f"{path}/{keyword}")
+
+    def walk(node: Any, path: str) -> None:
         if isinstance(node, dict):
             if "$ref" in node:
                 resolve_ref(document, cast(Document, node))
             for key, value in cast(Document, node).items():
                 if key in {"example", "examples", "default", "enum", "const"}:
                     continue
-                if path == "$/components/schemas":
-                    walk(value, f"{path}/{key}", schema=True)
+                if path == "$/components/schemas" or key in {"schema", "itemSchema"}:
+                    walk_schema(value, f"{path}/{key}")
                 else:
-                    walk(
-                        value,
-                        f"{path}/{key}",
-                        schema=key
-                        in {
-                            "schema",
-                            "itemSchema",
-                            "contentSchema",
-                        },
-                    )
+                    walk(value, f"{path}/{key}")
         elif isinstance(node, list):
             for index, value in enumerate(cast(list[Any], node)):
                 walk(value, f"{path}/{index}")
