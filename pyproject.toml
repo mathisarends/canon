@@ -35,6 +35,7 @@ dev = [
   { include-group = "test" },
   "jsonschema>=4.23,<5", "types-jsonschema>=4.23", "ruff>=0.12",
   "build>=1.2", "jinja2>=3.1,<4",
+  "pylint>=4,<5",
 ]
 
 [tool.ruff]
@@ -51,6 +52,17 @@ venvPath = "."
 venv = ".venv"
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
+
+[tool.pylint.main]
+py-version = "3.12"
+ignore-paths = ["fastapi_streams/codegen/templates/.*"]
+
+[tool.pylint.messages_control]
+# Ruff owns formatting and style; Pylint checks errors and warnings.
+disable = ["C", "R"]
+
+[tool.pylint.reports]
+score = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
