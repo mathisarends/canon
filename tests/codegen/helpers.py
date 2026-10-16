@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi_streams import StreamRouter
 from fastapi_streams.codegen.ir import build_ir
 from fastapi_streams.codegen.openapi import export_schema
+from fastapi_streams.codegen.writer import write_files
 
 
 def event_contract(event_type):
@@ -51,3 +52,21 @@ def load_models(tmp_path, files):
         yield module
     finally:
         sys.modules.pop(name, None)
+
+
+@contextmanager
+def load_package(tmp_path, files):
+    write_files(tmp_path, files)
+    name = "generated_sdk_" + uuid4().hex
+    spec = importlib.util.spec_from_file_location(
+        name, tmp_path / "__init__.py", submodule_search_locations=[str(tmp_path)]
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+        yield module
+    finally:
+        for key in list(sys.modules):
+            if key == name or key.startswith(name + "."):
+                sys.modules.pop(key)

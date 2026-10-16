@@ -1,8 +1,10 @@
+import asyncio
 import shutil
 import socket
 import subprocess
 import sys
 import time
+from contextlib import aclosing
 from pathlib import Path
 
 import httpx
@@ -10,6 +12,13 @@ import pytest
 
 from examples.agent_runs.generated_python import Client
 from examples.agent_runs.generated_python.models import RunRequest
+from fastapi_streams.codegen.ir import build_ir
+from fastapi_streams.codegen.openapi import export_schema
+from fastapi_streams.codegen.python import generate_python
+from fastapi_streams.codegen.typescript import generate_typescript
+from fastapi_streams.codegen.writer import write_files
+from tests.codegen.helpers import load_package
+from tests.fixtures.integration_app import app
 
 ROOT = Path(__file__).parents[2]
 
@@ -24,7 +33,7 @@ def server():
             sys.executable,
             "-m",
             "uvicorn",
-            "examples.agent_runs:app",
+            "tests.fixtures.integration_app:app",
             "--host",
             "127.0.0.1",
             "--port",
@@ -105,3 +114,116 @@ async def test_generated_python_client_over_real_http(server):
             )
         ]
         assert len([event for event in events if event.type == "token.delta"]) == 2
+
+
+@pytest.fixture(scope="module")
+def current_clients(tmp_path_factory):
+    root = tmp_path_factory.mktemp("current_fastapi_clients")
+    contract = build_ir(export_schema(app))
+    python = generate_python(contract)
+    write_files(root / "generated", generate_typescript(contract))
+    return root, python
+
+
+async def assert_server_cleanup(http, server, stream_id):
+    async with asyncio.timeout(3):
+        while True:
+            state = (await http.get(server + "/lifecycle/" + stream_id)).json()
+            if "generator_closed" in state and "dependency_closed" in state:
+                return
+            await asyncio.sleep(0.01)
+
+
+@pytest.mark.parametrize("mode", ["break", "cancel"])
+async def test_current_fastapi_streams_immediately_and_closes_on_disconnect(
+    server, current_clients, mode
+):
+    root, python = current_clients
+    stream_id = "python_" + mode
+    with load_package(root / ("python_" + mode), python) as sdk:
+        async with (
+            httpx.AsyncClient(timeout=3, trust_env=False) as http,
+            sdk.Client(server, http_client=http) as client,
+        ):
+            events = client.compat.open_stream(stream_id=stream_id)
+            async with asyncio.timeout(3):
+                async with aclosing(events):
+                    async for event in events:
+                        assert event.n == 1
+                        assert (
+                            await http.get(server + "/lifecycle/" + stream_id)
+                        ).json() == ["dependency_open"]
+                        if mode == "cancel":
+                            task = asyncio.create_task(anext(events))
+                            await asyncio.sleep(0)
+                            task.cancel()
+                            with pytest.raises(asyncio.CancelledError):
+                                await task
+                        break
+            await assert_server_cleanup(http, server, stream_id)
+
+
+async def test_current_generated_python_client_preserves_wire_values_and_validation(
+    server, current_clients
+):
+    root, python = current_clients
+    with load_package(root / "python_wire", python) as sdk:
+        async with sdk.Client(server) as client:
+            events = [
+                event
+                async for event in client.fixtures.nested_events(
+                    item_id=42, labels=["a b", "c&d"], x_trace="trace"
+                )
+            ]
+            assert events[0].external_id == "42"
+            assert events[0].metadata.labels == ["a b", "c&d"]
+            assert events[0].metadata.note == "trace"
+            assert [event.n async for event in client.compat.created()] == [2]
+            with pytest.raises(sdk.HttpError) as raised:
+                _ = [
+                    event
+                    async for event in client.agent_runs.stream_run_events(
+                        run_id="bad", delay=-1
+                    )
+                ]
+            assert raised.value.status == 422
+
+
+def test_current_generated_typescript_client_streaming_and_cleanup(
+    server, current_clients
+):
+    root, _ = current_clients
+    node = shutil.which("node")
+    assert node, "Node is required for client integration tests"
+    shutil.copyfile(ROOT / "tests/fixtures/compat-client.ts", root / "compat-client.ts")
+    (root / "package.json").write_text('{"type":"module"}')
+    result = subprocess.run(
+        [
+            node,
+            str(ROOT / "node_modules/typescript/bin/tsc"),
+            "--strict",
+            "--target",
+            "ES2022",
+            "--module",
+            "NodeNext",
+            "--moduleResolution",
+            "NodeNext",
+            "--typeRoots",
+            str(ROOT / "node_modules/@types"),
+            "--outDir",
+            "dist",
+            "compat-client.ts",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    result = subprocess.run(
+        [node, str(root / "dist/compat-client.js"), server],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
