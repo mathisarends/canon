@@ -91,6 +91,7 @@ class _Models:
                     for index, member in enumerate(members)
                 )
                 if discriminator:
+                    discriminator = python_identifier(discriminator)
                     return f"Annotated[{union}, Field(discriminator={discriminator!r})]"
                 return union if len(members) == 1 else f"({union})"
             case Object() | Intersection():
