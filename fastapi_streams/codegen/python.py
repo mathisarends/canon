@@ -86,6 +86,13 @@ class _Models:
                     f"list[{self.render_type(item, hint=hint + 'Item', prefix=prefix)}]"
                 )
             case Union(members=members, discriminator=discriminator):
+                if members and all(isinstance(part, EnumValue) for part in members):
+                    values = ", ".join(
+                        f"{prefix}{part.enum}.{part.member}"
+                        for part in members
+                        if isinstance(part, EnumValue)
+                    )
+                    return f"Literal[{values}]"
                 union = " | ".join(
                     self.render_type(member, hint=hint + str(index), prefix=prefix)
                     for index, member in enumerate(members)
@@ -178,8 +185,16 @@ class _Models:
                         annotation = self.render_type(
                             field.type, hint=name + identifier(field.name, upper=True)
                         )
+                        literals = (
+                            field.type.members
+                            if isinstance(field.type, Union)
+                            else (field.type,)
+                        )
+                        enum_values = [
+                            part for part in literals if isinstance(part, EnumValue)
+                        ]
                         constant_default = (
-                            isinstance(field.type, EnumValue) and not field.required
+                            len(enum_values) == len(literals) and not field.required
                         )
                         if (
                             not field.required
@@ -188,11 +203,20 @@ class _Models:
                         ):
                             annotation = f"{annotation} | None"
                             nonnullable_optional.append(field_name)
-                        default = (
-                            f"{field.type.enum}.{field.type.member}"
-                            if isinstance(field.type, EnumValue) and constant_default
-                            else ("None" if not field.required else "...")
-                        )
+                        default = "None" if not field.required else "..."
+                        if constant_default:
+                            selected = enum_values[0]
+                            for value in enum_values:
+                                enum = self.declarations[value.enum]
+                                assert isinstance(enum, StringEnum)
+                                if field.default and any(
+                                    member.name == value.member
+                                    and member.value == field.default.value
+                                    for member in enum.members
+                                ):
+                                    selected = value
+                                    break
+                            default = f"{selected.enum}.{selected.member}"
                         assignment = (
                             f" = Field(default={default}, alias={field.name!r})"
                             if field_name != field.name

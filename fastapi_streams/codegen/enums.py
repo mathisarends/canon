@@ -12,6 +12,7 @@ from fastapi_streams.codegen.ir import (
     Operation,
     Reference,
     StringEnum,
+    Type,
     Union,
 )
 from fastapi_streams.codegen.names import identifier, python_identifier
@@ -71,14 +72,25 @@ def with_enums(contract: Contract) -> Contract:
                     ),
                     None,
                 )
-                if (
-                    field is None
-                    or not isinstance(field.type, LiteralType)
-                    or not isinstance(field.type.value, str)
+                literals = (
+                    field.type.members
+                    if field and isinstance(field.type, Union)
+                    else (field.type,)
+                    if field
+                    else ()
+                )
+                if not literals or not all(
+                    isinstance(part, LiteralType) and isinstance(part.value, str)
+                    for part in literals
                 ):
                     break
+                assert field is not None
                 fields.add((member.name, field.name))
-                values.add(field.type.value)
+                values.update(
+                    part.value
+                    for part in literals
+                    if isinstance(part, LiteralType) and isinstance(part.value, str)
+                )
             else:
                 candidates.append(
                     (name + identifier(type_.discriminator, upper=True), fields, values)
@@ -111,12 +123,8 @@ def with_enums(contract: Contract) -> Contract:
             declarations[model_name] = replace(
                 model,
                 fields=tuple(
-                    replace(
-                        field, type=EnumValue(canonical, by_value[field.type.value])
-                    )
+                    replace(field, type=_enum_literals(field.type, canonical, by_value))
                     if field.name == field_name
-                    and isinstance(field.type, LiteralType)
-                    and isinstance(field.type.value, str)
                     else field
                     for field in model.fields
                 ),
@@ -155,3 +163,10 @@ def with_enums(contract: Contract) -> Contract:
             Declaration(name, type_) for name, type_ in sorted(declarations.items())
         ),
     )
+
+
+def _enum_literals(type_: Type, enum: str, members: dict[str, str]) -> Type:
+    if isinstance(type_, LiteralType) and isinstance(type_.value, str):
+        return EnumValue(enum, members[type_.value])
+    assert isinstance(type_, Union)
+    return Union(tuple(_enum_literals(part, enum, members) for part in type_.members))

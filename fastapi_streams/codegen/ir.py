@@ -63,6 +63,7 @@ class Field:
     name: str
     type: Type
     required: bool
+    default: LiteralType | None = None
 
 
 @dataclass(frozen=True)
@@ -245,7 +246,18 @@ class _Types:
             extra = node.get("additionalProperties", not properties)
             return Object(
                 tuple(
-                    Field(name, self.parse(value), name in required)
+                    Field(
+                        name,
+                        self.parse(value),
+                        name in required,
+                        self.literal(value["default"])
+                        if isinstance(value, dict)
+                        and "default" in value
+                        and isinstance(
+                            value["default"], str | int | float | bool | None
+                        )
+                        else None,
+                    )
                     for name, value in sorted(properties.items())
                 ),
                 self.parse(extra) if extra is not False else None,
