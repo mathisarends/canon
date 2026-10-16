@@ -1,0 +1,96 @@
+"""A small declarative layer over FastAPI's native typed SSE support."""
+
+import inspect
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterable,
+    AsyncIterator,
+    Callable,
+    Generator,
+    Iterable,
+    Iterator,
+)
+from typing import Any, TypeVar, get_args, get_origin, get_type_hints
+
+from fastapi import APIRouter
+from fastapi.sse import EventSourceResponse, ServerSentEvent
+from pydantic import TypeAdapter
+
+_Endpoint = TypeVar("_Endpoint", bound=Callable[..., Any])
+_ASYNC = (AsyncIterator, AsyncIterable, AsyncGenerator)
+_SYNC = (Iterator, Iterable, Generator)
+
+
+def _has_any(annotation: Any) -> bool:
+    return annotation is Any or any(_has_any(arg) for arg in get_args(annotation))
+
+
+def _validate_endpoint(endpoint: Callable[..., Any]) -> None:
+    try:
+        annotation = get_type_hints(endpoint, include_extras=True).get("return")
+    except (NameError, TypeError) as exc:
+        raise TypeError(
+            f"Cannot resolve stream annotation for {endpoint.__name__}"
+        ) from exc
+    if inspect.isasyncgenfunction(endpoint):
+        origins = _ASYNC
+    elif inspect.isgeneratorfunction(endpoint):
+        origins = _SYNC
+    else:
+        raise TypeError("A stream endpoint must be a generator function using yield")
+    args = get_args(annotation)
+    if get_origin(annotation) not in origins or not args:
+        raise TypeError(
+            "A stream must declare AsyncIterator[Event] (or Iterable[Event] for def)"
+        )
+    item = args[0]
+    if _has_any(item) or item is ServerSentEvent:
+        raise TypeError(
+            "Declare a concrete JSON event type, not Any or ServerSentEvent"
+        )
+    try:
+        TypeAdapter(item).json_schema(mode="serialization")
+    except Exception as exc:
+        raise TypeError(f"Unsupported stream item type: {item!r}") from exc
+
+
+class StreamRouter(APIRouter):
+    """An APIRouter with typed SSE routes; normal FastAPI routes work unchanged."""
+
+    def stream(
+        self,
+        path: str,
+        *,
+        methods: list[str] | None = None,
+        **options: Any,
+    ) -> Callable[[_Endpoint], _Endpoint]:
+        """Register a GET (default) or POST JSON-data SSE generator.
+
+        Other options are forwarded to ``APIRouter.api_route``, including tags,
+        dependencies, responses, operation_id and response serialization options.
+        Put HTTP precondition checks in dependencies: a generator's body executes
+        after the response has started, following native FastAPI behavior.
+        """
+        selected = [method.upper() for method in (methods or ["GET"])]
+        if not set(selected) <= {"GET", "POST"}:
+            raise ValueError("v0.1 streams support GET and POST only")
+        if "response_class" in options or "response_model" in options:
+            raise TypeError(
+                "Streams infer their response model and use EventSourceResponse"
+            )
+        status = options.get("status_code", 200)
+        if status is not None and (not 200 <= status < 300 or status in (204, 205)):
+            raise ValueError("A stream must use a successful status code with a body")
+        options.setdefault("response_description", "Stream of JSON events")
+
+        def decorator(endpoint: _Endpoint) -> _Endpoint:
+            _validate_endpoint(endpoint)
+            self.api_route(
+                path,
+                methods=selected,
+                response_class=EventSourceResponse,
+                **options,
+            )(endpoint)
+            return endpoint
+
+        return decorator
