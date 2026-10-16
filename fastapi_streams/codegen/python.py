@@ -235,6 +235,7 @@ class _Models:
                         lines.append(
                             f"    __pydantic_extra__: dict[str, {annotation}]"
                             " = Field(init=False)"
+                            "  # pyright: ignore[reportIncompatibleVariableOverride]"
                         )
                     if nonnullable_optional:
                         args = ", ".join(repr(name) for name in nonnullable_optional)
