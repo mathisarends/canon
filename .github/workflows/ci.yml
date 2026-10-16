@@ -47,5 +47,4 @@ jobs:
             coverage-typescript.lcov
       - run: uv run python scripts/codegen.py --check
       - run: uv build
-      - run: uv run --isolated --no-project --with ./dist/fastapi_streams-0.1.0-py3-none-any.whl python -I scripts/smoke_package.py --core-only
-      - run: uv run --isolated --no-project --with './dist/fastapi_streams-0.1.0-py3-none-any.whl[codegen]' python -I scripts/smoke_package.py
+      - run: uv run python scripts/check_package.py

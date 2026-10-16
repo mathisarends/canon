@@ -1,6 +1,13 @@
+import argparse
 import importlib.util
+import json
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from collections.abc import AsyncIterator
+from importlib.metadata import version
 from pathlib import Path
 from typing import Literal
 
@@ -17,7 +24,16 @@ class Event(BaseModel):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--core-only", action="store_true")
+    parser.add_argument("--expected-version", required=True)
+    args = parser.parse_args()
     assert "site-packages" in str(Path(fastapi_streams.__file__).resolve())
+    assert (
+        version("fastapi-streams")
+        == fastapi_streams.__version__
+        == args.expected_version
+    )
     router = StreamRouter()
 
     @router.stream("/events", operation_id="events")
@@ -27,26 +43,115 @@ def main() -> None:
     app = FastAPI()
     app.include_router(router)
     assert "/events" in app.openapi()["paths"]
-    if "--core-only" in sys.argv:
-        assert importlib.util.find_spec("jinja2") is None
-        assert importlib.util.find_spec("jsonschema") is None
-        from fastapi_streams.codegen.cli import main as cli
+    cli = Path(sys.executable).with_name(
+        "fastapi-streams.exe" if os.name == "nt" else "fastapi-streams"
+    )
+    assert cli.is_file(), f"Missing installed console script: {cli}"
+    with tempfile.TemporaryDirectory() as directory:
+        working = Path(directory)
+        (working / "app.py").write_text(
+            "from collections.abc import AsyncIterator\n"
+            "from typing import Literal\n"
+            "from fastapi import FastAPI\n"
+            "from pydantic import BaseModel\n"
+            "from fastapi_streams import StreamRouter\n"
+            "class Event(BaseModel):\n"
+            '    type: Literal["event"]\n'
+            "    text: str\n"
+            "router = StreamRouter()\n"
+            '@router.stream("/events", operation_id="events")\n'
+            "async def events() -> AsyncIterator[Event]:\n"
+            '    yield Event(type="event", text="packaged")\n'
+            "app = FastAPI()\n"
+            "app.include_router(router)\n",
+            encoding="utf-8",
+        )
 
-        assert callable(cli)
-        print("Installed core imports without codegen dependencies")
-        return
+        def run(*arguments, expected=0):
+            result = subprocess.run(
+                [str(cli), *arguments],
+                cwd=working,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            assert result.returncode == expected, result.stdout + result.stderr
+            return result
 
-    from fastapi_streams.codegen.ir import build_ir
-    from fastapi_streams.codegen.openapi import export_schema
-    from fastapi_streams.codegen.python import generate_python
-    from fastapi_streams.codegen.typescript import generate_typescript
-
-    contract = build_ir(export_schema(app))
-    assert "client.ts" in generate_typescript(contract)
-    generated = generate_python(contract)
-    assert "class EventType(StrEnum)" in generated["models.py"]
-    assert "TypeAdapter" in generated["runtime.py"]
-    print("Installed codegen loads its schemas and both client templates")
+        run("--help")
+        if args.core_only:
+            assert importlib.util.find_spec("jinja2") is None
+            assert importlib.util.find_spec("jsonschema") is None
+            failed = run(
+                "schema", "--app", "app:app", "--output", "openapi.json", expected=2
+            )
+            assert "fastapi-streams[codegen]" in failed.stderr
+            print("Installed core CLI reports the missing codegen extra clearly")
+            return
+        run("schema", "--app", "app:app", "--output", "openapi.json")
+        assert json.loads((working / "openapi.json").read_text())["openapi"] == "3.2.0"
+        for language, output, client_file in [
+            ("typescript", "typescript", "client.ts"),
+            ("python", "sdk", "client.py"),
+        ]:
+            flags = [
+                "--schema",
+                "openapi.json",
+                "--language",
+                language,
+                "--output",
+                output,
+            ]
+            run("generate", *flags)
+            run("check", "--app", "app:app", *flags)
+            target = working / output / client_file
+            original = target.read_bytes()
+            target.write_bytes(original + b"\n")
+            run("check", *flags, expected=1)
+            assert target.read_bytes() == original + b"\n"
+            run("generate", *flags)
+        consumer = """
+import asyncio
+import httpx
+from sdk import Client
+async def main():
+    def handler(request):
+        return httpx.Response(200, headers={"Content-Type":"text/event-stream"},
+            content='data: {"type":"event","text":"packaged"}\\n\\n')
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        async with Client("http://example.test", http_client=http) as client:
+            events = [event async for event in client.streams.events()]
+            assert events[0].text == "packaged"
+asyncio.run(main())
+"""
+        subprocess.run(
+            [sys.executable, "-c", consumer], cwd=working, check=True, timeout=30
+        )
+        compiler = (
+            Path(__file__).resolve().parents[1] / "node_modules/typescript/bin/tsc"
+        )
+        node = shutil.which("node")
+        assert node and compiler.is_file(), "Run npm ci before package smoke tests"
+        subprocess.run(
+            [
+                node,
+                str(compiler),
+                "--strict",
+                "--target",
+                "ES2022",
+                "--module",
+                "ESNext",
+                "--moduleResolution",
+                "Bundler",
+                "--skipLibCheck",
+                "--noEmit",
+                "typescript/index.ts",
+            ],
+            cwd=working,
+            check=True,
+            timeout=30,
+        )
+    print("Installed CLI exports schemas, checks drift and produces usable clients")
 
 
 if __name__ == "__main__":
