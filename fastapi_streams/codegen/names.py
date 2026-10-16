@@ -1,3 +1,4 @@
+import keyword
 import re
 
 from fastapi_streams.codegen.openapi import ContractError
@@ -74,3 +75,14 @@ def identifier(value: str, *, upper: bool = False) -> str:
 
 def slug(value: str) -> str:
     return "-".join(part.lower() for part in words(value)) or "streams"
+
+
+def python_identifier(value: str) -> str:
+    name = "_".join(part.lower() for part in words(value))
+    if not name:
+        raise ContractError(f"Cannot make a Python identifier from {value!r}")
+    if name[0].isdigit():
+        name = "value_" + name
+    if keyword.iskeyword(name) or name.startswith("model_"):
+        name += "_"
+    return name

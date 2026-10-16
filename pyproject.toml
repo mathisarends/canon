@@ -6,10 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Mathis Arends" }]
-dependencies = ["fastapi>=0.135.0,<1.0", "pydantic>=2.11,<3"]
+dependencies = ["fastapi>=0.143.3,<1.0", "pydantic>=2.11,<3"]
 
 [project.optional-dependencies]
-codegen = ["jsonschema>=4.23,<5"]
+codegen = ["jsonschema>=4.23,<5", "jinja2>=3.1,<4"]
 
 [project.scripts]
 fastapi-streams = "fastapi_streams.codegen.cli:main"
@@ -25,12 +25,13 @@ packages = ["fastapi_streams"]
 dev = [
   "jsonschema>=4.23,<5", "types-jsonschema>=4.23", "httpx>=0.28",
   "pytest>=8", "pytest-asyncio>=1", "ruff>=0.12", "pyright>=1.1.400",
-  "uvicorn>=0.35", "build>=1.2",
+  "uvicorn>=0.35", "build>=1.2", "jinja2>=3.1,<4",
 ]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 88
+extend-exclude = ["examples/agent_runs/generated_python"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

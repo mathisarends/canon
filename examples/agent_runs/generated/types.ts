@@ -26,7 +26,9 @@ export type TokenDelta = {
   "type": "token.delta";
 };
 export type ValidationError = {
-  "ctx"?: { [key: string]: never };
+  "ctx"?: {
+  [key: string]: JsonValue;
+};
   "input"?: JsonValue;
   "loc": Array<(string | number)>;
   "msg": string;

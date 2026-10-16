@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from typing import Annotated, Any
 
@@ -104,3 +105,64 @@ def test_invalid_annotations_and_options_fail_at_registration():
         router.stream("/bad", methods=["DELETE"])
     with pytest.raises(TypeError, match="infer"):
         router.stream("/bad", response_model=Event)
+
+
+async def test_disconnect_closes_generator_and_request_dependencies():
+    closed = asyncio.Event()
+    dependency_closed = asyncio.Event()
+    sent = asyncio.Event()
+
+    async def resource() -> AsyncIterator[str]:
+        try:
+            yield "connection"
+        finally:
+            dependency_closed.set()
+
+    router = StreamRouter()
+
+    @router.stream("/events")
+    async def events(
+        resource: Annotated[str, Depends(resource)],
+    ) -> AsyncIterator[Event]:
+        try:
+            yield Event(value=resource)
+            await asyncio.Event().wait()
+        finally:
+            closed.set()
+
+    application = FastAPI()
+    application.include_router(router)
+    requested = False
+
+    async def receive():
+        nonlocal requested
+        if not requested:
+            requested = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+        await sent.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        if message["type"] == "http.response.body" and b"data:" in message.get(
+            "body", b""
+        ):
+            sent.set()
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/events",
+        "raw_path": b"/events",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [],
+        "client": ("127.0.0.1", 1000),
+        "server": ("localhost", 80),
+    }
+    await asyncio.wait_for(application(scope, receive, send), timeout=2)
+    assert sent.is_set()
+    assert closed.is_set()
+    assert dependency_closed.is_set()

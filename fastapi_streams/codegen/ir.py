@@ -15,7 +15,9 @@ from fastapi_streams.codegen.openapi import (
 
 @dataclass(frozen=True)
 class Scalar:
-    name: Literal["string", "number", "boolean", "null", "never", "JsonValue"]
+    name: Literal[
+        "string", "integer", "number", "boolean", "null", "never", "JsonValue"
+    ]
 
 
 @dataclass(frozen=True)
@@ -177,7 +179,7 @@ class _Types:
         if kind in ("string", "boolean", "null"):
             return Scalar(kind)
         if kind in ("number", "integer"):
-            return Scalar("number")
+            return Scalar(kind)
         if kind == "array":
             if "prefixItems" in node:
                 raise ContractError(
@@ -187,7 +189,7 @@ class _Types:
         if kind == "object" or "properties" in node or "additionalProperties" in node:
             properties: Document = node.get("properties", {})
             required: list[str] = node.get("required", [])
-            extra = node.get("additionalProperties", False)
+            extra = node.get("additionalProperties", not properties)
             return Object(
                 tuple(
                     Field(name, self.parse(value), name in required)

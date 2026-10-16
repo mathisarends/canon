@@ -7,9 +7,7 @@ from typing import cast
 
 from fastapi import FastAPI
 
-from fastapi_streams.codegen.ir import build_ir
 from fastapi_streams.codegen.openapi import ContractError, Document, export_schema
-from fastapi_streams.codegen.typescript import generate_typescript
 from fastapi_streams.codegen.writer import write_files
 
 
@@ -34,7 +32,9 @@ def main(argv: list[str] | None = None) -> int:
     schema.add_argument("--check", action="store_true")
     generate = commands.add_parser("generate", help="Generate a typed streaming SDK")
     generate.add_argument("--schema", required=True, type=Path)
-    generate.add_argument("--language", choices=["typescript"], default="typescript")
+    generate.add_argument(
+        "--language", choices=["typescript", "python"], default="typescript"
+    )
     generate.add_argument("--output", required=True, type=Path)
     generate.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
@@ -60,19 +60,27 @@ def main(argv: list[str] | None = None) -> int:
                 output.parent.mkdir(parents=True, exist_ok=True)
                 output.write_text(content, encoding="utf-8", newline="\n")
         else:
+            from fastapi_streams.codegen.ir import build_ir
+            from fastapi_streams.codegen.python import generate_python
+            from fastapi_streams.codegen.typescript import generate_typescript
+
             document = json.loads(args.schema.read_text(encoding="utf-8"))
             if not isinstance(document, dict):
                 raise ContractError("The OpenAPI document must be an object")
             contract = build_ir(cast(Document, document))
-            changed = write_files(
-                args.output, generate_typescript(contract), check=args.check
+            render = (
+                generate_python if args.language == "python" else generate_typescript
             )
+            changed = write_files(args.output, render(contract), check=args.check)
             if args.check and changed:
                 for path in changed:
                     print(f"Out of date: {path}", file=sys.stderr)
                 return 1
     except (ContractError, OSError, ValueError, ImportError, AttributeError) as exc:
-        print(f"fastapi-streams: {exc}", file=sys.stderr)
+        message = str(exc)
+        if isinstance(exc, ImportError) and exc.name in {"jinja2", "jsonschema"}:
+            message = "Install fastapi-streams[codegen] to generate clients"
+        print(f"fastapi-streams: {message}", file=sys.stderr)
         return 2
     return 0
 

@@ -1,0 +1,181 @@
+import asyncio
+from pathlib import Path
+
+import httpx
+import pytest
+from pydantic import TypeAdapter
+
+from examples.agent_runs.generated_python import (
+    Client,
+    HttpError,
+    StreamParseError,
+)
+from examples.agent_runs.generated_python.models import RunEvent, RunRequest
+from examples.agent_runs.generated_python.runtime import iter_sse
+from fastapi_streams.codegen.cli import main
+from fastapi_streams.codegen.ir import build_ir
+from fastapi_streams.codegen.openapi import export_schema
+from fastapi_streams.codegen.python import generate_python
+from fastapi_streams.codegen.writer import write_files
+
+
+class Chunks(httpx.AsyncByteStream):
+    def __init__(self, chunks: list[bytes], *, stall: bool = False):
+        self.chunks = chunks
+        self.stall = stall
+        self.closed = False
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            yield chunk
+        if self.stall:
+            await asyncio.Event().wait()
+
+    async def aclose(self):
+        self.closed = True
+
+
+async def test_python_parser_all_boundaries_and_multiline_eof():
+    raw = (
+        '\ufeff: ping\r\n\r\ndata: {\r\ndata: "text":"世界 👋"}\r\n\r\ndata: 2'.encode()
+    )
+    for cut in range(len(raw) + 1):
+        response = httpx.Response(200, stream=Chunks([raw[:cut], raw[cut:]]))
+        assert [data async for data in iter_sse(response)] == [
+            '{\n"text":"世界 👋"}',
+            "2",
+        ]
+    response = httpx.Response(200, stream=Chunks([bytes([value]) for value in raw]))
+    assert len([data async for data in iter_sse(response)]) == 2
+
+
+async def test_python_generated_requests_models_errors_and_client_ownership():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.headers.get("Authorization") != "Bearer token":
+            return httpx.Response(403, json={"detail": "Denied"})
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            stream=Chunks([b'data: {"type":"run.completed","run_id":"ok"}\n\n']),
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        async with Client(
+            "http://example.test/",
+            headers={"Authorization": "Bearer token"},
+            http_client=http,
+        ) as client:
+            events = [
+                event
+                async for event in client.agent_runs.stream_run_events(
+                    run_id="a/b ?", delay=0
+                )
+            ]
+            assert events[0].type == "run.completed"
+            assert events[0].run_id == "ok"
+            assert requests[-1].url.raw_path == b"/v1/runs/a%2Fb%20%3F/events?delay=0"
+            events = [
+                event
+                async for event in client.agent_runs.stream_prompt(
+                    run_id="ok", body=RunRequest(prompt="Hello")
+                )
+            ]
+            assert events[0].type == "run.completed"
+            assert requests[-1].method == "POST"
+            assert requests[-1].content == b'{"prompt":"Hello"}'
+        assert not http.is_closed
+        async with Client("http://example.test", http_client=http) as client:
+            with pytest.raises(HttpError) as raised:
+                _ = [
+                    event
+                    async for event in client.agent_runs.stream_run_events(run_id="x")
+                ]
+            assert raised.value.status == 403
+            assert raised.value.details == {"detail": "Denied"}
+
+
+async def test_python_stream_close_cancellation_and_validation():
+    for payload in (
+        b"broken",
+        b'{"type":"unknown"}',
+        b'{"type":"token.delta","text":1}',
+    ):
+        source = Chunks([b"data: " + payload + b"\n\n"])
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _, source=source: httpx.Response(
+                    200, headers={"Content-Type": "text/event-stream"}, stream=source
+                )
+            )
+        ) as http:
+            async with Client("http://example.test", http_client=http) as client:
+                with pytest.raises(StreamParseError):
+                    _ = [
+                        event
+                        async for event in client.agent_runs.stream_run_events(
+                            run_id="x"
+                        )
+                    ]
+            assert source.closed
+    source = Chunks([b'data: {"type":"token.delta","text":"hello"}\n\n'], stall=True)
+    async with (
+        httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    200, headers={"Content-Type": "text/event-stream"}, stream=source
+                )
+            )
+        ) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        events = client.agent_runs.stream_run_events(run_id="x")
+        assert (await anext(events)).type == "token.delta"
+        await events.aclose()
+        assert source.closed
+        source.closed = False
+        events = client.agent_runs.stream_run_events(run_id="x")
+        await anext(events)
+        task = asyncio.create_task(anext(events))
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert source.closed
+
+
+def test_python_codegen_cli_and_snapshot(tmp_path):
+    from examples.agent_runs import app
+
+    contract = build_ir(export_schema(app))
+    files = generate_python(contract)
+    assert files == generate_python(contract)
+    assert not write_files(
+        Path("examples/agent_runs/generated_python"), files, check=True
+    )
+    schema = tmp_path / "schema.json"
+    assert (
+        main(["schema", "--app", "examples.agent_runs:app", "--output", str(schema)])
+        == 0
+    )
+    args = [
+        "generate",
+        "--schema",
+        str(schema),
+        "--language",
+        "python",
+        "--output",
+        str(tmp_path / "sdk"),
+    ]
+    assert main(args) == 0
+    assert main(args + ["--check"]) == 0
+    (tmp_path / "sdk/models.py").write_text("stale")
+    assert main(args + ["--check"]) == 1
+    assert (
+        TypeAdapter(RunEvent)
+        .validate_json('{"type":"token.delta","text":"typed"}')
+        .text
+        == "typed"
+    )
