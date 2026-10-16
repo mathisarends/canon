@@ -33,6 +33,7 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pyright
       - run: uv run pylint fastapi_streams
+      - run: uv run pre-commit run --all-files
       - run: npm run typecheck
       - run: npm test
       - run: uv run pytest -q

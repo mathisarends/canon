@@ -36,6 +36,7 @@ dev = [
   "jsonschema>=4.23,<5", "types-jsonschema>=4.23", "ruff>=0.12",
   "build>=1.2", "jinja2>=3.1,<4",
   "pylint>=4,<5",
+  "pre-commit>=4,<5",
 ]
 
 [tool.ruff]
