@@ -12,6 +12,10 @@ from fastapi_streams.codegen.openapi import export_schema
 
 
 def event_contract(event_type):
+    return build_ir(event_document(event_type))
+
+
+def event_document(event_type):
     router = StreamRouter()
 
     async def events():
@@ -21,7 +25,17 @@ def event_contract(event_type):
     router.stream("/events", operation_id="events")(events)
     app = FastAPI()
     app.include_router(router)
-    return build_ir(export_schema(app))
+    return export_schema(app)
+
+
+def schema_contract(schema, components=None):
+    document = event_document(str)
+    media = document["paths"]["/events"]["get"]["responses"]["200"]["content"]
+    media["text/event-stream"]["itemSchema"]["properties"]["data"]["contentSchema"] = (
+        schema
+    )
+    document["components"] = {"schemas": components or {}}
+    return build_ir(document)
 
 
 @contextmanager

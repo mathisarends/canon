@@ -135,7 +135,12 @@ class _Models:
                             raise ContractError(
                                 f"Conflicting allOf field: {field.name}"
                             )
-                        fields[field.name] = field
+                        previous = fields.get(field.name)
+                        fields[field.name] = replace(
+                            field,
+                            required=field.required
+                            or bool(previous and previous.required),
+                        )
                     additional = obj.additional or additional
                 return Object(
                     tuple(fields[name] for name in sorted(fields)), additional
