@@ -11,6 +11,7 @@ from pydantic import TypeAdapter
 from examples.agent_runs.generated_python import (
     Client,
     HttpError,
+    RequestOptions,
     RunEventType,
     StreamParseError,
 )
@@ -129,6 +130,44 @@ async def test_python_generated_requests_models_errors_and_client_ownership():
                 ]
             assert raised.value.status == 403
             assert raised.value.details == {"detail": "Denied"}
+
+
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        (None, 0.25),
+        (RequestOptions(), 0.25),
+        (RequestOptions(headers={"X-Test": "yes"}), 0.25),
+        (RequestOptions(timeout=None), None),
+        (RequestOptions(timeout=0.5), 0.5),
+    ],
+)
+async def test_request_timeouts_inherit_override_or_disable(options, expected):
+    def handler(request):
+        assert request.extensions["timeout"] == dict.fromkeys(
+            ("connect", "read", "write", "pool"), expected
+        )
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            content='data: {"type":"run.completed","run_id":"ok"}\n\n',
+        )
+
+    async with (
+        httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=0.25) as http,
+        Client("http://example.test", http_client=http) as client,
+    ):
+        assert (
+            len(
+                [
+                    event
+                    async for event in client.agent_runs.stream_run_events(
+                        run_id="ok", options=options
+                    )
+                ]
+            )
+            == 1
+        )
 
 
 async def test_python_stream_close_cancellation_and_validation():

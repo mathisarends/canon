@@ -4,6 +4,7 @@ from __future__ import annotations
 import codecs
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from dataclasses import dataclass
+from enum import Enum
 
 import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -27,10 +28,14 @@ class StreamParseError(TransportError):
         super().__init__("Invalid JSON or event schema in SSE data")
 
 
+class _Default(Enum):
+    TIMEOUT = "inherit"
+
+
 @dataclass(frozen=True)
 class RequestOptions:
     headers: Mapping[str, str] | None = None
-    timeout: float | None = None
+    timeout: float | None | _Default = _Default.TIMEOUT
 
 
 type ParameterValue = str | int | float | bool | None
@@ -71,9 +76,7 @@ def append_query(
         query.append((name, scalar(value)))
 
 
-def set_header(
-    headers: dict[str, str], name: str, value: ParameterValue
-) -> None:
+def set_header(headers: dict[str, str], name: str, value: ParameterValue) -> None:
     if value is None:
         return
     headers[name] = scalar(value)
@@ -162,7 +165,9 @@ class Transport:
                 params=tuple(query),
                 headers=request_headers,
                 content=body,
-                timeout=options.timeout if options else None,
+                timeout=options.timeout
+                if options and not isinstance(options.timeout, _Default)
+                else httpx.USE_CLIENT_DEFAULT,
             ) as response:
                 if not response.is_success:
                     raw = bytearray()
