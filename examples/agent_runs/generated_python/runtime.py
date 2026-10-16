@@ -182,7 +182,9 @@ class Transport:
                     text = raw.decode("utf-8", errors="replace")
                     try:
                         details = (
-                            TypeAdapter(JsonValue).validate_json(text) if text else None
+                            TypeAdapter[JsonValue](JsonValue).validate_json(text)
+                            if text
+                            else None
                         )
                     except ValidationError:
                         details = text

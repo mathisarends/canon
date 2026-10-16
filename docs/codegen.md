@@ -31,7 +31,7 @@ Operations use the first tag as their group, defaulting to `streams`.
 
 TypeScript has no runtime dependencies and uses Fetch-compatible APIs. The
 example uses ES modules and is tested on Node 24. Generated Python packages
-require Python 3.12+, `httpx>=0.28` and `pydantic>=2.11` (`uv add httpx pydantic`).
+require Python 3.12+, `httpx>=0.28` and `pydantic>=2.11.2` (`uv add httpx pydantic`).
 
 REST operations remain available in the contract for an existing SDK generator
 such as Orval or HeyAPI. Keep REST and streaming SDKs in separate output
