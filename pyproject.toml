@@ -27,10 +27,14 @@ build-backend = "hatchling.build"
 packages = ["fastapi_streams"]
 
 [dependency-groups]
+test = [
+  "httpx>=0.28", "pytest>=8.4.2", "pytest-asyncio>=1", "uvicorn>=0.35",
+  "pyright>=1.1.400", "pytest-cov>=6",
+]
 dev = [
-  "jsonschema>=4.23,<5", "types-jsonschema>=4.23", "httpx>=0.28",
-  "pytest>=8", "pytest-asyncio>=1", "ruff>=0.12", "pyright>=1.1.400",
-  "uvicorn>=0.35", "build>=1.2", "jinja2>=3.1,<4",
+  { include-group = "test" },
+  "jsonschema>=4.23,<5", "types-jsonschema>=4.23", "ruff>=0.12",
+  "build>=1.2", "jinja2>=3.1,<4",
 ]
 
 [tool.ruff]
@@ -51,4 +55,17 @@ pythonVersion = "3.12"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = ["snapshot: golden schemas and clients tied to the locked dependencies"]
+
+[tool.coverage.run]
+branch = true
+source = [
+  "fastapi_streams",
+  "examples.agent_runs.generated_python.runtime",
+]
+omit = ["*/codegen/templates/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 85
 

@@ -4,6 +4,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage*.xml
+coverage*.lcov
 htmlcov/
 dist/
 node_modules/
