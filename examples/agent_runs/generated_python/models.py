@@ -7,6 +7,12 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
+class RunEventType(StrEnum):
+    RUN_COMPLETED = 'run.completed'
+    RUN_FAILED = 'run.failed'
+    RUN_STARTED = 'run.started'
+    TOKEN_DELTA = 'token.delta'
+
 class HTTPValidationError(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     detail: list[ValidationError] | None = None
@@ -24,12 +30,6 @@ class RunCompleted(BaseModel):
     type: Literal[RunEventType.RUN_COMPLETED]
 
 type RunEvent = Annotated[RunStarted | TokenDelta | RunCompleted | RunFailed, Field(discriminator='type')]
-
-class RunEventType(StrEnum):
-    RUN_COMPLETED = 'run.completed'
-    RUN_FAILED = 'run.failed'
-    RUN_STARTED = 'run.started'
-    TOKEN_DELTA = 'token.delta'
 
 class RunFailed(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

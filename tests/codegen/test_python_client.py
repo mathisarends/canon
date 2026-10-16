@@ -1,4 +1,6 @@
 import asyncio
+import importlib.util
+import sys
 from enum import StrEnum
 from pathlib import Path
 
@@ -35,6 +37,34 @@ class Chunks(httpx.AsyncByteStream):
 
     async def aclose(self):
         self.closed = True
+
+
+def test_optional_literal_defaults_produce_valid_discriminator_models(tmp_path):
+    from examples.agent_runs import app
+
+    document = export_schema(app)
+    started = document["components"]["schemas"]["RunStarted"]
+    started["required"].remove("type")
+    started["properties"]["type"]["default"] = "run.started"
+    files = generate_python(build_ir(document))
+    model_file = tmp_path / "models.py"
+    model_file.write_text(files["models.py"], encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_default_models", model_file
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        event = module.RunStarted(run_id="default")
+        assert event.type is module.RunEventType.RUN_STARTED
+        assert event.model_dump(exclude_unset=True) == {"run_id": "default"}
+        parsed = TypeAdapter(module.RunEvent).validate_json(
+            '{"type":"run.started","run_id":"ok"}'
+        )
+        assert parsed.type is module.RunEventType.RUN_STARTED
+    finally:
+        sys.modules.pop(spec.name)
 
 
 async def test_python_parser_all_boundaries_and_multiline_eof():

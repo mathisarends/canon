@@ -75,6 +75,14 @@ def test_writer_preflights_unsafe_manifest_before_any_write(tmp_path):
     assert not (tmp_path / "safe.ts").exists()
 
 
+@pytest.mark.parametrize(
+    "unsafe", ["../outside.ts", "/absolute.ts", "C:/drive.ts", "..\\outside.ts"]
+)
+def test_writer_rejects_unsafe_new_paths(tmp_path, unsafe):
+    with pytest.raises(ValueError):
+        write_files(tmp_path, {unsafe: "no"})
+
+
 def test_generator_rejects_untyped_streams_and_name_collisions():
     document = export_schema(app)
     operation = document["paths"]["/v1/runs/{run_id}/events"]["get"]

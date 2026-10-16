@@ -7,16 +7,20 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
+class FixtureEventType(StrEnum):
+    DONE = 'done'
+    NESTED = 'nested'
+
+class MetadataMode(StrEnum):
+    FAST = 'fast'
+    FULL = 'full'
+
 class DoneEvent(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     count: int
     type: Literal[FixtureEventType.DONE]
 
 type FixtureEvent = Annotated[NestedEvent | DoneEvent, Field(discriminator='type')]
-
-class FixtureEventType(StrEnum):
-    DONE = 'done'
-    NESTED = 'nested'
 
 class HTTPValidationError(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -44,10 +48,6 @@ class Metadata(BaseModel):
         return value
 
 type MetadataLimits = dict[str, int]
-
-class MetadataMode(StrEnum):
-    FAST = 'fast'
-    FULL = 'full'
 
 class NestedEvent(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

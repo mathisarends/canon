@@ -11,8 +11,9 @@ export class HttpError<T = unknown> extends TransportError {
     readonly status: number,
     readonly details: T,
     readonly response: Response,
+    options?: ErrorOptions,
   ) {
-    super(`HTTP ${status} ${response.statusText}`.trim());
+    super(`HTTP ${status} ${response.statusText}`.trim(), options);
   }
 }
 

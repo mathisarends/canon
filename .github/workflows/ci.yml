@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.2"
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - run: npm ci --ignore-scripts
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pyright
+      - run: npm run typecheck
+      - run: npm test
+      - run: uv run pytest -q
+      - run: uv run python scripts/codegen.py --check
+      - run: uv build
+      - run: uv run --isolated --no-project --with ./dist/fastapi_streams-0.1.0-py3-none-any.whl python -I scripts/smoke_package.py --core-only
+      - run: uv run --isolated --no-project --with './dist/fastapi_streams-0.1.0-py3-none-any.whl[codegen]' python -I scripts/smoke_package.py

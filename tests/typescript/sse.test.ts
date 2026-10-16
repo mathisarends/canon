@@ -159,6 +159,19 @@ test("a broken network stream preserves the transport error type", async () => {
   assert.equal(body.locked, false);
 });
 
+test("a failed HTTP error body preserves its known status", async () => {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.error(new Error("error body disconnected")); },
+  });
+  const fetch: typeof globalThis.fetch = async () => new Response(body, { status: 502 });
+  await assert.rejects(collect(stream({ baseUrl: "http://example.test", fetch }, { path: "/", method: "GET" })), (error: unknown) => {
+    assert.ok(error instanceof HttpError);
+    assert.equal(error.status, 502);
+    assert.ok(error.cause instanceof Error);
+    return true;
+  });
+});
+
 test("generated GET/POST methods serialize input and merge headers", async () => {
   const calls: { url: string; init: RequestInit }[] = [];
   const fetch: typeof globalThis.fetch = async (url, init) => {

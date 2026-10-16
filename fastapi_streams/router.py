@@ -8,7 +8,7 @@ from collections.abc import (
     Iterable,
     Iterator,
 )
-from typing import Any, get_args, get_origin, get_type_hints
+from typing import Any, TypeAliasType, get_args, get_origin, get_type_hints
 
 from fastapi import APIRouter
 from fastapi.sse import EventSourceResponse, ServerSentEvent
@@ -18,8 +18,17 @@ _ASYNC = (AsyncIterator, AsyncIterable, AsyncGenerator)
 _SYNC = (Iterator, Iterable, Generator)
 
 
-def _has_any(annotation: Any) -> bool:
-    return annotation is Any or any(_has_any(arg) for arg in get_args(annotation))
+def _has_any(annotation: Any, seen: frozenset[int] = frozenset()) -> bool:
+    if annotation is Any or any(
+        annotation is item for item in (object, dict, list, tuple, set)
+    ):
+        return True
+    if id(annotation) in seen:
+        return False
+    seen = seen | {id(annotation)}
+    if isinstance(annotation, TypeAliasType):
+        return _has_any(annotation.__value__, seen)
+    return any(_has_any(arg, seen) for arg in get_args(annotation))
 
 
 def _validate_endpoint(endpoint: Callable[..., Any]) -> None:
@@ -68,8 +77,10 @@ class StreamRouter(APIRouter):
         Put HTTP precondition checks in dependencies: a generator's body executes
         after the response has started, following native FastAPI behavior.
         """
-        selected = [method.upper() for method in (methods or ["GET"])]
-        if not set(selected) <= {"GET", "POST"}:
+        selected = [
+            method.upper() for method in (methods if methods is not None else ["GET"])
+        ]
+        if not selected or not set(selected) <= {"GET", "POST"}:
             raise ValueError("v0.1 streams support GET and POST only")
         if "response_class" in options or "response_model" in options:
             raise TypeError(

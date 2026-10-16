@@ -18,21 +18,22 @@ def run() -> int:
     ]
     result = 0
     for app, schema, output in applications:
-        result |= main(["schema", "--app", app, "--output", str(ROOT / schema), *check])
+        if not check:
+            result |= main(["schema", "--app", app, "--output", str(ROOT / schema)])
         for language, directory in (
             ("typescript", "generated"),
             ("python", "generated_python"),
         ):
             result |= main(
                 [
-                    "generate",
+                    "check" if check else "generate",
                     "--schema",
                     str(ROOT / schema),
                     "--language",
                     language,
                     "--output",
                     str(ROOT / output / directory),
-                    *check,
+                    *(["--app", app] if check else []),
                 ]
             )
     return result

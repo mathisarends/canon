@@ -218,7 +218,14 @@ export async function* stream<T>(
     }
     if (!response.ok) {
       bodyHandled = true;
-      throw new HttpError(response.status, await errorDetails(response, controller.signal), response);
+      let details: unknown;
+      try {
+        details = await errorDetails(response, controller.signal);
+      } catch (cause) {
+        controller.signal.throwIfAborted();
+        throw new HttpError(response.status, undefined, response, { cause });
+      }
+      throw new HttpError(response.status, details, response);
     }
     const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
     if (media !== "text/event-stream") {
@@ -236,7 +243,13 @@ export async function* stream<T>(
   } finally {
     options.signal?.removeEventListener("abort", onAbort);
     try {
-      if (!bodyHandled && response?.body && !response.body.locked) await response.body.cancel();
+      if (!bodyHandled && response?.body && !response.body.locked) {
+        try {
+          await response.body.cancel();
+        } catch (cause) {
+          throw new TransportError("Failed to close SSE response", { cause });
+        }
+      }
     } finally {
       controller.abort();
     }

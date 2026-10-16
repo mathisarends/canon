@@ -15,6 +15,9 @@ class Event(BaseModel):
     value: str
 
 
+type UntypedEvent = Any
+
+
 def test_get_post_validation_auth_and_serialization():
     with TestClient(app) as client:
         response = client.get("/v1/runs/abc/events?delay=0")
@@ -95,14 +98,19 @@ def test_invalid_annotations_and_options_fail_at_registration():
     async def ambiguous() -> AsyncIterator[Any]:
         yield {}
 
+    async def aliased_any() -> AsyncIterator[UntypedEvent]:
+        yield {}
+
     async def coroutine() -> Event:
         return Event(value="bad")
 
-    for endpoint in (untyped, ambiguous, coroutine):
+    for endpoint in (untyped, ambiguous, aliased_any, coroutine):
         with pytest.raises(TypeError):
             router.stream("/bad")(endpoint)
     with pytest.raises(ValueError, match="GET and POST"):
         router.stream("/bad", methods=["DELETE"])
+    with pytest.raises(ValueError, match="GET and POST"):
+        router.stream("/bad", methods=[])
     with pytest.raises(TypeError, match="infer"):
         router.stream("/bad", response_model=Event)
 
