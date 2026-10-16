@@ -9,10 +9,14 @@ ROOT = Path(__file__).resolve().parents[1]
 def run() -> int:
     check = ["--check"] if "--check" in sys.argv else []
     applications = [
-        ("examples.agent_runs:app", "schema/openapi.json", "examples/agent_runs"),
+        (
+            "examples.agent_runs:app",
+            "tests/fixtures/agent_runs.openapi.json",
+            "examples/agent_runs",
+        ),
         (
             "tests.fixtures.models_app:app",
-            "tests/fixtures/openapi.json",
+            "tests/fixtures/models.openapi.json",
             "tests/fixtures",
         ),
     ]

@@ -97,8 +97,9 @@ def test_generator_rejects_untyped_streams_and_name_collisions():
         build_ir(document)
 
 
+@pytest.mark.snapshot
 def test_example_contract_snapshot():
-    snapshot = Path(__file__).parents[2] / "schema/openapi.json"
+    snapshot = Path(__file__).parents[1] / "fixtures/agent_runs.openapi.json"
     assert json.loads(snapshot.read_text(encoding="utf-8")) == export_schema(app)
 
 

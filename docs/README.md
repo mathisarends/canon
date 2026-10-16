@@ -21,7 +21,7 @@ export contracts or generate clients.
 The [example application](../examples/agent_runs/__init__.py) includes GET and
 authenticated POST streams. Its [TypeScript](../examples/agent_runs/consume.ts)
 and [Python](../examples/agent_runs/consume.py) consumers demonstrate the complete
-journey. Generated clients and the [exported contract](../schema/openapi.json)
+journey. Generated clients and the [contract fixture](../tests/fixtures/agent_runs.openapi.json)
 are committed so you can inspect their output.
 
 [Back to the project](../README.md)

@@ -6,13 +6,13 @@
 
 ```sh
 uv run fastapi-streams schema \
-  --app examples.agent_runs:app --output schema/openapi.json
+  --app examples.agent_runs:app --output tests/fixtures/agent_runs.openapi.json
 
 uv run fastapi-streams generate \
-  --schema schema/openapi.json --language typescript --output frontend/generated
+  --schema tests/fixtures/agent_runs.openapi.json --language typescript --output frontend/generated
 
 uv run fastapi-streams generate \
-  --schema schema/openapi.json --language python --output myapp/generated
+  --schema tests/fixtures/agent_runs.openapi.json --language python --output myapp/generated
 ```
 
 No running server is needed. Export imports the application. The codegen extra
@@ -41,11 +41,11 @@ directories. Reusing external generated model imports is a future feature.
 
 ```sh
 uv run fastapi-streams check \
-  --app examples.agent_runs:app --schema schema/openapi.json \
+  --app examples.agent_runs:app --schema tests/fixtures/agent_runs.openapi.json \
   --language typescript --output examples/agent_runs/generated
 
 uv run fastapi-streams check \
-  --app examples.agent_runs:app --schema schema/openapi.json \
+  --app examples.agent_runs:app --schema tests/fixtures/agent_runs.openapi.json \
   --language python --output examples/agent_runs/generated_python
 ```
 

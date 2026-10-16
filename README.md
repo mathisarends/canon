@@ -79,13 +79,13 @@ Use `methods=["POST"]` for request-body-driven streams.
 
 ```sh
 uv run fastapi-streams schema \
-  --app app:app --output schema/openapi.json
+  --app app:app --output openapi.json
 
 uv run fastapi-streams generate \
-  --schema schema/openapi.json --language typescript --output generated/typescript
+  --schema openapi.json --language typescript --output generated/typescript
 
 uv run fastapi-streams generate \
-  --schema schema/openapi.json --language python --output generated/python
+  --schema openapi.json --language python --output generated/python
 ```
 
 These commands import the app and read its contract; no running server is needed.
@@ -156,11 +156,11 @@ Commit the exported schema and generated clients. Then check the complete chain:
 
 ```sh
 uv run fastapi-streams check \
-  --app app:app --schema schema/openapi.json \
+  --app app:app --schema openapi.json \
   --language typescript --output generated/typescript
 
 uv run fastapi-streams check \
-  --app app:app --schema schema/openapi.json \
+  --app app:app --schema openapi.json \
   --language python --output generated/python
 ```
 
@@ -198,7 +198,7 @@ uv run python -m examples.agent_runs.consume
 ```
 
 The example includes GET and authenticated POST streams, both generated SDKs,
-and a committed contract. Verify all its generated artifacts with
+and committed OpenAPI regression fixtures in `tests/fixtures/`. Verify all generated artifacts with
 `uv run python scripts/codegen.py --check`.
 
 ## Documentation

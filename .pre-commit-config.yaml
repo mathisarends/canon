@@ -37,4 +37,4 @@ repos:
         entry: uv run --frozen python scripts/codegen.py --check
         language: system
         pass_filenames: false
-        files: ^(fastapi_streams/|examples/|tests/fixtures/|schema/|scripts/codegen\.py|pyproject\.toml|uv\.lock)
+        files: ^(fastapi_streams/|examples/|tests/fixtures/|scripts/codegen\.py|pyproject\.toml|uv\.lock)

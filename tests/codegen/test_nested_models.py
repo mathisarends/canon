@@ -71,9 +71,11 @@ async def test_nested_python_models_and_parameters():
         )
 
 
+@pytest.mark.snapshot
 def test_fixture_generation_is_current():
     document = export_schema(app)
-    assert json.loads(Path("tests/fixtures/openapi.json").read_text()) == document
+    snapshot = Path("tests/fixtures/models.openapi.json")
+    assert json.loads(snapshot.read_text()) == document
     contract = build_ir(document)
     assert not write_files(
         Path("tests/fixtures/generated"), generate_typescript(contract), check=True
