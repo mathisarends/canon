@@ -11,6 +11,9 @@ entries describe the next release; they do not change the installed version.
   summaries, descriptions, deprecation, and SDK-specific iteration, cancellation,
   validation, and error behavior. Endpoint descriptions remain the source for
   business guarantees such as retention or job lifetime after disconnect.
+- `OptionalDiscriminatorWarning` identifies optional discriminator fields in
+  stream event unions, including nested and referenced events. Diagnostics name
+  the operation, route, model, and field; generation preserves schema requiredness.
 
 ### Upgrade from 0.0.1
 
@@ -32,6 +35,10 @@ entries describe the next release; they do not change the installed version.
 3. Run the consuming project's TypeScript/Python type checks and stream tests.
    Add endpoint-specific guarantees to OpenAPI descriptions, rather than editing
    generated documentation.
+4. Review optional discriminator warnings. For output-only Pydantic event models
+   whose defaults are always serialized, see the serialization configuration in
+   [the codegen guide](docs/codegen.md#event-discriminators). Do not make optional
+   request fields required merely because they have Python defaults.
 
 ## 0.0.1
 
