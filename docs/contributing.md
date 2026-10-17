@@ -13,6 +13,8 @@ uv run --locked python scripts/check_distributions.py
 The first command installs all members and their development groups into the
 root `.venv`. The reference service is a development member, not a fourth
 published stack library. Keep only the root `uv.lock`; `uv lock` updates it.
+Optionally run `uv run --locked pre-commit install` from the root to install the
+shared lint hook. Do not install the imported package-local hook configurations.
 
 Run one gate with `check.py lint`, `types`, `test`, or `clients`. Package suites
 run in separate processes to keep their `tests` and `examples` imports isolated.
@@ -29,6 +31,9 @@ lockfile. Both client generators remain owned by their respective package.
 the wheels in six fresh environments, without uv workspace overrides. It checks
 standalone imports, absent optional packages, CLIs, typed markers, HTTP, SSE,
 RPC, and the shared Dishka lifecycle. Build outputs live in ignored `dist/`.
+Then run `uv run --locked python scripts/check_streams_artifacts.py` to check
+the Streams wheel with no codegen extra and each supported Python HTTP client.
+The artifact scripts also generate and exercise clients from installed contracts.
 
 Run the composed example with:
 

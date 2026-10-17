@@ -1,7 +1,7 @@
 # Independent releases
 
 `fastapi-canon` and `fastapi-streams` retain their existing PyPI identities,
-versions, and import paths. The RPC successor will have its own distribution.
+versions, and import paths. `fastapi-wsrpc` is the unreleased RPC successor.
 A monorepo change does not require releasing all components.
 
 Each library keeps its own `CHANGELOG.md` and `pyproject.toml`. A future root
