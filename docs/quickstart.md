@@ -71,9 +71,16 @@ app.include_router(router, prefix="/v1")
 
 `StreamRouter` extends `APIRouter`. `stream()` defaults to GET and SSE. Pass
 `methods=["POST"]` for JSON request bodies. Options such as `dependencies`,
-`responses`, `tags`, `operation_id`, `status_code` and serialization options
+`responses`, `tags`, `operation_id` and `status_code`
 pass through to FastAPI. Stable operation IDs make the generated API stable.
 The original function and signature are registered directly.
+
+Event serialization must match the exported schema. `stream()` rejects non-None
+`response_model_include`, nonempty `response_model_exclude`,
+`response_model_by_alias=False`, and enabled `response_model_exclude_none`,
+`response_model_exclude_unset` or `response_model_exclude_defaults` at registration.
+Their default/no-op values remain supported. Define a separate event model when
+the wire payload needs different fields; ordinary field aliases are supported.
 
 Async generators support `AsyncIterator[T]`, `AsyncIterable[T]` and
 `AsyncGenerator[T, None]`; sync generators support `Iterator[T]`, `Iterable[T]`

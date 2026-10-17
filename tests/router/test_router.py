@@ -1,18 +1,29 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator, Iterator
 from typing import Annotated, Any
 
 import pytest
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, TypeAdapter
 
 from examples.agent_runs import app
 from fastapi_streams import StreamRouter
+from fastapi_streams.codegen.ir import build_ir
+from fastapi_streams.codegen.openapi import export_schema
+from fastapi_streams.codegen.python import generate_python
+from tests.codegen.helpers import load_models
 
 
 class Event(BaseModel):
     value: str
+
+
+class ContractEvent(BaseModel):
+    public: str = Field(alias="external-value")
+    secret: str
+    nullable: str | None
 
 
 type UntypedEvent = Any
@@ -113,6 +124,69 @@ def test_invalid_annotations_and_options_fail_at_registration():
         router.stream("/bad", methods=[])
     with pytest.raises(TypeError, match="infer"):
         router.stream("/bad", response_model=Event)
+
+
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [
+        ("response_model_include", {"public"}),
+        ("response_model_include", set()),
+        ("response_model_exclude", {"secret"}),
+        ("response_model_by_alias", False),
+        ("response_model_exclude_none", True),
+        ("response_model_exclude_unset", True),
+        ("response_model_exclude_defaults", True),
+    ],
+)
+def test_contract_changing_serialization_is_rejected(option, value):
+    router = StreamRouter()
+
+    async def events() -> AsyncIterator[ContractEvent]:
+        yield ContractEvent(**{"external-value": "ok", "secret": "s", "nullable": None})
+
+    with pytest.raises(TypeError, match=option):
+        router.stream("/events", **{option: value})(events)
+    assert router.routes == []
+
+
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_noop_serialization_preserves_wire_contract_and_generated_model(
+    tmp_path, method
+):
+    router = StreamRouter()
+
+    @router.stream(
+        "/events",
+        methods=[method],
+        operation_id="events",
+        response_model_include=None,
+        response_model_exclude=set(),
+        response_model_by_alias=True,
+        response_model_exclude_none=False,
+        response_model_exclude_unset=False,
+        response_model_exclude_defaults=False,
+        status_code=201,
+        tags=["contract"],
+        responses={201: {"headers": {"x-contract": {"schema": {"type": "string"}}}}},
+    )
+    async def events() -> AsyncIterator[ContractEvent]:
+        yield ContractEvent(**{"external-value": "ok", "secret": "s", "nullable": None})
+
+    application = FastAPI()
+    application.include_router(router)
+    contract = build_ir(export_schema(application))
+    with TestClient(application) as client:
+        response = client.request(method, "/events")
+    assert response.status_code == 201
+    data = json.loads(
+        next(
+            line[6:] for line in response.text.splitlines() if line.startswith("data: ")
+        )
+    )
+    assert data == {"external-value": "ok", "secret": "s", "nullable": None}
+    with load_models(tmp_path, generate_python(contract)) as models:
+        parsed = TypeAdapter(models.ContractEvent).validate_python(data)
+        assert parsed.model_dump(by_alias=True) == data
 
 
 async def test_disconnect_closes_generator_and_request_dependencies():

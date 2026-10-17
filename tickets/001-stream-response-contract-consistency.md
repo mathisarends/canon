@@ -1,6 +1,6 @@
 # 001 — Keep stream serialization and generated contracts consistent
 
-Status: Open
+Status: Complete
 Priority: P1
 Scope: StreamRouter registration, contract export, regression tests
 
@@ -37,9 +37,7 @@ class Event(BaseModel):
     secret: str
 
 
-@router.stream(
-    "/events", operation_id="events", response_model_exclude={"secret"}
-)
+@router.stream("/events", operation_id="events", response_model_exclude={"secret"})
 async def events() -> AsyncIterator[Event]:
     yield Event(public="ok", secret="hidden")
 ```
@@ -86,6 +84,16 @@ the router docstring and the appropriate user guide.
   generated source strings.
 
 ## Validation
+
+Implemented registration-time rejection of contract-changing include/exclude,
+alias and omission settings; documented the supported no-op values. Regressions
+cover all six options and validate real GET/POST SSE payloads (including aliases
+and required nulls) against freshly generated Python models. No schema rewriting
+is attempted; use a dedicated event model for a different payload shape.
+
+Validation: the seven new rejection cases failed before the fix;
+`uv run pytest -q` passed **134 tests** after it.
+`uv run python scripts/codegen.py --check` passed with no artifact changes.
 
 Run focused router and contract tests, the new generated-client regressions,
 the complete Python suite, and generated-artifact drift checks. If schemas or
