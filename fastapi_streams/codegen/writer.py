@@ -7,16 +7,6 @@ from typing import Any, cast
 MANIFEST = ".fastapi-streams.json"
 
 
-def _owned_path(root: Path, relative: str) -> Path:
-    path = PurePosixPath(relative)
-    if path.is_absolute() or ".." in path.parts or "\\" in relative or ":" in relative:
-        raise ValueError(f"Unsafe generated path: {relative!r}")
-    resolved = (root / relative).resolve()
-    if not resolved.is_relative_to(root.resolve()) or resolved == root.resolve():
-        raise ValueError(f"Generated path escapes output directory: {relative!r}")
-    return resolved
-
-
 def write_files(
     output: Path, files: Mapping[str, str], *, check: bool = False
 ) -> tuple[Path, ...]:
@@ -62,3 +52,13 @@ def write_files(
             if not check:
                 path.unlink()
     return tuple(changed)
+
+
+def _owned_path(root: Path, relative: str) -> Path:
+    path = PurePosixPath(relative)
+    if path.is_absolute() or ".." in path.parts or "\\" in relative or ":" in relative:
+        raise ValueError(f"Unsafe generated path: {relative!r}")
+    resolved = (root / relative).resolve()
+    if not resolved.is_relative_to(root.resolve()) or resolved == root.resolve():
+        raise ValueError(f"Generated path escapes output directory: {relative!r}")
+    return resolved

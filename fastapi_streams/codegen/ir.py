@@ -158,161 +158,6 @@ class Contract:
     security_schemes: tuple[SecurityScheme, ...]
 
 
-class _Types:
-    def __init__(self, document: Document) -> None:
-        self.document = document
-        self.names: dict[str, str] = {}
-        self.pending: dict[str, Document | bool] = {}
-
-    def parse(self, schema: Any) -> Type:
-        if schema is True or schema == {}:
-            return Scalar("JsonValue")
-        if schema is False:
-            return Scalar("never")
-        if not isinstance(schema, dict):
-            raise ContractError(f"Expected a Schema Object, got {schema!r}")
-        node = cast(Document, schema)
-        if "$ref" in node:
-            ref: str = node["$ref"]
-            if not ref.startswith("#/components/schemas/"):
-                raise ContractError(
-                    f"Type references must point to components/schemas: {ref}"
-                )
-            # Keep references in the IR so recursive models stay recursive.
-            target = resolve_pointer(self.document, ref)
-            if isinstance(target, dict):
-                target = resolve_ref(self.document, cast(Document, target))
-            name = identifier(
-                ref.rsplit("/", 1)[-1].replace("~1", "/").replace("~0", "~"), upper=True
-            )
-            if name == "JsonValue" or (name in self.names and self.names[name] != ref):
-                raise ContractError(f"TypeScript type name collision: {name}")
-            self.names[name] = ref
-            self.pending[name] = target
-            siblings = {key: value for key, value in node.items() if key != "$ref"}
-            if any(
-                key in siblings
-                for key in ("type", "properties", "allOf", "anyOf", "oneOf")
-            ):
-                return Intersection((Reference(name), self.parse(siblings)))
-            return Reference(name)
-        if "const" in node:
-            return self.literal(node["const"])
-        if "enum" in node:
-            return Union(tuple(self.literal(value) for value in node["enum"]))
-        for keyword in ("oneOf", "anyOf", "allOf"):
-            if keyword in node:
-                members = tuple(self.parse(part) for part in node[keyword])
-                if keyword == "allOf":
-                    combined: Type = Intersection(members)
-                else:
-                    combined = Union(
-                        members, node.get("discriminator", {}).get("propertyName")
-                    )
-                siblings = {key: value for key, value in node.items() if key != keyword}
-                if any(
-                    key in siblings
-                    for key in (
-                        "type",
-                        "properties",
-                        "additionalProperties",
-                        "oneOf",
-                        "anyOf",
-                        "allOf",
-                    )
-                ):
-                    return Intersection((combined, self.parse(siblings)))
-                return combined
-        kind = node.get("type")
-        if isinstance(kind, list):
-            return Union(
-                tuple(
-                    self.parse({**node, "type": part}) for part in cast(list[str], kind)
-                )
-            )
-        if kind in ("string", "boolean", "null"):
-            return Scalar(kind)
-        if kind in ("number", "integer"):
-            return Scalar(kind)
-        if kind == "array":
-            if "prefixItems" in node:
-                raise ContractError("Tuple schemas (prefixItems) are not supported")
-            return Array(self.parse(node.get("items", {})))
-        if kind == "object" or "properties" in node or "additionalProperties" in node:
-            properties: Document = node.get("properties", {})
-            required: list[str] = node.get("required", [])
-            extra = node.get("additionalProperties", not properties)
-            return Object(
-                tuple(
-                    Field(
-                        name,
-                        self.parse(value),
-                        name in required,
-                        self.literal(value["default"])
-                        if isinstance(value, dict)
-                        and "default" in value
-                        and isinstance(
-                            value["default"], str | int | float | bool | None
-                        )
-                        else None,
-                    )
-                    for name, value in sorted(properties.items())
-                ),
-                self.parse(extra) if extra is not False else None,
-            )
-        if set(node) <= {
-            "title",
-            "description",
-            "default",
-            "examples",
-            "deprecated",
-            "readOnly",
-            "writeOnly",
-        }:
-            return Scalar("JsonValue")
-        raise ContractError(f"Unsupported or ambiguous JSON Schema: {node!r}")
-
-    @staticmethod
-    def literal(value: Any) -> LiteralType:
-        if value is not None and not isinstance(value, str | int | float | bool):
-            raise ContractError("Object and array enum/const values are not supported")
-        return LiteralType(value)
-
-    def declarations(self) -> tuple[Declaration, ...]:
-        result: dict[str, Declaration] = {}
-        while todo := sorted(set(self.pending) - set(result)):
-            for name in todo:
-                result[name] = Declaration(name, self.parse(self.pending[name]))
-        return tuple(result[name] for name in sorted(result))
-
-
-def _parameter_type(
-    type_: Type,
-    types: _Types,
-    seen: frozenset[str] = frozenset(),
-    *,
-    arrays: bool = True,
-) -> bool:
-    match type_:
-        case Scalar(name=name):
-            return name not in {"JsonValue", "never"}
-        case LiteralType():
-            return True
-        case Array(item=item):
-            return arrays and _parameter_type(item, types, seen, arrays=False)
-        case Union(members=members):
-            return all(
-                _parameter_type(member, types, seen, arrays=arrays)
-                for member in members
-            )
-        case Reference(name=name) if name not in seen:
-            return _parameter_type(
-                types.parse(types.pending[name]), types, seen | {name}, arrays=arrays
-            )
-        case _:
-            return False
-
-
 def build_ir(document: Document) -> Contract:
     validate_contract(document)
     types = _Types(document)
@@ -485,3 +330,158 @@ def build_ir(document: Document) -> Contract:
     from fastapi_streams.codegen.enums import with_enums
 
     return with_enums(Contract(tuple(operations), types.declarations(), schemes))
+
+
+class _Types:
+    def __init__(self, document: Document) -> None:
+        self.document = document
+        self.names: dict[str, str] = {}
+        self.pending: dict[str, Document | bool] = {}
+
+    def parse(self, schema: Any) -> Type:
+        if schema is True or schema == {}:
+            return Scalar("JsonValue")
+        if schema is False:
+            return Scalar("never")
+        if not isinstance(schema, dict):
+            raise ContractError(f"Expected a Schema Object, got {schema!r}")
+        node = cast(Document, schema)
+        if "$ref" in node:
+            ref: str = node["$ref"]
+            if not ref.startswith("#/components/schemas/"):
+                raise ContractError(
+                    f"Type references must point to components/schemas: {ref}"
+                )
+            # Keep references in the IR so recursive models stay recursive.
+            target = resolve_pointer(self.document, ref)
+            if isinstance(target, dict):
+                target = resolve_ref(self.document, cast(Document, target))
+            name = identifier(
+                ref.rsplit("/", 1)[-1].replace("~1", "/").replace("~0", "~"), upper=True
+            )
+            if name == "JsonValue" or (name in self.names and self.names[name] != ref):
+                raise ContractError(f"TypeScript type name collision: {name}")
+            self.names[name] = ref
+            self.pending[name] = target
+            siblings = {key: value for key, value in node.items() if key != "$ref"}
+            if any(
+                key in siblings
+                for key in ("type", "properties", "allOf", "anyOf", "oneOf")
+            ):
+                return Intersection((Reference(name), self.parse(siblings)))
+            return Reference(name)
+        if "const" in node:
+            return self.literal(node["const"])
+        if "enum" in node:
+            return Union(tuple(self.literal(value) for value in node["enum"]))
+        for keyword in ("oneOf", "anyOf", "allOf"):
+            if keyword in node:
+                members = tuple(self.parse(part) for part in node[keyword])
+                if keyword == "allOf":
+                    combined: Type = Intersection(members)
+                else:
+                    combined = Union(
+                        members, node.get("discriminator", {}).get("propertyName")
+                    )
+                siblings = {key: value for key, value in node.items() if key != keyword}
+                if any(
+                    key in siblings
+                    for key in (
+                        "type",
+                        "properties",
+                        "additionalProperties",
+                        "oneOf",
+                        "anyOf",
+                        "allOf",
+                    )
+                ):
+                    return Intersection((combined, self.parse(siblings)))
+                return combined
+        kind = node.get("type")
+        if isinstance(kind, list):
+            return Union(
+                tuple(
+                    self.parse({**node, "type": part}) for part in cast(list[str], kind)
+                )
+            )
+        if kind in ("string", "boolean", "null"):
+            return Scalar(kind)
+        if kind in ("number", "integer"):
+            return Scalar(kind)
+        if kind == "array":
+            if "prefixItems" in node:
+                raise ContractError("Tuple schemas (prefixItems) are not supported")
+            return Array(self.parse(node.get("items", {})))
+        if kind == "object" or "properties" in node or "additionalProperties" in node:
+            properties: Document = node.get("properties", {})
+            required: list[str] = node.get("required", [])
+            extra = node.get("additionalProperties", not properties)
+            return Object(
+                tuple(
+                    Field(
+                        name,
+                        self.parse(value),
+                        name in required,
+                        self.literal(value["default"])
+                        if isinstance(value, dict)
+                        and "default" in value
+                        and isinstance(
+                            value["default"], str | int | float | bool | None
+                        )
+                        else None,
+                    )
+                    for name, value in sorted(properties.items())
+                ),
+                self.parse(extra) if extra is not False else None,
+            )
+        if set(node) <= {
+            "title",
+            "description",
+            "default",
+            "examples",
+            "deprecated",
+            "readOnly",
+            "writeOnly",
+        }:
+            return Scalar("JsonValue")
+        raise ContractError(f"Unsupported or ambiguous JSON Schema: {node!r}")
+
+    @staticmethod
+    def literal(value: Any) -> LiteralType:
+        if value is not None and not isinstance(value, str | int | float | bool):
+            raise ContractError("Object and array enum/const values are not supported")
+        return LiteralType(value)
+
+    def declarations(self) -> tuple[Declaration, ...]:
+        result: dict[str, Declaration] = {}
+        while todo := sorted(set(self.pending) - set(result)):
+            for name in todo:
+                result[name] = Declaration(name, self.parse(self.pending[name]))
+        return tuple(result[name] for name in sorted(result))
+
+
+def _parameter_type(
+    type_: Type,
+    types: _Types,
+    seen: frozenset[str] = frozenset(),
+    *,
+    arrays: bool = True,
+) -> bool:
+    match type_:
+        case Scalar(name=name):
+            return name not in {"JsonValue", "never"}
+        case LiteralType():
+            return True
+        case Array(item=item):
+            return arrays and _parameter_type(item, types, seen, arrays=False)
+        case Union(members=members):
+            return all(
+                _parameter_type(member, types, seen, arrays=arrays)
+                for member in members
+            )
+        case Reference(name=name) if name not in seen:
+            return _parameter_type(
+                types.parse(types.pending[name]), types, seen | {name}, arrays=arrays
+            )
+        case _:
+            return False

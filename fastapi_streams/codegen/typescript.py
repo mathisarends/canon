@@ -82,34 +82,6 @@ def render_type(type_: Type, prefix: str = "") -> str:
             )
 
 
-def _input_name(operation: Operation) -> str:
-    return identifier(operation.operation_id, upper=True) + "Params"
-
-
-def _path(operation: Operation) -> str:
-    parts: list[str] = []
-    cursor = 0
-    by_name = {param.name: param.argument for param in operation.parameters}
-    for match in re.finditer(r"\{([^{}]+)\}", operation.path):
-        parts.append(json.dumps(operation.path[cursor : match.start()]))
-        parts.append(f"encodePath(input.{by_name[match[1]]})")
-        cursor = match.end()
-    parts.append(json.dumps(operation.path[cursor:]))
-    return " + ".join(parts)
-
-
-def _required(operation: Operation) -> bool:
-    return any(param.required for param in operation.parameters) or (
-        operation.body is not None and operation.body.required
-    )
-
-
-def _error_type(operation: Operation) -> str:
-    return " | ".join(
-        sorted({render_type(error.type, prefix="Types.") for error in operation.errors})
-    )
-
-
 def generate_typescript(contract: Contract) -> dict[str, str]:
     public_names = {
         "Client",
@@ -218,3 +190,31 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
     )
     output["index.ts"] = "\n".join(exports) + "\n"
     return output
+
+
+def _input_name(operation: Operation) -> str:
+    return identifier(operation.operation_id, upper=True) + "Params"
+
+
+def _path(operation: Operation) -> str:
+    parts: list[str] = []
+    cursor = 0
+    by_name = {param.name: param.argument for param in operation.parameters}
+    for match in re.finditer(r"\{([^{}]+)\}", operation.path):
+        parts.append(json.dumps(operation.path[cursor : match.start()]))
+        parts.append(f"encodePath(input.{by_name[match[1]]})")
+        cursor = match.end()
+    parts.append(json.dumps(operation.path[cursor:]))
+    return " + ".join(parts)
+
+
+def _required(operation: Operation) -> bool:
+    return any(param.required for param in operation.parameters) or (
+        operation.body is not None and operation.body.required
+    )
+
+
+def _error_type(operation: Operation) -> str:
+    return " | ".join(
+        sorted({render_type(error.type, prefix="Types.") for error in operation.errors})
+    )

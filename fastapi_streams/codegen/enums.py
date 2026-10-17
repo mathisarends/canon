@@ -19,15 +19,6 @@ from fastapi_streams.codegen.names import identifier, python_identifier
 from fastapi_streams.codegen.openapi import ContractError
 
 
-def _members(values: set[str]) -> tuple[EnumMember, ...]:
-    result = tuple(
-        EnumMember(python_identifier(value).upper(), value) for value in sorted(values)
-    )
-    if len({member.name for member in result}) != len(result):
-        raise ContractError(f"Enum member names collide: {sorted(values)}")
-    return result
-
-
 def with_enums(contract: Contract) -> Contract:
     declarations = {
         declaration.name: declaration.type for declaration in contract.declarations
@@ -163,6 +154,15 @@ def with_enums(contract: Contract) -> Contract:
             Declaration(name, type_) for name, type_ in sorted(declarations.items())
         ),
     )
+
+
+def _members(values: set[str]) -> tuple[EnumMember, ...]:
+    result = tuple(
+        EnumMember(python_identifier(value).upper(), value) for value in sorted(values)
+    )
+    if len({member.name for member in result}) != len(result):
+        raise ContractError(f"Enum member names collide: {sorted(values)}")
+    return result
 
 
 def _enum_literals(type_: Type, enum: str, members: dict[str, str]) -> Type:
