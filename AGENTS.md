@@ -4,6 +4,8 @@ Read `docs/design-decisions/0001-workspace.md` for the source inventory and
 `docs/migration.md` for current versus planned capabilities. `VISION.md` describes
 the target; do not treat illustrative APIs as implemented interfaces.
 Use `TODO.md` for the prioritized next work block and release setup still required.
+Write all repository Markdown documentation in English, including TODO lists,
+changelogs, guides, and agent instructions.
 
 ## Boundaries
 
