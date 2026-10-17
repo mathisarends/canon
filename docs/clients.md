@@ -120,3 +120,10 @@ remain ordinary members of the user-defined union.
 Python uses `None` for omitted optional fields; `model_fields_set` distinguishes
 absence from explicit null. Explicit null is rejected for fields that may only
 be omitted. Requests exclude unset fields and serialize using wire aliases.
+
+Python models preserve explicit `additionalProperties: false` with
+`extra="forbid"`; unknown request fields raise validation errors and forbidden
+event fields raise `StreamParseError`. Explicit unrestricted/typed extra fields
+are retained and typed extras are validated. Schemas omitting the keyword keep
+their existing default behavior. Python rejects closed-object `allOf` combinations
+that introduce fields forbidden by another member, or incompatible typed extras.

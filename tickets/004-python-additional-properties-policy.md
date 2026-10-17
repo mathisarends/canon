@@ -1,6 +1,6 @@
 # 004 — Preserve explicit additionalProperties policies in Python models
 
-Status: Open
+Status: Complete
 Priority: P2
 Scope: Shared object IR, Python model config, schema validation regressions
 Integration: After 002; before 005 and 006 to coordinate shared IR edits.
@@ -80,6 +80,21 @@ weakening them.
   the documented v0.0.1 scope.
 
 ## Validation
+
+Added an explicit forbidden-extras flag to the object IR and emit
+`extra="forbid"` only for that policy. Existing omitted-keyword behavior and
+unrestricted/typed extra validation remain intact. Compatible closed-object
+intersections retain the prohibition; intersections introducing forbidden
+fields or conflicting typed extras raise actionable `ContractError` errors.
+The Python intersection limitation is documented; no TypeScript runtime validator
+was added.
+
+The closed-schema and source-model regressions failed before implementation.
+Added request validation and stream-error coverage with both HTTPX and HTTPX2,
+policy regressions, empty closed objects and intersection tests. The full Python
+suite passed **156 tests**, followed by **24 passing focused tests** after adding
+the empty-object case. `npm test` passed **18 tests**; both language type checks,
+Ruff and artifact drift checks passed. Regeneration produced no artifact changes.
 
 Run schema-matrix, intersection, Python client, and typing tests; then the Python
 suite, TypeScript checks if shared output changes, and artifact regeneration/

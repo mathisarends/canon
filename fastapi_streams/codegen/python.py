@@ -248,8 +248,8 @@ class _Models:
             case Intersection(members=members):
                 fields: dict[str, Field] = {}
                 additional: Type | None = None
-                for member in members:
-                    obj = self._object(member, seen)
+                objects = [self._object(member, seen) for member in members]
+                for obj in objects:
                     for field in obj.fields:
                         if (
                             field.name in fields
@@ -264,9 +264,38 @@ class _Models:
                             required=field.required
                             or bool(previous and previous.required),
                         )
-                    additional = obj.additional or additional
+                    if obj.additional is not None and obj.additional != Scalar(
+                        "JsonValue"
+                    ):
+                        if additional not in (
+                            None,
+                            Scalar("JsonValue"),
+                            obj.additional,
+                        ):
+                            raise ContractError(
+                                "Conflicting allOf additionalProperties schemas"
+                            )
+                        additional = obj.additional
+                    elif additional is None:
+                        additional = obj.additional
+                forbidden = any(obj.additional_forbidden for obj in objects)
+                for obj in objects:
+                    undeclared = set(fields) - {field.name for field in obj.fields}
+                    if obj.additional_forbidden and undeclared:
+                        raise ContractError(
+                            "Closed-object allOf cannot introduce fields forbidden by "
+                            f"another member: {sorted(undeclared)}"
+                        )
+                    if obj.additional not in (None, Scalar("JsonValue")) and any(
+                        fields[name].type != obj.additional for name in undeclared
+                    ):
+                        raise ContractError(
+                            "Conflicting allOf additionalProperties field types"
+                        )
                 return Object(
-                    tuple(fields[name] for name in sorted(fields)), additional
+                    tuple(fields[name] for name in sorted(fields)),
+                    None if forbidden else additional,
+                    forbidden,
                 )
             case _:
                 raise ContractError("Python allOf supports object intersections only")
@@ -292,7 +321,12 @@ class _Models:
                         blocks[name] = f"type {name} = dict[str, {value}]"
                         continue
                     lines = [f"class {name}(BaseModel):"]
-                    if obj.additional is not None:
+                    if obj.additional_forbidden:
+                        lines.append(
+                            "    model_config = ConfigDict("
+                            'populate_by_name=True, extra="forbid")'
+                        )
+                    elif obj.additional is not None:
                         lines.append(
                             "    model_config = ConfigDict("
                             'populate_by_name=True, extra="allow")'

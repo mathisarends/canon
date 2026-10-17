@@ -70,6 +70,7 @@ class Field:
 class Object:
     fields: tuple[Field, ...]
     additional: Type | None = None
+    additional_forbidden: bool = False
 
 
 @dataclass(frozen=True)
@@ -433,6 +434,7 @@ class _Types:
                     for name, value in sorted(properties.items())
                 ),
                 self.parse(extra) if extra is not False else None,
+                node.get("additionalProperties") is False,
             )
         if set(node) <= {
             "title",

@@ -88,6 +88,25 @@ CASES = [
         {"external-id": "x", "count": None},
     ),
     (
+        "empty_closed_object",
+        {"type": "object", "additionalProperties": False},
+        {},
+        {},
+        {"extra": 1},
+    ),
+    (
+        "forbidden_extras",
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+            "additionalProperties": False,
+        },
+        {},
+        {"name": "ok"},
+        {"name": "ok", "unexpected": 123},
+    ),
+    (
         "typed_extras",
         {
             "type": "object",
