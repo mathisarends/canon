@@ -101,6 +101,29 @@ links, checks and SHA-256 hashes; `release-notes.md` comes from its changelog.
 Artifacts are retained for 90 days. Failed preparation artifacts can be replaced
 on retry; publication requires successful preparation and matching hashes.
 
+## Verified dry runs, 2026-10-17
+
+All three runs completed successfully at commit
+[`3d8c1de`](https://github.com/mathisarends/canon/commit/3d8c1de9eba123f6cd5f1667761c943f845e3c7e),
+after its [complete CI run](https://github.com/mathisarends/canon/actions/runs/39044259386)
+passed Linux/Python 3.12, 3.13 and 3.14 plus Windows/Python 3.14.
+
+| Package | Version | Successful dry run |
+| --- | --- | --- |
+| Streams | 0.1.0 | [39044655537](https://github.com/mathisarends/canon/actions/runs/39044655537) |
+| Canon | 0.5.0 | [39044659324](https://github.com/mathisarends/canon/actions/runs/39044659324) |
+| RPC | 0.1.0 | [39044663425](https://github.com/mathisarends/canon/actions/runs/39044663425) |
+
+Each passed metadata/CI gates, both artifact dependency profiles and the installed
+Streams backend checks. Each downloaded artifact contains only the selected wheel
+and sdist under `release/`, plus its manifest and changelog notes under
+`release-report/`. Local verification recomputed every SHA-256 hash and confirmed
+that none of the three versions exists on PyPI. Publication and finalization jobs
+were skipped; no release tags or GitHub releases were created.
+
+These runs verify preparation and artifact transfer. OIDC upload and subsequent
+public-index verification remain untested until an authorized publication.
+
 ## Publish when explicitly authorized
 
 After finalizing the changelog and passing CI, dispatch with `dry_run=false`.

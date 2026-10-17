@@ -4,8 +4,8 @@ Updated: 2026-10-17. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
 **Current scope:** The user authorized release-flow setup on 2026-10-17 after
-initially deferring it. The workflow and account setup are now implemented;
-GitHub dry runs are the next verification gate. Publication remains a separate
+initially deferring it. The workflow, account setup and all three GitHub dry runs
+are verified. Publication remains a separate
 explicit action. RPC is now `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected
 the initial `fastapi-wsrpc` name.
 
@@ -175,7 +175,13 @@ for publication under the configured GitHub rules.
   contract and update the [RPC migration guide](packages/fastapi-rpckit/docs/migration.md)
   with required changes. Both SDKs for Cara's 15-method contract pass generation,
   drift and compilation; Python also passes package import and Ruff lint/format.
-- [ ] Pass a complete dry run for each package intended for publication.
+- [x] Pass a complete dry run for each package intended for publication:
+  [Streams 0.1.0](https://github.com/mathisarends/canon/actions/runs/39044655537),
+  [Canon 0.5.0](https://github.com/mathisarends/canon/actions/runs/39044659324), and
+  [RPC 0.1.0](https://github.com/mathisarends/canon/actions/runs/39044663425).
+  All use commit `3d8c1de`, whose complete Linux/Windows CI passed. Downloaded
+  wheel/sdist hashes match each manifest. Publishing/finalization jobs were
+  skipped; no PyPI uploads, release tags or GitHub releases were created.
 
 These existing root commands already work:
 

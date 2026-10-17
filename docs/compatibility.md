@@ -107,5 +107,22 @@ for this change do not imply a new CI result on every supported Python version.
 
 [RPC parity and Cara contract evidence](rpc-parity.md) records the source audit,
 consumer SDK compilation and the remaining full application migration. See the
-[release guide](releases.md#local-preparation-gates) for commands and generated
+[release guide](releases.md#prepare-a-version) for commands and generated
 machine-readable dependency inventories.
+
+## Release workflow verification, 2026-10-17
+
+After the accepted rename to `fastapi-rpckit` / `fastapi_rpckit`, the
+[CI run for `3d8c1de`](https://github.com/mathisarends/canon/actions/runs/39044259386)
+passed on all four configured targets: Linux/Python 3.12, 3.13 and 3.14, and
+Windows/Python 3.14. The Python suites now contain 1,348 tests, including 26
+release-check regressions, and Streams retains its 22 TypeScript transport tests.
+Client generation/drift checks cover the renamed RPC Python/TypeScript clients
+and manifests. The renamed installed RPC wheel also passes both SDK checks for
+Cara's exported 15-method contract; its full application migration remains open.
+
+All three [GitHub release dry runs](releases.md#verified-dry-runs-2026-10-17)
+passed the current-dependency and Python 3.12 direct-minimum artifact profiles,
+plus installed Streams backend checks. Downloaded wheel/sdist hashes match their
+reports. These are preparation results; the new versions have not been published
+or verified through public-index installs.
