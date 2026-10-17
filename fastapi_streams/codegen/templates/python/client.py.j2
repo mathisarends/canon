@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from types import TracebackType
 
-import httpx
+{{ http_import }}
 
 from .runtime import Transport
 {% for group in groups %}

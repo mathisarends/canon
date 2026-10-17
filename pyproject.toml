@@ -30,6 +30,7 @@ packages = ["fastapi_streams"]
 test = [
   "httpx>=0.28", "pytest>=8.4.2", "pytest-asyncio>=1", "uvicorn>=0.35",
   "pyright>=1.1.400", "pytest-cov>=6",
+  "httpx2>=2.13.1,<3",
 ]
 dev = [
   { include-group = "test" },

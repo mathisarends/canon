@@ -30,6 +30,11 @@ def main(argv: list[str] | None = None) -> int:
             "--language", choices=["typescript", "python"], default="typescript"
         )
         command.add_argument("--output", required=True, type=Path)
+        command.add_argument(
+            "--python-http-client",
+            choices=["httpx", "httpx2"],
+            help="Python HTTP library (default: httpx; opt in with httpx2)",
+        )
         if name == "generate":
             command.add_argument("--check", action="store_true")
         else:
@@ -60,6 +65,8 @@ def main(argv: list[str] | None = None) -> int:
                 output.parent.mkdir(parents=True, exist_ok=True)
                 output.write_text(content, encoding="utf-8", newline="\n")
         else:
+            if args.language != "python" and args.python_http_client is not None:
+                raise ContractError("--python-http-client requires --language python")
             from fastapi_streams.codegen.ir import build_ir
             from fastapi_streams.codegen.python import generate_python
             from fastapi_streams.codegen.typescript import generate_typescript
@@ -76,10 +83,14 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     return 1
             contract = build_ir(cast(Document, document))
-            render = (
-                generate_python if args.language == "python" else generate_typescript
+            generated = (
+                generate_python(
+                    contract, http_client=args.python_http_client or "httpx"
+                )
+                if args.language == "python"
+                else generate_typescript(contract)
             )
-            changed = write_files(args.output, render(contract), check=args.check)
+            changed = write_files(args.output, generated, check=args.check)
             if args.check and changed:
                 for path in changed:
                     print(f"Out of date: {path}", file=sys.stderr)
