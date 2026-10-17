@@ -125,10 +125,15 @@ jobs:
       - name: Verify downloaded hashes and inspect existing PyPI files
         id: publication
         run: uv run --locked python scripts/release.py state --package "$RELEASE_PACKAGE" --version "$RELEASE_VERSION"
+      - name: Stage verified files separately from the immutable artifacts
+        if: steps.publication.outputs.state != 'complete'
+        run: |
+          mkdir -p dist/pypi-upload
+          cp dist/release/*.whl dist/release/*.tar.gz dist/pypi-upload/
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         if: steps.publication.outputs.state != 'complete'
         with:
-          packages-dir: dist/release/
+          packages-dir: dist/pypi-upload/
           skip-existing: true
       - name: Verify PyPI hashes and fresh public-index installs
         run: uv run --locked python scripts/release.py verify-pypi --package "$RELEASE_PACKAGE" --version "$RELEASE_VERSION"

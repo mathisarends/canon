@@ -135,8 +135,11 @@ gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fast
 
 The `publish` job uses environment `pypi` and job-scoped `id-token: write`.
 It downloads the checked artifacts, verifies hashes and rejects conflicting PyPI
-files. Trusted Publishing uploads only `dist/release/`. Canon publication also
-requires the pinned Streams version to exist on PyPI.
+files. Copy only the verified wheel and sdist from `dist/release/` into
+`dist/pypi-upload/` for Trusted Publishing. PyPA's action writes signature sidecars
+beside its inputs, so that staging directory keeps the canonical artifacts
+unchanged for subsequent hash checks. Canon publication also requires the pinned
+Streams version to exist on PyPI.
 
 After upload, verify public PyPI hashes and fresh public-index installs, including
 Canon alone and `[streams]`. Only then does the separate `finish` job create the
