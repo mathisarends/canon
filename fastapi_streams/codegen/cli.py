@@ -11,18 +11,6 @@ from fastapi_streams.codegen.openapi import ContractError, Document, export_sche
 from fastapi_streams.codegen.writer import write_files
 
 
-def _load_app(value: str) -> FastAPI:
-    module, separator, attribute = value.partition(":")
-    if not separator or not module or not attribute:
-        raise ContractError("--app must use module:attribute syntax")
-    # Console scripts start with their installation directory on sys.path.
-    sys.path.insert(0, str(Path.cwd()))
-    app = getattr(importlib.import_module(module), attribute)
-    if not isinstance(app, FastAPI):
-        raise ContractError(f"{value} is not a FastAPI application")
-    return app
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="fastapi-streams")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -103,6 +91,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"fastapi-streams: {message}", file=sys.stderr)
         return 2
     return 0
+
+
+def _load_app(value: str) -> FastAPI:
+    module, separator, attribute = value.partition(":")
+    if not separator or not module or not attribute:
+        raise ContractError("--app must use module:attribute syntax")
+    # Console scripts start with their installation directory on sys.path.
+    sys.path.insert(0, str(Path.cwd()))
+    app = getattr(importlib.import_module(module), attribute)
+    if not isinstance(app, FastAPI):
+        raise ContractError(f"{value} is not a FastAPI application")
+    return app
 
 
 if __name__ == "__main__":

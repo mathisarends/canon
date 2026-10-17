@@ -18,48 +18,6 @@ _ASYNC = (AsyncIterator, AsyncIterable, AsyncGenerator)
 _SYNC = (Iterator, Iterable, Generator)
 
 
-def _has_any(annotation: Any, seen: frozenset[int] = frozenset()) -> bool:
-    if annotation is Any or any(
-        annotation is item for item in (object, dict, list, tuple, set)
-    ):
-        return True
-    if id(annotation) in seen:
-        return False
-    seen = seen | {id(annotation)}
-    if isinstance(annotation, TypeAliasType):
-        return _has_any(annotation.__value__, seen)
-    return any(_has_any(arg, seen) for arg in get_args(annotation))
-
-
-def _validate_endpoint(endpoint: Callable[..., Any]) -> None:
-    try:
-        annotation = get_type_hints(endpoint, include_extras=True).get("return")
-    except (NameError, TypeError) as exc:
-        raise TypeError(
-            f"Cannot resolve stream annotation for {endpoint.__name__}"
-        ) from exc
-    if inspect.isasyncgenfunction(endpoint):
-        origins = _ASYNC
-    elif inspect.isgeneratorfunction(endpoint):
-        origins = _SYNC
-    else:
-        raise TypeError("A stream endpoint must be a generator function using yield")
-    args = get_args(annotation)
-    if get_origin(annotation) not in origins or not args:
-        raise TypeError(
-            "A stream must declare AsyncIterator[Event] (or Iterable[Event] for def)"
-        )
-    item = args[0]
-    if _has_any(item) or item is ServerSentEvent:
-        raise TypeError(
-            "Declare a concrete JSON event type, not Any or ServerSentEvent"
-        )
-    try:
-        TypeAdapter(item).json_schema(mode="serialization")
-    except Exception as exc:
-        raise TypeError(f"Unsupported stream item type: {item!r}") from exc
-
-
 class StreamRouter(APIRouter):
     """An APIRouter with typed SSE routes; normal FastAPI routes work unchanged."""
 
@@ -102,3 +60,45 @@ class StreamRouter(APIRouter):
             return endpoint
 
         return decorator
+
+
+def _has_any(annotation: Any, seen: frozenset[int] = frozenset()) -> bool:
+    if annotation is Any or any(
+        annotation is item for item in (object, dict, list, tuple, set)
+    ):
+        return True
+    if id(annotation) in seen:
+        return False
+    seen = seen | {id(annotation)}
+    if isinstance(annotation, TypeAliasType):
+        return _has_any(annotation.__value__, seen)
+    return any(_has_any(arg, seen) for arg in get_args(annotation))
+
+
+def _validate_endpoint(endpoint: Callable[..., Any]) -> None:
+    try:
+        annotation = get_type_hints(endpoint, include_extras=True).get("return")
+    except (NameError, TypeError) as exc:
+        raise TypeError(
+            f"Cannot resolve stream annotation for {endpoint.__name__}"
+        ) from exc
+    if inspect.isasyncgenfunction(endpoint):
+        origins = _ASYNC
+    elif inspect.isgeneratorfunction(endpoint):
+        origins = _SYNC
+    else:
+        raise TypeError("A stream endpoint must be a generator function using yield")
+    args = get_args(annotation)
+    if get_origin(annotation) not in origins or not args:
+        raise TypeError(
+            "A stream must declare AsyncIterator[Event] (or Iterable[Event] for def)"
+        )
+    item = args[0]
+    if _has_any(item) or item is ServerSentEvent:
+        raise TypeError(
+            "Declare a concrete JSON event type, not Any or ServerSentEvent"
+        )
+    try:
+        TypeAdapter(item).json_schema(mode="serialization")
+    except Exception as exc:
+        raise TypeError(f"Unsupported stream item type: {item!r}") from exc
