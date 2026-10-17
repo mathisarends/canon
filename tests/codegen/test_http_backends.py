@@ -1,5 +1,7 @@
 import importlib
 import json
+import subprocess
+import sys
 
 import pytest
 
@@ -8,6 +10,7 @@ from fastapi_streams.codegen.cli import main
 from fastapi_streams.codegen.ir import build_ir
 from fastapi_streams.codegen.openapi import ContractError, export_schema
 from fastapi_streams.codegen.python import generate_python
+from fastapi_streams.codegen.writer import write_files
 from tests.codegen.helpers import load_package
 
 
@@ -63,6 +66,56 @@ def test_typescript_rejects_python_backend_option(tmp_path, capsys):
     )
     assert "requires --language python" in capsys.readouterr().err
     assert not (tmp_path / "sdk").exists()
+
+
+def test_client_types_accept_only_the_selected_native_family(tmp_path):
+    contract = build_ir(export_schema(app))
+    for backend in ("httpx", "httpx2"):
+        write_files(
+            tmp_path / ("sdk_" + backend),
+            generate_python(contract, http_client=backend),
+        )
+    (tmp_path / "consumer.py").write_text(
+        "import httpx\nimport httpx2\n"
+        "from sdk_httpx import Client as HttpxClient\n"
+        "from sdk_httpx2 import Client as Httpx2Client\n"
+        "first = httpx.AsyncClient()\nsecond = httpx2.AsyncClient()\n"
+        'HttpxClient("http://example.test", http_client=first)\n'
+        'Httpx2Client("http://example.test", http_client=second)\n'
+        'HttpxClient("http://example.test", http_client=second)\n'
+        'Httpx2Client("http://example.test", http_client=first)\n',
+        encoding="utf-8",
+    )
+    config = tmp_path / "pyrightconfig.json"
+    config.write_text(
+        json.dumps(
+            {
+                "include": ["consumer.py"],
+                "typeCheckingMode": "strict",
+                "pythonVersion": "3.12",
+            }
+        )
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pyright",
+            "--project",
+            str(config),
+            "--pythonpath",
+            sys.executable,
+            "--outputjson",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    diagnostics = json.loads(result.stdout)["generalDiagnostics"]
+    assert {
+        (error["range"]["start"]["line"], error.get("rule")) for error in diagnostics
+    } == {(8, "reportArgumentType"), (9, "reportArgumentType")}, diagnostics
 
 
 async def test_native_client_types_timeout_headers_models_and_ownership(http_backend):

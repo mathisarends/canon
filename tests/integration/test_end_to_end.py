@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import shutil
 import socket
 import subprocess
@@ -120,7 +121,10 @@ async def test_generated_python_client_over_real_http(server):
 def current_clients(tmp_path_factory):
     root = tmp_path_factory.mktemp("current_fastapi_clients")
     contract = build_ir(export_schema(app))
-    python = generate_python(contract)
+    python = {
+        backend: generate_python(contract, http_client=backend)
+        for backend in ("httpx", "httpx2")
+    }
     write_files(root / "generated", generate_typescript(contract))
     return root, python
 
@@ -136,13 +140,13 @@ async def assert_server_cleanup(http, server, stream_id):
 
 @pytest.mark.parametrize("mode", ["break", "cancel"])
 async def test_current_fastapi_streams_immediately_and_closes_on_disconnect(
-    server, current_clients, mode
+    server, current_clients, mode, python_backend
 ):
     root, python = current_clients
-    stream_id = "python_" + mode
-    with load_package(root / ("python_" + mode), python) as sdk:
+    stream_id = python_backend.__name__ + "_" + mode
+    with load_package(root / stream_id, python[python_backend.__name__]) as sdk:
         async with (
-            httpx.AsyncClient(timeout=3, trust_env=False) as http,
+            python_backend.AsyncClient(timeout=3, trust_env=False) as http,
             sdk.Client(server, http_client=http) as client,
         ):
             events = client.compat.open_stream(stream_id=stream_id)
@@ -164,10 +168,12 @@ async def test_current_fastapi_streams_immediately_and_closes_on_disconnect(
 
 
 async def test_current_generated_python_client_preserves_wire_values_and_validation(
-    server, current_clients
+    server, current_clients, python_backend
 ):
     root, python = current_clients
-    with load_package(root / "python_wire", python) as sdk:
+    with load_package(
+        root / (python_backend.__name__ + "_wire"), python[python_backend.__name__]
+    ) as sdk:
         async with sdk.Client(server) as client:
             events = [
                 event
@@ -187,6 +193,29 @@ async def test_current_generated_python_client_preserves_wire_values_and_validat
                     )
                 ]
             assert raised.value.status == 422
+            with pytest.raises(sdk.HttpError) as raised:
+                _ = [
+                    event
+                    async for event in client.agent_runs.stream_prompt(
+                        run_id="denied", body=sdk.models.RunRequest(prompt="Hello")
+                    )
+                ]
+            assert raised.value.status in (401, 403)
+            events = [
+                event
+                async for event in client.agent_runs.stream_prompt(
+                    run_id="authenticated",
+                    body=sdk.models.RunRequest(prompt="Hello"),
+                    options=sdk.RequestOptions(
+                        headers={"Authorization": "Bearer demo-token"}
+                    ),
+                )
+            ]
+            assert events[-1].run_id == "authenticated"
+            assert any(
+                event.type == "token.delta" and event.text == "Hello"
+                for event in events
+            )
 
 
 def test_current_generated_typescript_client_streaming_and_cleanup(
@@ -220,6 +249,7 @@ def test_current_generated_typescript_client_streaming_and_cleanup(
         timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
     result = subprocess.run(
         [node, str(root / "dist/compat-client.js"), server],
         capture_output=True,
@@ -227,3 +257,8 @@ def test_current_generated_typescript_client_streaming_and_cleanup(
         timeout=20,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.fixture(params=["httpx", "httpx2"])
+def python_backend(request):
+    return importlib.import_module(request.param)

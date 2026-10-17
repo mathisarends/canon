@@ -27,10 +27,11 @@ build-backend = "hatchling.build"
 packages = ["fastapi_streams"]
 
 [dependency-groups]
+client-test = ["httpx>=0.28", "httpx2>=2.13.1,<3"]
 test = [
-  "httpx>=0.28", "pytest>=8.4.2", "pytest-asyncio>=1", "uvicorn>=0.35",
+  { include-group = "client-test" },
+  "pytest>=8.4.2", "pytest-asyncio>=1", "uvicorn>=0.35",
   "pyright>=1.1.400", "pytest-cov>=6",
-  "httpx2>=2.13.1,<3",
 ]
 dev = [
   { include-group = "test" },

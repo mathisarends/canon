@@ -145,6 +145,10 @@ def generated_matrix(tmp_path_factory):
         contract = schema_contract(schema, components)
         python = generate_python(contract)
         write_files(root / name / "python", python)
+        write_files(
+            root / name / "python_httpx2",
+            generate_python(contract, http_client="httpx2"),
+        )
         write_files(root / name / "typescript", generate_typescript(contract))
         event = contract.operations[0].event
         event_name = event.name if isinstance(event, Reference) else "EventsEvent"
@@ -202,7 +206,7 @@ def test_every_generated_package_passes_strict_typechecking(generated_matrix):
     pyright_config.write_text(
         json.dumps(
             {
-                "include": ["**/python"],
+                "include": ["**/python", "**/python_httpx2"],
                 "typeCheckingMode": "strict",
                 "pythonVersion": "3.12",
             }
