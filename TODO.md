@@ -1,13 +1,13 @@
-# Next work block: releases from the Canon monorepo
+# Release status and remaining migration work
 
 Updated: 2026-10-17. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
-**Current scope:** The user authorized release-flow setup on 2026-10-17 after
-initially deferring it. The workflow, account setup and all three GitHub dry runs
-are verified. Publication remains a separate
-explicit action. RPC is now `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected
-the initial `fastapi-wsrpc` name.
+**Current scope:** The user authorized release-flow setup and then publication on
+2026-10-17. All three packages are published on PyPI with matching GitHub releases
+in this repository. The [README](README.md#current-releases) shows every current
+package release. RPC is `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected the
+initial `fastapi-wsrpc` name. Full external application migration remains open.
 
 **Goal:** Release the three packages independently from `mathisarends/canon`
 through a documented process that an agent can operate entirely through the CLI
@@ -33,9 +33,9 @@ The PyPI versions were checked directly on 2026-10-17:
 
 | Distribution | Workspace version | PyPI | Next action |
 | --- | --- | --- | --- |
-| `fastapi-canon` | `0.5.0`, prepared/unreleased | `0.4.0` | Publish after Streams and release setup. |
-| `fastapi-streams` | `0.1.0`, prepared/unreleased | `0.0.1` | Publish after release setup; consumer migrations are documented. |
-| `fastapi-rpckit` | `0.1.0`, prepared/unpublished | Pending Publisher accepted; no release yet | Verify release flow, then publish when authorized. |
+| `fastapi-canon` | `0.5.0` | [0.5.0](https://pypi.org/project/fastapi-canon/0.5.0/) | Published and installed independently, with and without Streams. |
+| `fastapi-streams` | `0.1.0` | [0.1.0](https://pypi.org/project/fastapi-streams/0.1.0/) | Published; CLI, generated clients and both HTTP backends verified. |
+| `fastapi-rpckit` | `0.1.0` | [0.1.0](https://pypi.org/project/fastapi-rpckit/0.1.0/) | Published; both SDKs verified for Cara's contract; full application migration remains. |
 
 - [x] Review changes since each published version and choose target versions.
   Canon adds `CanonStreamRouter` and `HTTPMethod`; Streams includes changes to
@@ -43,7 +43,7 @@ The PyPI versions were checked directly on 2026-10-17:
   changelog for required client migrations as well.
   Chosen versions are Canon 0.5.0, Streams 0.1.0 and RPC 0.1.0; the published
   Canon/Streams wheels were compared directly. See [release scope](docs/releases.md).
-- [ ] Publish the new Canon/Streams contents under new versions; do not reuse
+- [x] Publish the new Canon/Streams contents under new versions; do not reuse
   existing published versions for changed builds.
 - [x] Update each affected package's `pyproject.toml`, changelog, and, for
   Streams/RPC, `__version__`. Canon currently obtains its distribution version
@@ -61,7 +61,7 @@ The PyPI versions were checked directly on 2026-10-17:
 before a Canon release that requires its new version. RPC can be released
 independently. Do not force a shared version number.
 
-RPC retains its first unpublished 0.1.0 version. The 0.11.0 predecessor engine is
+RPC's first release is 0.1.0. The 0.11.0 predecessor engine is
 preserved, and the consumer check found a Python generator formatting issue that
 is fixed with a regression test. Regeneration leaves the current example outputs
 and RPC manifests unchanged; drift checks confirm them.
@@ -87,8 +87,9 @@ reading passwords, API tokens or cookies; GitHub setup used its existing CLI log
   **Pending Publisher** for the new project. The first successful publication
   creates the project; a pending publisher does not reserve its name.
   [New project instructions](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
-  PyPI accepted and displays the pending publisher. It rejected `fastapi-wsrpc`
-  as too similar to an existing project, so the user selected `fastapi-rpckit`.
+  PyPI accepted the pending publisher and the first OIDC upload created the
+  `fastapi-rpckit` project. It rejected `fastapi-wsrpc` as too similar to an existing
+  project, so the user selected `fastapi-rpckit`.
 - [x] Configure the GitHub `pypi` environment and allowed release refs. Decide
   whether publication also requires an environment reviewer. Document the policy
   so an agent can tell whether human approval in GitHub is still pending after dispatch.
@@ -196,22 +197,24 @@ uv run --locked python scripts/check_streams_artifacts.py
 
 ## 5. Publish and verify
 
-- [ ] Publish the new Streams version, install it from PyPI in a fresh
+- [x] Publish the new Streams version, install it from PyPI in a fresh
   environment, and check its CLI and generated clients.
-- [ ] Publish the new Canon version with the matching optional Streams
+- [x] Publish the new Canon version with the matching optional Streams
   dependency; check both core-only and `fastapi-canon[streams]` installs from PyPI.
-- [ ] Publish `fastapi-rpckit` for the first time and migrate the selected
-  consumer to the PyPI version. Claim consumer migrations only after they are complete.
-- [ ] Update GitHub release notes, changelogs, installation examples, and the
+- [x] Publish `fastapi-rpckit` for the first time, verify its public files/installs,
+  and compile both SDKs for Cara's 15-method contract using the PyPI version.
+- [ ] Migrate Cara's full application to the PyPI version. Claim consumer
+  migrations only after they are complete.
+- [x] Update GitHub release notes, changelogs, installation examples, and the
   compatibility record to reflect the versions actually available.
 - [ ] Add a clear notice linking to the new development repository in the old
   repositories. Keep them available as agreed. Archive `pyrpckit` only after the
   replacement is proven and a later explicit decision authorizes archival.
 
-**This work block is complete when** all three packages can be released
-individually from this repository, the agent workflow is documented and proven,
-and the planned releases have been verified through PyPI installs. Until then,
-workspace consolidation is complete, but the release migration remains open.
+**Release publication is complete:** all three packages have independent releases,
+verified public-index installs, matching tags/artifacts and documented CLI recovery.
+Full external application migration and old-repository decisions remain follow-up
+work. See [publication evidence](docs/releases.md#first-publications-2026-10-17).
 
 ## Later, after the first releases
 
@@ -226,7 +229,8 @@ workspace consolidation is complete, but the release migration remains open.
 ## Starting prompt for the next agent
 
 > Read TODO.md and the linked release/compatibility and RPC parity documents.
-> Versions, publishers and the release workflow are prepared. Verify the linked
-> GitHub dry-run results and current CI before proceeding. Remaining work includes
-> a full external consumer migration and explicitly authorized publication. Keep
-> preparation, publication and verified consumer migration separate in reports.
+> All three initial releases are published and verified; the README links their
+> PyPI versions and central GitHub releases. Remaining work includes Cara's full
+> application migration and decisions about the old repositories. Future releases
+> need new versions and explicit publication authorization. Keep publication and
+> verified consumer migration separate in reports.

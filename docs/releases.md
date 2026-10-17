@@ -1,10 +1,11 @@
 # Independent releases
 
-Release one library at a time from `mathisarends/canon`. The root workspace and
-reference service are not publication targets. No package has yet been published
-through this repository's new workflow.
+Release one library at a time from `mathisarends/canon`. All three libraries have
+published releases from this repository. The root workspace and reference service
+are not publication targets. The [README](../README.md#current-releases) lists all
+current package versions with PyPI and GitHub release links.
 
-## Prepared versions
+## Current released versions
 
 | Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
@@ -13,7 +14,7 @@ through this repository's new workflow.
 | `fastapi-rpckit` | `fastapi_rpckit` | 0.1.0 | `fastapi-rpckit-v0.1.0` |
 
 Publish Streams before Canon: Canon's `streams` extra pins Streams 0.1.0.
-RPC is independent. The last published Canon/Streams versions are 0.4.0/0.0.1;
+RPC is independent. These Canon/Streams releases replace 0.4.0/0.0.1;
 changed builds require new versions. Follow the Streams changelog's generated
 literal/enum and error-alias migration. Versions do not need to match.
 
@@ -26,7 +27,7 @@ come from package metadata; the release check does not import business modules.
 | --- | --- |
 | `fastapi-canon` | Trusted Publisher configured and verified |
 | `fastapi-streams` | Trusted Publisher configured and verified |
-| `fastapi-rpckit` | Pending Publisher accepted and verified |
+| `fastapi-rpckit` | Initial Pending Publisher accepted; first OIDC publication verified |
 
 All use GitHub owner `mathisarends`, repository `canon`, workflow filename
 `release.yml`, and environment `pypi`. No persistent PyPI token is needed. The
@@ -36,8 +37,8 @@ need explicit user authorization to dispatch a real publication.
 
 PyPI rejected the initial `fastapi-wsrpc` name as too similar to an existing
 project. The user selected `fastapi-rpckit` / `fastapi_rpckit`, and PyPI accepted
-its pending publisher. This does not reserve the name or create the project;
-the first successful upload does that. See
+its pending publisher. The first successful OIDC upload created the project on
+2026-10-17. Pending registration alone did not reserve the name. See
 [PyPI's pending publisher documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
 
 ## Prepare a version
@@ -52,6 +53,8 @@ the first successful upload does that. See
 5. Run the selected package's dry run. Before publication, finalize its heading as
    `## VERSION - YYYY-MM-DD`, commit/push and wait for that exact CI run too.
    Publication rejects an unfinished changelog.
+6. After verified publication, update the README's current-release table, TODO
+   and compatibility record with the actual public versions and release links.
 
 ```console
 uv sync --locked --all-packages --all-groups
@@ -73,13 +76,15 @@ and extra dependencies; transitive dependencies resolve normally. See
 ## Dispatch a dry run
 
 ```console
-gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-streams -f version=0.1.0 -f dry_run=true
-gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-canon -f version=0.5.0 -f dry_run=true
-gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-rpckit -f version=0.1.0 -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-streams -f version=NEXT_VERSION -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-canon -f version=NEXT_VERSION -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-rpckit -f version=NEXT_VERSION -f dry_run=true
 gh run list --repo mathisarends/canon --workflow release.yml --limit 10
 ```
 
-Use the run IDs to inspect logs and artifacts. A dry run has no OIDC or repository
+Replace `NEXT_VERSION` with that package's prepared, unpublished version. The
+current versions above are already published and cannot be dispatched as new
+releases. Use the run IDs to inspect logs and artifacts. A dry run has no OIDC or repository
 write permissions and creates no upload, release tag or GitHub release. The
 publishing and finalization jobs are skipped.
 
@@ -121,16 +126,52 @@ and sdist under `release/`, plus its manifest and changelog notes under
 that none of the three versions exists on PyPI. Publication and finalization jobs
 were skipped; no release tags or GitHub releases were created.
 
-These runs verify preparation and artifact transfer. OIDC upload and subsequent
-public-index verification remain untested until an authorized publication.
+These runs verified preparation and artifact transfer. The first publications
+below also verify OIDC upload and subsequent public-index installs.
+
+## First publications, 2026-10-17
+
+The user explicitly authorized all three publications. Streams was published
+before Canon; RPC was released independently. All release runs finished successfully.
+
+| Package | Version | PyPI | GitHub release | Workflow |
+| --- | --- | --- | --- | --- |
+| `fastapi-streams` | 0.1.0 | [Files](https://pypi.org/project/fastapi-streams/0.1.0/) | [Notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.1.0) | [39045419743](https://github.com/mathisarends/canon/actions/runs/39045419743) |
+| `fastapi-canon` | 0.5.0 | [Files](https://pypi.org/project/fastapi-canon/0.5.0/) | [Notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.0) | [39046070906](https://github.com/mathisarends/canon/actions/runs/39046070906) |
+| `fastapi-rpckit` | 0.1.0 | [Files](https://pypi.org/project/fastapi-rpckit/0.1.0/) | [Notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.1.0) | [39045425324](https://github.com/mathisarends/canon/actions/runs/39045425324) |
+
+Streams/RPC tags point to `c9b8219`, whose
+[four-target CI](https://github.com/mathisarends/canon/actions/runs/39045136821)
+passed. Canon points to `cd16e46`, whose
+[four-target CI](https://github.com/mathisarends/canon/actions/runs/39045719895)
+also passed. Each GitHub release attaches the original wheel, sdist and JSON
+manifest. PyPI and downloaded file hashes match those manifests.
+
+Each workflow passed fresh public-index runtime installs; Canon covered both
+core-only and `[streams]`. Additional Windows/Python 3.14 verification installed
+all three pinned public versions together, exercising HTTP/SSE/RPC, Dishka state
+and cleanup, plus an RPC Python SDK roundtrip and TypeScript compilation.
+Streams' public wheel also passed core-only, HTTPX and HTTPX2 CLI/client checks.
+Public RPC 0.1.0 generated both SDKs for Cara's 15-method contract with drift,
+import, compilation and Python Ruff checks passing. Cara's full service migration
+is still open.
+
+The first Streams/RPC attempts uploaded successfully but their post-upload gate
+rejected PyPA's newly generated attestation sidecars. Rerunning only failed jobs
+verified the original matching files without another upload. The workflow now
+uses a separate upload staging directory. Because that workflow change advanced
+`main`, GitHub required workflow-authorized credentials to create the older
+release tags; the existing authorized CLI login completed those exact original
+releases, and the original jobs then verified them successfully. Canon completed
+the corrected workflow on its first attempt.
 
 ## Publish when explicitly authorized
 
-After finalizing the changelog and passing CI, dispatch with `dry_run=false`.
-The first real publication will be Streams:
+After preparing a new version, finalizing its changelog and passing CI, dispatch
+with `dry_run=false`. For a new Streams version:
 
 ```console
-gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-streams -f version=0.1.0 -f dry_run=false
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-streams -f version=NEXT_VERSION -f dry_run=false
 ```
 
 The `publish` job uses environment `pypi` and job-scoped `id-token: write`.
@@ -157,9 +198,16 @@ jobs cannot publish/create tags; the publishing job cannot write repository cont
   files; complete uploads are verified without uploading again. Conflicts fail.
 - A matching GitHub release is accepted on retry; tags at different commits are
   rejected. Do not move tags or rebuild changed contents under a published version.
+- Keep root workflow files unchanged until a release finishes. If they change
+  on `main` during a run, creating a release for the older workflow revision can
+  require workflow-write authorization that `GITHUB_TOKEN` cannot receive. Use
+  an already authorized CLI login with that permission to create the release at
+  the manifest's exact commit, using its original notes, wheel, sdist and report;
+  then rerun only the failed finalization job. See
+  [GitHub's release API permission note](https://docs.github.com/en/rest/releases/releases#create-a-release).
 - Record only verified publication/install outcomes in TODO, compatibility and
   release documentation. Cara's full application migration and predecessor
   archival remain separate work; archival needs explicit approval.
 
-A successful dry run proves the preparation path. The actual OIDC upload and
-post-publication path are verified by the first explicitly authorized release.
+A successful dry run proves the preparation path. The first three explicitly
+authorized releases also verified OIDC uploads and the post-publication path.

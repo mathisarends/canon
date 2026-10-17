@@ -26,17 +26,20 @@
       see [RPC parity and Cara contract checks](rpc-parity.md).
 - [x] Select `fastapi-rpckit` / `fastapi_rpckit` and check the PyPI JSON endpoint.
 - [x] Confirm Pending Publisher acceptance for `fastapi-rpckit` after PyPI rejected
-      the initially selected `fastapi-wsrpc` name for similarity. The first upload
-      still needs to create the project; pending registration does not reserve it.
+      the initially selected `fastapi-wsrpc` name for similarity. The first OIDC
+      upload created the project on 2026-10-17.
 - [x] Make FastAPI required, expose its existing mounting APIs directly, and
       document the import/CLI migration. Further API redesign needs consumer tests.
 - [ ] Test existing application consumers before removing public APIs.
 - [x] Define per-package tags, changelogs, compatibility gates, and protected
       PyPI Trusted Publishers for this repository.
-- [ ] Release the successor, migrate consumers, then archive the predecessor.
+- [x] Publish all three packages with separate tags and GitHub releases; verify
+      PyPI files, fresh installs and generated SDKs.
+- [ ] Complete external application migrations. Archive the predecessor only
+      after a separate explicit decision.
 
 The user requested the RPC successor rename during consolidation. Its new
-distribution starts at unreleased 0.1.0; Canon and Streams preserve their PyPI
-identities and now prepare 0.5.0 and 0.1.0 respectively. No release,
-old-repository rename, deprecation,
-or archival has been performed.
+distribution starts at 0.1.0; Canon and Streams preserve their PyPI identities and
+have released 0.5.0 and 0.1.0 respectively. All current releases are listed in the
+[README](../README.md#current-releases) and this repository's GitHub Releases.
+No old-repository rename, deprecation or archival has been performed.

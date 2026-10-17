@@ -66,3 +66,6 @@ finalize the changelog date and pass CI for the final source. Only dispatch with
 Canon version that pins it. Verify public-index installs and release/tag results.
 On failure, follow the documented resume procedure with the original run's
 verified artifacts; do not replace published contents or move existing tags.
+After verified publication, update the README's current-release table and the
+TODO/release/compatibility records. All workspace package releases belong in this
+repository's central GitHub Releases list, with independent package-prefixed tags.

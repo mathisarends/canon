@@ -6,6 +6,19 @@ feature composition and HTTP contracts, typed SSE, and WebSocket RPC.
 Canon is the ecosystem; `fastapi-canon` is its application-composition package.
 The libraries remain independently installable and independently versioned.
 
+## Current releases
+
+| Package | Version | GitHub | PyPI |
+| --- | --- | --- | --- |
+| `fastapi-canon` | 0.5.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.0) | [Install](https://pypi.org/project/fastapi-canon/0.5.0/) |
+| `fastapi-streams` | 0.1.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.1.0) | [Install](https://pypi.org/project/fastapi-streams/0.1.0/) |
+| `fastapi-rpckit` | 0.1.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.1.0) | [Install](https://pypi.org/project/fastapi-rpckit/0.1.0/) |
+
+All three packages publish into this repository's [central release list](https://github.com/mathisarends/canon/releases).
+Each has its own version, package-prefixed tag, changelog and distribution files.
+
+## Workspace
+
 | Component | Location | Distribution / import |
 | --- | --- | --- |
 | Composition, Dishka, HTTP contracts | [`packages/fastapi-canon`](packages/fastapi-canon) | `fastapi-canon` / `fastapi_canon` |
@@ -16,8 +29,8 @@ The libraries remain independently installable and independently versioned.
 
 `fastapi-rpckit` is the FastAPI-first successor to `pyrpckit`, with its existing
 WebSocket engine and protocol retained. See the [RPC migration guide](packages/fastapi-rpckit/docs/migration.md).
-Its initial 0.1.0 version is not yet published. The existing source repositories
-remain available, including the independently published Canon and Streams packages.
+Its initial release is 0.1.0. The existing source repositories remain available;
+current development and releases for all three packages live here.
 
 Read the [vision](VISION.md), the concrete [workspace decision](docs/design-decisions/0001-workspace.md),
 and the [migration checklist](docs/migration.md). The vision describes the target;

@@ -1,17 +1,17 @@
 # Compatibility
 
-Prepared source versions (none has been published from this repository):
+Published versions, verified on 2026-10-17:
 
 | Distribution | Version | Import |
 | --- | --- | --- |
 | `fastapi-canon` | 0.5.0 | `fastapi_canon` |
 | `fastapi-streams` | 0.1.0 | `fastapi_streams` |
-| `fastapi-rpckit` (unreleased successor to pyrpckit 0.11.0) | 0.1.0 | `fastapi_rpckit` |
+| `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.1.0 | `fastapi_rpckit` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
 existing declared range. The combined stack needs FastAPI >=0.143.3 due to
-Streams; Canon's independent requirement remains >=0.115,<1. No package version
-has been published from this repository.
+Streams; Canon's independent requirement remains >=0.115,<1. All three versions
+are available through PyPI and this repository's independent GitHub releases.
 
 There are two verification modes:
 
@@ -124,5 +124,24 @@ Cara's exported 15-method contract; its full application migration remains open.
 All three [GitHub release dry runs](releases.md#verified-dry-runs-2026-10-17)
 passed the current-dependency and Python 3.12 direct-minimum artifact profiles,
 plus installed Streams backend checks. Downloaded wheel/sdist hashes match their
-reports. These are preparation results; the new versions have not been published
-or verified through public-index installs.
+reports. These runs checked preparation only; public-index results are recorded
+below.
+
+## Published-package verification, 2026-10-17
+
+[Publication evidence](releases.md#first-publications-2026-10-17) links all three
+successful release runs, source commits and GitHub releases. PyPI wheel/sdist
+hashes match the original verified manifests and GitHub assets. Each release's
+workflow passed fresh public-index installs; Canon passed both core-only and
+`[streams]` installs.
+
+Additional Windows/Python 3.14 checks installed all three pinned PyPI versions in
+a fresh virtual environment without workspace overrides. HTTP, SSE, WebSocket
+RPC, shared Dishka state and shutdown cleanup passed, along with an RPC generated
+Python client roundtrip and strict TypeScript client compilation.
+
+The downloaded public Streams wheel passed the core-only CLI diagnostic and
+generated-client checks with HTTPX and HTTPX2 separately. Public RPC 0.1.0 passed
+both SDK generation/drift/compilation checks for Cara's 15-method contract, with
+Python package import and Ruff lint/format validation. These SDK checks do not
+claim Cara's full application migration.

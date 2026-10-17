@@ -1,16 +1,18 @@
 # Releasing fastapi-rpckit
 
-The successor is currently 0.1.0, unreleased. Follow the workspace
+The first successor release is 0.1.0, published on 2026-10-17. Follow the workspace
 [release policy](../../../docs/releases.md). Canon and Streams remain separate
 PyPI distributions with independent versions; the RPC successor is a third.
 
-Before publication, confirm the PyPI name is accepted, configure a protected
-Trusted Publisher for this repository, and implement package-prefixed release
-tags. The imported nested workflows use the predecessor's repository layout and
-are historical references, not the release path for the new package.
+PyPI Trusted Publishing is configured for `mathisarends/canon`, workflow
+`release.yml`, environment `pypi`. Tags use `fastapi-rpckit-vX.Y.Z`, and the
+[central release list](https://github.com/mathisarends/canon/releases) contains
+each workspace library's independent releases. The imported nested workflows
+are historical references; only the root workflow executes.
 
 Update `pyproject.toml`, `fastapi_rpckit.__version__`, and `CHANGELOG.md` together,
 then update the root lockfile. Run the workspace gates, built-distribution tests,
 and generator drift checks described in the root contributor guide. Validate
 existing application consumers using the migration guide before declaring the
-successor production-ready. No release is triggered by the workspace migration.
+successor production-ready. Real publication requires explicit user authorization;
+dispatch the root workflow with the prepared new version after its CI passes.

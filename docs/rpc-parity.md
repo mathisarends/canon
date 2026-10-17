@@ -1,8 +1,8 @@
 # RPC successor parity and consumer checks
 
-Verified locally on 2026-10-17. This records source and artifact checks for the
-prepared `fastapi-rpckit` 0.1.0 release; publication and application migration are
-still separate steps.
+Verified locally on 2026-10-17. This records source and artifact checks for
+`fastapi-rpckit` 0.1.0. The release is published and both SDKs also pass against
+the installed PyPI package. Full application migration remains a separate step.
 
 ## Source inventory
 
@@ -72,7 +72,7 @@ uv build --package fastapi-rpckit --out-dir dist/fastapi-rpckit
 uv run --isolated --no-project --no-cache --with "dist/fastapi-rpckit/fastapi_rpckit-0.1.0-py3-none-any.whl[codegen]" --with ruff python -I scripts/check_rpc_consumer.py ../cara/gateway/schema/gateway.openrpc.json
 ```
 
-`--no-cache` ensures a rebuilt, still-unpublished wheel with the same filename
+`--no-cache` ensures a locally rebuilt development wheel with the same filename
 does not reuse an older isolated installation. This is a contract/SDK check;
 it does not start or migrate the Cara service.
 
