@@ -183,6 +183,31 @@ CASES = [
     ),
 ]
 
+for policy_name, policy in [
+    ("typed", {"type": "string"}),
+    ("true", True),
+    ("omitted", None),
+]:
+    for mixed in (False, True):
+        schema = {"type": "object", "required": ["name"]}
+        valid = {"name": "ok"}
+        if mixed:
+            schema["properties"] = {"count": {"type": "integer"}}
+            schema["required"].append("count")
+            valid["count"] = 1
+        if policy is not None:
+            schema["additionalProperties"] = policy
+        CASES.append(
+            (
+                "required_" + policy_name + ("_mixed" if mixed else ""),
+                schema,
+                {},
+                valid,
+                {"count": 1} if mixed else {},
+            )
+        )
+
+
 for discriminator, values in [("event-type", ["a"]), ("type", ["a1", "a2"])]:
     CASES.append(
         (
@@ -247,7 +272,7 @@ def test_generated_python_validates_supported_schema_matrix(generated_matrix, na
 
 
 def test_every_generated_package_passes_strict_typechecking(generated_matrix):
-    root, _ = generated_matrix
+    root, generated = generated_matrix
     (root / "field_symbols/python/consumer.py").write_text(
         "from .models import EventsEvent\n"
         "event = EventsEvent(int=1, str='x', list=['x'], field_validator='x')\n"
@@ -255,6 +280,32 @@ def test_every_generated_package_passes_strict_typechecking(generated_matrix):
         "omitted = EventsEvent()\n",
         encoding="utf-8",
     )
+    for name, (_, _, _, valid, invalid) in generated.items():
+        if not name.startswith("required_"):
+            continue
+        consumer = (
+            'import type { Client } from "./index.js";\n'
+            'type Event = ReturnType<Client["streams"]["events"]> '
+            "extends AsyncIterable<infer E> ? E : never;\n"
+            f"export const valid: Event = {json.dumps(valid)};\n"
+            "// @ts-expect-error: required undeclared key must be present\n"
+            f"export const missing: Event = {json.dumps(invalid)};\n"
+        )
+        if name.startswith("required_typed"):
+            wrong = {**valid, "name": 123}
+            consumer += (
+                "// @ts-expect-error: required key uses additionalProperties type\n"
+                f"export const wrong: Event = {json.dumps(wrong)};\n"
+            )
+        (root / name / "typescript/consumer.ts").write_text(consumer, encoding="utf-8")
+        for backend in ("python", "python_httpx2"):
+            arguments = ", ".join(f"{key}={value!r}" for key, value in valid.items())
+            (root / name / backend / "consumer.py").write_text(
+                "from .models import EventsEvent\n"
+                f"event = EventsEvent({arguments})\n"
+                "value: object = event.name\n",
+                encoding="utf-8",
+            )
     node = shutil.which("node")
     compiler = ROOT / "node_modules/typescript/bin/tsc"
     assert node and compiler.is_file(), (

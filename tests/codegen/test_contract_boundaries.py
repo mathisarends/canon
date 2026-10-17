@@ -162,3 +162,39 @@ def test_ref_sibling_cli_errors_do_not_write_partial_output(tmp_path, capsys, la
     )
     assert "alongside $ref" in capsys.readouterr().err
     assert not output.exists()
+
+
+@pytest.mark.parametrize("language", ["python", "typescript"])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_forbidden_required_undeclared_keys_fail_before_writing(
+    tmp_path, capsys, language, mixed
+):
+    schema = {"type": "object", "required": ["name"], "additionalProperties": False}
+    if mixed:
+        schema["properties"] = {"count": {"type": "integer"}}
+    with pytest.raises(ContractError, match="Required.*name.*additionalProperties"):
+        schema_contract(schema)
+    document = event_document(str)
+    media = document["paths"]["/events"]["get"]["responses"]["200"]["content"]
+    media["text/event-stream"]["itemSchema"]["properties"]["data"]["contentSchema"] = (
+        schema
+    )
+    path = tmp_path / "openapi.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    output = tmp_path / "sdk"
+    assert (
+        main(
+            [
+                "generate",
+                "--schema",
+                str(path),
+                "--language",
+                language,
+                "--output",
+                str(output),
+            ]
+        )
+        == 2
+    )
+    assert "additionalProperties" in capsys.readouterr().err
+    assert not output.exists()

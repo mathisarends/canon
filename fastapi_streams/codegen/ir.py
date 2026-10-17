@@ -436,9 +436,22 @@ class _Types:
                 raise ContractError("Tuple schemas (prefixItems) are not supported")
             return Array(self.parse(node.get("items", {})))
         if kind == "object" or "properties" in node or "additionalProperties" in node:
-            properties: Document = node.get("properties", {})
+            properties: Document = dict(node.get("properties", {}))
             required: list[str] = node.get("required", [])
             extra = node.get("additionalProperties", not properties)
+            undeclared = set(required) - properties.keys()
+            if undeclared and node.get("additionalProperties") is False:
+                raise ContractError(
+                    f"Required keys {sorted(undeclared)} are forbidden by "
+                    "additionalProperties: false; declare them in properties."
+                )
+            # Required keys outside properties are governed by additionalProperties.
+            # Omission of that keyword leaves their values unrestricted, even when
+            # ordinary declared models retain the generator's default extra policy.
+            properties.update(
+                (name, node.get("additionalProperties", True))
+                for name in sorted(undeclared)
+            )
             return Object(
                 tuple(
                     Field(

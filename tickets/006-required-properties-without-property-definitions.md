@@ -1,6 +1,6 @@
 # 006 — Retain required keys that are not listed in properties
 
-Status: Open
+Status: Complete
 Priority: P2
 Scope: Shared object IR, both generators, schema matrix
 Integration: After 004 and 005 to reuse their object-policy/reference changes.
@@ -67,6 +67,23 @@ undeclared key is explicitly forbidden by `additionalProperties: false`.
   generated output.
 
 ## Validation
+
+The shared object parser synthesizes required undeclared fields using the
+additional-properties value schema, or JsonValue when unrestricted/omitted.
+Existing ordinary map behavior and the explicit forbidden-extras policy remain
+intact. Required undeclared keys forbidden by `additionalProperties: false`
+raise an actionable `ContractError` before either CLI generator writes files.
+
+Ten new regressions failed before implementation. Added typed/unrestricted/
+omitted and mixed-property coverage, Python validation and strict consumer type
+checks for both Python backends and TypeScript (including expected missing-key
+and wrong-value errors). `uv run pytest -q --cov` passed **195 tests**, **90.20%**
+coverage; `npm run test:coverage` passed **18 tests**. Pyright, TypeScript, Ruff,
+Pylint, all pre-commit hooks and artifact drift checks passed. `uv build` and
+`uv run python scripts/check_package.py` passed for core/HTTPX/HTTPX2 installs.
+Compatibility runs passed **192 tests** each (3 snapshots deselected) on Python
+3.12 with lowest dependencies (Pydantic 2.11.2), and Python 3.14 with latest
+dependencies. No committed generated artifacts changed for this ticket.
 
 Run schema-matrix and contract-boundary tests, strict type checks on the newly
 generated Python and TypeScript packages, the complete Python suite, and artifact
