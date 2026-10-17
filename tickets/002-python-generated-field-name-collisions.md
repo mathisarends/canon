@@ -1,6 +1,6 @@
 # 002 — Avoid field-name collisions in generated Python models
 
-Status: Open
+Status: Complete
 Priority: P2
 Scope: Python naming, model generation, discriminator handling, typing tests
 Integration: Complete before ticket 004, which also modifies model generation.
@@ -79,6 +79,18 @@ the four reproduced names if other generated imports have the same problem.
 - Add regression tests that import and use generated models, not only snapshots.
 
 ## Validation
+
+Implemented model-only symbol escaping with wire aliases and the same mapping
+for fields, validators and discriminators. All symbols used by generated model
+annotations/decorators are protected; operation parameter names are unchanged.
+Post-escape collisions raise `ContractError`.
+
+The four import reproductions failed before the fix. Added package import,
+omission/null, round-trip, nested model and escaped-discriminator regressions,
+plus a strict Pyright consumer fixture. `uv run pytest -q` passed **142 tests**;
+the schema matrix checks both generated Python backends and TypeScript.
+`uv run pyright`, Ruff lint/format and `uv run python scripts/codegen.py --check`
+passed; committed generated artifacts are unchanged.
 
 Run focused model, discriminator, and Python typing tests, then the Python suite
 and `uv run pyright`. Regenerate committed artifacts if the naming strategy

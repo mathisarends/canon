@@ -22,6 +22,43 @@ CASES = [
     ("array", {"type": "array", "items": {"type": "integer"}}, {}, [1, 2], ["bad"]),
     ("union", {"anyOf": [{"type": "string"}, {"type": "integer"}]}, {}, "ok", []),
     (
+        "field_symbols",
+        {
+            "type": "object",
+            "properties": {
+                "int": {"type": "integer"},
+                "str": {"type": "string"},
+                "float": {"type": "number"},
+                "bool": {"type": "boolean"},
+                "list": {"type": "array", "items": {"type": "string"}},
+                "dict": {"type": "object", "additionalProperties": {"type": "string"}},
+                "object": {"type": "string"},
+                "classmethod": {"type": "string"},
+                "field_validator": {"type": "string"},
+                "nested": {
+                    "type": "object",
+                    "properties": {
+                        "list": {"type": "array", "items": {"type": "string"}}
+                    },
+                },
+            },
+        },
+        {},
+        {
+            "int": 1,
+            "str": "x",
+            "float": 1.5,
+            "bool": False,
+            "list": ["x"],
+            "dict": {"a": "b"},
+            "object": "x",
+            "classmethod": "x",
+            "field_validator": "x",
+            "nested": {"list": ["nested"]},
+        },
+        {"list": None},
+    ),
+    (
         "map",
         {"type": "object", "additionalProperties": {"type": "integer"}},
         {},
@@ -173,6 +210,13 @@ def test_generated_python_validates_supported_schema_matrix(generated_matrix, na
 
 def test_every_generated_package_passes_strict_typechecking(generated_matrix):
     root, _ = generated_matrix
+    (root / "field_symbols/python/consumer.py").write_text(
+        "from .models import EventsEvent\n"
+        "event = EventsEvent(int=1, str='x', list=['x'], field_validator='x')\n"
+        "values: list[str] | None = event.list_\n"
+        "omitted = EventsEvent()\n",
+        encoding="utf-8",
+    )
     node = shutil.which("node")
     compiler = ROOT / "node_modules/typescript/bin/tsc"
     assert node and compiler.is_file(), (
