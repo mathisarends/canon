@@ -13,6 +13,20 @@ from fastapi_streams.codegen.openapi import (
     validate_contract,
 )
 
+_REF_METADATA = {
+    "title",
+    "description",
+    "default",
+    "examples",
+    "example",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+    "$comment",
+    "externalDocs",
+    "xml",
+}
+
 
 @dataclass(frozen=True)
 class Scalar:
@@ -353,10 +367,24 @@ class _Types:
                 raise ContractError(
                     f"Type references must point to components/schemas: {ref}"
                 )
+            constraints = sorted(
+                key
+                for key in node
+                if key != "$ref"
+                and key not in _REF_METADATA
+                and not key.startswith("x-")
+            )
+            if constraints:
+                raise ContractError(
+                    f"Unsupported constraints alongside $ref {ref}: {constraints}. "
+                    "Define a standalone schema containing the full restrictions."
+                )
             # Keep references in the IR so recursive models stay recursive.
             target = resolve_pointer(self.document, ref)
             if isinstance(target, dict):
-                target = resolve_ref(self.document, cast(Document, target))
+                # Validate reference-only cycles without flattening the chain:
+                # flattening would hide constraints on intermediate references.
+                resolve_ref(self.document, cast(Document, target))
             name = identifier(
                 ref.rsplit("/", 1)[-1].replace("~1", "/").replace("~0", "~"), upper=True
             )
@@ -364,12 +392,6 @@ class _Types:
                 raise ContractError(f"TypeScript type name collision: {name}")
             self.names[name] = ref
             self.pending[name] = target
-            siblings = {key: value for key, value in node.items() if key != "$ref"}
-            if any(
-                key in siblings
-                for key in ("type", "properties", "allOf", "anyOf", "oneOf")
-            ):
-                return Intersection((Reference(name), self.parse(siblings)))
             return Reference(name)
         if "const" in node:
             return self.literal(node["const"])

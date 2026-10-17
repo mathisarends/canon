@@ -1,6 +1,6 @@
 # 005 — Preserve or explicitly reject constraints alongside schema references
 
-Status: Open
+Status: Complete
 Priority: P2
 Scope: Shared schema-to-IR parsing, both generators, contract boundary tests
 Integration: After 004; before 006 because both modify object/reference parsing.
@@ -65,6 +65,20 @@ Do not reject ordinary annotated references just because they have metadata.
   intact. CLI failures use the existing invalid-input error path.
 
 ## Validation
+
+The shared parser now rejects semantic siblings alongside schema references
+with a specific `ContractError` identifying the reference and keywords, before
+either generator can write output. Metadata and vendor annotations remain
+supported. Reference chains are retained rather than flattened, so intermediate
+constraints cannot disappear. The restriction is documented; constrained
+references must be expressed as standalone schemas with the full restrictions.
+
+All **18** new boundary/CLI regressions failed before the fix. They cover enum,
+const, required, additionalProperties, structural/scalar restrictions and chained
+references. Annotated reference chains and recursive references pass runtime and
+strict generated-package type checks. `uv run pytest -q` passed **176 tests**;
+`uv run pyright`, Ruff lint/format and artifact drift checks passed. Existing
+cycle, unresolved-reference and collision checks remain green.
 
 Run contract-boundary, schema-matrix, and intersection tests; type-check any
 newly generated packages in both languages; run the complete Python suite and

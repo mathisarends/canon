@@ -119,8 +119,24 @@ CASES = [
         {"name": "x", "extra": "bad"},
     ),
     (
+        "annotated_reference_chain",
+        {
+            "$ref": "#/components/schemas/Alias",
+            "description": "An annotated alias",
+            "default": "hello",
+            "examples": ["hello"],
+            "x-display": "name",
+        },
+        {
+            "Alias": {"$ref": "#/components/schemas/Name", "title": "Name alias"},
+            "Name": {"type": "string"},
+        },
+        "hello",
+        123,
+    ),
+    (
         "recursive",
-        {"$ref": "#/components/schemas/Node"},
+        {"$ref": "#/components/schemas/Node", "description": "A recursive tree"},
         {
             "Node": {
                 "type": "object",
@@ -128,7 +144,10 @@ CASES = [
                     "name": {"type": "string"},
                     "children": {
                         "type": "array",
-                        "items": {"$ref": "#/components/schemas/Node"},
+                        "items": {
+                            "$ref": "#/components/schemas/Node",
+                            "description": "A child",
+                        },
                     },
                 },
                 "required": ["name", "children"],

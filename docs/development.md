@@ -94,6 +94,10 @@ JSON bodies; local component references; nested objects, maps, arrays, string
 enums and discriminated unions. Query form arrays support both `explode` values.
 Python `allOf` supports compatible object intersections. TypeScript does not
 express validation constraints such as numeric ranges as refinement types.
+Schema references may carry metadata (for example `description`, `title` and
+`default`), but semantic siblings such as `enum`, `const`, `required`,
+`additionalProperties` or `type` are rejected. Define a standalone schema with
+the full restrictions; reference-chain constraints are checked before generation.
 
 Header arrays (Fetch combines repeated headers), external references, cookies,
 deepObject/matrix/label styles, multipart bodies,
