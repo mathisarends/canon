@@ -27,6 +27,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--core-only", action="store_true")
     parser.add_argument("--expected-version", required=True)
+    parser.add_argument("--http-client", choices=["httpx", "httpx2"], default="httpx")
     args = parser.parse_args()
     assert "site-packages" in str(Path(fastapi_streams.__file__).resolve())
     assert (
@@ -82,12 +83,17 @@ def main() -> None:
         if args.core_only:
             assert importlib.util.find_spec("jinja2") is None
             assert importlib.util.find_spec("jsonschema") is None
+            assert importlib.util.find_spec("httpx") is None
+            assert importlib.util.find_spec("httpx2") is None
             failed = run(
                 "schema", "--app", "app:app", "--output", "openapi.json", expected=2
             )
             assert "fastapi-streams[codegen]" in failed.stderr
             print("Installed core CLI reports the missing codegen extra clearly")
             return
+        assert importlib.util.find_spec(args.http_client) is not None
+        unselected = "httpx" if args.http_client == "httpx2" else "httpx2"
+        assert importlib.util.find_spec(unselected) is None
         run("schema", "--app", "app:app", "--output", "openapi.json")
         assert json.loads((working / "openapi.json").read_text())["openapi"] == "3.2.0"
         for language, output, client_file in [
@@ -102,6 +108,8 @@ def main() -> None:
                 "--output",
                 output,
             ]
+            if language == "python":
+                flags += ["--python-http-client", args.http_client]
             run("generate", *flags)
             run("check", "--app", "app:app", *flags)
             target = working / output / client_file
@@ -124,6 +132,9 @@ async def main():
             assert events[0].text == "packaged"
 asyncio.run(main())
 """
+        consumer = consumer.replace(
+            "import httpx\n", f"import {args.http_client} as httpx\n", 1
+        )
         subprocess.run(
             [sys.executable, "-c", consumer], cwd=working, check=True, timeout=30
         )
@@ -151,7 +162,9 @@ asyncio.run(main())
             check=True,
             timeout=30,
         )
-    print("Installed CLI exports schemas, checks drift and produces usable clients")
+    print(
+        f"Installed CLI produces usable clients with only {args.http_client} installed"
+    )
 
 
 if __name__ == "__main__":
