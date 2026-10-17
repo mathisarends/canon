@@ -32,9 +32,9 @@ export function {{ factory }}(client: ClientOptions) {
       const headers = new Headers();
 {% for param in operation.parameters %}
 {% if param.location == 'query' %}
-      appendQuery(query, {{ param.name | json }}, input.{{ param.argument }}, {{ 'true' if param.explode else 'false' }});
+      appendQuery(query, {{ param.name | json }}, input.{{ param.argument }}, {{ 'true' if param.explode else 'false' }}{{ ', true' if param.required else '' }});
 {% elif param.location == 'header' %}
-      setHeader(headers, {{ param.name | json }}, input.{{ param.argument }});
+      setHeader(headers, {{ param.name | json }}, input.{{ param.argument }}{{ ', true' if param.required else '' }});
 {% endif %}
 {% endfor %}
       return stream<{{ operation.event | ts_type('Types.') }}>(client, {

@@ -203,3 +203,31 @@ test("query arrays preserve explode semantics and optional header values", () =>
   assert.equal(headers.get("x-trace"), "trace");
   assert.equal(headers.has("x-missing"), false);
 });
+
+test("optional scalar null is omitted while actual scalar and array values survive", () => {
+  const query = new URLSearchParams();
+  const headers = new Headers();
+  for (const value of [undefined, null]) {
+    appendQuery(query, "missing", value, true);
+    setHeader(headers, "x-missing", value);
+  }
+  assert.equal(query.has("missing"), false);
+  assert.equal(headers.has("x-missing"), false);
+  for (const value of ["null", false, 0, ""]) {
+    appendQuery(query, "value", value, true);
+    setHeader(headers, "x-value", value);
+    assert.equal(headers.get("x-value"), String(value));
+  }
+  assert.deepEqual(query.getAll("value"), ["null", "false", "0", ""]);
+  appendQuery(query, "array", [null, "null", false, 0, ""], true);
+  appendQuery(query, "joined", [null, "null", false, 0, ""], false);
+  assert.deepEqual(query.getAll("array"), ["null", "null", "false", "0", ""]);
+  assert.equal(query.get("joined"), "null,null,false,0,");
+});
+
+test("required query and header nulls fail before serialization", () => {
+  for (const value of [null, undefined]) {
+    assert.throws(() => appendQuery(new URLSearchParams(), "limit", value, true, true), /Required query parameter limit/);
+    assert.throws(() => setHeader(new Headers(), "x-limit", value, true), /Required header parameter x-limit/);
+  }
+});

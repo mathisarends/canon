@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Header, Query
 from pydantic import BaseModel
 
 from examples.agent_runs import router as runs_router
@@ -41,6 +41,22 @@ async def open_stream(
 @router.stream("/created", status_code=201, operation_id="created")
 async def created() -> AsyncIterator[Tick]:
     yield Tick(n=2)
+
+
+@router.stream("/nullable", operation_id="nullable_parameters")
+async def nullable_parameters(
+    limit: int | None = None,
+    x_limit: Annotated[int | None, Header()] = None,
+) -> AsyncIterator[Tick]:
+    yield Tick(n=(limit or 0) + (x_limit or 0))
+
+
+@router.stream("/required-nullable", operation_id="required_nullable_parameters")
+async def required_nullable_parameters(
+    limit: Annotated[int | None, Query()],
+    x_limit: Annotated[int | None, Header()],
+) -> AsyncIterator[Tick]:
+    yield Tick(n=(limit or 0) + (x_limit or 0))
 
 
 parent = APIRouter(prefix="/compat")

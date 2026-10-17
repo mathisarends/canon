@@ -1,6 +1,6 @@
 # 003 — Define consistent null handling for optional HTTP parameters
 
-Status: Open
+Status: Complete
 Priority: P2
 Scope: TypeScript transport template, generated parameter types, HTTP tests
 
@@ -70,6 +70,19 @@ effect of the fix.
 - Update templates, regenerate artifacts, and document the chosen behavior.
 
 ## Validation
+
+Optional scalar null/undefined query and header values now mean omission in
+TypeScript, matching Python None. Both SDKs reject null/omission for required
+query/header parameters with TypeError before issuing HTTP requests. Literal
+strings, zero, false, empty strings and array elements retain their encoding.
+Updated transport/API templates, regenerated all committed clients and documented
+the policy. JSON body null handling is unchanged.
+
+The optional-null TypeScript regression failed before the fix. `npm test` passed
+**18 tests**, `npm run typecheck` and `uv run pyright` passed, and
+`uv run pytest -q` passed **144 tests**, including fresh generated clients against
+FastAPI over real HTTP with Node, HTTPX and HTTPX2. Ruff and artifact drift checks
+also passed.
 
 Run `npm test`, `npm run typecheck`, relevant real HTTP integration tests, the
 complete Python suite if shared IR/types change, and generated-artifact checks.

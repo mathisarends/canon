@@ -11,6 +11,13 @@ object plus a union type. Both retain exhaustive discriminator narrowing.
 Parameters use camelCase in TypeScript and snake_case in Python; wire aliases
 are preserved.
 
+Optional scalar query and header parameters treat TypeScript `null`/`undefined`
+and Python `None` as omission, so FastAPI applies its default. Required query and
+header parameters reject these values with `TypeError` before sending a request:
+there is no JSON-null representation in the supported HTTP parameter encoding.
+The string `"null"`, `false`, zero, empty strings and query array elements retain
+their ordinary serialization. Nullable JSON body fields still use JSON null.
+
 ```typescript
 import { createClient, RunEventType } from "./generated/index.js";
 

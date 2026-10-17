@@ -218,6 +218,37 @@ async def test_current_generated_python_client_preserves_wire_values_and_validat
             )
 
 
+async def test_current_generated_python_nullable_parameters(
+    server, current_clients, python_backend
+):
+    root, python = current_clients
+    with load_package(
+        root / (python_backend.__name__ + "_nullable"), python[python_backend.__name__]
+    ) as sdk:
+        async with sdk.Client(server) as client:
+            for params, expected in [
+                ({}, 0),
+                ({"limit": None, "x_limit": None}, 0),
+                ({"limit": 2, "x_limit": 3}, 5),
+            ]:
+                assert [
+                    event.n
+                    async for event in client.compat.nullable_parameters(**params)
+                ] == [expected]
+            for params, name in [
+                ({"limit": None, "x_limit": 1}, "query parameter limit"),
+                ({"limit": 1, "x_limit": None}, "header parameter x-limit"),
+            ]:
+                with pytest.raises(TypeError, match=name):
+                    client.compat.required_nullable_parameters(**params)
+            assert [
+                event.n
+                async for event in client.compat.required_nullable_parameters(
+                    limit=2, x_limit=3
+                )
+            ] == [5]
+
+
 def test_current_generated_typescript_client_streaming_and_cleanup(
     server, current_clients
 ):

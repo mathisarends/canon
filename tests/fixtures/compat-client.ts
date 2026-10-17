@@ -1,4 +1,5 @@
 import { createClient } from "./generated/index.js";
+import assert from "node:assert/strict";
 
 const baseUrl = process.argv[2]!;
 const client = createClient({ baseUrl });
@@ -50,4 +51,15 @@ for await (const event of client.fixtures.nestedEvents({ itemId: 42, labels: ["a
 }
 for await (const event of client.compat.created()) {
   if (event.n !== 2) throw new Error("Custom success status failed");
+}
+
+for (const input of [{}, { limit: null, xLimit: null }, { limit: 2, xLimit: 3 }]) {
+  for await (const event of client.compat.nullableParameters(input)) {
+    if (event.n !== ((input.limit ?? 0) + (input.xLimit ?? 0))) throw new Error("Nullable parameter serialization failed");
+  }
+}
+assert.throws(() => client.compat.requiredNullableParameters({ limit: null, xLimit: 1 }), /Required query parameter limit/);
+assert.throws(() => client.compat.requiredNullableParameters({ limit: 1, xLimit: null }), /Required header parameter x-limit/);
+for await (const event of client.compat.requiredNullableParameters({ limit: 2, xLimit: 3 })) {
+  assert.equal(event.n, 5);
 }

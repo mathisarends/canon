@@ -29,9 +29,9 @@ class {{ class_name }}:
         headers: dict[str, str] = {}
 {% for parameter in operation.parameters %}
 {% if parameter.location == 'query' %}
-        append_query(query, {{ parameter.name | repr }}, {{ parameter.name | snake }}, explode={{ parameter.explode }})
+        append_query(query, {{ parameter.name | repr }}, {{ parameter.name | snake }}, explode={{ parameter.explode }}{{ ', required=True' if parameter.required else '' }})
 {% elif parameter.location == 'header' %}
-        set_header(headers, {{ parameter.name | repr }}, {{ parameter.name | snake }})
+        set_header(headers, {{ parameter.name | repr }}, {{ parameter.name | snake }}{{ ', required=True' if parameter.required else '' }})
 {% endif %}
 {% endfor %}
 {% if operation.body %}
