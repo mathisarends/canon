@@ -1,9 +1,14 @@
+import argparse
+import json
 import subprocess
 import sys
 import tempfile
 import tomllib
 import zipfile
 from pathlib import Path
+
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = {
@@ -14,13 +19,24 @@ PACKAGES = {
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Verify independently installed wheels"
+    )
+    parser.add_argument("--python", default=sys.executable)
+    parser.add_argument(
+        "--dependencies", choices=("latest", "minimum"), default="latest"
+    )
+    args = parser.parse_args()
     wheels = {}
+    projects = {}
+    results = []
     for name, (directory, module) in PACKAGES.items():
         output = ROOT / "dist" / name
         _run("uv", "build", "--package", name, "--out-dir", str(output))
         project = tomllib.loads(
             (ROOT / "packages" / directory / "pyproject.toml").read_text("utf-8")
         )["project"]
+        projects[name] = project
         (wheel,) = output.glob(f"{name.replace('-', '_')}-{project['version']}-*.whl")
         with zipfile.ZipFile(wheel) as artifact:
             assert f"{module}/py.typed" in artifact.namelist()
@@ -38,13 +54,13 @@ def main() -> None:
         (
             "fastapi-canon[streams]",
             "fastapi-streams[codegen]",
-            "fastapi-wsrpc[codegen,dishka]",
+            "fastapi-wsrpc[codegen,dishka,otel]",
         ),
     )
     for requirements in combinations:
         with tempfile.TemporaryDirectory(prefix="canon-artifacts-") as temporary:
             environment = Path(temporary) / "venv"
-            _run("uv", "venv", "--python", sys.executable, str(environment))
+            _run("uv", "venv", "--python", args.python, str(environment))
             python = environment / (
                 "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
             )
@@ -52,13 +68,20 @@ def main() -> None:
             for requirement in requirements:
                 name, _, extras = requirement.partition("[")
                 artifacts.append(wheels[name] + (f"[{extras}" if extras else ""))
+            constraints = (
+                _minimum_dependencies(requirements, projects)
+                if args.dependencies == "minimum"
+                else []
+            )
             _run(
                 "uv",
                 "pip",
                 "install",
                 "--python",
                 str(python),
+                *(["--resolution", "lowest-direct"] if constraints else []),
                 *artifacts,
+                *constraints,
                 "httpx>=0.28",
             )
             _run("uv", "pip", "check", "--python", str(python))
@@ -70,10 +93,57 @@ def main() -> None:
                 *names,
                 cwd=Path(temporary),
             )
-    _check_reference(wheels["fastapi-canon"])
+            installed = subprocess.check_output(
+                ["uv", "pip", "list", "--python", str(python), "--format", "json"],
+                text=True,
+            )
+            results.append(
+                {"requirements": requirements, "installed": json.loads(installed)}
+            )
+    if args.dependencies == "latest":
+        _check_reference(wheels["fastapi-canon"], args.python)
+    report = ROOT / "dist" / f"compatibility-{args.dependencies}.json"
+    report.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+    print(f"Compatibility results: {report}", flush=True)
 
 
-def _check_reference(canon_wheel: str) -> None:
+def _minimum_dependencies(requirements: tuple[str, ...], projects: dict) -> list[str]:
+    lower_bounds: dict[str, Version] = {}
+    dependencies = []
+    for selected in requirements:
+        requirement = Requirement(selected)
+        project = projects[requirement.name]
+        dependencies.extend(project["dependencies"])
+        for extra in requirement.extras:
+            dependencies.extend(project["optional-dependencies"][extra])
+    parsed = [Requirement(dependency) for dependency in dependencies]
+    for dependency in parsed:
+        if dependency.name in PACKAGES:
+            continue  # Local wheels are already explicit install requirements.
+        if dependency.marker is not None:
+            raise ValueError(
+                f"Minimum matrix needs explicit marker handling: {dependency}"
+            )
+        bounds = [
+            Version(specifier.version)
+            for specifier in dependency.specifier
+            if specifier.operator in (">=", "==")
+        ]
+        if not bounds:
+            raise ValueError(f"No inclusive minimum for {dependency}")
+        lower_bounds[dependency.name] = max(
+            *bounds, lower_bounds.get(dependency.name, Version("0"))
+        )
+    for dependency in parsed:
+        if (
+            dependency.name in lower_bounds
+            and lower_bounds[dependency.name] not in dependency.specifier
+        ):
+            raise ValueError(f"Minimum bounds conflict with {dependency}")
+    return [f"{name}>={version}" for name, version in sorted(lower_bounds.items())]
+
+
+def _check_reference(canon_wheel: str, python_version: str) -> None:
     reference = ROOT / "examples/reference-service"
     project = tomllib.loads((reference / "pyproject.toml").read_text("utf-8"))[
         "project"
@@ -83,7 +153,7 @@ def _check_reference(canon_wheel: str) -> None:
     (wheel,) = output.glob(f"fastapi_canon_reference-{project['version']}-*.whl")
     with tempfile.TemporaryDirectory(prefix="canon-reference-") as temporary:
         environment = Path(temporary) / "venv"
-        _run("uv", "venv", "--python", sys.executable, str(environment))
+        _run("uv", "venv", "--python", python_version, str(environment))
         python = environment / (
             "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
         )

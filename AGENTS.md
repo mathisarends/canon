@@ -41,3 +41,18 @@ Build/install checks must use actual artifacts in fresh environments, independen
 of workspace source overrides. Do not publish or archive repositories as part of
 routine development. The nested imported `.github` directories are historical
 configuration; only root workflows execute for this repository.
+
+## Release preparation
+
+Read `docs/releases.md` for prepared versions, publication order and deferred
+publisher/workflow setup. `docs/compatibility.md` records tested dependency
+combinations; `docs/rpc-parity.md` records the predecessor comparison and consumer
+migration limits. Do not treat prepared source versions as published releases.
+
+Run the standalone minimum-dependency smoke matrix with
+`uv run --locked python scripts/check_distributions.py --python 3.12 --dependencies minimum`.
+The default mode checks current compatible dependencies. Both modes create fresh
+wheel environments and write dependency inventories under `dist/`. Check Streams'
+installed CLI/backends with `uv run --locked python scripts/check_streams_artifacts.py`.
+For an external RPC contract, follow the installed-wheel command in the parity
+report; SDK compilation alone does not establish a full application migration.

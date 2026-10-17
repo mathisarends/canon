@@ -22,7 +22,8 @@
 
 ## M2 and M3: successor and releases
 
-- [ ] Inventory consumer imports, RPC CLI, wire behavior, and client APIs.
+- [x] Inventory consumer imports, RPC CLI, wire behavior, and client APIs;
+      see [RPC parity and Cara contract checks](rpc-parity.md).
 - [x] Select `fastapi-wsrpc` / `fastapi_wsrpc` and check the PyPI JSON endpoint.
 - [ ] Confirm registration acceptance and ownership before publication.
 - [x] Make FastAPI required, expose its existing mounting APIs directly, and
@@ -33,6 +34,7 @@
 - [ ] Release the successor, migrate consumers, then archive the predecessor.
 
 The user requested the RPC successor rename during consolidation. Its new
-distribution starts at unreleased 0.1.0; Canon and Streams preserve their source
-versions and PyPI identities. No release, old-repository rename, deprecation,
+distribution starts at unreleased 0.1.0; Canon and Streams preserve their PyPI
+identities and now prepare 0.5.0 and 0.1.0 respectively. No release,
+old-repository rename, deprecation,
 or archival has been performed.

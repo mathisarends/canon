@@ -3,6 +3,11 @@
 Updated: 2026-10-17. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
+**Current scope:** CI/release-workflow setup is deferred at the user's request
+(2026-10-17). Local version preparation, RPC parity/consumer-contract checks and
+artifact verification are recorded below. Publication and account setup remain
+open; checked preparation items do not mean the packages are published.
+
 **Goal:** Release the three packages independently from `mathisarends/canon`
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
@@ -27,31 +32,38 @@ The PyPI versions were checked directly on 2026-10-17:
 
 | Distribution | Workspace version | PyPI | Next action |
 | --- | --- | --- | --- |
-| `fastapi-canon` | `0.4.0` plus `Unreleased` | `0.4.0` | Prepare a new version for the additional public API. |
-| `fastapi-streams` | `0.0.1` plus `Unreleased` | `0.0.1` | Prepare a new version for the codegen/SDK changes. |
-| `fastapi-wsrpc` | `0.1.0`, unpublished | JSON endpoint returns 404 | Prepare the first release, potentially as a prerelease. |
+| `fastapi-canon` | `0.5.0`, prepared/unreleased | `0.4.0` | Publish after Streams and release setup. |
+| `fastapi-streams` | `0.1.0`, prepared/unreleased | `0.0.1` | Publish after release setup; consumer migrations are documented. |
+| `fastapi-wsrpc` | `0.1.0`, prepared/unpublished | JSON endpoint returns 404 | Confirm PyPI acceptance/publisher, then publish the first successor release. |
 
-- [ ] Review changes since each published version and choose target versions.
+- [x] Review changes since each published version and choose target versions.
   Canon adds `CanonStreamRouter` and `HTTPMethod`; Streams includes changes to
   generated types, error aliases, and SDK documentation. Review the Streams
   changelog for required client migrations as well.
+  Chosen versions are Canon 0.5.0, Streams 0.1.0 and RPC 0.1.0; the published
+  Canon/Streams wheels were compared directly. See [release scope](docs/releases.md).
 - [ ] Publish the new Canon/Streams contents under new versions; do not reuse
   existing published versions for changed builds.
-- [ ] Update each affected package's `pyproject.toml`, changelog, and, for
+- [x] Update each affected package's `pyproject.toml`, changelog, and, for
   Streams/RPC, `__version__`. Canon currently obtains its distribution version
   from package metadata.
-- [ ] Update dependent pins together: the root `pyproject.toml`, Canon's `streams`
+- [x] Update dependent pins together: the root `pyproject.toml`, Canon's `streams`
   extra and development group, and the root `uv.lock`.
-- [ ] Account for the reference service: it currently requires
-  `fastapi-canon>=0.4,<0.5`. If Canon moves to `0.5.x`, update that range too.
-- [ ] Point Canon/Streams package URLs to the new development repository and
-  appropriate subdirectories; some metadata still points to the old repositories.
-- [ ] Regenerate example clients after version/generator changes and run their
+- [x] Update the reference service to `fastapi-canon>=0.5,<0.6` and verify its
+  five tests against the independently installed Canon 0.5.0 wheel.
+- [x] Point Canon/Streams package URLs to the new development repository and
+  appropriate package/documentation subdirectories.
+- [x] Regenerate example clients after version/generator changes and run their
   drift checks, including the RPC generator manifests.
 
 **Order:** Prepare target versions and release changes together. Publish Streams
 before a Canon release that requires its new version. RPC can be released
 independently. Do not force a shared version number.
+
+RPC retains its first unpublished 0.1.0 version. The 0.11.0 predecessor engine is
+preserved, and the consumer check found a Python generator formatting issue that
+is fixed with a regression test. Regeneration leaves the current example outputs
+and RPC manifests unchanged; drift checks confirm them.
 
 ## 2. One-time account setup by Mathis
 
@@ -74,6 +86,9 @@ match the implemented workflow before configuring them:
   **Pending Publisher** for the new project. The first successful publication
   creates the project; a pending publisher does not reserve its name.
   [New project instructions](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
+  The public endpoint still returns 404. The account publishing page redirects
+  to login, so acceptance and Pending Publisher state remain unverified. The
+  intended fields are documented in [the release guide](docs/releases.md).
 - [ ] Configure the GitHub `pypi` environment and allowed release refs. Decide
   whether publication also requires an environment reviewer. Document the policy
   so an agent can tell whether human approval in GitHub is still pending after dispatch.
@@ -85,6 +100,9 @@ match the implemented workflow before configuring them:
 
 ## 3. Implement a release process agents can operate
 
+Deferred: the user will handle CI/release-workflow setup later. No workflow or
+GitHub environment was changed during this preparation.
+
 **Current state:** The root has only `ci.yml`, with no publishing workflow.
 The `.github` directories under `packages/` are imported, inactive legacy
 configuration. In particular, the old Streams release check expects `vX.Y.Z`
@@ -95,7 +113,7 @@ and a package-local lockfile; it cannot serve as the monorepo release gate uncha
   importing package business modules.
 - [ ] Allow only the three libraries as release targets; do not publish
   `canon-workspace` or the development reference service as stack packages.
-- [ ] Introduce package-specific tags:
+- [x] Document package-specific tag names (no tags created):
   `fastapi-canon-vX.Y.Z`, `fastapi-streams-vX.Y.Z`, `fastapi-wsrpc-vX.Y.Z`.
 - [ ] Build a shared release check: package, tag, and version must agree;
   metadata, existing version constants, changelog, and root lockfile must be
@@ -111,8 +129,10 @@ and a package-local lockfile; it cannot serve as the monorepo release gate uncha
   published versions explicitly before uploading.
 - [ ] Configure the publishing job with `environment: pypi` and job-scoped
   `id-token: write`. Regular PR/CI jobs do not need publishing permissions.
-- [ ] Check wheels/sdists, metadata, `py.typed`, templates, CLI entry points,
-  and installed consumers. Publish only the artifacts that passed those checks.
+- [x] Check local wheels/sdists, metadata, `py.typed`, templates, CLI entry
+  points, installed smoke consumers and both generated SDKs.
+- [ ] Wire those artifact gates into publication and publish only the artifacts
+  that passed the checks.
 - [ ] Provide machine-readable results and clear errors: package, version,
   commit, tag, checks, artifact hashes, and workflow/PyPI links. Document how to
   resume after a failed run.
@@ -133,19 +153,25 @@ for publication under the configured GitHub rules.
 
 ## 4. Complete verification before the first publication
 
-- [ ] Test minimum dependencies and the newest compatible versions outside the
+- [x] Test direct minimum dependencies and the newest compatible versions outside the
   workspace: Canon alone, Streams alone, RPC alone, and supported combinations.
   The full stack has a different lower bound from Canon alone because Streams
   requires at least FastAPI `0.143.3`.
-- [ ] Record tested package versions and dependency ranges in
+  Six fresh wheel environments per profile pass runtime/codegen smoke checks;
+  minima use Python 3.12 and latest uses Python 3.14. This does not claim every
+  transitive minimum or exhaustive dependency permutations.
+- [x] Record tested package versions and dependency ranges in
   [docs/compatibility.md](docs/compatibility.md). The shared lockfile does not
   replace these consumer checks.
-- [ ] Select at least one real RPC consumer and test it with the new package:
-  installation, `rpckit` → `fastapi_wsrpc`, CLI, mounting, Dishka, authentication,
-  subscriptions, and any binary/raw channels it uses.
-- [ ] Check generated Python/TypeScript clients against that consumer's exported
+- [x] Select a real RPC consumer: Cara Gateway; audit its existing imports and
+  exported OpenRPC contract against the successor. See [RPC parity](docs/rpc-parity.md).
+- [ ] Complete Cara's full application migration and run installation,
+  mounting, Dishka, authentication, subscription and voice/media tests there.
+  Cara still pins pyrpckit 0.8.0; its old module paths need explicit migration.
+- [x] Check generated Python/TypeScript clients against that consumer's exported
   contract and update the [RPC migration guide](packages/fastapi-wsrpc/docs/migration.md)
-  with any required changes. The specific consumer list is still undecided.
+  with required changes. Both SDKs for Cara's 15-method contract pass generation,
+  drift and compilation; Python also passes package import and Ruff lint/format.
 - [ ] Pass a complete dry run for each package intended for publication.
 
 These existing root commands already work:
@@ -155,6 +181,7 @@ uv sync --locked --all-packages --all-groups
 npm ci --ignore-scripts --prefix packages/fastapi-streams
 uv run --locked python scripts/check.py all
 uv run --locked python scripts/check_distributions.py
+uv run --locked python scripts/check_distributions.py --python 3.12 --dependencies minimum
 uv run --locked python scripts/check_streams_artifacts.py
 ```
 
@@ -189,10 +216,9 @@ workspace consolidation is complete, but the release migration remains open.
 
 ## Starting prompt for the next agent
 
-> Read TODO.md and the linked release/compatibility documents. First implement
-> the release checks and a root workflow with a dry run that agents can operate.
-> Prepare the affected package versions and pins consistently, run the checks,
-> and make small, reviewable commits. Document the exact GitHub/PyPI account
-> setup Mathis still needs to complete. This preparation task does not publish
-> packages; a subsequent release request should be executable entirely through
-> the documented process.
+> Read TODO.md and the linked release/compatibility and RPC parity documents.
+> Versions and local preparation gates are ready. CI/release-workflow setup was
+> deferred by the user; resume it only when requested. Remaining release work
+> includes account/publisher setup, a root workflow and dry runs, a full external
+> consumer migration, and explicitly authorized publication. Keep preparation,
+> publication and verified consumer migration separate in status reports.

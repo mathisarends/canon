@@ -1,11 +1,11 @@
 # Compatibility
 
-Consolidation keeps Canon/Streams versions and creates a separately named RPC successor:
+Prepared source versions (none has been published from this repository):
 
 | Distribution | Version | Import |
 | --- | --- | --- |
-| `fastapi-canon` | 0.4.0 | `fastapi_canon` |
-| `fastapi-streams` | 0.0.1 | `fastapi_streams` |
+| `fastapi-canon` | 0.5.0 | `fastapi_canon` |
+| `fastapi-streams` | 0.1.0 | `fastapi_streams` |
 | `fastapi-wsrpc` (unreleased successor to pyrpckit 0.11.0) | 0.1.0 | `fastapi_wsrpc` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
@@ -21,16 +21,17 @@ There are two verification modes:
    RPC, and both; installed runtime and scope checks with no workspace overrides.
 
 The artifact installer resolves third-party dependencies from published metadata.
-It deliberately does not inherit the editable workspace. The first migration
-checks current dependency resolution; a full released minimum/maximum support
-matrix is still a release gate to implement, not a guarantee inferred from the
-workspace lock. The shared stack has not yet been tested in external applications.
+It deliberately does not inherit the editable workspace. Direct dependency
+minima and current compatible versions are checked below. This is a bounded smoke
+matrix, not exhaustive coverage of every compatible dependency combination.
+External application runtime migration remains open; Cara's exported RPC contract
+is checked separately from running its service.
 
 Root CI is configured to repeat workspace tests across Python 3.12–3.14 and
 Windows 3.14, and artifact checks on Linux. Those configured targets are distinct
 from the local results below.
 
-## Local verification, 2026-10-17
+## Initial consolidation verification, 2026-10-17
 
 Windows x64, CPython 3.14.0, uv 0.9.2, Node.js 24:
 
@@ -66,7 +67,45 @@ composition; the subsequent Canon migration adds the five canonical HTTP tests
 and its own installed-artifact check without requiring either transport extension.
 
 These are development verification results, not a published support promise.
-External application migration, all supported dependency minima/maxima, and
-PyPI registration/publishing remain release prerequisites. Existing fixture
+External application migration and PyPI registration/publishing remain release
+prerequisites. Existing fixture
 warnings about optional SSE discriminators remain unchanged; artifact tests using
 HTTPX can emit Starlette's upstream HTTPX2 migration warning.
+
+## Release preparation verification, 2026-10-17
+
+The prepared 0.5.0 / 0.1.0 / 0.1.0 packages pass fresh wheel installs and runtime
+smoke checks in six combinations on Windows: each alone, Canon+Streams,
+Canon+RPC, and all three. No workspace overrides are used in those environments.
+
+| Combination | Minimum FastAPI | Minimum Pydantic | Minimum Dishka when used |
+| --- | --- | --- | --- |
+| Canon alone | 0.115.0 | 2.9.0 | 1.10.0 |
+| Streams alone | 0.143.3 | 2.11.2 | — |
+| RPC alone | 0.115.0 | 2.11.0 | — |
+| Canon+Streams/codegen | 0.143.3 | 2.11.2 | 1.10.0 |
+| Canon+RPC/codegen/Dishka | 0.115.0 | 2.11.0 | 1.10.0 |
+| Full stack with codegen/Dishka/OTel | 0.143.3 | 2.11.2 | 1.10.0 |
+
+Minimum mode runs on CPython 3.12.12. Requested codegen extras resolve Jinja2
+3.1.0 and JSON Schema 4.23.0. In the full stack, FastAPI's transitive requirement
+raises OTel API to 1.44.0 even though the RPC extra alone declares `>=1.30`.
+The resolver chooses jointly satisfiable direct minima; it does not force every
+transitive dependency to its oldest release.
+
+Latest mode runs on CPython 3.14.0 with FastAPI 0.143.3, Pydantic 2.14.1,
+Starlette 1.8.0, Dishka 1.10.1, Jinja2 3.1.6, JSON Schema 4.26.0 and OTel API
+1.45.1 where applicable. The installed reference service passes its five tests
+with Canon 0.5.0 and both extensions absent. Streams' core-only, HTTPX and HTTPX2
+artifact/CLI checks also pass.
+
+The workspace gates cover Canon's 251 tests, Streams' 232, RPC's 833 including
+the new generator regression, the reference service's five and the composed
+stack test. Client regeneration and drift checks include both RPC manifests.
+The inherited optional-discriminator warnings remain documented. Local results
+for this change do not imply a new CI result on every supported Python version.
+
+[RPC parity and Cara contract evidence](rpc-parity.md) records the source audit,
+consumer SDK compilation and the remaining full application migration. See the
+[release guide](releases.md#local-preparation-gates) for commands and generated
+machine-readable dependency inventories.

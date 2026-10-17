@@ -57,6 +57,7 @@ def main() -> None:
                 "run",
                 "--isolated",
                 "--no-project",
+                "--no-cache",
                 "--python",
                 sys.executable,
                 "--with",

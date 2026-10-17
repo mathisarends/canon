@@ -40,6 +40,19 @@ can coexist during application migration because their import namespaces differ.
 Existing generic adapter seams are retained for tests and migration, while the
 supported product experience is FastAPI WebSockets.
 
+For consumers still on pyrpckit 0.8 or earlier, also apply the predecessor's
+0.9–0.11 changelog migrations. In particular, `rpckit.fastapi` becomes the root
+FastAPI exports or `fastapi_wsrpc.integrations.fastapi`, and `rpckit.dishka`
+becomes `fastapi_wsrpc.integrations.dishka`. Simply replacing the namespace is
+insufficient for those removed modules. Observer/hooks and custom-transport
+changes also require call-site updates where used.
+
+The [workspace parity report](../../../docs/rpc-parity.md) compares against the
+local pyrpckit 0.11.0 checkout and records a real Cara contract/SDK check. Cara's
+full application migration is still pending. Python SDK generation now wraps
+long enum defaults, event unions and route annotations for Ruff compatibility;
+regenerate SDKs to receive that formatting fix.
+
 The name is distinct from `fastapi-ws-rpc` under
 [PyPA normalization](https://packaging.python.org/en/latest/specifications/name-normalization/).
 The PyPI JSON endpoint returned 404 on 2026-10-17. This is not a name reservation;

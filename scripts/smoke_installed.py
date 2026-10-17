@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import AsyncIterator
+from importlib.metadata import version
 from pathlib import Path
 from typing import Literal
 
@@ -33,6 +34,8 @@ def main() -> None:
         if name in selected:
             installed = importlib.import_module(module)
             assert Path(installed.__file__).resolve().is_relative_to(Path(sys.prefix))
+            if hasattr(installed, "__version__"):
+                assert installed.__version__ == version(name)
         else:
             assert importlib.util.find_spec(module) is None, module
     app = FastAPI()
