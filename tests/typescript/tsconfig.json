@@ -12,5 +12,5 @@
     "rootDir": "../..",
     "outDir": "dist"
   },
-  "include": ["*.ts", "../../examples/agent_runs/generated/**/*.ts", "../../examples/agent_runs/consume.ts", "../fixtures/generated/**/*.ts"]
+  "include": ["*.ts", "../../examples/agent_runs/generated/**/*.ts", "../../examples/agent_runs/consume.ts", "../../examples/agent_runs/errors.ts", "../fixtures/generated/**/*.ts"]
 }

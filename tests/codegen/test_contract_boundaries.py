@@ -1,7 +1,9 @@
+import json
 from copy import deepcopy
 
 import pytest
 
+from fastapi_streams.codegen.cli import main
 from fastapi_streams.codegen.ir import build_ir
 from fastapi_streams.codegen.openapi import ContractError
 from fastapi_streams.codegen.python import generate_python
@@ -99,3 +101,100 @@ def test_reserved_public_model_names_fail_generation(name, render):
     )
     with pytest.raises(ContractError, match="Reserved"):
         render(contract)
+
+
+@pytest.mark.parametrize(
+    "sibling",
+    [
+        {"enum": ["allowed"]},
+        {"const": "allowed"},
+        {"required": ["name"]},
+        {"additionalProperties": False},
+        {"minLength": 3},
+        {"properties": {"name": {"type": "string"}}},
+        {"type": "string"},
+        {"allOf": [{"type": "string"}]},
+    ],
+)
+@pytest.mark.parametrize("chained", [False, True])
+def test_semantic_ref_siblings_fail_explicitly(sibling, chained):
+    target = (
+        {"type": "object"}
+        if "required" in sibling
+        or "additionalProperties" in sibling
+        or "properties" in sibling
+        else {"type": "string"}
+    )
+    schema = {"$ref": "#/components/schemas/Target", **sibling}
+    components = {"Target": target}
+    if chained:
+        components["Alias"] = schema
+        schema = {"$ref": "#/components/schemas/Alias"}
+    with pytest.raises(ContractError, match=r"alongside \$ref.*" + next(iter(sibling))):
+        schema_contract(schema, components)
+
+
+@pytest.mark.parametrize("language", ["python", "typescript"])
+def test_ref_sibling_cli_errors_do_not_write_partial_output(tmp_path, capsys, language):
+    document = event_document(str)
+    document["components"] = {"schemas": {"Name": {"type": "string"}}}
+    media = document["paths"]["/events"]["get"]["responses"]["200"]["content"]
+    media["text/event-stream"]["itemSchema"]["properties"]["data"]["contentSchema"] = {
+        "$ref": "#/components/schemas/Name",
+        "enum": ["allowed"],
+    }
+    schema = tmp_path / "openapi.json"
+    schema.write_text(json.dumps(document), encoding="utf-8")
+    output = tmp_path / "sdk"
+    assert (
+        main(
+            [
+                "generate",
+                "--schema",
+                str(schema),
+                "--language",
+                language,
+                "--output",
+                str(output),
+            ]
+        )
+        == 2
+    )
+    assert "alongside $ref" in capsys.readouterr().err
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("language", ["python", "typescript"])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_forbidden_required_undeclared_keys_fail_before_writing(
+    tmp_path, capsys, language, mixed
+):
+    schema = {"type": "object", "required": ["name"], "additionalProperties": False}
+    if mixed:
+        schema["properties"] = {"count": {"type": "integer"}}
+    with pytest.raises(ContractError, match="Required.*name.*additionalProperties"):
+        schema_contract(schema)
+    document = event_document(str)
+    media = document["paths"]["/events"]["get"]["responses"]["200"]["content"]
+    media["text/event-stream"]["itemSchema"]["properties"]["data"]["contentSchema"] = (
+        schema
+    )
+    path = tmp_path / "openapi.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    output = tmp_path / "sdk"
+    assert (
+        main(
+            [
+                "generate",
+                "--schema",
+                str(path),
+                "--language",
+                language,
+                "--output",
+                str(output),
+            ]
+        )
+        == 2
+    )
+    assert "additionalProperties" in capsys.readouterr().err
+    assert not output.exists()

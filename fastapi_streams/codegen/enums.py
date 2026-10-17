@@ -133,7 +133,9 @@ def with_enums(contract: Contract) -> Contract:
                 for part in literals
                 if isinstance(part, LiteralType) and isinstance(part.value, str)
             }
-            if values and len(values) == len(literals):
+            # A lone constant field is clearer as a literal. Discriminators have
+            # already been assigned their shared enum above; named enums remain.
+            if len(values) > 1 and len(values) == len(literals):
                 enum_name = name + identifier(field.name, upper=True)
                 enum = StringEnum(_members(values))
                 if enum_name in declarations and declarations[enum_name] != enum:
@@ -141,9 +143,7 @@ def with_enums(contract: Contract) -> Contract:
                 declarations[enum_name] = enum
                 field = replace(
                     field,
-                    type=Reference(enum_name)
-                    if len(values) > 1
-                    else EnumValue(enum_name, enum.members[0].name),
+                    type=Reference(enum_name),
                 )
             model_fields.append(field)
         declarations[name] = replace(type_, fields=tuple(model_fields))

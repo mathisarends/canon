@@ -34,8 +34,12 @@ export function appendQuery(
   name: string,
   value: string | number | boolean | null | readonly (string | number | boolean | null)[] | undefined,
   explode: boolean,
+  required = false,
 ): void {
-  if (value === undefined) return;
+  if (value === undefined || value === null) {
+    if (required) throw new TypeError(`Required query parameter ${name} cannot be null or undefined`);
+    return;
+  }
   if (Array.isArray(value)) {
     if (explode) {
       for (const item of value) query.append(name, String(item));
@@ -51,10 +55,13 @@ export function setHeader(
   headers: Headers,
   name: string,
   value: string | number | boolean | null | undefined,
+  required = false,
 ): void {
-  if (value !== undefined) {
-    headers.set(name, String(value));
+  if (value === undefined || value === null) {
+    if (required) throw new TypeError(`Required header parameter ${name} cannot be null or undefined`);
+    return;
   }
+  headers.set(name, String(value));
 }
 
 async function readChunk(

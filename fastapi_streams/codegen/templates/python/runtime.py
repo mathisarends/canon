@@ -64,8 +64,11 @@ def append_query(
     value: ParameterValue | Sequence[ParameterValue],
     *,
     explode: bool,
+    required: bool = False,
 ) -> None:
     if value is None:
+        if required:
+            raise TypeError(f"Required query parameter {name} cannot be None")
         return
     if not isinstance(value, str | int | float | bool):
         if explode:
@@ -76,8 +79,12 @@ def append_query(
         query.append((name, scalar(value)))
 
 
-def set_header(headers: dict[str, str], name: str, value: ParameterValue) -> None:
+def set_header(
+    headers: dict[str, str], name: str, value: ParameterValue, *, required: bool = False
+) -> None:
     if value is None:
+        if required:
+            raise TypeError(f"Required header parameter {name} cannot be None")
         return
     headers[name] = scalar(value)
 

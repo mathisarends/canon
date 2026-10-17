@@ -21,6 +21,23 @@ class FixturesApi:
         labels: Models.NestedEventsLabels | None = None,
         options: RequestOptions | None = None,
     ) -> AsyncGenerator[Models.FixtureEvent, None]:
+        """
+        Nested Events
+
+        HTTP GET /nested/{item_id}.
+
+        Opens the HTTP request when iteration begins. Parameter and body preparation may fail at the method call.
+
+        Does not automatically reconnect, retry, or replay events.
+
+        HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+
+        Declared HTTP response bodies: NestedEventsErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
+
+        Use contextlib.aclosing for deterministic cleanup when exiting iteration early. Task cancellation closes the response and propagates normally.
+
+        Events are validated with Pydantic.
+        """
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
         set_header(headers, 'x-trace', x_trace)

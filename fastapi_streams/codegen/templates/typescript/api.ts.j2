@@ -15,13 +15,21 @@ export interface {{ operation | input_name }} {
 }
 {% endif %}
 {% if operation.errors %}
-export type {{ operation.operation_id | pascal }}Error = {{ operation | error_type }};
+/** Declared HTTP response bodies; caught errors still require validation. */
+export type {{ operation.operation_id | pascal }}ErrorBody = {{ operation | error_type }};
+/** @deprecated Use {{ operation.operation_id | pascal }}ErrorBody for response bodies. */
+export type {{ operation.operation_id | pascal }}Error = {{ operation.operation_id | pascal }}ErrorBody;
 {% endif %}
 
 {% endfor %}
 export function {{ factory }}(client: ClientOptions) {
   return {
 {% for operation in operations %}
+    /**
+{% for line in (operation | operation_doc).splitlines() %}
+     *{{ ' ' + line if line else '' }}
+{% endfor %}
+     */
     {{ operation.name }}(
 {% if operation.parameters or operation.body %}
       input: {{ operation | input_name }}{{ '' if operation | required else ' = {}' }},
@@ -32,9 +40,9 @@ export function {{ factory }}(client: ClientOptions) {
       const headers = new Headers();
 {% for param in operation.parameters %}
 {% if param.location == 'query' %}
-      appendQuery(query, {{ param.name | json }}, input.{{ param.argument }}, {{ 'true' if param.explode else 'false' }});
+      appendQuery(query, {{ param.name | json }}, input.{{ param.argument }}, {{ 'true' if param.explode else 'false' }}{{ ', true' if param.required else '' }});
 {% elif param.location == 'header' %}
-      setHeader(headers, {{ param.name | json }}, input.{{ param.argument }});
+      setHeader(headers, {{ param.name | json }}, input.{{ param.argument }}{{ ', true' if param.required else '' }});
 {% endif %}
 {% endfor %}
       return stream<{{ operation.event | ts_type('Types.') }}>(client, {

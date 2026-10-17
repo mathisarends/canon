@@ -31,7 +31,9 @@ class StreamRouter(APIRouter):
         """Register a GET (default) or POST JSON-data SSE generator.
 
         Other options are forwarded to ``APIRouter.api_route``, including tags,
-        dependencies, responses, operation_id and response serialization options.
+        dependencies, responses and operation_id. Serialization must preserve
+        the exported event schema: include must be None, exclude must be empty,
+        by_alias must be True, and exclude_none/unset/defaults must be False.
         Put HTTP precondition checks in dependencies: a generator's body executes
         after the response has started, following native FastAPI behavior.
         """
@@ -44,6 +46,33 @@ class StreamRouter(APIRouter):
             raise TypeError(
                 "Streams infer their response model and use EventSourceResponse"
             )
+        for option, changes_contract in (
+            (
+                "response_model_include",
+                options.get("response_model_include") is not None,
+            ),
+            ("response_model_exclude", bool(options.get("response_model_exclude"))),
+            (
+                "response_model_by_alias",
+                options.get("response_model_by_alias", True) is not True,
+            ),
+            (
+                "response_model_exclude_none",
+                bool(options.get("response_model_exclude_none")),
+            ),
+            (
+                "response_model_exclude_unset",
+                bool(options.get("response_model_exclude_unset")),
+            ),
+            (
+                "response_model_exclude_defaults",
+                bool(options.get("response_model_exclude_defaults")),
+            ),
+        ):
+            if changes_contract:
+                raise TypeError(
+                    f"{option} would change the stream's exported event contract"
+                )
         status = options.get("status_code", 200)
         if status is not None and (not 200 <= status < 300 or status in (204, 205)):
             raise ValueError("A stream must use a successful status code with a body")

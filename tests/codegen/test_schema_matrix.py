@@ -22,6 +22,43 @@ CASES = [
     ("array", {"type": "array", "items": {"type": "integer"}}, {}, [1, 2], ["bad"]),
     ("union", {"anyOf": [{"type": "string"}, {"type": "integer"}]}, {}, "ok", []),
     (
+        "field_symbols",
+        {
+            "type": "object",
+            "properties": {
+                "int": {"type": "integer"},
+                "str": {"type": "string"},
+                "float": {"type": "number"},
+                "bool": {"type": "boolean"},
+                "list": {"type": "array", "items": {"type": "string"}},
+                "dict": {"type": "object", "additionalProperties": {"type": "string"}},
+                "object": {"type": "string"},
+                "classmethod": {"type": "string"},
+                "field_validator": {"type": "string"},
+                "nested": {
+                    "type": "object",
+                    "properties": {
+                        "list": {"type": "array", "items": {"type": "string"}}
+                    },
+                },
+            },
+        },
+        {},
+        {
+            "int": 1,
+            "str": "x",
+            "float": 1.5,
+            "bool": False,
+            "list": ["x"],
+            "dict": {"a": "b"},
+            "object": "x",
+            "classmethod": "x",
+            "field_validator": "x",
+            "nested": {"list": ["nested"]},
+        },
+        {"list": None},
+    ),
+    (
         "map",
         {"type": "object", "additionalProperties": {"type": "integer"}},
         {},
@@ -51,6 +88,25 @@ CASES = [
         {"external-id": "x", "count": None},
     ),
     (
+        "empty_closed_object",
+        {"type": "object", "additionalProperties": False},
+        {},
+        {},
+        {"extra": 1},
+    ),
+    (
+        "forbidden_extras",
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+            "additionalProperties": False,
+        },
+        {},
+        {"name": "ok"},
+        {"name": "ok", "unexpected": 123},
+    ),
+    (
         "typed_extras",
         {
             "type": "object",
@@ -63,8 +119,24 @@ CASES = [
         {"name": "x", "extra": "bad"},
     ),
     (
+        "annotated_reference_chain",
+        {
+            "$ref": "#/components/schemas/Alias",
+            "description": "An annotated alias",
+            "default": "hello",
+            "examples": ["hello"],
+            "x-display": "name",
+        },
+        {
+            "Alias": {"$ref": "#/components/schemas/Name", "title": "Name alias"},
+            "Name": {"type": "string"},
+        },
+        "hello",
+        123,
+    ),
+    (
         "recursive",
-        {"$ref": "#/components/schemas/Node"},
+        {"$ref": "#/components/schemas/Node", "description": "A recursive tree"},
         {
             "Node": {
                 "type": "object",
@@ -72,7 +144,10 @@ CASES = [
                     "name": {"type": "string"},
                     "children": {
                         "type": "array",
-                        "items": {"$ref": "#/components/schemas/Node"},
+                        "items": {
+                            "$ref": "#/components/schemas/Node",
+                            "description": "A child",
+                        },
                     },
                 },
                 "required": ["name", "children"],
@@ -107,6 +182,31 @@ CASES = [
         {"x": "ok"},
     ),
 ]
+
+for policy_name, policy in [
+    ("typed", {"type": "string"}),
+    ("true", True),
+    ("omitted", None),
+]:
+    for mixed in (False, True):
+        schema = {"type": "object", "required": ["name"]}
+        valid = {"name": "ok"}
+        if mixed:
+            schema["properties"] = {"count": {"type": "integer"}}
+            schema["required"].append("count")
+            valid["count"] = 1
+        if policy is not None:
+            schema["additionalProperties"] = policy
+        CASES.append(
+            (
+                "required_" + policy_name + ("_mixed" if mixed else ""),
+                schema,
+                {},
+                valid,
+                {"count": 1} if mixed else {},
+            )
+        )
+
 
 for discriminator, values in [("event-type", ["a"]), ("type", ["a1", "a2"])]:
     CASES.append(
@@ -172,7 +272,40 @@ def test_generated_python_validates_supported_schema_matrix(generated_matrix, na
 
 
 def test_every_generated_package_passes_strict_typechecking(generated_matrix):
-    root, _ = generated_matrix
+    root, generated = generated_matrix
+    (root / "field_symbols/python/consumer.py").write_text(
+        "from .models import EventsEvent\n"
+        "event = EventsEvent(int=1, str='x', list=['x'], field_validator='x')\n"
+        "values: list[str] | None = event.list_\n"
+        "omitted = EventsEvent()\n",
+        encoding="utf-8",
+    )
+    for name, (_, _, _, valid, invalid) in generated.items():
+        if not name.startswith("required_"):
+            continue
+        consumer = (
+            'import type { Client } from "./index.js";\n'
+            'type Event = ReturnType<Client["streams"]["events"]> '
+            "extends AsyncIterable<infer E> ? E : never;\n"
+            f"export const valid: Event = {json.dumps(valid)};\n"
+            "// @ts-expect-error: required undeclared key must be present\n"
+            f"export const missing: Event = {json.dumps(invalid)};\n"
+        )
+        if name.startswith("required_typed"):
+            wrong = {**valid, "name": 123}
+            consumer += (
+                "// @ts-expect-error: required key uses additionalProperties type\n"
+                f"export const wrong: Event = {json.dumps(wrong)};\n"
+            )
+        (root / name / "typescript/consumer.ts").write_text(consumer, encoding="utf-8")
+        for backend in ("python", "python_httpx2"):
+            arguments = ", ".join(f"{key}={value!r}" for key, value in valid.items())
+            (root / name / backend / "consumer.py").write_text(
+                "from .models import EventsEvent\n"
+                f"event = EventsEvent({arguments})\n"
+                "value: object = event.name\n",
+                encoding="utf-8",
+            )
     node = shutil.which("node")
     compiler = ROOT / "node_modules/typescript/bin/tsc"
     assert node and compiler.is_file(), (

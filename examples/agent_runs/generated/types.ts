@@ -3,13 +3,13 @@
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 export type HTTPValidationError = {
-  "detail"?: Array<ValidationError>;
+  detail?: Array<ValidationError>;
 };
 export type RunCompleted = {
-  "run_id": string;
-  "type": typeof RunEventType.RUN_COMPLETED;
+  run_id: string;
+  type: typeof RunEventType.RUN_COMPLETED;
 };
-export type RunEvent = (RunStarted | TokenDelta | RunCompleted | RunFailed);
+export type RunEvent = RunStarted | TokenDelta | RunCompleted | RunFailed;
 export const RunEventType = {
   RUN_COMPLETED: "run.completed",
   RUN_FAILED: "run.failed",
@@ -18,26 +18,26 @@ export const RunEventType = {
 } as const;
 export type RunEventType = (typeof RunEventType)[keyof typeof RunEventType];
 export type RunFailed = {
-  "message": string;
-  "type": typeof RunEventType.RUN_FAILED;
+  message: string;
+  type: typeof RunEventType.RUN_FAILED;
 };
 export type RunRequest = {
-  "prompt": string;
+  prompt: string;
 };
 export type RunStarted = {
-  "run_id": string;
-  "type": typeof RunEventType.RUN_STARTED;
+  run_id: string;
+  type: typeof RunEventType.RUN_STARTED;
 };
 export type TokenDelta = {
-  "text": string;
-  "type": typeof RunEventType.TOKEN_DELTA;
+  text: string;
+  type: typeof RunEventType.TOKEN_DELTA;
 };
 export type ValidationError = {
-  "ctx"?: {
+  ctx?: {
   [key: string]: JsonValue;
 };
-  "input"?: JsonValue;
-  "loc": Array<(string | number)>;
-  "msg": string;
-  "type": string;
+  input?: JsonValue;
+  loc: Array<string | number>;
+  msg: string;
+  type: string;
 };

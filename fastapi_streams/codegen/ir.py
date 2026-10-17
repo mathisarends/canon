@@ -13,6 +13,20 @@ from fastapi_streams.codegen.openapi import (
     validate_contract,
 )
 
+_REF_METADATA = {
+    "title",
+    "description",
+    "default",
+    "examples",
+    "example",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+    "$comment",
+    "externalDocs",
+    "xml",
+}
+
 
 @dataclass(frozen=True)
 class Scalar:
@@ -70,6 +84,7 @@ class Field:
 class Object:
     fields: tuple[Field, ...]
     additional: Type | None = None
+    additional_forbidden: bool = False
 
 
 @dataclass(frozen=True)
@@ -149,6 +164,9 @@ class Operation:
     response_status: str
     errors: tuple[ErrorResponse, ...]
     security: tuple[dict[str, list[str]], ...]
+    summary: str = ""
+    description: str = ""
+    deprecated: bool = False
 
 
 @dataclass(frozen=True)
@@ -319,6 +337,9 @@ def build_ir(document: Document) -> Contract:
                     status,
                     tuple(errors),
                     tuple(raw.get("security", document.get("security", []))),
+                    raw.get("summary", ""),
+                    raw.get("description", ""),
+                    raw.get("deprecated", False),
                 )
             )
     security: Document = document.get("components", {}).get("securitySchemes", {})
@@ -327,9 +348,12 @@ def build_ir(document: Document) -> Contract:
         for name, value in sorted(security.items())
         for scheme in [resolve_ref(document, value)]
     )
+    from fastapi_streams.codegen.diagnostics import warn_optional_discriminators
     from fastapi_streams.codegen.enums import with_enums
 
-    return with_enums(Contract(tuple(operations), types.declarations(), schemes))
+    contract = with_enums(Contract(tuple(operations), types.declarations(), schemes))
+    warn_optional_discriminators(contract)
+    return contract
 
 
 class _Types:
@@ -352,10 +376,24 @@ class _Types:
                 raise ContractError(
                     f"Type references must point to components/schemas: {ref}"
                 )
+            constraints = sorted(
+                key
+                for key in node
+                if key != "$ref"
+                and key not in _REF_METADATA
+                and not key.startswith("x-")
+            )
+            if constraints:
+                raise ContractError(
+                    f"Unsupported constraints alongside $ref {ref}: {constraints}. "
+                    "Define a standalone schema containing the full restrictions."
+                )
             # Keep references in the IR so recursive models stay recursive.
             target = resolve_pointer(self.document, ref)
             if isinstance(target, dict):
-                target = resolve_ref(self.document, cast(Document, target))
+                # Validate reference-only cycles without flattening the chain:
+                # flattening would hide constraints on intermediate references.
+                resolve_ref(self.document, cast(Document, target))
             name = identifier(
                 ref.rsplit("/", 1)[-1].replace("~1", "/").replace("~0", "~"), upper=True
             )
@@ -363,12 +401,6 @@ class _Types:
                 raise ContractError(f"TypeScript type name collision: {name}")
             self.names[name] = ref
             self.pending[name] = target
-            siblings = {key: value for key, value in node.items() if key != "$ref"}
-            if any(
-                key in siblings
-                for key in ("type", "properties", "allOf", "anyOf", "oneOf")
-            ):
-                return Intersection((Reference(name), self.parse(siblings)))
             return Reference(name)
         if "const" in node:
             return self.literal(node["const"])
@@ -413,9 +445,22 @@ class _Types:
                 raise ContractError("Tuple schemas (prefixItems) are not supported")
             return Array(self.parse(node.get("items", {})))
         if kind == "object" or "properties" in node or "additionalProperties" in node:
-            properties: Document = node.get("properties", {})
+            properties: Document = dict(node.get("properties", {}))
             required: list[str] = node.get("required", [])
             extra = node.get("additionalProperties", not properties)
+            undeclared = set(required) - properties.keys()
+            if undeclared and node.get("additionalProperties") is False:
+                raise ContractError(
+                    f"Required keys {sorted(undeclared)} are forbidden by "
+                    "additionalProperties: false; declare them in properties."
+                )
+            # Required keys outside properties are governed by additionalProperties.
+            # Omission of that keyword leaves their values unrestricted, even when
+            # ordinary declared models retain the generator's default extra policy.
+            properties.update(
+                (name, node.get("additionalProperties", True))
+                for name in sorted(undeclared)
+            )
             return Object(
                 tuple(
                     Field(
@@ -433,6 +478,7 @@ class _Types:
                     for name, value in sorted(properties.items())
                 ),
                 self.parse(extra) if extra is not False else None,
+                node.get("additionalProperties") is False,
             )
         if set(node) <= {
             "title",

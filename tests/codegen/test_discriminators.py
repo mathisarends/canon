@@ -7,7 +7,9 @@ from fastapi_streams.codegen.python import generate_python
 from tests.codegen.helpers import event_contract, load_models
 
 
-@pytest.mark.parametrize("alias", ["event-type", "eventType", "class"])
+@pytest.mark.parametrize(
+    "alias", ["event-type", "eventType", "class", "list", "field_validator"]
+)
 def test_discriminator_uses_python_field_name_and_preserves_wire_alias(tmp_path, alias):
     first = create_model("First", kind=(Literal["first"], Field(alias=alias)))
     second = create_model("Second", kind=(Literal["second"], Field(alias=alias)))
