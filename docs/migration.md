@@ -17,7 +17,8 @@
 - [x] Record tested versions without overstating minimum-version support.
 - [x] Reuse the existing `dishka_router` in `Feature.routers`; the initial
       composition does not need a second RPC adapter.
-- [ ] Adapt the architecture reference service to the current Canon library.
+- [x] Adapt the architecture reference service to the current Canon library,
+      including canonical HTTP error contracts and matching agent guides.
 
 ## M2 and M3: successor and releases
 

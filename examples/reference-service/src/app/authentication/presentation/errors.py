@@ -1,19 +1,19 @@
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi_canon import Error, ErrorRegistry
 
 from app.authentication.application import AuthenticationFailed
-from app.presentation.schema import ErrorResponse
 
-
-def register_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(AuthenticationFailed)
-    async def authentication_failed(
-        _: Request,
-        __: AuthenticationFailed,
-    ) -> JSONResponse:
-        response = ErrorResponse(detail="Authentication required")
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content=response.model_dump(mode="json"),
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+authentication_required = Error(
+    AuthenticationFailed,
+    status=401,
+    code="authentication_required",
+    title="Authentication required",
+    detail="Authentication required",
+    headers={"WWW-Authenticate": "Bearer"},
+    openapi_headers={
+        "WWW-Authenticate": {
+            "description": "Authentication scheme required by this API.",
+            "schema": {"type": "string"},
+        }
+    },
+)
+errors = ErrorRegistry(name="authentication", errors=[authentication_required])

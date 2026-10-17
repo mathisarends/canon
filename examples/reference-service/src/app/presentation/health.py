@@ -1,8 +1,9 @@
-from fastapi import APIRouter, status
+from fastapi import status
+from fastapi_canon import CanonRouter
 
 from app.presentation.schema import Schema
 
-router = APIRouter(tags=["system"])
+router = CanonRouter(tags=["system"])
 
 
 class HealthResponse(Schema):

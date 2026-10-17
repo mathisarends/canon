@@ -1,9 +1,9 @@
-from typing import Annotated, cast
+from typing import Annotated
 from uuid import UUID
 
+from dishka.integrations.fastapi import FromDishka, inject
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from starlette.requests import HTTPConnection
 
 from app.authentication.application import AuthenticationFailed, TokenVerifier
 
@@ -14,17 +14,13 @@ bearer = HTTPBearer(
 )
 
 
-async def _token_verifier(connection: HTTPConnection) -> TokenVerifier:
-    verifier = await connection.state.dishka_container.get(TokenVerifier)
-    return cast(TokenVerifier, verifier)
-
-
-def authenticated_user_id(
+@inject
+async def authenticated_user_id(
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
         Depends(bearer),
     ],
-    verifier: Annotated[TokenVerifier, Depends(_token_verifier)],
+    verifier: FromDishka[TokenVerifier],
 ) -> UUID:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise AuthenticationFailed

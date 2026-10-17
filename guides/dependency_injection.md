@@ -39,18 +39,41 @@ FastAPI and Dishka types stop at the presentation layer. Pass plain values and a
 
 ## Composition root
 
-Create the container and FastAPI application in one root module. That module is allowed to know concrete implementations; domain and application modules are not.
+Compose the FastAPI application in one root module with `fastapi-canon`. That
+module may know concrete implementations; domain and application modules may not.
 
 Represent each feature's integration surface as data:
 
 ```python
-@dataclass(frozen=True, slots=True)
-class Feature:
-    routers: Sequence[APIRouter] = ()
-    providers: Sequence[type[Provider]] = ()
-    register_exception_handlers: Callable[[FastAPI], None] | None = None
+from fastapi import FastAPI
+from fastapi_canon import CanonRouter, Composition, ErrorOptions, Feature
+
+database = Feature(name="database", providers=[DatabaseProvider])
+
+app = Composition(
+    database,
+    authentication_feature,
+    tasks_feature,
+    router_factory=lambda: CanonRouter(prefix="/api/v1"),
+    errors=ErrorOptions(type_base="https://api.example.test/problems"),
+).apply(FastAPI())
 ```
 
-The root iterates an explicit feature list to assemble providers, routers, and exception handlers. This prevents `main.py` from importing every feature internal and keeps registration uniform. It is not a runtime plugin-discovery system; ordering remains visible and deterministic.
+Features contribute routers, provider classes/instances/factories, error
+registries, and optional lifespan functions. Use the library's `Feature` rather
+than defining a local copy. `Composition` validates and assembles these explicit
+contributions, creates one application Dishka container, and owns its shutdown.
+Feature startup follows declaration order; teardown runs in reverse order.
+
+Keep FastAPI's own connection dependencies at the boundary, including an
+`@inject` authentication dependency receiving a `FromDishka[TokenVerifier]`.
+Services receive the resulting plain principal or user ID. Do not construct or
+close another Dishka container in feature routers.
+
+The composition root can register public operational endpoints such as `/health`
+outside its versioned API router. See the runnable
+[reference root](../examples/reference-service/src/app/main.py). For typed SSE
+and WebSocket contributions sharing the same container, see the
+[stack example](../examples/stack_service.py).
 
 Avoid import-time network connections and database work. Container construction may describe resources, but providers acquire them within managed scopes.

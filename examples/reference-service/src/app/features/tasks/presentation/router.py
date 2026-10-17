@@ -1,27 +1,27 @@
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Query, status
+from fastapi import Query, status
+from fastapi_canon import CanonRouter
 
 from app.authentication.presentation import AuthenticatedUserId
+from app.authentication.presentation.errors import authentication_required
 from app.features.tasks.application import TaskService
+from app.features.tasks.presentation.errors import errors, task_not_found
 from app.features.tasks.presentation.mapper import to_list_response, to_response
 from app.features.tasks.presentation.schemas import (
     CreateTaskRequest,
     TaskListResponse,
     TaskResponse,
 )
-from app.presentation.schema import ErrorResponse
 
-AUTHENTICATION_RESPONSES: dict[int | str, dict[str, Any]] = {
-    status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse},
-}
-
-router = APIRouter(
+router = CanonRouter(
     prefix="/tasks",
     tags=["tasks"],
     route_class=DishkaRoute,
+    error_registry=errors,
+    raises=[authentication_required],
 )
 
 
@@ -30,7 +30,6 @@ router = APIRouter(
     operation_id="create_task",
     response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=AUTHENTICATION_RESPONSES,
 )
 async def create_task(
     body: CreateTaskRequest,
@@ -49,7 +48,6 @@ async def create_task(
     operation_id="list_tasks",
     response_model=TaskListResponse,
     status_code=status.HTTP_200_OK,
-    responses=AUTHENTICATION_RESPONSES,
 )
 async def list_tasks(
     authenticated_user_id: AuthenticatedUserId,
@@ -68,10 +66,7 @@ async def list_tasks(
     operation_id="complete_task",
     response_model=TaskResponse,
     status_code=status.HTTP_200_OK,
-    responses={
-        **AUTHENTICATION_RESPONSES,
-        status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
-    },
+    raises=[task_not_found],
 )
 async def complete_task(
     task_id: UUID,

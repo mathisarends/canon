@@ -4,7 +4,19 @@ Use a uv workspace when one repository contains multiple genuine Python distribu
 
 Prefer flat, named members at the repository root, as in `backend/`, `agent/`, `llm/`, and `tokens/`. Do not introduce generic `services/` and `packages/` directories merely to classify workspace members. Add an intermediate grouping only when the repository has enough members that the grouping conveys durable ownership or lifecycle information.
 
-The root owns workspace membership and the single shared `uv.lock`. Each member owns its runtime dependencies, optional command entry points, build metadata, and a `src/` package. Match the member directory, distribution name, and import package where practical: `backend/pyproject.toml` owns `backend/src/backend`, and `agent/pyproject.toml` owns `agent/src/agent`. Avoid a generic `src/app` namespace inside a specifically named member.
+The Canon library monorepo uses that grouping deliberately: its independently
+published distributions live in `packages/fastapi-canon`,
+`packages/fastapi-streams`, and `packages/fastapi-wsrpc`; demonstration applications
+live in `examples/`. The root is a non-published coordination project. See the
+[workspace decision](../docs/design-decisions/0001-workspace.md).
+
+The root owns workspace membership and the single shared `uv.lock`. Each member
+owns its runtime dependencies, optional command entry points, and build metadata.
+Prefer a `src/` package for new projects and match directory, distribution, and
+import names where practical. Existing libraries may keep their established flat
+layout when clean installed-artifact tests verify imports without source-tree
+fallbacks. The imported reference service retains its `src/app` namespace; new
+application members should use an application-specific import name.
 
 Workspace membership does not imply a dependency. A member declares another member only when its runtime code imports that package, and the local source is explicitly resolved from the workspace. Keep the member dependency graph directed and acyclic; sharing a repository is not justification for reciprocal imports.
 

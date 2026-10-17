@@ -1,15 +1,13 @@
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi_canon import Error, ErrorRegistry
 
+from app.authentication.presentation.errors import authentication_required
 from app.features.tasks.application import TaskNotFound
-from app.presentation.schema import ErrorResponse
 
-
-def register_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(TaskNotFound)
-    async def task_not_found(_: Request, exception: TaskNotFound) -> JSONResponse:
-        response = ErrorResponse(detail=f"Task {exception.args[0]} was not found")
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content=response.model_dump(mode="json"),
-        )
+task_not_found = Error(
+    TaskNotFound,
+    status=404,
+    code="task_not_found",
+    title="Task not found",
+    detail="The requested task does not exist.",
+)
+errors = ErrorRegistry(name="tasks", errors=[authentication_required, task_not_found])

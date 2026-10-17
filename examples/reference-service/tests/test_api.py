@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -63,12 +64,49 @@ async def test_task_http_flow(client: AsyncClient) -> None:
     }
 
 
-async def test_tasks_require_authentication(client: AsyncClient) -> None:
+@pytest.mark.parametrize("authorization", ["", "Bearer invalid-token"])
+async def test_tasks_require_authentication(
+    client: AsyncClient, authorization: str
+) -> None:
     response = await client.get(
         "/api/v1/tasks",
-        headers={"Authorization": ""},
+        headers={"Authorization": authorization},
     )
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
-    assert response.json() == {"detail": "Authentication required"}
+    assert response.headers["content-type"] == "application/problem+json"
+    problem = response.json()
+    assert problem["code"] == "authentication_required"
+    assert (
+        problem["type"] == "https://api.example.test/problems/authentication_required"
+    )
+    assert problem["detail"] == "Authentication required"
+    assert "invalid-token" not in response.text
+
+
+async def test_missing_task_has_the_documented_problem_contract(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(f"/api/v1/tasks/{uuid4()}/completion")
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/problem+json"
+    problem = response.json()
+    assert problem["code"] == "task_not_found"
+    assert problem["detail"] == "The requested task does not exist."
+    schema = (await client.get("/openapi.json")).json()
+    completion = schema["paths"]["/api/v1/tasks/{task_id}/completion"]["post"]
+    documented = completion["responses"]["404"]["content"]["application/problem+json"]
+    assert documented["schema"]["$ref"] == "#/components/schemas/TaskNotFoundProblem"
+    auth = completion["responses"]["401"]
+    assert "WWW-Authenticate" in auth["headers"]
+    assert auth["content"]["application/problem+json"]["schema"]["$ref"] == (
+        "#/components/schemas/AuthenticationRequiredProblem"
+    )
+
+
+async def test_validation_uses_problem_details(client: AsyncClient) -> None:
+    response = await client.post("/api/v1/tasks", json={"title": ""})
+    assert response.status_code == 422
+    assert response.headers["content-type"] == "application/problem+json"
+    assert response.json()["code"] == "request_validation_error"

@@ -42,7 +42,10 @@ Treat `operation_id` as a public client-generation identifier. Prefer predictabl
 
 ## Schemas
 
-Define separate request and response models even when their fields currently match. Name schemas after their transport role: `CreateTaskRequest`, `TaskResponse`, `TaskListResponse`, and `ErrorResponse`.
+Define separate request and response models even when their fields currently
+match: `CreateTaskRequest`, `TaskResponse`, and `TaskListResponse`. Use Canon
+Problem Details contracts for errors rather than maintaining a second handwritten
+error response model.
 
 Do not use SQLModel table types or domain entities as FastAPI schemas. Do not expose untyped `dict` bodies. Prefer an explicit envelope schema for collections when pagination or metadata may evolve:
 
@@ -67,8 +70,35 @@ For provider composition, see [Dependency Injection](dependency_injection.md). F
 
 ## Errors
 
-Register exception handlers at the feature boundary. Map known domain/application exceptions to consistent named error schemas and declare those responses on every endpoint that can produce them.
+Declare known domain/application exceptions as `Error` values in the feature's
+presentation layer. Collect them in an `ErrorRegistry`, give that registry to a
+`CanonRouter`, and document errors with `raises=`. Shared authentication errors
+belong on the router; resource-specific errors belong on the operation. A feature
+discovers its direct Canon routers' registries, and `Composition` merges them and
+installs runtime handlers and OpenAPI contracts once.
+
+```python
+task_not_found = Error(
+    TaskNotFound,
+    status=404,
+    code="task_not_found",
+    title="Task not found",
+    detail="The requested task does not exist.",
+)
+```
+
+The public error media type is `application/problem+json`. Stable `code` values
+and generated named Problem schemas are client contracts; exception strings are
+not public detail unless deliberately reviewed. Include runtime headers and their
+OpenAPI definitions together, such as `WWW-Authenticate` on authentication errors.
+Use an explicit `ExceptionHandlerSpec` only for an intentionally custom handler.
 
 Use `401` for absent/invalid authentication, `403` for denied authorization, `404` when a resource is absent or intentionally undisclosed, and `409` for a state conflict. Do not leak stack traces, credentials, database constraint text, or provider payloads.
 
-Make validation-error shape an intentional API contract. If the framework default is retained, document it consistently; if clients require a canonical error envelope, install one validation exception handler and describe its schema globally.
+Canon normalizes validation failures into `request_validation_error` Problem
+Details by default. Configure the application's problem `type_base` at the
+composition root and call `composition.validate(app)` before serving to check
+the compiled operation contracts. Do not install a parallel validation handler
+for the same error shape. See the reference service's
+[error definitions](../examples/reference-service/src/app/features/tasks/presentation/errors.py)
+and [runtime/contract tests](../examples/reference-service/tests/test_api.py).
