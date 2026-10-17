@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MEMBERS = (
     ROOT / "packages/fastapi-canon",
     ROOT / "packages/fastapi-streams",
-    ROOT / "packages/fastapi-wsrpc",
+    ROOT / "packages/fastapi-rpckit",
     ROOT / "examples/reference-service",
 )
 
@@ -41,15 +41,15 @@ def main() -> None:
                 "uv",
                 "build",
                 "--package",
-                "fastapi-wsrpc",
+                "fastapi-rpckit",
                 "--out-dir",
-                str(ROOT / "dist/fastapi-wsrpc"),
+                str(ROOT / "dist/fastapi-rpckit"),
                 python=False,
             )
             metadata = tomllib.loads((MEMBERS[2] / "pyproject.toml").read_text("utf-8"))
             version = metadata["project"]["version"]
-            (wheel,) = (ROOT / "dist/fastapi-wsrpc").glob(
-                f"fastapi_wsrpc-{version}-*.whl"
+            (wheel,) = (ROOT / "dist/fastapi-rpckit").glob(
+                f"fastapi_rpckit-{version}-*.whl"
             )
             _run(
                 MEMBERS[2],
@@ -76,7 +76,7 @@ def main() -> None:
             _run(
                 MEMBERS[2],
                 "-m",
-                "fastapi_wsrpc.codegen.cli",
+                "fastapi_rpckit.codegen.cli",
                 "generate",
                 "--config",
                 "examples/generated_clients/rpcgen.toml",

@@ -1,7 +1,7 @@
 # RPC successor parity and consumer checks
 
 Verified locally on 2026-10-17. This records source and artifact checks for the
-prepared `fastapi-wsrpc` 0.1.0 release; publication and application migration are
+prepared `fastapi-rpckit` 0.1.0 release; publication and application migration are
 still separate steps.
 
 ## Source inventory
@@ -68,8 +68,8 @@ Repeat against any exported consumer contract, after building the wheel and
 installing the Streams member's TypeScript tooling:
 
 ```console
-uv build --package fastapi-wsrpc --out-dir dist/fastapi-wsrpc
-uv run --isolated --no-project --no-cache --with "dist/fastapi-wsrpc/fastapi_wsrpc-0.1.0-py3-none-any.whl[codegen]" --with ruff python -I scripts/check_rpc_consumer.py ../cara/gateway/schema/gateway.openrpc.json
+uv build --package fastapi-rpckit --out-dir dist/fastapi-rpckit
+uv run --isolated --no-project --no-cache --with "dist/fastapi-rpckit/fastapi_rpckit-0.1.0-py3-none-any.whl[codegen]" --with ruff python -I scripts/check_rpc_consumer.py ../cara/gateway/schema/gateway.openrpc.json
 ```
 
 `--no-cache` ensures a rebuilt, still-unpublished wheel with the same filename
@@ -78,9 +78,9 @@ it does not start or migrate the Cara service.
 
 Cara currently pins pyrpckit 0.8.0 and requires a separate application change:
 
-1. Replace the dependency and `rpckit` imports with `fastapi-wsrpc` and
-   `fastapi_wsrpc`. For FastAPI APIs use the root exports; use
-   `fastapi_wsrpc.integrations.dishka` for `DishkaResolver`.
+1. Replace the dependency and `rpckit` imports with `fastapi-rpckit` and
+   `fastapi_rpckit`. For FastAPI APIs use the root exports; use
+   `fastapi_rpckit.integrations.dishka` for `DishkaResolver`.
 2. In particular, replace `rpckit.fastapi` and `rpckit.dishka`; a mechanical
    namespace replacement would point to removed module paths.
 3. Apply the predecessor's 0.9–0.11 changelog migrations, including request-ID,

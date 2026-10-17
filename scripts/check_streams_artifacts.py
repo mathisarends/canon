@@ -1,3 +1,4 @@
+import argparse
 import subprocess
 import sys
 import tempfile
@@ -9,10 +10,16 @@ PACKAGE = ROOT / "packages/fastapi-streams"
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Check installed Streams CLI/backends")
+    parser.add_argument("--artifacts", type=Path)
+    args = parser.parse_args()
     version = tomllib.loads((PACKAGE / "pyproject.toml").read_text("utf-8"))["project"][
         "version"
     ]
-    (wheel,) = (ROOT / "dist/fastapi-streams").glob(f"fastapi_streams-{version}-*.whl")
+    directory = ROOT / "dist/fastapi-streams"
+    if args.artifacts and list(args.artifacts.glob(f"fastapi_streams-{version}-*.whl")):
+        directory = args.artifacts.resolve()
+    (wheel,) = directory.glob(f"fastapi_streams-{version}-*.whl")
     for backend in (None, "httpx", "httpx2"):
         with tempfile.TemporaryDirectory(prefix="canon-streams-") as temporary:
             environment = Path(temporary) / "venv"

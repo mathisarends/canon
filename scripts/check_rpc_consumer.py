@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from fastapi_wsrpc.codegen import (
+from fastapi_rpckit.codegen import (
     PythonClientOptions,
     TypeScriptClientOptions,
     generate_python_client,

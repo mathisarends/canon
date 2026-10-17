@@ -18,7 +18,7 @@ from pydantic import BaseModel
 MODULES = {
     "fastapi-canon": "fastapi_canon",
     "fastapi-streams": "fastapi_streams",
-    "fastapi-wsrpc": "fastapi_wsrpc",
+    "fastapi-rpckit": "fastapi_rpckit",
 }
 
 
@@ -30,6 +30,7 @@ class Event(BaseModel):
 def main() -> None:
     selected = set(sys.argv[1:])
     assert importlib.util.find_spec("rpckit") is None
+    assert importlib.util.find_spec("fastapi_wsrpc") is None
     for name, module in MODULES.items():
         if name in selected:
             installed = importlib.import_module(module)
@@ -66,8 +67,8 @@ def main() -> None:
 
         routers.append(streams)
         _cli("fastapi-streams")
-    if "fastapi-wsrpc" in selected:
-        from fastapi_wsrpc import RpcChannel, RpcService, create_router
+    if "fastapi-rpckit" in selected:
+        from fastapi_rpckit import RpcChannel, RpcService, create_router
 
         channel = RpcChannel("health")
 
@@ -78,7 +79,7 @@ def main() -> None:
         rpc = RpcService()
         rpc.socket("/rpc", channels=(channel,))
         routers.append(create_router(rpc))
-        _cli("fastapi-wsrpc")
+        _cli("fastapi-rpckit")
     if "fastapi-canon" in selected:
         from fastapi_canon import Composition, Feature
 
@@ -91,14 +92,14 @@ def main() -> None:
             assert client.get("/health").json() == {"status": "ok"}
         if "fastapi-streams" in selected:
             assert '"type":"ready"' in client.get("/events").text
-        if "fastapi-wsrpc" in selected:
+        if "fastapi-rpckit" in selected:
             with client.websocket_connect("/rpc") as websocket:
                 websocket.send_json(
                     {"jsonrpc": "2.0", "id": 1, "method": "health.ping"}
                 )
                 assert websocket.receive_json()["result"] == "pong"
     assert app.openapi()["openapi"]
-    if "fastapi-wsrpc" in selected and importlib.util.find_spec("jinja2"):
+    if "fastapi-rpckit" in selected and importlib.util.find_spec("jinja2"):
         _rpc_codegen(rpc)
     if selected == set(MODULES):
         # Run the same composition/lifecycle regression against installed wheels.
@@ -132,13 +133,13 @@ def _cli(name: str) -> None:
 
 
 def _rpc_codegen(rpc) -> None:
-    from fastapi_wsrpc.codegen import (
+    from fastapi_rpckit.codegen import (
         PythonClientOptions,
         TypeScriptClientOptions,
         generate_python_client,
         generate_typescript_client,
     )
-    from fastapi_wsrpc.testing import InMemorySocketFactory
+    from fastapi_rpckit.testing import InMemorySocketFactory
 
     document = rpc.contract(title="Health", base_url="ws://test").to_openrpc()
     with tempfile.TemporaryDirectory(prefix="canon-rpc-client-") as temporary:

@@ -10,12 +10,12 @@ The libraries remain independently installable and independently versioned.
 | --- | --- | --- |
 | Composition, Dishka, HTTP contracts | [`packages/fastapi-canon`](packages/fastapi-canon) | `fastapi-canon` / `fastapi_canon` |
 | Typed SSE and generated clients | [`packages/fastapi-streams`](packages/fastapi-streams) | `fastapi-streams` / `fastapi_streams` |
-| WebSocket RPC and generated clients | [`packages/fastapi-wsrpc`](packages/fastapi-wsrpc) | `fastapi-wsrpc` / `fastapi_wsrpc` |
+| WebSocket RPC and generated clients | [`packages/fastapi-rpckit`](packages/fastapi-rpckit) | `fastapi-rpckit` / `fastapi_rpckit` |
 | Architecture conventions | [`guides`](guides) | feature slices, inward dependencies, Dishka |
 | Runnable architecture example | [`examples/reference-service`](examples/reference-service) | development-only workspace member |
 
-`fastapi-wsrpc` is the FastAPI-first successor to `pyrpckit`, with its existing
-WebSocket engine and protocol retained. See the [RPC migration guide](packages/fastapi-wsrpc/docs/migration.md).
+`fastapi-rpckit` is the FastAPI-first successor to `pyrpckit`, with its existing
+WebSocket engine and protocol retained. See the [RPC migration guide](packages/fastapi-rpckit/docs/migration.md).
 Its initial 0.1.0 version is not yet published. The existing source repositories
 remain available, including the independently published Canon and Streams packages.
 

@@ -7,8 +7,8 @@ members = [
     "canon-workspace",
     "fastapi-canon",
     "fastapi-canon-reference",
+    "fastapi-rpckit",
     "fastapi-streams",
-    "fastapi-wsrpc",
 ]
 
 [[package]]
@@ -153,12 +153,13 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastapi-canon", extra = ["streams"] },
     { name = "fastapi-canon-reference" },
+    { name = "fastapi-rpckit", extra = ["codegen", "dishka", "otel"] },
     { name = "fastapi-streams", extra = ["codegen"] },
-    { name = "fastapi-wsrpc", extra = ["codegen", "dishka", "otel"] },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "packaging" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -168,12 +169,13 @@ dev = [
 requires-dist = [
     { name = "fastapi-canon", extras = ["streams"], editable = "packages/fastapi-canon" },
     { name = "fastapi-canon-reference", editable = "examples/reference-service" },
+    { name = "fastapi-rpckit", extras = ["codegen", "dishka", "otel"], editable = "packages/fastapi-rpckit" },
     { name = "fastapi-streams", extras = ["codegen"], editable = "packages/fastapi-streams" },
-    { name = "fastapi-wsrpc", extras = ["codegen", "dishka", "otel"], editable = "packages/fastapi-wsrpc" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "packaging", specifier = ">=25" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-asyncio", specifier = ">=1" },
     { name = "ruff", specifier = ">=0.12" },
@@ -632,6 +634,70 @@ dev = [
 ]
 
 [[package]]
+name = "fastapi-rpckit"
+version = "0.1.0"
+source = { editable = "packages/fastapi-rpckit" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+codegen = [
+    { name = "jinja2" },
+]
+dishka = [
+    { name = "dishka" },
+]
+otel = [
+    { name = "opentelemetry-api" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "dishka" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "jinja2" },
+    { name = "opentelemetry-sdk" },
+    { name = "pre-commit" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "uvicorn" },
+    { name = "websockets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dishka", marker = "extra == 'dishka'", specifier = ">=1.7" },
+    { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "jinja2", marker = "extra == 'codegen'", specifier = ">=3.1" },
+    { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.30" },
+    { name = "pydantic", specifier = ">=2.11,<3" },
+]
+provides-extras = ["codegen", "dishka", "otel"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "dishka", specifier = ">=1.7" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "opentelemetry-sdk", specifier = ">=1.30" },
+    { name = "pre-commit", specifier = ">=3.7" },
+    { name = "pyright", specifier = "==1.1.414" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
+    { name = "pytest-cov", specifier = ">=5.0" },
+    { name = "ruff", specifier = ">=0.6" },
+    { name = "uvicorn", specifier = ">=0.38" },
+    { name = "websockets", specifier = ">=15" },
+]
+
+[[package]]
 name = "fastapi-streams"
 version = "0.1.0"
 source = { editable = "packages/fastapi-streams" }
@@ -717,70 +783,6 @@ test = [
     { name = "pytest-asyncio", specifier = ">=1" },
     { name = "pytest-cov", specifier = ">=6" },
     { name = "uvicorn", specifier = ">=0.35" },
-]
-
-[[package]]
-name = "fastapi-wsrpc"
-version = "0.1.0"
-source = { editable = "packages/fastapi-wsrpc" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "pydantic" },
-]
-
-[package.optional-dependencies]
-codegen = [
-    { name = "jinja2" },
-]
-dishka = [
-    { name = "dishka" },
-]
-otel = [
-    { name = "opentelemetry-api" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "dishka" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "jinja2" },
-    { name = "opentelemetry-sdk" },
-    { name = "pre-commit" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "uvicorn" },
-    { name = "websockets" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dishka", marker = "extra == 'dishka'", specifier = ">=1.7" },
-    { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "jinja2", marker = "extra == 'codegen'", specifier = ">=3.1" },
-    { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.30" },
-    { name = "pydantic", specifier = ">=2.11,<3" },
-]
-provides-extras = ["codegen", "dishka", "otel"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "dishka", specifier = ">=1.7" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "jinja2", specifier = ">=3.1" },
-    { name = "opentelemetry-sdk", specifier = ">=1.30" },
-    { name = "pre-commit", specifier = ">=3.7" },
-    { name = "pyright", specifier = "==1.1.414" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "ruff", specifier = ">=0.6" },
-    { name = "uvicorn", specifier = ">=0.38" },
-    { name = "websockets", specifier = ">=15" },
 ]
 
 [[package]]

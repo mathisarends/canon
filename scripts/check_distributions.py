@@ -12,9 +12,8 @@ from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = {
-    "fastapi-canon": ("fastapi-canon", "fastapi_canon"),
-    "fastapi-streams": ("fastapi-streams", "fastapi_streams"),
-    "fastapi-wsrpc": ("fastapi-wsrpc", "fastapi_wsrpc"),
+    item["name"]: (Path(item["directory"]).name, item["module"])
+    for item in tomllib.loads((ROOT / "release.toml").read_text("utf-8"))["package"]
 }
 
 
@@ -23,6 +22,7 @@ def main() -> None:
         description="Verify independently installed wheels"
     )
     parser.add_argument("--python", default=sys.executable)
+    parser.add_argument("--artifacts", type=Path)
     parser.add_argument(
         "--dependencies", choices=("latest", "minimum"), default="latest"
     )
@@ -32,11 +32,16 @@ def main() -> None:
     results = []
     for name, (directory, module) in PACKAGES.items():
         output = ROOT / "dist" / name
-        _run("uv", "build", "--package", name, "--out-dir", str(output))
         project = tomllib.loads(
             (ROOT / "packages" / directory / "pyproject.toml").read_text("utf-8")
         )["project"]
         projects[name] = project
+        if args.artifacts and list(
+            args.artifacts.glob(f"{name.replace('-', '_')}-{project['version']}-*.whl")
+        ):
+            output = args.artifacts.resolve()
+        else:
+            _run("uv", "build", "--package", name, "--out-dir", str(output))
         (wheel,) = output.glob(f"{name.replace('-', '_')}-{project['version']}-*.whl")
         with zipfile.ZipFile(wheel) as artifact:
             assert f"{module}/py.typed" in artifact.namelist()
@@ -48,13 +53,13 @@ def main() -> None:
     combinations = (
         ("fastapi-canon",),
         ("fastapi-streams",),
-        ("fastapi-wsrpc",),
+        ("fastapi-rpckit",),
         ("fastapi-canon[streams]", "fastapi-streams[codegen]"),
-        ("fastapi-canon", "fastapi-wsrpc[codegen,dishka]"),
+        ("fastapi-canon", "fastapi-rpckit[codegen,dishka]"),
         (
             "fastapi-canon[streams]",
             "fastapi-streams[codegen]",
-            "fastapi-wsrpc[codegen,dishka,otel]",
+            "fastapi-rpckit[codegen,dishka,otel]",
         ),
     )
     for requirements in combinations:
@@ -179,7 +184,7 @@ def _check_reference(canon_wheel: str, python_version: str) -> None:
             "assert Path(fastapi_canon.__file__).resolve()"
             ".is_relative_to(Path(sys.prefix)); "
             "assert importlib.util.find_spec('fastapi_streams') is None; "
-            "assert importlib.util.find_spec('fastapi_wsrpc') is None",
+            "assert importlib.util.find_spec('fastapi_rpckit') is None",
             cwd=Path(temporary),
         )
         _run(

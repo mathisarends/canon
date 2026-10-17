@@ -6,7 +6,7 @@ Prefer flat, named members at the repository root, as in `backend/`, `agent/`, `
 
 The Canon library monorepo uses that grouping deliberately: its independently
 published distributions live in `packages/fastapi-canon`,
-`packages/fastapi-streams`, and `packages/fastapi-wsrpc`; demonstration applications
+`packages/fastapi-streams`, and `packages/fastapi-rpckit`; demonstration applications
 live in `examples/`. The root is a non-published coordination project. See the
 [workspace decision](../docs/design-decisions/0001-workspace.md).
 

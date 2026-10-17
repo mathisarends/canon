@@ -24,7 +24,7 @@ from local branches or working directories:
 | `mathisarends/fastapi-canon` | `19447668cb7f554c7271a9f1da15ab7ac4fd0d41` | root guides and reference service; base Git history |
 | `mathisarends/fastapi_canon` | `f275d3129671296bc9565155e641488e77d42074` | `packages/fastapi-canon` |
 | `mathisarends/fastapi-streams` | `90b70bef93110a1c97c9db38a584093f3bf4ac08` | `packages/fastapi-streams` |
-| `mathisarends/pyrpckit` | `853579eb08903bd95f8ce03f7608a3703ba40add` | `packages/fastapi-wsrpc` |
+| `mathisarends/pyrpckit` | `853579eb08903bd95f8ce03f7608a3703ba40add` | `packages/fastapi-rpckit` |
 
 Package imports are explicit merge commits with the source tip as a parent and
 the source tree placed under its package prefix. No squash or history rewrite
@@ -69,7 +69,7 @@ solely because a workspace lock resolves.
 4. Verify package suites, existing client generation, built artifacts, and a
    small composed example before recording compatibility results.
 
-Follow-up decision: the user selected `fastapi-wsrpc` / `fastapi_wsrpc`. The RPC
+Follow-up decision: the user selected `fastapi-rpckit` / `fastapi_rpckit`. The RPC
 package was initially imported under `packages/websocket-rpc`, then moved and
 renamed in its own commit. FastAPI becomes a required dependency, its mounting
 APIs are exported directly, and the existing engine and wire contracts remain.
@@ -80,3 +80,11 @@ Future work: validate the RPC successor against external application consumers,
 improve the feature-slice reference service to use Canon composition,
 and implement independent protected PyPI releases. Archive the RPC predecessor
 only after a released replacement and migration path exist.
+
+Registration follow-up (2026-10-17): PyPI rejected the first local successor name,
+`fastapi-wsrpc`, as too similar to an existing project. The user selected
+`fastapi-rpckit` / `fastapi_rpckit`; PyPI accepted its Pending Publisher. The
+workspace package, CLI, imports, tooling and generated attribution now use that
+name. Existing `x-rpckit-*` wire extensions and telemetry names remain unchanged.
+The user also authorized the root release workflow and matching GitHub `pypi`
+environment. See `docs/releases.md` for the implemented gates and publication order.

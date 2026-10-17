@@ -6,7 +6,7 @@ Prepared source versions (none has been published from this repository):
 | --- | --- | --- |
 | `fastapi-canon` | 0.5.0 | `fastapi_canon` |
 | `fastapi-streams` | 0.1.0 | `fastapi_streams` |
-| `fastapi-wsrpc` (unreleased successor to pyrpckit 0.11.0) | 0.1.0 | `fastapi_wsrpc` |
+| `fastapi-rpckit` (unreleased successor to pyrpckit 0.11.0) | 0.1.0 | `fastapi_rpckit` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
 existing declared range. The combined stack needs FastAPI >=0.143.3 due to

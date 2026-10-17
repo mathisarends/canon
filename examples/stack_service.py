@@ -6,8 +6,8 @@ from dishka.integrations.fastapi import inject
 from fastapi import FastAPI
 from fastapi_canon import CanonRouter, Composition, Feature
 from fastapi_canon.integrations.streams import CanonStreamRouter
-from fastapi_wsrpc import Inject, RpcChannel, RpcService
-from fastapi_wsrpc.integrations.dishka import dishka_router
+from fastapi_rpckit import Inject, RpcChannel, RpcService
+from fastapi_rpckit.integrations.dishka import dishka_router
 from pydantic import BaseModel
 
 
