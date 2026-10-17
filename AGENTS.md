@@ -12,7 +12,7 @@ changelogs, guides, and agent instructions.
 - `packages/fastapi-canon`: composition, Dishka lifecycle, HTTP contracts, optional
   integration modules. Core must import and run without either extension.
 - `packages/fastapi-streams`: typed SSE, OpenAPI, Python/TypeScript client generation.
-- `packages/fastapi-wsrpc`: successor `fastapi-wsrpc` / `fastapi_wsrpc`, with
+- `packages/fastapi-rpckit`: successor `fastapi-rpckit` / `fastapi_rpckit`, with
   FastAPI as a required dependency. Preserve wire behavior and client contracts.
 - Extensions must not acquire a required dependency on Canon or each other.
 - Keep independent package versions. Do not add a shared core without concrete reuse.
@@ -44,8 +44,8 @@ configuration; only root workflows execute for this repository.
 
 ## Release preparation
 
-Read `docs/releases.md` for prepared versions, publication order and deferred
-publisher/workflow setup. `docs/compatibility.md` records tested dependency
+Read `docs/releases.md` for prepared versions, publication order, publisher setup
+and the release workflow. `docs/compatibility.md` records tested dependency
 combinations; `docs/rpc-parity.md` records the predecessor comparison and consumer
 migration limits. Do not treat prepared source versions as published releases.
 
@@ -56,3 +56,13 @@ wheel environments and write dependency inventories under `dist/`. Check Streams
 installed CLI/backends with `uv run --locked python scripts/check_streams_artifacts.py`.
 For an external RPC contract, follow the installed-wheel command in the parity
 report; SDK compilation alone does not establish a full application migration.
+
+Use `release.toml` and `scripts/release.py` for package/tag/version metadata.
+Prepare source versions and pins, regenerate clients, pass checks and commit/merge
+to `main`. Wait for CI on that exact commit, then dispatch `release.yml` with
+`dry_run=true` for the selected package/version. Before a real publication,
+finalize the changelog date and pass CI for the final source. Only dispatch with
+`dry_run=false` when explicitly authorized to publish. Publish Streams before a
+Canon version that pins it. Verify public-index installs and release/tag results.
+On failure, follow the documented resume procedure with the original run's
+verified artifacts; do not replace published contents or move existing tags.

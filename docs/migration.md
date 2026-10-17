@@ -24,12 +24,14 @@
 
 - [x] Inventory consumer imports, RPC CLI, wire behavior, and client APIs;
       see [RPC parity and Cara contract checks](rpc-parity.md).
-- [x] Select `fastapi-wsrpc` / `fastapi_wsrpc` and check the PyPI JSON endpoint.
-- [ ] Confirm registration acceptance and ownership before publication.
+- [x] Select `fastapi-rpckit` / `fastapi_rpckit` and check the PyPI JSON endpoint.
+- [x] Confirm Pending Publisher acceptance for `fastapi-rpckit` after PyPI rejected
+      the initially selected `fastapi-wsrpc` name for similarity. The first upload
+      still needs to create the project; pending registration does not reserve it.
 - [x] Make FastAPI required, expose its existing mounting APIs directly, and
       document the import/CLI migration. Further API redesign needs consumer tests.
 - [ ] Test existing application consumers before removing public APIs.
-- [ ] Define per-package tags, changelogs, compatibility gates, and protected
+- [x] Define per-package tags, changelogs, compatibility gates, and protected
       PyPI Trusted Publishers for this repository.
 - [ ] Release the successor, migrate consumers, then archive the predecessor.
 

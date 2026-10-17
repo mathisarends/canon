@@ -1,108 +1,139 @@
 # Independent releases
 
-`fastapi-canon` and `fastapi-streams` retain their existing PyPI identities
-and import paths. `fastapi-wsrpc` is the unreleased RPC successor.
-A monorepo change does not require releasing all components.
+Release one library at a time from `mathisarends/canon`. The root workspace and
+reference service are not publication targets. No package has yet been published
+through this repository's new workflow.
 
-## Prepared versions, 2026-10-17
+## Prepared versions
 
-| Distribution | Last published | Prepared source version | Reason |
+| Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
-| `fastapi-canon` | 0.4.0 | 0.5.0 | Public `CanonStreamRouter` and `HTTPMethod`; integration pins Streams 0.1.0. |
-| `fastapi-streams` | 0.0.1 | 0.1.0 | Generated literal/enum changes, reserved error aliases, diagnostics and SDK documentation. |
-| `fastapi-wsrpc` | None | 0.1.0 | First successor release; pyrpckit 0.11.0 runtime and wire behavior retained. |
+| `fastapi-streams` | `fastapi_streams` | 0.1.0 | `fastapi-streams-v0.1.0` |
+| `fastapi-canon` | `fastapi_canon` | 0.5.0 | `fastapi-canon-v0.5.0` |
+| `fastapi-rpckit` | `fastapi_rpckit` | 0.1.0 | `fastapi-rpckit-v0.1.0` |
 
-These are prepared, unpublished versions. Changelog sections deliberately remain
-marked unreleased; set their actual publication dates when releasing. Canon and
-Streams were compared with the published PyPI wheels, including verifying their
-download hashes. Canon adds its optional integration and public exports; Streams
-changes its codegen modules/templates and adds diagnostics/documentation helpers.
-Its runtime transport and endpoint calling conventions remain unchanged, but
-consumers must apply the generated-code migrations in its changelog.
+Publish Streams before Canon: Canon's `streams` extra pins Streams 0.1.0.
+RPC is independent. The last published Canon/Streams versions are 0.4.0/0.0.1;
+changed builds require new versions. Follow the Streams changelog's generated
+literal/enum and error-alias migration. Versions do not need to match.
 
-The root pins, Canon's optional/development Streams pins, version constants and
-root lockfile agree. The reference service now requires Canon `>=0.5,<0.6`.
-Package URLs point to this repository and the relevant package/docs directories.
-Streams must be published before Canon's `streams` extra can resolve from PyPI.
-RPC can be published independently; no shared version number is required.
+`release.toml` maps distributions, directories, modules and tag prefixes. Versions
+come from package metadata; the release check does not import business modules.
 
-Use future package tags `fastapi-canon-v0.5.0`, `fastapi-streams-v0.1.0`, and
-`fastapi-wsrpc-v0.1.0`. No tags or releases have been created by this preparation.
+## Account configuration verified on 2026-10-17
 
-## Local preparation gates
+| PyPI project | Publisher state |
+| --- | --- |
+| `fastapi-canon` | Trusted Publisher configured and verified |
+| `fastapi-streams` | Trusted Publisher configured and verified |
+| `fastapi-rpckit` | Pending Publisher accepted and verified |
+
+All use GitHub owner `mathisarends`, repository `canon`, workflow filename
+`release.yml`, and environment `pypi`. No persistent PyPI token is needed. The
+GitHub environment allows only `main`. No additional reviewer or wait timer is
+configured: publication uses manual dispatch and the gates below. Agents still
+need explicit user authorization to dispatch a real publication.
+
+PyPI rejected the initial `fastapi-wsrpc` name as too similar to an existing
+project. The user selected `fastapi-rpckit` / `fastapi_rpckit`, and PyPI accepted
+its pending publisher. This does not reserve the name or create the project;
+the first successful upload does that. See
+[PyPI's pending publisher documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
+
+## Prepare a version
+
+1. Review changes and update the package's `pyproject.toml`, changelog and existing
+   `__version__` constant. Canon obtains its version from installed metadata.
+2. Update root pins, Canon's Streams optional/development pins and the reference
+   service's Canon range when needed. Run `uv lock`, retaining one root lockfile.
+3. Regenerate clients through their generators and run the local gates below.
+4. Commit/open a PR and merge to `main`, or commit directly when authorized.
+   Wait for the complete `ci.yml` run on that exact commit to pass.
+5. Run the selected package's dry run. Before publication, finalize its heading as
+   `## VERSION - YYYY-MM-DD`, commit/push and wait for that exact CI run too.
+   Publication rejects an unfinished changelog.
 
 ```console
 uv sync --locked --all-packages --all-groups
 npm ci --ignore-scripts --prefix packages/fastapi-streams
+uv run --locked --directory packages/fastapi-streams python scripts/codegen.py
+uv run --locked --directory packages/fastapi-rpckit python -m fastapi_rpckit.codegen.cli generate --config examples/generated_clients/rpcgen.toml
 uv run --locked python scripts/check.py all
 uv run --locked python scripts/check_distributions.py
 uv run --locked python scripts/check_distributions.py --python 3.12 --dependencies minimum
 uv run --locked python scripts/check_streams_artifacts.py
+uv run --locked python scripts/release.py validate --package fastapi-streams --version 0.1.0
 ```
 
-The distribution checks build wheels from sdists, verify metadata and typed
-markers, and install in fresh environments without workspace overrides. The
-minimum mode exposes runtime and requested-extra dependencies as direct resolver
-requirements and uses `lowest-direct`, selecting the lowest jointly satisfiable
-versions. Other transitive dependencies resolve normally. It covers six library
-combinations; the default latest mode also checks the installed reference service.
-Each mode writes a machine-readable inventory to `dist/compatibility-MODE.json`.
-See [compatibility results](compatibility.md) for the tested scope and
-[RPC parity/consumer checks](rpc-parity.md) for repeatable SDK verification.
+The last command checks local metadata without claiming remote CI/publication
+readiness. Minimum mode selects the lowest jointly satisfiable direct runtime
+and extra dependencies; transitive dependencies resolve normally. See
+[compatibility](compatibility.md) and [RPC consumer scope](rpc-parity.md).
 
-Regenerate example clients through their generators before checking drift:
+## Dispatch a dry run
 
 ```console
-uv run --locked --directory packages/fastapi-streams python scripts/codegen.py
-uv run --locked --directory packages/fastapi-wsrpc python -m fastapi_wsrpc.codegen.cli generate --config examples/generated_clients/rpcgen.toml
-uv run --locked python scripts/check.py clients
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-streams -f version=0.1.0 -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-canon -f version=0.5.0 -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-rpckit -f version=0.1.0 -f dry_run=true
+gh run list --repo mathisarends/canon --workflow release.yml --limit 10
 ```
 
-## Deferred publisher and CI setup
+Use the run IDs to inspect logs and artifacts. A dry run has no OIDC or repository
+write permissions and creates no upload, release tag or GitHub release. The
+publishing and finalization jobs are skipped.
 
-The user deferred CI/release-workflow setup on 2026-10-17. The root publishing
-workflow, protected environment and dry run remain future work; local preparation
-does not implement or activate them.
+Preparation validates package/version/tag, constants, pins, changelog, lockfile,
+main ancestry, exact-commit successful push CI, existing tags and the public PyPI
+version endpoint. New runs reject already published versions. Canonical
+prereleases such as `0.1.0rc1` are supported; local/dev/post versions are rejected.
 
-The public `fastapi-wsrpc` PyPI JSON endpoint still returned 404 on this date.
-The account publisher page redirected to login, so neither name acceptance nor
-the account's Pending Publisher was verified. A 404 does not establish name
-acceptance. After sign-in, use [account publishing](https://pypi.org/manage/account/publishing/)
-to check/configure the intended pending publisher:
+Only the selected package is built into `dist/release/`. Fresh environments test
+those exact upload bytes with current dependencies and direct minima on Python
+3.12, covering package combinations and installed Streams backends. Metadata,
+CLIs, templates, sdists and typed markers are checked. Other libraries are built
+as test dependencies and are excluded from the upload directory. Exact-commit CI
+also covers source tests, types and client drift, including both RPC manifests.
 
-| Field | Intended value, to match the eventual workflow |
-| --- | --- |
-| PyPI project | `fastapi-wsrpc` |
-| GitHub owner | `mathisarends` |
-| Repository | `canon` |
-| Workflow filename | `release.yml` |
-| Environment | `pypi` |
+Each run uploads `release-PACKAGE-VERSION`, containing `release/` and
+`release-report/`. The JSON report records package, version, commit, tag, CI/run
+links, checks and SHA-256 hashes; `release-notes.md` comes from its changelog.
+Artifacts are retained for 90 days. Failed preparation artifacts can be replaced
+on retry; publication requires successful preparation and matching hashes.
 
-Per [PyPI's pending-publisher instructions](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/),
-this registration does not reserve the name. The first successful publication
-creates the project. Check the two existing projects' monorepo publishers
-separately. No account configuration or publication was performed here.
+## Publish when explicitly authorized
 
-## Future publication gate
+After finalizing the changelog and passing CI, dispatch with `dry_run=false`.
+The first real publication will be Streams:
 
-Each library keeps its own `CHANGELOG.md` and `pyproject.toml`. A future root
-release workflow must select exactly one package from a package-prefixed tag,
-validate its metadata and changelog, run the relevant package, compatibility,
-installed-artifact, and client-drift gates, and build only that package.
+```console
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-streams -f version=0.1.0 -f dry_run=false
+```
 
-Use GitHub OIDC / PyPI Trusted Publishing with protected environments and
-repository-specific publisher configuration. No publishing workflow is activated
-by this migration. The imported package workflows were written for their old
-repositories and tag schemes and remain inert beneath `packages/`.
+The `publish` job uses environment `pypi` and job-scoped `id-token: write`.
+It downloads the checked artifacts, verifies hashes and rejects conflicting PyPI
+files. Trusted Publishing uploads only `dist/release/`. Canon publication also
+requires the pinned Streams version to exist on PyPI.
 
-Before the first release from here:
+After upload, verify public PyPI hashes and fresh public-index installs, including
+Canon alone and `[streams]`. Only then does the separate `finish` job create the
+package tag and GitHub release at the verified commit, attaching the original
+artifacts and JSON report. Prereleases produce prerelease GitHub releases. Build
+jobs cannot publish/create tags; the publishing job cannot write repository contents.
 
-- Confirm ownership and availability of the final RPC distribution name.
-- Document the supported dependency and package-version combinations, including
-  independent minimum-version and newest-compatible dependency tests.
-- Configure a Trusted Publisher for each package and this repository.
-- Validate package-specific tag parsing, branch ancestry, and artifact contents.
-- Test the RPC consumer/import/CLI migration and generated clients.
+## Resume and record the outcome
 
-Existing source repositories stay available. A future RPC predecessor archival
-requires a usable published successor and an explicit migration decision.
+- After a source fix, commit/push, pass CI and dispatch a new run. For a transient
+  failure on the same source, use `gh run rerun RUN_ID --failed --repo mathisarends/canon`.
+- After upload/finalization failure, rerun only failed jobs on the original run.
+  That retains its verified artifacts and commit. Existing PyPI files must match
+  the original manifest's names/hashes. Partial uploads send missing original
+  files; complete uploads are verified without uploading again. Conflicts fail.
+- A matching GitHub release is accepted on retry; tags at different commits are
+  rejected. Do not move tags or rebuild changed contents under a published version.
+- Record only verified publication/install outcomes in TODO, compatibility and
+  release documentation. Cara's full application migration and predecessor
+  archival remain separate work; archival needs explicit approval.
+
+A successful dry run proves the preparation path. The actual OIDC upload and
+post-publication path are verified by the first explicitly authorized release.
