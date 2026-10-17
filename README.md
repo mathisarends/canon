@@ -216,6 +216,7 @@ and regenerating committed clients.
 | [Client usage](docs/clients.md) | Enums, authentication, cancellation, and errors. |
 | [Architecture](docs/architecture.md) | Native SSE, shared IR, templates, and transports. |
 | [Development](docs/development.md) | Tests, supported scope, and roadmap. |
+| [Releasing](docs/releasing.md) | Tag-based releases and credential-free PyPI publishing. |
 
 v0.0.1 supports GET/POST JSON SSE streams. Ordinary REST endpoints stay in the
 contract for your existing REST SDK. See the [supported scope](docs/development.md#supported-scope-and-roadmap).

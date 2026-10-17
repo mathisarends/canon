@@ -9,6 +9,7 @@ TypeScript Fetch and Python HTTPX clients from the same definitions.
 | [Contracts and codegen](codegen.md) | Export OpenAPI, generate both clients, and detect drift in CI. |
 | [Client usage](clients.md) | Named event values, typed iteration, authentication, cancellation, and errors. |
 | [Development](development.md) | Local checks, test coverage, supported features, and roadmap. |
+| [Releasing](releasing.md) | Tag-based releases, PyPI Trusted Publishing setup, and recovery. |
 | [Architecture](architecture.md) | Server integration, shared IR, generation, and transport boundaries. |
 
 Start with the [quickstart](quickstart.md), then use the

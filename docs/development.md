@@ -17,6 +17,7 @@ npm run test:coverage
 uv run pytest -q --cov --cov-report=term-missing --cov-report=xml:coverage-python.xml
 uv run python scripts/codegen.py --check
 uv build
+uv run --frozen twine check --strict dist/*
 uv run python scripts/check_package.py
 ```
 
