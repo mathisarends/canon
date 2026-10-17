@@ -1,0 +1,40 @@
+minimum_pre_commit_version: '4.0.0'
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint
+        entry: uv run --frozen ruff check
+        language: system
+        types: [python]
+        exclude: ^(examples/agent_runs/generated_python|tests/fixtures/generated_python)/
+      - id: ruff-format
+        name: Ruff format
+        entry: uv run --frozen ruff format --check
+        language: system
+        types: [python]
+        exclude: ^(examples/agent_runs/generated_python|tests/fixtures/generated_python)/
+      - id: pyright
+        name: Pyright
+        entry: uv run --frozen pyright
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: pylint
+        name: Pylint
+        entry: uv run --frozen pylint fastapi_streams
+        language: system
+        pass_filenames: false
+        files: ^fastapi_streams/.*\.py$
+      - id: typescript
+        name: TypeScript
+        entry: npm run typecheck
+        language: system
+        pass_filenames: false
+        files: \.(ts|json)$
+      - id: codegen
+        name: Generated contract and client drift
+        entry: uv run --frozen python scripts/codegen.py --check
+        language: system
+        pass_filenames: false
+        files: ^(fastapi_streams/|examples/|tests/fixtures/|scripts/codegen\.py|pyproject\.toml|uv\.lock)
