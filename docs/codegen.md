@@ -29,6 +29,12 @@ The generator extracts application data from
 reachable from their parameters, bodies, events and error responses are emitted.
 Operations use the first tag as their group, defaulting to `streams`.
 
+Generated method documentation carries each operation's `summary`, `description`,
+and `deprecated` marker alongside language-specific SDK behavior. Describe
+replay, retention, and server job lifetime explicitly on your endpoint; the
+generator does not infer these business guarantees. Python early exits should
+use `contextlib.aclosing`; TypeScript `for await` cleanup closes its reader.
+
 TypeScript has no runtime dependencies and uses Fetch-compatible APIs. The
 example uses ES modules and is tested on Node 24. Generated Python packages
 require Python 3.12+, `httpx>=0.28` and `pydantic>=2.11.2` (`uv add httpx pydantic`).

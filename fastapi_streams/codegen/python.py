@@ -3,6 +3,7 @@ from dataclasses import replace
 from importlib.resources import files
 from typing import Literal
 
+from fastapi_streams.codegen.documentation import operation_doc
 from fastapi_streams.codegen.ir import (
     Array,
     Contract,
@@ -88,12 +89,16 @@ def generate_python(
     def render_type(value: Type) -> str:
         return models.render_type(value, hint="Anonymous", prefix="Models.")
 
+    def documentation(operation: Operation) -> str:
+        return operation_doc(operation, "python")
+
     add_filters(
         env,
         snake=python_identifier,
         repr=repr,
         py_type=render_type,
         py_path=_path,
+        operation_doc=documentation,
     )
     groups: list[dict[str, str]] = []
     output: dict[str, str] = {}

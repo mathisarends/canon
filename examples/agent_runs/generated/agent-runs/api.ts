@@ -17,6 +17,21 @@ export type StreamRunEventsError = Types.HTTPValidationError;
 
 export function createAgentRunsApi(client: ClientOptions) {
   return {
+    /**
+     * Stream Prompt
+     *
+     * HTTP POST /v1/runs/{run_id}/events.
+     *
+     * Opens the HTTP request when iteration begins. Parameter and body preparation may fail at the method call.
+     *
+     * Does not automatically reconnect, retry, or replay events.
+     *
+     * HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+     *
+     * Breaking iteration closes the reader and aborts the request. Caller cancellation propagates the AbortSignal reason.
+     *
+     * Events are JSON-decoded with static types; their schemas are not validated at runtime.
+     */
     streamPrompt(
       input: StreamPromptParams,
       options: RequestOptions = {},
@@ -31,6 +46,21 @@ export function createAgentRunsApi(client: ClientOptions) {
         ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
       }, options);
     },
+    /**
+     * Stream Run Events
+     *
+     * HTTP GET /v1/runs/{run_id}/events.
+     *
+     * Opens the HTTP request when iteration begins. Parameter and body preparation may fail at the method call.
+     *
+     * Does not automatically reconnect, retry, or replay events.
+     *
+     * HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+     *
+     * Breaking iteration closes the reader and aborts the request. Caller cancellation propagates the AbortSignal reason.
+     *
+     * Events are JSON-decoded with static types; their schemas are not validated at runtime.
+     */
     streamRunEvents(
       input: StreamRunEventsParams,
       options: RequestOptions = {},

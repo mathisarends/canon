@@ -22,6 +22,11 @@ export type {{ operation.operation_id | pascal }}Error = {{ operation | error_ty
 export function {{ factory }}(client: ClientOptions) {
   return {
 {% for operation in operations %}
+    /**
+{% for line in (operation | operation_doc).splitlines() %}
+     *{{ ' ' + line if line else '' }}
+{% endfor %}
+     */
     {{ operation.name }}(
 {% if operation.parameters or operation.body %}
       input: {{ operation | input_name }}{{ '' if operation | required else ' = {}' }},

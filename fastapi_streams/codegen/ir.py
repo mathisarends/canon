@@ -164,6 +164,9 @@ class Operation:
     response_status: str
     errors: tuple[ErrorResponse, ...]
     security: tuple[dict[str, list[str]], ...]
+    summary: str = ""
+    description: str = ""
+    deprecated: bool = False
 
 
 @dataclass(frozen=True)
@@ -334,6 +337,9 @@ def build_ir(document: Document) -> Contract:
                     status,
                     tuple(errors),
                     tuple(raw.get("security", document.get("security", []))),
+                    raw.get("summary", ""),
+                    raw.get("description", ""),
+                    raw.get("deprecated", False),
                 )
             )
     security: Document = document.get("components", {}).get("securitySchemes", {})

@@ -206,6 +206,9 @@ and committed OpenAPI regression fixtures in `tests/fixtures/`. Verify all gener
 
 ## Documentation
 
+See the [changelog and upgrade steps](CHANGELOG.md) when updating the library
+and regenerating committed clients.
+
 | Guide | Topics |
 | --- | --- |
 | [Quickstart](docs/quickstart.md) | Setup, event models, and FastAPI integration. |

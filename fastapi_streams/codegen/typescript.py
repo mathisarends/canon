@@ -2,6 +2,7 @@ import json
 import re
 from importlib.resources import files
 
+from fastapi_streams.codegen.documentation import operation_doc
 from fastapi_streams.codegen.ir import (
     Array,
     Contract,
@@ -110,6 +111,9 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
     def pascal(value: str) -> str:
         return identifier(value, upper=True)
 
+    def documentation(operation: Operation) -> str:
+        return operation_doc(operation, "typescript")
+
     add_filters(
         env,
         ts_type=render_type,
@@ -119,6 +123,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         required=_required,
         error_type=_error_type,
         path=_path,
+        operation_doc=documentation,
     )
     output: dict[str, str] = {}
     declarations: list[str] = []

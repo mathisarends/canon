@@ -25,6 +25,11 @@ class {{ class_name }}:
 {% endif %}
         options: RequestOptions | None = None,
     ) -> AsyncGenerator[{{ operation.event | py_type }}, None]:
+        """
+{% for line in (operation | operation_doc).splitlines() %}
+{{ '        ' + line if line else '' }}
+{% endfor %}
+        """
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
 {% for parameter in operation.parameters %}
