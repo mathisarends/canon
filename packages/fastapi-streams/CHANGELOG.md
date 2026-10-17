@@ -3,7 +3,7 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
-## 0.1.0 (unreleased)
+## 0.1.0 - 2026-10-17
 
 ### Added
 
@@ -51,9 +51,8 @@ unreleased describe prepared source versions that have not been published.
 
 ### Upgrade from 0.0.1
 
-1. After publication, update `fastapi-streams[codegen]` to `0.1.0`, using the
-   same version for schema export and both SDKs. Before publication, use the
-   built 0.1.0 wheel.
+1. Update `fastapi-streams[codegen]` to `0.1.0`, using the same version for schema
+   export and both SDKs.
 2. Regenerate committed clients from the application's OpenAPI document. Existing
    method names and call signatures are unchanged:
 

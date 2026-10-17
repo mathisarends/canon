@@ -2,7 +2,7 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
-## 0.5.0 (unreleased)
+## 0.5.0 - 2026-10-17
 
 ### Added
 

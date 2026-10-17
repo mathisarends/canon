@@ -137,10 +137,24 @@ def test_release_rejects_inconsistent_metadata(
 
 
 def test_publication_requires_final_changelog(release_repo: Path) -> None:
+    changelog = release_repo / "packages/fastapi-rpckit/CHANGELOG.md"
+    lines = changelog.read_text("utf-8").splitlines()
+    heading = next(
+        index for index, line in enumerate(lines) if line.startswith("## 0.1.0")
+    )
+    lines[heading] = "## 0.1.0 (unreleased)"
+    changelog.write_text("\n".join(lines) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="Finalize the changelog"):
         release.validate_release(
             "fastapi-rpckit", "0.1.0", root=release_repo, publish=True
         )
+
+
+def test_publication_accepts_final_changelog(release_repo: Path) -> None:
+    report = release.validate_release(
+        "fastapi-rpckit", "0.1.0", root=release_repo, publish=True
+    )
+    assert report["version"] == "0.1.0"
 
 
 def test_github_release_requires_successful_ci_for_exact_commit(

@@ -1,10 +1,9 @@
 # Changelog
 
-## 0.1.0 (unreleased successor)
+## 0.1.0 - 2026-10-17
 
 - Use `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected the earlier local
-  `fastapi-wsrpc` name for similarity. The new Pending Publisher is accepted;
-  no successor release has been published yet.
+  `fastapi-wsrpc` name for similarity. This is the first successor release.
 - Fork pyrpckit 0.11.0 into the Canon workspace as `fastapi-rpckit`, importing
   `fastapi_rpckit` and using the `fastapi-rpckit` CLI.
 - Require FastAPI and export `RpcRoutes`, `FastApiSocket`, `create_router`, and
