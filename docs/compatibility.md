@@ -37,7 +37,8 @@ Windows x64, CPython 3.14.0, uv 0.9.2, Node.js 24:
 - Shared dependency resolution: FastAPI 0.143.3, Starlette 1.8.0, Pydantic 2.14.1,
   Dishka 1.10.1. Exact development dependencies are in the root lockfile.
 - Canon: 251 pytest cases; Streams: 232; RPC successor: 832; architecture reference
-  service: 2; combined HTTP/SSE/RPC and Dishka scope regression: 1.
+  service: 5 after its Canon migration; combined HTTP/SSE/RPC and Dishka scope
+  regression: 1.
 - Ruff checks/formatting for every member; Canon/reference Mypy; Streams
   Pyright/Pylint; RPC public type completeness from an installed wheel (92.2%,
   existing threshold 92%).
@@ -53,6 +54,16 @@ Windows x64, CPython 3.14.0, uv 0.9.2, Node.js 24:
   Python client roundtrip and TypeScript compilation. Streams additionally runs
   its installed CLI/consumer checks in three environments: core-only, HTTPX,
   and HTTPX2.
+- The migrated architecture reference service is also built as a development
+  artifact and installed with the Canon wheel in a seventh clean environment.
+  Its five HTTP/authentication/Problem Details tests pass with both extensions
+  absent and both application/library imports verified to come from site-packages.
+
+The [initial consolidation CI run](https://github.com/mathisarends/canon/actions/runs/39030985598)
+at commit `1adfe04` passed Linux/Python 3.12, 3.13, and 3.14 plus Windows/Python
+3.14. The reference service in that initial run still used its original local
+composition; the subsequent Canon migration adds the five canonical HTTP tests
+and its own installed-artifact check without requiring either transport extension.
 
 These are development verification results, not a published support promise.
 External application migration, all supported dependency minima/maxima, and

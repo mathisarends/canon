@@ -31,6 +31,9 @@ lockfile. Both client generators remain owned by their respective package.
 the wheels in six fresh environments, without uv workspace overrides. It checks
 standalone imports, absent optional packages, CLIs, typed markers, HTTP, SSE,
 RPC, and the shared Dishka lifecycle. Build outputs live in ignored `dist/`.
+It also builds the development-only reference service and runs its HTTP suite
+against an installed Canon wheel in a seventh clean environment without either
+transport extension.
 Then run `uv run --locked python scripts/check_streams_artifacts.py` to check
 the Streams wheel with no codegen extra and each supported Python HTTP client.
 The artifact scripts also generate and exercise clients from installed contracts.
@@ -44,9 +47,10 @@ uv run --locked uvicorn examples.stack_service:app --reload
 `POST /counter` increments application state, `GET /counter/events` emits its
 current typed SSE value, and `/rpc` accepts `counter.increment`. The example
 demonstrates composition and scopes; it has no persistence or authentication.
-The larger [reference service](../examples/reference-service) demonstrates
-feature slices, authentication, persistence, and transactions. Its local Feature
-descriptor predates the Canon library and remains a documented migration item.
+The larger [reference service](../examples/reference-service) uses Canon's actual
+`Feature`/`Composition` API for feature slices, authentication, persistence,
+transactions, and typed HTTP errors. Its runtime and OpenAPI tests exercise that
+composition with the installed Canon distribution as well as in the workspace.
 
 Imported nested `.github` directories and release scripts are retained as
 historical references. They are not executable workflows in this repository.

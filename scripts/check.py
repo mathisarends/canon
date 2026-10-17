@@ -67,7 +67,7 @@ def main() -> None:
                 "scripts/verify_types.py",
                 python=False,
             )
-            _run(MEMBERS[3], "-m", "mypy", "src")
+            _run(MEMBERS[3], "-m", "mypy", "src", "tests")
         elif gate == "test":
             for root in (*MEMBERS, ROOT):
                 _run(root, "-m", "pytest", "-q")
