@@ -23,7 +23,7 @@ jobs:
           --config .pre-commit-config.yml
           --all-files
           --show-diff-on-failure
-      - run: uv run mypy
+      - run: uv run --all-groups mypy
 
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }}, ${{ matrix.resolution }})
@@ -72,7 +72,7 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python }}
       - if: matrix.resolution == 'locked'
-        run: uv sync --frozen --all-groups
+        run: uv sync --frozen --group dev
       - if: matrix.resolution == 'lowest-direct'
         run: >-
           uv run --isolated --no-project --python 3.12
@@ -124,7 +124,14 @@ jobs:
       - run: uv pip install --python .wheel-venv/bin/python dist/*.whl
       - run: >-
           .wheel-venv/bin/python -I -c
-          "from fastapi_canon import Composition, Error, ErrorConfigurationError,
+          "from importlib.util import find_spec;
+          assert find_spec('fastapi_streams') is None;
+          from fastapi_canon import Composition, Error, ErrorConfigurationError,
           ErrorOptions, ErrorRegistry, Feature, Problem;
           assert all((Composition, Error, ErrorConfigurationError,
           ErrorOptions, ErrorRegistry, Feature, Problem))"
+      - name: Core runtime without Streams
+        run: >-
+          uv run --isolated --no-project --python 3.14
+          --with dist/*.whl --with pytest --with httpx
+          pytest tests/test_optional_streams.py

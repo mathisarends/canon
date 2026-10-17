@@ -338,6 +338,24 @@ excluded with `include_in_schema=False` are outside document-level validation;
 registered. Router-level `raises=` applies to operations declared on that
 router, not to separately included child routers.
 
+### Optional fastapi-streams integration
+
+Install `fastapi-canon[streams]` and import `CanonStreamRouter` from
+`fastapi_canon.integrations.streams` to combine canon's shared/local `raises=`
+with typed GET/POST SSE generators. `Feature` discovers its registry just as
+for `CanonRouter`. The native SSE `itemSchema`/`contentSchema` is preserved for
+both Streams client generators. Core imports do not require fastapi-streams.
+
+Run HTTP preconditions in dependencies: even generator code before the first
+`yield` runs after the response starts. `raises=` documents HTTP problems;
+business errors during a stream need an explicit error event, and connection
+failures remain transport errors.
+
+See the [integration API](docs/streams.md) for installation, router options,
+composition, client generation, and the streaming boundary. The
+[`examples/streams`](examples/streams) guide includes an executable GET/POST app
+and local regression commands.
+
 ## Success response contracts
 
 `CanonResponse` describes one successful response directly on a `CanonRouter`

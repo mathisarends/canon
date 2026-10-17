@@ -2,6 +2,25 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Optional `CanonStreamRouter` in `fastapi_canon.integrations.streams`, combining
+  native fastapi-streams GET/POST SSE generators with canon's error registry,
+  router-wide and local `raises=`, and RFC 9457 HTTP problems from dependencies.
+  `Feature` automatically discovers its registry; full native SSE event schemas
+  are retained for Python and TypeScript client generation.
+- A versioned `streams` extra (`fastapi-streams>=0.0.1,<0.1`), with
+  independent core imports and a separate codegen development group.
+- An integration API guide in `docs/streams.md` and an executable streaming
+  example documenting installation, client generation,
+  and the boundary between pre-response HTTP problems, in-stream business error
+  events, and transport failures.
+- Integration regression CI against the locked Streams release and upstream
+  `main` on Python 3.12/3.14, including weekly checks, both client generators,
+  and clean-wheel core runtime checks without Streams.
+
 ## 0.4.0 - 2026-09-10
 
 ### Added
