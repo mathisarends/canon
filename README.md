@@ -22,6 +22,7 @@ remain available, including the independently published Canon and Streams packag
 Read the [vision](VISION.md), the concrete [workspace decision](docs/design-decisions/0001-workspace.md),
 and the [migration checklist](docs/migration.md). The vision describes the target;
 the checklist distinguishes working capabilities from planned ones.
+The next release work block and account setup tasks are listed in [TODO.md](TODO.md).
 
 Start with [architecture](guides/architecture.md) when building an application.
 Package READMEs document their current public APIs. Existing Streams integration
