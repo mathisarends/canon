@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 7 * * 1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Public type completeness
+        run: uv run python scripts/verify_types.py
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --all-groups --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        run: uv run --python ${{ matrix.python-version }} pytest
+
+  dependency-compatibility:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dependencies: ["minimum", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.12
+      - run: uv sync --all-groups --python 3.12
+      - name: Select supported minimum
+        if: matrix.dependencies == 'minimum'
+        run: |
+          minimum=$(uv run --no-sync python -c 'import tomllib; c = tomllib.load(open("pyproject.toml", "rb")); p = c["project"]; print(" ".join(d.replace(">=", "==") for d in p["dependencies"] + sum(p["optional-dependencies"].values(), []) + [d for d in c["dependency-groups"]["dev"] if d.startswith("opentelemetry-sdk")]))')
+          uv pip install $minimum
+      - name: Select latest dependencies
+        if: matrix.dependencies == 'latest'
+        run: |
+          latest=$(uv run --no-sync python -c 'import tomllib; c = tomllib.load(open("pyproject.toml", "rb")); p = c["project"]; print(" ".join(p["dependencies"] + sum(p["optional-dependencies"].values(), []) + [d for d in c["dependency-groups"]["dev"] if d.startswith("opentelemetry-sdk")]))')
+          uv pip install --upgrade $latest
+      - name: Test all integrations and generated clients
+        run: uv run --no-sync pytest
