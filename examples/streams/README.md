@@ -18,11 +18,11 @@ For an installed canon checkout or release containing this integration:
 pip install "fastapi-canon[streams]"
 ```
 
-The `streams` extra installs `fastapi-streams>=0.0.1,<0.1` from PyPI. The lower
-bound is the tested release; the upper bound limits compatibility to the current
-minor series. `uv.lock` fixes version 0.0.1 and package hashes for reproducible
-repository checks. The extra selects Streams' higher requirements (FastAPI
->=0.143.3 and Pydantic >=2.11.2). The core runtime dependencies and normal
+The `streams` extra installs exactly `fastapi-streams==0.0.1` from PyPI. Before
+Streams 0.1, upgrading requires an explicit compatibility review and pin update.
+`uv.lock` records package hashes for reproducible repository checks. The extra
+selects Streams' higher requirements (FastAPI >=0.143.3 and Pydantic >=2.11.2).
+The core runtime dependencies and normal
 imports remain independent of Streams.
 
 From this repository, start the executable example:
@@ -39,14 +39,20 @@ curl -N -X POST -H "Authorization: Bearer demo" -H "Content-Type: application/js
 ```
 
 The example uses typed async generators for GET and POST, router-wide
-authentication and local resource checks in dependencies. Omit authorization
+authentication and a Dishka-injected resource check in a dependency. The
+`RunProvider` contributes a `Scope.REQUEST` service through `Feature.providers`;
+`FromDishka[RunService]` injects that same service into the dependency and stream.
+`Composition` installs the container and manages its lifecycle. Omit authorization
 for a 401 domain problem, use `Bearer forbidden` for a normalized 403
 `HTTPException`, use run ID `0` for a 404 domain problem, or send an invalid run
 ID/body for a normalized 422 validation problem. All use
 `application/problem+json`. The successful response uses native SSE framing.
 
 ```python
+from dishka import FromDishka
+from dishka.integrations.fastapi import inject
 from fastapi import Depends
+from fastapi_canon import HTTPMethod
 from fastapi_canon.integrations.streams import CanonStreamRouter
 
 router = CanonStreamRouter(
@@ -58,16 +64,23 @@ router = CanonStreamRouter(
 
 @router.stream(
     "/{run_id}/events",
+    methods=[HTTPMethod.GET],
     raises=[run_not_found],
     dependencies=[Depends(require_existing_run)],
 )
-async def events(run_id: int) -> AsyncIterator[RunEvent]:
-    yield RunCompleted(run_id=run_id)
+@inject
+async def events(run_id: int, runs: FromDishka[RunService]) -> AsyncIterator[RunEvent]:
+    async for event in runs.events(run_id):
+        yield event
 ```
 
 See [`app.py`](app.py) for complete definitions, authentication, POST, and
 composition. Native stream restrictions apply: GET/POST only, concrete typed
 generator events, and serialization options that preserve the event contract.
+The POST declaration uses `methods=[HTTPMethod.POST]`, which selects only POST;
+the list follows the native Streams API. `HTTPMethod` is exported by canon and
+also works with REST `api_route()`. See the API guide for method selection and
+Dishka decorator order.
 Let Streams infer the successful SSE response; no `CanonResponse.sse()` is
 needed. Canon leaves the full `itemSchema` and `contentSchema` intact.
 
@@ -82,7 +95,7 @@ uv run --group streams fastapi-streams generate --schema openapi.json --language
 uv run --group streams fastapi-streams generate --schema openapi.json --language typescript --output generated/typescript
 ```
 
-For an installed application, add `fastapi-streams[codegen]>=0.0.1,<0.1` and
+For an installed application, add `fastapi-streams[codegen]==0.0.1` and
 lock it alongside your application dependencies. Both clients consume the same
 exported OpenAPI 3.2 document, containing typed SSE events and canon problem schemas.
 
@@ -104,7 +117,8 @@ of exceptions to events.
 `.github/workflows/streams.yml` tests Python 3.12 and 3.14 against both the locked
 Streams release and its current `main` branch, on pushes, PRs, and weekly. It
 checks error declarations, HTTP problems from dependencies, GET/POST streams,
-the complete native SSE schema, and both client generators. The generated
+the complete native SSE schema, Dishka request-service lifetime, and both client
+generators. The generated
 Python client is also exercised against the combined ASGI application.
 The package CI installs a clean wheel without Streams and tests the core
 runtime separately. Locally:

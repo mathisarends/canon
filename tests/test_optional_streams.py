@@ -18,11 +18,11 @@ def test_core_import_runtime_and_missing_extra_diagnostic() -> None:
         sys.meta_path.insert(0, NoStreams())
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from fastapi_canon import CanonRouter, Composition, Feature
+        from fastapi_canon import HTTPMethod, CanonRouter, Composition, Feature
         import fastapi_canon.integrations
 
         router = CanonRouter()
-        @router.get("/health")
+        @router.api_route("/health", methods=[HTTPMethod.GET])
         async def health() -> dict[str, str]:
             return {"status": "ok"}
 

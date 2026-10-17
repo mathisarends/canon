@@ -3,10 +3,12 @@
 from collections.abc import AsyncIterator
 from typing import Annotated, Literal
 
+from dishka import FromDishka, Provider, Scope, provide
+from dishka.integrations.fastapi import inject
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from fastapi_canon import Composition, Error, ErrorRegistry, Feature
+from fastapi_canon import Composition, Error, ErrorRegistry, Feature, HTTPMethod
 from fastapi_canon.integrations.streams import CanonStreamRouter
 
 
@@ -33,6 +35,24 @@ class RunRequest(BaseModel):
 
 
 type RunEvent = Annotated[RunProgress | RunCompleted, Field(discriminator="type")]
+
+
+class RunService:
+    async def require_existing(self, run_id: int) -> None:
+        if run_id <= 0:
+            raise RunNotFound
+
+    async def events(self, run_id: int, *, steps: int = 1) -> AsyncIterator[RunEvent]:
+        for step in range(1, steps + 1):
+            yield RunProgress(step=step)
+        yield RunCompleted(run_id=run_id)
+
+
+class RunProvider(Provider):
+    @provide(scope=Scope.REQUEST)
+    def run_service(self) -> RunService:
+        return RunService()
+
 
 authentication_required = Error(
     AuthenticationRequired,
@@ -62,9 +82,9 @@ async def require_authentication(
         raise AuthenticationRequired
 
 
-async def require_existing_run(run_id: int) -> None:
-    if run_id <= 0:
-        raise RunNotFound
+@inject
+async def require_existing_run(run_id: int, runs: FromDishka[RunService]) -> None:
+    await runs.require_existing(run_id)
 
 
 router = CanonStreamRouter(
@@ -83,24 +103,33 @@ router = CanonStreamRouter(
     raises=[run_not_found],
     dependencies=[Depends(require_existing_run)],
 )
-async def events(run_id: int) -> AsyncIterator[RunEvent]:
-    yield RunProgress(step=1)
-    yield RunCompleted(run_id=run_id)
+@inject
+async def events(run_id: int, runs: FromDishka[RunService]) -> AsyncIterator[RunEvent]:
+    async for event in runs.events(run_id):
+        yield event
 
 
 @router.stream(
     "/{run_id}/events",
-    methods=["POST"],
+    methods=[HTTPMethod.POST],
     operation_id="create_run_events",
     raises=[run_not_found],
     dependencies=[Depends(require_existing_run)],
 )
-async def create_events(run_id: int, body: RunRequest) -> AsyncIterator[RunEvent]:
-    for step in range(1, body.steps + 1):
-        yield RunProgress(step=step)
-    yield RunCompleted(run_id=run_id)
+@inject
+async def create_events(
+    run_id: int, body: RunRequest, runs: FromDishka[RunService]
+) -> AsyncIterator[RunEvent]:
+    async for event in runs.events(run_id, steps=body.steps):
+        yield event
 
 
-feature = Feature(name="runs", routers=[router])
+feature = Feature(name="runs", routers=[router], providers=[RunProvider])
 composition = Composition(feature)
-app = composition.apply(FastAPI())
+
+
+def create_app() -> FastAPI:
+    return composition.apply(FastAPI())
+
+
+app = create_app()

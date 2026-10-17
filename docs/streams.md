@@ -12,8 +12,9 @@ Import the router explicitly:
 from fastapi_canon.integrations.streams import CanonStreamRouter
 ```
 
-The extra supports `fastapi-streams>=0.0.1,<0.1`; `uv.lock` records the tested
-release and hashes. Streams requires FastAPI >=0.143.3 and Pydantic >=2.11.2.
+The extra pins `fastapi-streams==0.0.1`; `uv.lock` records the tested release
+and hashes. Before Streams 0.1, upgrades require an explicit compatibility
+review and pin update. Streams requires FastAPI >=0.143.3 and Pydantic >=2.11.2.
 Installing and importing canon without the extra continues to work.
 
 ## Complete integration example
@@ -24,10 +25,12 @@ Save this as `app.py` and run `uvicorn app:app` with Uvicorn installed:
 from collections.abc import AsyncIterator
 from typing import Annotated
 
+from dishka import FromDishka, Provider, Scope, provide
+from dishka.integrations.fastapi import inject
 from fastapi import Depends, FastAPI, Header
 from pydantic import BaseModel
 
-from fastapi_canon import Composition, Error, ErrorRegistry, Feature
+from fastapi_canon import HTTPMethod, Composition, Error, ErrorRegistry, Feature
 from fastapi_canon.integrations.streams import CanonStreamRouter
 
 
@@ -42,6 +45,22 @@ class RunNotFound(Exception):
 class RunEvent(BaseModel):
     run_id: str
     message: str
+
+
+class RunService:
+    async def require_existing(self, run_id: str) -> None:
+        if run_id != "demo":
+            raise RunNotFound
+
+    async def events(self, run_id: str) -> AsyncIterator[RunEvent]:
+        yield RunEvent(run_id=run_id, message="Started")
+        yield RunEvent(run_id=run_id, message="Completed")
+
+
+class RunProvider(Provider):
+    @provide(scope=Scope.REQUEST)
+    def run_service(self) -> RunService:
+        return RunService()
 
 
 authentication_required = Error(
@@ -67,9 +86,9 @@ async def require_authentication(
         raise AuthenticationRequired
 
 
-async def require_existing_run(run_id: str) -> None:
-    if run_id != "demo":
-        raise RunNotFound
+@inject
+async def require_existing_run(run_id: str, runs: FromDishka[RunService]) -> None:
+    await runs.require_existing(run_id)
 
 
 router = CanonStreamRouter(
@@ -82,16 +101,18 @@ router = CanonStreamRouter(
 
 @router.stream(
     "/{run_id}/events",
+    methods=[HTTPMethod.GET],
     raises=[run_not_found],
     dependencies=[Depends(require_existing_run)],
     operation_id="run_events",
 )
-async def events(run_id: str) -> AsyncIterator[RunEvent]:
-    yield RunEvent(run_id=run_id, message="Started")
-    yield RunEvent(run_id=run_id, message="Completed")
+@inject
+async def events(run_id: str, runs: FromDishka[RunService]) -> AsyncIterator[RunEvent]:
+    async for event in runs.events(run_id):
+        yield event
 
 
-feature = Feature(name="runs", routers=[router])
+feature = Feature(name="runs", routers=[router], providers=[RunProvider])
 composition = Composition(feature)
 app = composition.apply(FastAPI())
 composition.validate(app)
@@ -103,6 +124,26 @@ Omit the header for a 401 problem, or request another run ID for a 404 problem.
 `errors=run_errors` on the feature is optional. `Composition` installs the
 runtime handlers and OpenAPI compiler together.
 
+## Dishka injection
+
+`Feature(providers=[RunProvider])` lets `Composition` build the Dishka container,
+install its FastAPI middleware, and manage shutdown. No separate
+`make_async_container()` or `setup_dishka()` call is needed. Dishka is already
+a canon dependency.
+
+The example injects `RunService` with `FromDishka[RunService]` in both the
+`Depends` precondition and the stream generator. `Scope.REQUEST` gives both
+functions the same service instance for that HTTP request, and keeps it alive
+until the stream finishes. A new request gets a new instance.
+
+Place `@inject` directly above the function, below `@router.stream(...)`.
+Decorate the dependency function with `@inject` too. Run the resource check in
+`require_existing_run`: injecting the generator itself does not move checks
+or provider creation into the pre-response dependency phase. Resolve any
+service that must fail as an HTTP problem in a dependency first. See
+[Dishka's FastAPI integration](https://dishka.readthedocs.io/en/stable/integrations/fastapi.html)
+for `FromDishka` and dependency injection details.
+
 ## Router and operation options
 
 `CanonStreamRouter` inherits `CanonRouter` and `StreamRouter`. It combines their
@@ -111,8 +152,45 @@ existing APIs without replacing registration, validation, or serialization.
 | API | Behavior |
 | --- | --- |
 | `CanonStreamRouter(error_registry=registry, raises=[...], **options)` | The registry contains available errors. Router-level `raises` applies to operations declared on this router. Standard FastAPI router options pass through. |
-| `router.stream(path, raises=[...], methods=None, **options)` | Local errors extend shared errors. Defaults to GET; use `methods=["POST"]` for a body-driven stream. FastAPI dependencies, tags, operation IDs, and manual responses pass through. |
+| `router.stream(path, raises=[...], methods=None, **options)` | Local errors extend shared errors. Defaults to GET; use `methods=[HTTPMethod.POST]` for a body-driven stream. FastAPI dependencies, tags, operation IDs, and manual responses pass through. |
 | `router.get(...)`, `router.post(...)`, `router.api_route(...)` | Normal canon REST declarations remain available on the same router. |
+
+### HTTP methods
+
+`HTTPMethod` is available from `fastapi_canon`. It re-exports Python's standard
+`http.HTTPMethod`, a string enum with `GET`, `POST`, `PUT`, `PATCH`, `DELETE`,
+`HEAD`, `OPTIONS`, `TRACE`, and `CONNECT`. It works in normal FastAPI/canon
+`methods=` lists too; strings remain supported.
+
+For a separate POST operation, add this before constructing the feature/app:
+
+```python
+from fastapi_canon import HTTPMethod
+
+
+@router.stream(
+    "/{run_id}/events",
+    methods=[HTTPMethod.POST],
+    raises=[run_not_found],
+    dependencies=[Depends(require_existing_run)],
+    operation_id="create_run_events",
+)
+@inject
+async def create_events(
+    run_id: str, runs: FromDishka[RunService]
+) -> AsyncIterator[RunEvent]:
+    async for event in runs.events(run_id):
+        yield event
+```
+
+`methods=[HTTPMethod.POST]` selects **only POST**. The list is the native Streams
+API, following FastAPI's `api_route()` convention. It can also select both
+`[HTTPMethod.GET, HTTPMethod.POST]` for the same handler. Streams currently
+accepts GET and POST only; other enum members remain invalid for `stream()`.
+GET is useful for subscribing to events; POST lets the request include a typed
+JSON body, as in [`examples/streams/app.py`](../examples/streams/app.py).
+For generated clients, declare GET and POST separately with different
+`operation_id` values, as the runnable example does.
 
 Every declared error must be an `Error` instance in that router's registry.
 Nonempty `raises` requires a registry. Duplicate instances, including errors
@@ -132,7 +210,8 @@ To document normalized `HTTPException` statuses, use canon's existing
 `responses=run_errors.responses(http_statuses=[403])` router/operation option.
 Request validation errors are normalized and documented by `Composition` by
 default. For manual app assembly, include the router and call
-`run_errors.install(app)` before generating OpenAPI.
+`run_errors.install(app)` before generating OpenAPI. If you bypass `Composition`,
+also configure Dishka's container, middleware, and lifespan yourself.
 
 ## Export and client generation
 
@@ -147,7 +226,7 @@ uv run --group streams fastapi-streams generate --schema openapi.json --language
 uv run --group streams fastapi-streams generate --schema openapi.json --language typescript --output generated/typescript
 ```
 
-For another application, install `fastapi-streams[codegen]>=0.0.1,<0.1` and use
+For another application, install `fastapi-streams[codegen]==0.0.1` and use
 your app's module path instead. Both clients consume the same OpenAPI 3.2 contract.
 
 ## Streaming boundary
@@ -167,9 +246,12 @@ stream exceptions, or convert them to events. There is no `stream_raises` API.
 
 The [Streams CI workflow](../.github/workflows/streams.yml) runs the full suite
 on Python 3.12 and 3.14 against the locked release and current upstream `main`,
-on pushes, pull requests, and weekly. Regression tests cover dependency errors,
+on pushes, pull requests, and weekly. The upstream leg detects future breaks;
+it does not change the version installed by canon's extra. Regression tests cover
+dependency errors,
 validation, typed GET/POST streams, complete SSE schemas, and both client
-generators. The generated Python client also makes successful and failing
+generators, plus Dishka service reuse and cleanup across the HTTP/stream
+boundary. The generated Python client also makes successful and failing
 requests against the combined app. Separate clean-wheel checks exercise canon
 without Streams installed.
 

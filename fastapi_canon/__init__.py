@@ -1,5 +1,7 @@
 """Opinionated FastAPI feature composition with Dishka and Problem Details."""
 
+from http import HTTPMethod
+
 from .error import Error, ErrorConfigurationError, ErrorRegistry, Problem
 from .feature import (
     Composition,
@@ -26,6 +28,7 @@ __all__ = [
     "ExceptionHandlerSpec",
     "Feature",
     "FeatureConfigurationError",
+    "HTTPMethod",
     "Problem",
     "ProviderFactory",
     "ProviderSource",

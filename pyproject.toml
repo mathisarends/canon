@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 streams = [
-    "fastapi-streams>=0.0.1,<0.1",
+    "fastapi-streams==0.0.1",
 ]
 
 [project.urls]
@@ -51,7 +51,7 @@ dev = [
     "types-jsonschema>=4.26",
 ]
 streams = [
-    "fastapi-streams[codegen]>=0.0.1,<0.1",
+    "fastapi-streams[codegen]==0.0.1",
 ]
 
 [tool.ruff]

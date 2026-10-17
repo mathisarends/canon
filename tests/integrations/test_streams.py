@@ -11,8 +11,11 @@ from typing import Any
 
 import httpx
 import pytest
+from dishka import Provider, Scope, provide
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+from starlette.types import Message, Receive, Send
+from starlette.types import Scope as ASGIScope
 
 pytest.importorskip("fastapi_streams")
 
@@ -22,7 +25,10 @@ from examples.streams.app import (
     RunCompleted,
     RunEvent,
     RunNotFound,
+    RunProvider,
+    RunService,
     app,
+    create_app,
     feature,
     router,
     run_errors,
@@ -35,10 +41,16 @@ from fastapi_canon import (
     ErrorConfigurationError,
     ErrorRegistry,
     Feature,
+    HTTPMethod,
 )
 from fastapi_canon.integrations.streams import CanonStreamRouter
 
 AUTH = {"Authorization": "Bearer demo"}
+
+
+@pytest.fixture
+def stream_app() -> FastAPI:
+    return create_app()
 
 
 def test_router_combines_native_bases_and_feature_discovers_registry() -> None:
@@ -102,9 +114,11 @@ def test_invalid_canon_declarations(
                 yield RunCompleted(run_id=1)
 
 
-@pytest.mark.parametrize("method", ["GET", "POST"])
-def test_domain_errors_from_dependencies_are_problem_responses(method: str) -> None:
-    with TestClient(app) as client:
+@pytest.mark.parametrize("method", [HTTPMethod.GET, HTTPMethod.POST])
+def test_domain_errors_from_dependencies_are_problem_responses(
+    method: HTTPMethod, stream_app: FastAPI
+) -> None:
+    with TestClient(stream_app) as client:
         unauthenticated = client.request(method, "/runs/1/events", json={"steps": 1})
         missing = client.request(
             method, "/runs/0/events", headers=AUTH, json={"steps": 1}
@@ -120,8 +134,10 @@ def test_domain_errors_from_dependencies_are_problem_responses(method: str) -> N
         assert response.json()["type"] == f"https://example.test/problems/{code}"
 
 
-def test_http_exception_and_request_validation_are_normalized() -> None:
-    with TestClient(app) as client:
+def test_http_exception_and_request_validation_are_normalized(
+    stream_app: FastAPI,
+) -> None:
+    with TestClient(stream_app) as client:
         denied = client.get(
             "/runs/1/events", headers={"Authorization": "Bearer forbidden"}
         )
@@ -140,9 +156,9 @@ def test_http_exception_and_request_validation_are_normalized() -> None:
         assert "private input" not in response.text
 
 
-@pytest.mark.parametrize("method", ["GET", "POST"])
-def test_successful_typed_streams(method: str) -> None:
-    with TestClient(app) as client:
+@pytest.mark.parametrize("method", [HTTPMethod.GET, HTTPMethod.POST])
+def test_successful_typed_streams(method: HTTPMethod, stream_app: FastAPI) -> None:
+    with TestClient(stream_app) as client:
         response = client.request(
             method, "/runs/7/events", headers=AUTH, json={"steps": 2}
         )
@@ -195,7 +211,7 @@ def test_feature_discovers_stream_and_rest_registries_together() -> None:
     async def missing() -> None:
         raise OtherMissing
 
-    mixed = Feature(name="mixed", routers=[router, rest])
+    mixed = Feature(name="mixed", routers=[router, rest], providers=[RunProvider])
     assert mixed.errors is not None
     assert mixed.errors.errors == (*run_errors.errors, other_missing)
     application = Composition(mixed).apply(FastAPI())
@@ -210,7 +226,7 @@ def test_feature_discovers_stream_and_rest_registries_together() -> None:
 @pytest.mark.parametrize(
     ("options", "exception"),
     [
-        ({"methods": ["DELETE"]}, ValueError),
+        ({"methods": [HTTPMethod.DELETE]}, ValueError),
         ({"response_model": dict[str, str]}, TypeError),
         ({"response_model_exclude_none": True}, TypeError),
         ({"status_code": 204}, ValueError),
@@ -229,6 +245,90 @@ def test_native_stream_endpoint_must_be_a_typed_generator() -> None:
         @CanonStreamRouter().stream("/events")
         async def invalid() -> RunCompleted:
             return RunCompleted(run_id=1)
+
+
+def test_http_method_enum_supports_multiple_native_stream_methods() -> None:
+    selected = CanonStreamRouter()
+
+    @selected.stream("/events", methods=[HTTPMethod.GET, HTTPMethod.POST])
+    async def events() -> AsyncIterator[RunEvent]:
+        yield RunCompleted(run_id=1)
+
+    application = FastAPI()
+    application.include_router(selected)
+    with TestClient(application) as client:
+        for method in (HTTPMethod.GET, HTTPMethod.POST):
+            response = client.request(method, "/events")
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("text/event-stream")
+        assert client.put("/events").status_code == 405
+
+
+@pytest.mark.parametrize("method", [HTTPMethod.GET, HTTPMethod.POST])
+def test_dishka_request_service_spans_preconditions_and_stream(
+    method: HTTPMethod,
+) -> None:
+    calls: list[str] = []
+
+    class TrackedRunService(RunService):
+        closed = False
+
+        async def require_existing(self, run_id: int) -> None:
+            assert not self.closed
+            calls.append("check")
+            await super().require_existing(run_id)
+
+        async def events(
+            self, run_id: int, *, steps: int = 1
+        ) -> AsyncIterator[RunEvent]:
+            assert not self.closed
+            calls.append("stream")
+            async for event in super().events(run_id, steps=steps):
+                yield event
+            assert not self.closed
+            calls.append("stream done")
+
+    class TrackedRunProvider(Provider):
+        @provide(scope=Scope.REQUEST)
+        async def run_service(self) -> AsyncIterator[RunService]:
+            service = TrackedRunService()
+            calls.append("service open")
+            try:
+                yield service
+            finally:
+                service.closed = True
+                calls.append("service close")
+
+    application = Composition(
+        Feature(name="tracked", routers=[router], providers=[TrackedRunProvider])
+    ).apply(FastAPI())
+
+    async def recorded_app(scope: ASGIScope, receive: Receive, send: Send) -> None:
+        async def record_start(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                calls.append(f"HTTP {message['status']}")
+            await send(message)
+
+        await application(scope, receive, record_start)
+
+    with TestClient(recorded_app) as client:
+        success = client.request(
+            method, "/runs/1/events", headers=AUTH, json={"steps": 2}
+        )
+        assert success.status_code == 200
+        assert calls[:2] == ["service open", "check"]
+        assert calls.count("service open") == 1
+        assert calls.index("check") < calls.index("HTTP 200")
+        assert calls.index("check") < calls.index("stream")
+        assert calls[-2:] == ["stream done", "service close"]
+        calls.clear()
+        missing = client.request(
+            method, "/runs/0/events", headers=AUTH, json={"steps": 2}
+        )
+        assert missing.status_code == 404
+        assert missing.headers["content-type"] == "application/problem+json"
+        assert missing.json()["code"] == "run_not_found"
+        assert calls == ["service open", "check", "HTTP 404", "service close"]
 
 
 def test_compilation_preserves_entire_native_sse_contract() -> None:
@@ -341,8 +441,10 @@ def test_export_and_generate_both_clients(tmp_path: Path, language: str) -> None
             assert event.run_id == 1
 
             async def consume() -> None:
-                transport = httpx.ASGITransport(app=app)
+                application = create_app()
+                transport = httpx.ASGITransport(app=application)
                 async with (
+                    application.router.lifespan_context(application),
                     httpx.AsyncClient(
                         transport=transport, base_url="http://test"
                     ) as http,

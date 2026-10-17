@@ -338,6 +338,10 @@ excluded with `include_in_schema=False` are outside document-level validation;
 registered. Router-level `raises=` applies to operations declared on that
 router, not to separately included child routers.
 
+For explicit method lists, import the string enum `HTTPMethod` from
+`fastapi_canon`, for example `methods=[HTTPMethod.POST]`. Canon re-exports
+Python's standard `http.HTTPMethod`; ordinary string method names also work.
+
 ### Optional fastapi-streams integration
 
 Install `fastapi-canon[streams]` and import `CanonStreamRouter` from
@@ -354,7 +358,8 @@ failures remain transport errors.
 See the [integration API](docs/streams.md) for installation, router options,
 composition, client generation, and the streaming boundary. The
 [`examples/streams`](examples/streams) guide includes an executable GET/POST app
-and local regression commands.
+with Dishka injection in dependencies and generators, and local regression
+commands.
 
 ## Success response contracts
 
