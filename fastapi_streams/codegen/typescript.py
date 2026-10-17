@@ -88,6 +88,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         "ClientOptions",
         "RequestOptions",
         "HttpError",
+        "isHttpError",
         "StreamParseError",
         "TransportError",
     }
@@ -100,7 +101,10 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
             [_input_name(operation)] if operation.parameters or operation.body else []
         )
         if operation.errors:
-            names.append(identifier(operation.operation_id, upper=True) + "Error")
+            names.extend(
+                identifier(operation.operation_id, upper=True) + suffix
+                for suffix in ("Error", "ErrorBody")
+            )
         for name in names:
             if name in public_names:
                 raise ContractError(f"TypeScript public name collision: {name}")
@@ -161,7 +165,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         'export type { Client } from "./client.js";',
         'export * from "./types.js";',
         'export type { ClientOptions, RequestOptions } from "./transport/sse.js";',
-        "export { HttpError, TransportError, StreamParseError } "
+        "export { HttpError, isHttpError, TransportError, StreamParseError } "
         'from "./transport/errors.js";',
     ]
     for group, operations in sorted(grouped.items()):

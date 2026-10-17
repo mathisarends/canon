@@ -119,6 +119,54 @@ Pydantic; TypeScript provides static types and JSON decoding, with no runtime
 schema validator. Cancellation propagates normally; application error events
 remain ordinary members of the user-defined union.
 
+## HTTP error contracts
+
+The SDK works with ordinary OpenAPI response declarations, including
+`application/json`, `application/problem+json`, and other declared response media
+types. No error registry or particular problem envelope is required. Declare
+HTTP failures with FastAPI's `responses=`; put authentication, authorization,
+and resource checks in dependencies so they can fail before the response starts.
+Even generator statements before the first `yield` execute after response start.
+
+Each operation with declared error schemas exports an `OperationErrorBody`
+union: for example `StreamRunEventsErrorBody`. The earlier `OperationError`
+name remains an alias for compatibility; it describes response bodies, not
+the exceptions thrown by the SDK. Python imports these aliases from `models`;
+TypeScript exports them from the SDK entrypoint.
+
+Catch HTTP failures around **iteration**, since opening the request is lazy.
+`HttpError.details` deliberately remains unvalidated: proxies and servers can
+return unexpected JSON, plain text, HTML, incomplete bodies, or no body at all.
+An operation's body union does not associate each variant with a status and does
+not prove which operation produced an exception. Check the actual HTTP status
+and validate the body before using application fields.
+
+TypeScript provides `isHttpError(error, isDetails)`. Supply a type guard that
+checks every field promised by its return type, or adapt an existing runtime
+validator. The helper verifies the SDK exception class and invokes that guard;
+it does not generate a schema validator or validate the HTTP status. A generic
+type argument alone cannot replace the required guard. Failed guards leave the
+original `HttpError` available for generic handling.
+
+Python can validate `error.details` with `TypeAdapter(OperationErrorBody)` and
+handle `ValidationError` as an unexpected response. Both approaches retain
+the original status, response, and diagnostics. Schema unions with permissive
+variants may accept a broad range of bodies; inspect the parsed variant before
+using its fields. Existing limits on bounded HTTP diagnostics still apply.
+
+The checked consumer examples show HTTP validation errors, fallback handling,
+stream parsing/transport errors, and ordinary application error events:
+
+- [TypeScript error handling](../examples/agent_runs/errors.ts), compiled with the
+  generated SDK under the repository's strict TypeScript configuration.
+- [Python error handling](../examples/agent_runs/errors.py), checked by Pyright
+  with the generated models.
+
+Caller cancellation continues to propagate. Neither SDK converts application
+error events into exceptions or automatically retries a stream.
+
+## Python model fields
+
 Python uses `None` for omitted optional fields; `model_fields_set` distinguishes
 absence from explicit null. Explicit null is rejected for fields that may only
 be omitted. Requests exclude unset fields and serialize using wire aliases.

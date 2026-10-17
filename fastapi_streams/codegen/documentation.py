@@ -1,6 +1,7 @@
 from typing import Literal
 
 from fastapi_streams.codegen.ir import Operation
+from fastapi_streams.codegen.names import identifier
 
 
 def operation_doc(
@@ -19,6 +20,16 @@ def operation_doc(
             "remain events.",
         ]
     )
+    if operation.errors:
+        name = identifier(operation.operation_id, upper=True) + "ErrorBody"
+        responses = "; ".join(
+            sorted({f"{error.status} {error.media_type}" for error in operation.errors})
+        )
+        paragraphs.append(
+            f"Declared HTTP response bodies: {name} ({responses}). "
+            "HttpError.details may also contain undeclared JSON, text, or no body; "
+            "validate it before accessing application fields."
+        )
     if language == "typescript":
         paragraphs.extend(
             [

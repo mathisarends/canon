@@ -8,7 +8,10 @@ export interface NestedEventsParams {
   itemId: number;
   labels?: Array<string> | null;
 }
-export type NestedEventsError = Types.HTTPValidationError;
+/** Declared HTTP response bodies; caught errors still require validation. */
+export type NestedEventsErrorBody = Types.HTTPValidationError;
+/** @deprecated Use NestedEventsErrorBody for response bodies. */
+export type NestedEventsError = NestedEventsErrorBody;
 
 export function createFixturesApi(client: ClientOptions) {
   return {
@@ -22,6 +25,8 @@ export function createFixturesApi(client: ClientOptions) {
      * Does not automatically reconnect, retry, or replay events.
      *
      * HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+     *
+     * Declared HTTP response bodies: NestedEventsErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
      *
      * Breaking iteration closes the reader and aborts the request. Caller cancellation propagates the AbortSignal reason.
      *

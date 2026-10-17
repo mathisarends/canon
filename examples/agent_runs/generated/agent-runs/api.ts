@@ -7,13 +7,19 @@ export interface StreamPromptParams {
   runId: string;
   body: Types.RunRequest;
 }
-export type StreamPromptError = Types.HTTPValidationError;
+/** Declared HTTP response bodies; caught errors still require validation. */
+export type StreamPromptErrorBody = Types.HTTPValidationError;
+/** @deprecated Use StreamPromptErrorBody for response bodies. */
+export type StreamPromptError = StreamPromptErrorBody;
 
 export interface StreamRunEventsParams {
   runId: string;
   delay?: number;
 }
-export type StreamRunEventsError = Types.HTTPValidationError;
+/** Declared HTTP response bodies; caught errors still require validation. */
+export type StreamRunEventsErrorBody = Types.HTTPValidationError;
+/** @deprecated Use StreamRunEventsErrorBody for response bodies. */
+export type StreamRunEventsError = StreamRunEventsErrorBody;
 
 export function createAgentRunsApi(client: ClientOptions) {
   return {
@@ -27,6 +33,8 @@ export function createAgentRunsApi(client: ClientOptions) {
      * Does not automatically reconnect, retry, or replay events.
      *
      * HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+     *
+     * Declared HTTP response bodies: StreamPromptErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
      *
      * Breaking iteration closes the reader and aborts the request. Caller cancellation propagates the AbortSignal reason.
      *
@@ -56,6 +64,8 @@ export function createAgentRunsApi(client: ClientOptions) {
      * Does not automatically reconnect, retry, or replay events.
      *
      * HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+     *
+     * Declared HTTP response bodies: StreamRunEventsErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
      *
      * Breaking iteration closes the reader and aborts the request. Caller cancellation propagates the AbortSignal reason.
      *

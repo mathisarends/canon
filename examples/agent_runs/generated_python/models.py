@@ -47,7 +47,11 @@ class RunStarted(BaseModel):
 
 type StreamPromptError = HTTPValidationError
 
+type StreamPromptErrorBody = StreamPromptError
+
 type StreamRunEventsError = HTTPValidationError
+
+type StreamRunEventsErrorBody = StreamRunEventsError
 
 class TokenDelta(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

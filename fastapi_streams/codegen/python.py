@@ -77,9 +77,17 @@ def generate_python(
             body = replace(body, type=models.add(name + "Body", body.type))
         event = models.add(name + "Event", operation.event)
         if operation.errors:
-            models.add(
-                name + "Error", Union(tuple(error.type for error in operation.errors))
+            for suffix in ("Error", "ErrorBody"):
+                if name + suffix in models.declarations:
+                    raise ContractError(
+                        f"Python public error name collision: {name + suffix}"
+                    )
+            # Keep the original declaration as the owner of anonymous models so
+            # existing imports such as OperationError0 remain stable.
+            models.declarations[name + "Error"] = Union(
+                tuple(error.type for error in operation.errors)
             )
+            models.declarations[name + "ErrorBody"] = Reference(name + "Error")
         operation = replace(
             operation, parameters=tuple(parameters), body=body, event=event
         )
@@ -368,7 +376,7 @@ class _Models:
                         ]
                         constant_default = not field.required and (
                             len(enum_values) == len(literals)
-                            or len(literal_values) == len(literals)
+                            or len(literal_values) == len(literals) == 1
                         )
                         if (
                             not field.required
