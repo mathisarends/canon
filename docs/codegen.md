@@ -29,6 +29,12 @@ The generator extracts application data from
 reachable from their parameters, bodies, events and error responses are emitted.
 Operations use the first tag as their group, defaulting to `streams`.
 
+Generated method documentation carries each operation's `summary`, `description`,
+and `deprecated` marker alongside language-specific SDK behavior. Describe
+replay, retention, and server job lifetime explicitly on your endpoint; the
+generator does not infer these business guarantees. Python early exits should
+use `contextlib.aclosing`; TypeScript `for await` cleanup closes its reader.
+
 TypeScript has no runtime dependencies and uses Fetch-compatible APIs. The
 example uses ES modules and is tested on Node 24. Generated Python packages
 require Python 3.12+, `httpx>=0.28` and `pydantic>=2.11.2` (`uv add httpx pydantic`).
@@ -56,6 +62,38 @@ every `check` or `generate --check` call; omitting it checks HTTPX output.
 REST operations remain available in the contract for an existing SDK generator
 such as Orval or HeyAPI. Keep REST and streaming SDKs in separate output
 directories. Reusing external generated model imports is a future feature.
+
+## Event discriminators
+
+A Python default allows omitting a field when constructing a model. It does not
+automatically make the field required in JSON Schema. The generator respects
+`required` and warns with `OptionalDiscriminatorWarning` when a stream event
+union uses an optional discriminator, including nested unions. An absent tag may
+prevent variant selection; TypeScript's static types do not validate incoming JSON.
+
+For **output-only** event models whose serializer always emits default fields,
+configure the output schema to describe that behavior:
+
+```python
+from pydantic import BaseModel, ConfigDict
+
+
+class StreamEvent(BaseModel):
+    model_config = ConfigDict(
+        json_schema_mode_override="serialization",
+        json_schema_serialization_defaults_required=True,
+    )
+```
+
+Inherit event variants from this model, or apply the configuration to an existing
+output-only base. It marks all serialized default fields required, not only the
+discriminator. Avoid applying it globally to shared request models: input and
+output requiredness can differ. Alternatively, declare the tag without a default
+and pass it explicitly. Regenerate the schema and clients after changing models.
+
+Warnings are advisory and do not change fields or defaults. Python callers can
+filter or promote this category using the standard `warnings` module; the category
+is available from `fastapi_streams.codegen.diagnostics`.
 
 ## Check drift in CI
 

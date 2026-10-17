@@ -65,6 +65,8 @@ class NestedEvent(BaseModel):
 
 type NestedEventsError = HTTPValidationError
 
+type NestedEventsErrorBody = NestedEventsError
+
 type NestedEventsLabels = (list[str] | None)
 
 type NestedEventsXTrace = (str | None)

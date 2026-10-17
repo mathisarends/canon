@@ -20,6 +20,23 @@ class AgentRunsApi:
         body: Models.RunRequest,
         options: RequestOptions | None = None,
     ) -> AsyncGenerator[Models.RunEvent, None]:
+        """
+        Stream Prompt
+
+        HTTP POST /v1/runs/{run_id}/events.
+
+        Opens the HTTP request when iteration begins. Parameter and body preparation may fail at the method call.
+
+        Does not automatically reconnect, retry, or replay events.
+
+        HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+
+        Declared HTTP response bodies: StreamPromptErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
+
+        Use contextlib.aclosing for deterministic cleanup when exiting iteration early. Task cancellation closes the response and propagates normally.
+
+        Events are validated with Pydantic.
+        """
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
         adapter = TypeAdapter(Models.RunRequest)
@@ -41,6 +58,23 @@ class AgentRunsApi:
         delay: float | None = None,
         options: RequestOptions | None = None,
     ) -> AsyncGenerator[Models.RunEvent, None]:
+        """
+        Stream Run Events
+
+        HTTP GET /v1/runs/{run_id}/events.
+
+        Opens the HTTP request when iteration begins. Parameter and body preparation may fail at the method call.
+
+        Does not automatically reconnect, retry, or replay events.
+
+        HTTP failures raise HttpError; reading or decoding failures raise TransportError or StreamParseError. Application error events remain events.
+
+        Declared HTTP response bodies: StreamRunEventsErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
+
+        Use contextlib.aclosing for deterministic cleanup when exiting iteration early. Task cancellation closes the response and propagates normally.
+
+        Events are validated with Pydantic.
+        """
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
         append_query(query, 'delay', delay, explode=True)

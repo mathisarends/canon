@@ -3,6 +3,7 @@ from dataclasses import replace
 from importlib.resources import files
 from typing import Literal
 
+from fastapi_streams.codegen.documentation import operation_doc
 from fastapi_streams.codegen.ir import (
     Array,
     Contract,
@@ -76,9 +77,17 @@ def generate_python(
             body = replace(body, type=models.add(name + "Body", body.type))
         event = models.add(name + "Event", operation.event)
         if operation.errors:
-            models.add(
-                name + "Error", Union(tuple(error.type for error in operation.errors))
+            for suffix in ("Error", "ErrorBody"):
+                if name + suffix in models.declarations:
+                    raise ContractError(
+                        f"Python public error name collision: {name + suffix}"
+                    )
+            # Keep the original declaration as the owner of anonymous models so
+            # existing imports such as OperationError0 remain stable.
+            models.declarations[name + "Error"] = Union(
+                tuple(error.type for error in operation.errors)
             )
+            models.declarations[name + "ErrorBody"] = Reference(name + "Error")
         operation = replace(
             operation, parameters=tuple(parameters), body=body, event=event
         )
@@ -88,12 +97,16 @@ def generate_python(
     def render_type(value: Type) -> str:
         return models.render_type(value, hint="Anonymous", prefix="Models.")
 
+    def documentation(operation: Operation) -> str:
+        return operation_doc(operation, "python")
+
     add_filters(
         env,
         snake=python_identifier,
         repr=repr,
         py_type=render_type,
         py_path=_path,
+        operation_doc=documentation,
     )
     groups: list[dict[str, str]] = []
     output: dict[str, str] = {}
@@ -355,8 +368,15 @@ class _Models:
                         enum_values = [
                             part for part in literals if isinstance(part, EnumValue)
                         ]
-                        constant_default = (
-                            len(enum_values) == len(literals) and not field.required
+                        literal_values = [
+                            part
+                            for part in literals
+                            if isinstance(part, LiteralType)
+                            and isinstance(part.value, str)
+                        ]
+                        constant_default = not field.required and (
+                            len(enum_values) == len(literals)
+                            or len(literal_values) == len(literals) == 1
                         )
                         if (
                             not field.required
@@ -366,7 +386,7 @@ class _Models:
                             annotation = f"{annotation} | None"
                             nonnullable_optional.append(field_name)
                         default = "None" if not field.required else "..."
-                        if constant_default:
+                        if constant_default and enum_values:
                             selected = enum_values[0]
                             for value in enum_values:
                                 enum = self.declarations[value.enum]
@@ -379,6 +399,16 @@ class _Models:
                                     selected = value
                                     break
                             default = f"{selected.enum}.{selected.member}"
+                        elif constant_default:
+                            selected_literal = next(
+                                (
+                                    part
+                                    for part in literal_values
+                                    if part == field.default
+                                ),
+                                literal_values[0],
+                            )
+                            default = repr(selected_literal.value)
                         assignment = (
                             f" = Field(default={default}, alias={field.name!r})"
                             if field_name != field.name

@@ -164,6 +164,9 @@ class Operation:
     response_status: str
     errors: tuple[ErrorResponse, ...]
     security: tuple[dict[str, list[str]], ...]
+    summary: str = ""
+    description: str = ""
+    deprecated: bool = False
 
 
 @dataclass(frozen=True)
@@ -334,6 +337,9 @@ def build_ir(document: Document) -> Contract:
                     status,
                     tuple(errors),
                     tuple(raw.get("security", document.get("security", []))),
+                    raw.get("summary", ""),
+                    raw.get("description", ""),
+                    raw.get("deprecated", False),
                 )
             )
     security: Document = document.get("components", {}).get("securitySchemes", {})
@@ -342,9 +348,12 @@ def build_ir(document: Document) -> Contract:
         for name, value in sorted(security.items())
         for scheme in [resolve_ref(document, value)]
     )
+    from fastapi_streams.codegen.diagnostics import warn_optional_discriminators
     from fastapi_streams.codegen.enums import with_enums
 
-    return with_enums(Contract(tuple(operations), types.declarations(), schemes))
+    contract = with_enums(Contract(tuple(operations), types.declarations(), schemes))
+    warn_optional_discriminators(contract)
+    return contract
 
 
 class _Types:

@@ -2,6 +2,7 @@ import json
 import re
 from importlib.resources import files
 
+from fastapi_streams.codegen.documentation import operation_doc
 from fastapi_streams.codegen.ir import (
     Array,
     Contract,
@@ -49,20 +50,19 @@ def render_type(type_: Type, prefix: str = "") -> str:
         case Array(item=item):
             return f"Array<{render_type(item, prefix=prefix)}>"
         case Union(members=members):
-            return (
-                "("
-                + " | ".join(render_type(part, prefix=prefix) for part in members)
-                + ")"
+            return " | ".join(
+                dict.fromkeys(render_type(part, prefix=prefix) for part in members)
             )
         case Intersection(members=members):
-            return (
-                "("
-                + " & ".join(render_type(part, prefix=prefix) for part in members)
-                + ")"
+            return " & ".join(
+                f"({render_type(part, prefix=prefix)})"
+                if isinstance(part, Union)
+                else render_type(part, prefix=prefix)
+                for part in members
             )
         case Object(fields=fields, additional=additional):
             parts = [
-                f"{json.dumps(field.name)}{'' if field.required else '?'}: "
+                f"{_property_name(field.name)}{'' if field.required else '?'}: "
                 f"{render_type(field.type, prefix=prefix)};"
                 for field in fields
             ]
@@ -88,6 +88,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         "ClientOptions",
         "RequestOptions",
         "HttpError",
+        "isHttpError",
         "StreamParseError",
         "TransportError",
     }
@@ -100,7 +101,10 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
             [_input_name(operation)] if operation.parameters or operation.body else []
         )
         if operation.errors:
-            names.append(identifier(operation.operation_id, upper=True) + "Error")
+            names.extend(
+                identifier(operation.operation_id, upper=True) + suffix
+                for suffix in ("Error", "ErrorBody")
+            )
         for name in names:
             if name in public_names:
                 raise ContractError(f"TypeScript public name collision: {name}")
@@ -109,6 +113,9 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
 
     def pascal(value: str) -> str:
         return identifier(value, upper=True)
+
+    def documentation(operation: Operation) -> str:
+        return operation_doc(operation, "typescript")
 
     add_filters(
         env,
@@ -119,6 +126,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         required=_required,
         error_type=_error_type,
         path=_path,
+        operation_doc=documentation,
     )
     output: dict[str, str] = {}
     declarations: list[str] = []
@@ -157,7 +165,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         'export type { Client } from "./client.js";',
         'export * from "./types.js";',
         'export type { ClientOptions, RequestOptions } from "./transport/sse.js";',
-        "export { HttpError, TransportError, StreamParseError } "
+        "export { HttpError, isHttpError, TransportError, StreamParseError } "
         'from "./transport/errors.js";',
     ]
     for group, operations in sorted(grouped.items()):
@@ -194,6 +202,10 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
 
 def _input_name(operation: Operation) -> str:
     return identifier(operation.operation_id, upper=True) + "Params"
+
+
+def _property_name(name: str) -> str:
+    return name if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", name) else json.dumps(name)
 
 
 def _path(operation: Operation) -> str:

@@ -24,3 +24,14 @@ export class StreamParseError extends TransportError {
     super("Invalid JSON in SSE data", { cause });
   }
 }
+
+/** Narrow an HTTP error after a caller-supplied body validator succeeds.
+ * The validator must check every field its type promises. This does not check
+ * the operation of origin or associate the body with a particular HTTP status.
+ */
+export function isHttpError<T>(
+  error: unknown,
+  isDetails: (details: unknown) => details is T,
+): error is HttpError<T> {
+  return error instanceof HttpError && isDetails(error.details);
+}
