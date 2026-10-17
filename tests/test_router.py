@@ -13,6 +13,7 @@ from fastapi_canon import (
     Error,
     ErrorConfigurationError,
     ErrorRegistry,
+    HTTPMethod,
     ResponseConfigurationError,
 )
 
@@ -165,6 +166,23 @@ def test_api_route_accepts_canon_contracts_for_custom_method_sets() -> None:
     assert isinstance(route, APIRoute)
     assert route.methods == {"GET", "POST"}
     assert set(route.responses) == {200, 404}
+
+
+@pytest.mark.parametrize("method", [HTTPMethod.GET, HTTPMethod.POST])
+def test_http_method_enum_works_with_rest_routes(method: HTTPMethod) -> None:
+    router = CanonRouter()
+
+    @router.api_route("/method", methods=[method])
+    async def selected_method() -> dict[str, str]:
+        return {"method": method}
+
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        response = client.request(method, "/method")
+    assert response.status_code == 200
+    assert response.json() == {"method": method.value}
+    assert method.value.lower() in app.openapi()["paths"]["/method"]
 
 
 def test_raises_requires_a_registry() -> None:
