@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = {
     "fastapi-canon": ("fastapi-canon", "fastapi_canon"),
     "fastapi-streams": ("fastapi-streams", "fastapi_streams"),
-    "pyrpckit": ("websocket-rpc", "rpckit"),
+    "fastapi-wsrpc": ("fastapi-wsrpc", "fastapi_wsrpc"),
 }
 
 
@@ -25,18 +25,20 @@ def main() -> None:
         with zipfile.ZipFile(wheel) as artifact:
             assert f"{module}/py.typed" in artifact.namelist()
             assert not any(path.endswith("uv.lock") for path in artifact.namelist())
+        (sdist,) = output.glob(f"{name.replace('-', '_')}-{project['version']}.tar.gz")
+        _run(sys.executable, "-m", "twine", "check", "--strict", str(wheel), str(sdist))
         wheels[name] = str(wheel)
 
     combinations = (
         ("fastapi-canon",),
         ("fastapi-streams",),
-        ("pyrpckit",),
+        ("fastapi-wsrpc",),
         ("fastapi-canon[streams]", "fastapi-streams[codegen]"),
-        ("fastapi-canon", "pyrpckit[codegen,dishka]"),
+        ("fastapi-canon", "fastapi-wsrpc[codegen,dishka]"),
         (
             "fastapi-canon[streams]",
             "fastapi-streams[codegen]",
-            "pyrpckit[codegen,dishka]",
+            "fastapi-wsrpc[codegen,dishka]",
         ),
     )
     for requirements in combinations:

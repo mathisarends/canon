@@ -9,8 +9,8 @@ the target; do not treat illustrative APIs as implemented interfaces.
 - `packages/fastapi-canon`: composition, Dishka lifecycle, HTTP contracts, optional
   integration modules. Core must import and run without either extension.
 - `packages/fastapi-streams`: typed SSE, OpenAPI, Python/TypeScript client generation.
-- `packages/websocket-rpc`: currently `pyrpckit` / `rpckit`; retain public imports,
-  wire behavior, tests, and CLI until a deliberate successor migration.
+- `packages/fastapi-wsrpc`: successor `fastapi-wsrpc` / `fastapi_wsrpc`, with
+  FastAPI as a required dependency. Preserve wire behavior and client contracts.
 - Extensions must not acquire a required dependency on Canon or each other.
 - Keep independent package versions. Do not add a shared core without concrete reuse.
 - Application code follows `guides/architecture.md`: feature slices, inward

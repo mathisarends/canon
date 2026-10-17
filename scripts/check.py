@@ -3,13 +3,14 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMBERS = (
     ROOT / "packages/fastapi-canon",
     ROOT / "packages/fastapi-streams",
-    ROOT / "packages/websocket-rpc",
+    ROOT / "packages/fastapi-wsrpc",
     ROOT / "examples/reference-service",
 )
 
@@ -40,12 +41,16 @@ def main() -> None:
                 "uv",
                 "build",
                 "--package",
-                "pyrpckit",
+                "fastapi-wsrpc",
                 "--out-dir",
-                str(ROOT / "dist/pyrpckit"),
+                str(ROOT / "dist/fastapi-wsrpc"),
                 python=False,
             )
-            (wheel,) = (ROOT / "dist/pyrpckit").glob("pyrpckit-0.11.0-*.whl")
+            metadata = tomllib.loads((MEMBERS[2] / "pyproject.toml").read_text("utf-8"))
+            version = metadata["project"]["version"]
+            (wheel,) = (ROOT / "dist/fastapi-wsrpc").glob(
+                f"fastapi_wsrpc-{version}-*.whl"
+            )
             _run(
                 MEMBERS[2],
                 "uv",
@@ -55,7 +60,7 @@ def main() -> None:
                 "--python",
                 sys.executable,
                 "--with",
-                str(wheel) + "[codegen,dishka,fastapi,otel]",
+                str(wheel) + "[codegen,dishka,otel]",
                 "--with",
                 "pyright==1.1.414",
                 "python",
@@ -67,6 +72,15 @@ def main() -> None:
             for root in (*MEMBERS, ROOT):
                 _run(root, "-m", "pytest", "-q")
         elif gate == "clients":
+            _run(
+                MEMBERS[2],
+                "-m",
+                "fastapi_wsrpc.codegen.cli",
+                "generate",
+                "--config",
+                "examples/generated_clients/rpcgen.toml",
+                "--check",
+            )
             _run(MEMBERS[1], "scripts/codegen.py", "--check")
             npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
             if npm is None:

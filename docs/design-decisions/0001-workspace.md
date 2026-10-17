@@ -24,7 +24,7 @@ from local branches or working directories:
 | `mathisarends/fastapi-canon` | `19447668cb7f554c7271a9f1da15ab7ac4fd0d41` | root guides and reference service; base Git history |
 | `mathisarends/fastapi_canon` | `f275d3129671296bc9565155e641488e77d42074` | `packages/fastapi-canon` |
 | `mathisarends/fastapi-streams` | `90b70bef93110a1c97c9db38a584093f3bf4ac08` | `packages/fastapi-streams` |
-| `mathisarends/pyrpckit` | `853579eb08903bd95f8ce03f7608a3703ba40add` | `packages/websocket-rpc` |
+| `mathisarends/pyrpckit` | `853579eb08903bd95f8ce03f7608a3703ba40add` | `packages/fastapi-wsrpc` |
 
 Package imports are explicit merge commits with the source tip as a parent and
 the source tree placed under its package prefix. No squash or history rewrite
@@ -69,7 +69,14 @@ solely because a workspace lock resolves.
 4. Verify package suites, existing client generation, built artifacts, and a
    small composed example before recording compatibility results.
 
-Future work: finalize the RPC successor name and public API through consumer
-tests, improve the feature-slice reference service to use Canon composition,
+Follow-up decision: the user selected `fastapi-wsrpc` / `fastapi_wsrpc`. The RPC
+package was initially imported under `packages/websocket-rpc`, then moved and
+renamed in its own commit. FastAPI becomes a required dependency, its mounting
+APIs are exported directly, and the existing engine and wire contracts remain.
+The new distribution starts at unreleased 0.1.0; Canon and Streams retain their
+existing versions and PyPI identities. Original repositories remain untouched.
+
+Future work: validate the RPC successor against external application consumers,
+improve the feature-slice reference service to use Canon composition,
 and implement independent protected PyPI releases. Archive the RPC predecessor
 only after a released replacement and migration path exist.

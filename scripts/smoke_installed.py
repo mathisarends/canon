@@ -1,8 +1,11 @@
+import asyncio
 import importlib
 import importlib.util
 import runpy
+import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Literal
@@ -14,7 +17,7 @@ from pydantic import BaseModel
 MODULES = {
     "fastapi-canon": "fastapi_canon",
     "fastapi-streams": "fastapi_streams",
-    "pyrpckit": "rpckit",
+    "fastapi-wsrpc": "fastapi_wsrpc",
 }
 
 
@@ -25,6 +28,7 @@ class Event(BaseModel):
 
 def main() -> None:
     selected = set(sys.argv[1:])
+    assert importlib.util.find_spec("rpckit") is None
     for name, module in MODULES.items():
         if name in selected:
             installed = importlib.import_module(module)
@@ -59,9 +63,8 @@ def main() -> None:
 
         routers.append(streams)
         _cli("fastapi-streams")
-    if "pyrpckit" in selected:
-        from rpckit import RpcChannel, RpcService
-        from rpckit.integrations.fastapi import create_router
+    if "fastapi-wsrpc" in selected:
+        from fastapi_wsrpc import RpcChannel, RpcService, create_router
 
         channel = RpcChannel("health")
 
@@ -72,7 +75,7 @@ def main() -> None:
         rpc = RpcService()
         rpc.socket("/rpc", channels=(channel,))
         routers.append(create_router(rpc))
-        _cli("rpckit")
+        _cli("fastapi-wsrpc")
     if "fastapi-canon" in selected:
         from fastapi_canon import Composition, Feature
 
@@ -85,13 +88,15 @@ def main() -> None:
             assert client.get("/health").json() == {"status": "ok"}
         if "fastapi-streams" in selected:
             assert '"type":"ready"' in client.get("/events").text
-        if "pyrpckit" in selected:
+        if "fastapi-wsrpc" in selected:
             with client.websocket_connect("/rpc") as websocket:
                 websocket.send_json(
                     {"jsonrpc": "2.0", "id": 1, "method": "health.ping"}
                 )
                 assert websocket.receive_json()["result"] == "pong"
     assert app.openapi()["openapi"]
+    if "fastapi-wsrpc" in selected and importlib.util.find_spec("jinja2"):
+        _rpc_codegen(rpc)
     if selected == set(MODULES):
         # Run the same composition/lifecycle regression against installed wheels.
 
@@ -121,6 +126,75 @@ def _cli(name: str) -> None:
     subprocess.run(
         [str(executable), "--help"], check=True, capture_output=True, timeout=30
     )
+
+
+def _rpc_codegen(rpc) -> None:
+    from fastapi_wsrpc.codegen import (
+        PythonClientOptions,
+        TypeScriptClientOptions,
+        generate_python_client,
+        generate_typescript_client,
+    )
+    from fastapi_wsrpc.testing import InMemorySocketFactory
+
+    document = rpc.contract(title="Health", base_url="ws://test").to_openrpc()
+    with tempfile.TemporaryDirectory(prefix="canon-rpc-client-") as temporary:
+        working = Path(temporary)
+        python_options = PythonClientOptions(
+            package="health_client",
+            client_name="HealthClient",
+            with_transport="websocket",
+        )
+        typescript_options = TypeScriptClientOptions(with_transport="websocket")
+        generate_python_client(document, working / "health_client", python_options)
+        generate_typescript_client(document, working / "typescript", typescript_options)
+        assert not generate_python_client(
+            document, working / "health_client", python_options, check=True
+        )
+        assert not generate_typescript_client(
+            document, working / "typescript", typescript_options, check=True
+        )
+        sys.path.insert(0, temporary)
+        try:
+            generated = importlib.import_module("health_client")
+
+            async def consume() -> None:
+                async with (
+                    InMemorySocketFactory(rpc) as factory,
+                    generated.HealthClient.connect(socket_factory=factory) as client,
+                ):
+                    assert await client.health.ping() == "pong"
+
+            asyncio.run(consume())
+        finally:
+            sys.path.remove(temporary)
+        node = shutil.which("node")
+        compiler = (
+            Path(__file__).resolve().parents[1]
+            / "packages/fastapi-streams/node_modules/typescript/bin/tsc"
+        )
+        assert node and compiler.is_file(), "Run npm ci for the Streams member first"
+        subprocess.run(
+            [
+                node,
+                str(compiler),
+                "--strict",
+                "--target",
+                "ES2022",
+                "--module",
+                "ESNext",
+                "--moduleResolution",
+                "Bundler",
+                "--lib",
+                "ES2022,DOM,ESNext.Disposable",
+                "--skipLibCheck",
+                "--noEmit",
+                "typescript/index.ts",
+            ],
+            cwd=working,
+            check=True,
+            timeout=30,
+        )
 
 
 if __name__ == "__main__":

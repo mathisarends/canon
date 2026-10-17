@@ -1,0 +1,60 @@
+import importlib
+import sys
+from collections.abc import Iterator
+from types import ModuleType
+from typing import Any
+
+import pytest
+
+from fastapi_wsrpc import RpcService
+from fastapi_wsrpc.codegen import generate_python_client
+from fastapi_wsrpc.codegen.python import PythonClientOptions
+from fastapi_wsrpc.schema import render_openrpc
+from tests.conftest import greeting_app, room_channel
+
+PACKAGE = "greeting_client"
+
+
+@pytest.fixture(scope="session")
+def document() -> dict[str, Any]:
+    return render_openrpc(greeting_app.protocol, title="Greeting")
+
+
+@pytest.fixture(scope="session")
+def room_document() -> dict[str, Any]:
+    service = RpcService()
+    service.socket("/rooms", channels=(room_channel, greeting_app), name="rooms")
+    return service.contract(
+        title="Rooms", base_url="wss://rooms.example.com"
+    ).to_openrpc()
+
+
+@pytest.fixture(scope="session")
+def options() -> PythonClientOptions:
+    return PythonClientOptions(
+        package=PACKAGE,
+        client_name="GreetingClient",
+        source="greeting.openrpc.json",
+    )
+
+
+@pytest.fixture(scope="session")
+def generated_client(
+    document: dict[str, Any],
+    options: PythonClientOptions,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[ModuleType]:
+    root = tmp_path_factory.mktemp("generated")
+    generate_python_client(document, root / PACKAGE, options)
+    sys.path.insert(0, str(root))
+    importlib.invalidate_caches()
+    try:
+        yield importlib.import_module(PACKAGE)
+    finally:
+        sys.path.remove(str(root))
+        for name in [
+            name
+            for name in sys.modules
+            if name == PACKAGE or name.startswith(f"{PACKAGE}.")
+        ]:
+            del sys.modules[name]

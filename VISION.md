@@ -50,11 +50,11 @@ Canon treats the **application as the unit of coherence**, without making the wh
 | --- | --- | --- |
 | `fastapi-canon` | `fastapi_canon` | Feature composition, Dishka-based DI, HTTP router conventions, success/error contracts, lifecycle integration, and architectural guidance. |
 | `fastapi-streams` | `fastapi_streams` | Typed HTTP/SSE streams, OpenAPI stream descriptions, and Python/TypeScript stream SDK generation. |
-| **WebSocket RPC package — name TBD** | **Import path TBD** | FastAPI-native typed WebSocket RPC, OpenRPC contracts, subscriptions, bidirectional methods, binary/raw sockets, and Python/TypeScript SDK generation. |
+| `fastapi-wsrpc` | `fastapi_wsrpc` | FastAPI-native typed WebSocket RPC, OpenRPC contracts, subscriptions, bidirectional methods, binary/raw sockets, and Python/TypeScript SDK generation. |
 
 The RPC component is the successor to `pyrpckit`, not a permanent second branch of that project. Its design becomes explicitly FastAPI-first; the existing RPC engine, contract logic, and tests are assets to preserve, not abstractions to rewrite reflexively.
 
-**Naming constraint:** `fastapi-wsrpc` is a useful architectural working label but **not an available PyPI distribution name**: packaging normalization treats it as equivalent to the already-published `fastapi-ws-rpc`. Select and verify a distinct final distribution name before creating the release workflow. `fastapi-rpckit` is a candidate, **not a decided or availability-verified name**.
+**Naming decision (2026-10-17):** Use `fastapi-wsrpc` with Python import `fastapi_wsrpc`. The original draft incorrectly claimed a normalization collision with `fastapi-ws-rpc`: [PyPA normalization](https://packaging.python.org/en/latest/specifications/name-normalization/) collapses separator runs, but does not remove a separator between `ws` and `rpc`. These names are distinct. The PyPI JSON endpoint for `fastapi-wsrpc` returned HTTP 404 on this date; that is not a name reservation or a guarantee of registration acceptance. Confirm acceptance and ownership before release.
 
 ### 3.2 Canon as the umbrella identity
 
@@ -279,9 +279,9 @@ fastapi-canon/
 │   │   ├── pyproject.toml
 │   │   ├── fastapi_streams/
 │   │   └── tests/
-│   └── websocket-rpc/           # provisional directory name
+│   └── fastapi-wsrpc/
 │       ├── pyproject.toml
-│       ├── <final_import_package>/
+│       ├── fastapi_wsrpc/
 │       └── tests/
 ├── guides/
 ├── docs/
@@ -546,7 +546,7 @@ Prefer observable engineering outcomes to popularity metrics alone:
 
 ### Explicitly open
 
-1. What distinct, available PyPI name and import path should the RPC successor use? (`fastapi-wsrpc` collides with `fastapi-ws-rpc` under distribution-name normalization.)
+1. `fastapi-wsrpc` / `fastapi_wsrpc` is selected; confirm PyPI registration acceptance and ownership before release.
 2. Does Streams integration require a `CanonStreamRouter`, or is accepting `StreamRouter` within `Feature` cleaner?
 3. Should the RPC public API emphasize `RpcRouter` decorators, retain `RpcChannel`/`RpcService`, or offer both with a carefully limited surface?
 4. Which compatibility ranges are committed to support during the initial migration?
