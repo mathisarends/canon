@@ -9,6 +9,12 @@
 - Preserve the RPC engine, JSON-RPC wire protocol, `x-rpckit-*` OpenRPC extensions,
   binary/raw channels, and generated client APIs. Regenerate example clients.
 - See [migration steps](docs/migration.md). Existing repositories remain available.
+- Retain 0.1.0 for the first successor release: the inherited pyrpckit 0.11.0
+  engine and generated client contracts are preserved. Source parity and consumer
+  verification are recorded in the workspace documentation before publication.
+- Fix Python SDK formatting for long discriminator defaults, large event unions,
+  and route annotations discovered with Cara's exported contract. No generated
+  names, signatures, validation, or wire payloads change; regenerate clients.
 
 The entries below are the predecessor's history and retain their original names.
 

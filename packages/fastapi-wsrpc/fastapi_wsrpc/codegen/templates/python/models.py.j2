@@ -10,7 +10,7 @@
 {% if declaration.closed %}    model_config = ConfigDict(extra="forbid")
 {% endif %}{% for field in declaration.fields %}{{ field | field_line }}
 {% else %}    pass
-{% endfor %}{% else %}type {{ declaration.name | schema_name }} = {{ declaration.target | annotation }}
+{% endfor %}{% else %}{{ declaration | type_alias }}
 {% endif %}{% if not loop.last %}
 
 

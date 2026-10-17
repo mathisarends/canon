@@ -464,6 +464,70 @@ def test_generated_python_is_ruff_formatted(
     _assert_ruff_clean(deployed, options, tmp_path)
 
 
+def test_long_event_models_and_route_annotations_are_ruff_clean(
+    document: dict[str, Any],
+    options: PythonClientOptions,
+    tmp_path: Path,
+) -> None:
+    deployed = deepcopy(document)
+    schemas = deployed["components"]["schemas"]
+    event_names = [
+        "VoiceAssistantAudioCompleted",
+        "VoiceAssistantAudioStarted",
+        "VoiceAssistantToolCompleted",
+        "VoiceAssistantToolStarted",
+    ]
+    for name in event_names:
+        schemas[name] = {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "const": name, "default": name},
+            },
+            "required": ["type"],
+        }
+    schemas["VoiceAssistantEvent"] = {
+        "oneOf": [{"$ref": f"#/components/schemas/{name}"} for name in event_names],
+        "discriminator": {
+            "propertyName": "type",
+            "mapping": {name: f"#/components/schemas/{name}" for name in event_names},
+        },
+    }
+    schemas["ExtraordinarilyLongMediaPlaybackRequestParams"] = {
+        "type": "object",
+        "properties": {"uri": {"type": "string"}},
+        "required": ["uri"],
+    }
+    method = deepcopy(deployed["methods"][0])
+    method["name"] = "voice.assistant_audio_playback_completed"
+    method["params"] = [
+        {
+            "name": "params",
+            "required": True,
+            "schema": {
+                "$ref": "#/components/schemas/"
+                "ExtraordinarilyLongMediaPlaybackRequestParams"
+            },
+        }
+    ]
+    method["result"] = {
+        "name": "result",
+        "schema": {"$ref": "#/components/schemas/VoiceAssistantEvent"},
+    }
+    deployed["methods"].append(method)
+
+    schemas["PlaybackCommandParams"] = schemas[
+        "ExtraordinarilyLongMediaPlaybackRequestParams"
+    ]
+    shorter = deepcopy(method)
+    shorter["name"] = "voice.turn.start"
+    shorter["params"][0]["schema"]["$ref"] = (
+        "#/components/schemas/PlaybackCommandParams"
+    )
+    deployed["methods"].append(shorter)
+
+    _assert_ruff_clean(deployed, options, tmp_path)
+
+
 def _methods_only() -> RpcChannel:
     channel = RpcChannel("demo")
 

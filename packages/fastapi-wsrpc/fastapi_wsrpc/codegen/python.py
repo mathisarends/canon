@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from fastapi_wsrpc.codegen.ir import (
+    AliasDecl,
     BinaryStreamDecl,
     ClientIr,
     EnumDecl,
@@ -901,7 +902,47 @@ def _field_line(field: FieldDecl, imports: _Imports) -> str:
     if name != field.name:
         imports.add("pydantic", "Field")
         default = f"Field({default}, alias={_literal(field.name)})"
-    return f"    {name}: {annotation} = {default}"
+    assignment = f"    {name}: {annotation} = {default}"
+    if len(assignment) <= 88:
+        return assignment
+    return f"    {name}: {annotation} = (\n        {default}\n    )"
+
+
+def _type_alias(declaration: AliasDecl, imports: _Imports) -> str:
+    prefix = f"type {_schema_name(declaration.name)} = "
+    annotation = _annotation(declaration.target, imports)
+    if len(prefix + annotation) <= 88:
+        return prefix + annotation
+    target = declaration.target
+    if isinstance(target, UnionType):
+        members = "\n    | ".join(_annotation(item, imports) for item in target.members)
+        if target.discriminator is not None:
+            return (
+                f"{prefix}Annotated[\n    {members},\n"
+                f"    Field(discriminator={_literal(target.discriminator)}),\n]"
+            )
+        return f"{prefix}(\n    {members}\n)"
+    return prefix + annotation
+
+
+def _typed_constructor(name: str, constructor: str, arguments: tuple[str, ...]) -> str:
+    annotation = ", ".join(arguments)
+    inline = f"{name}: {constructor}[{annotation}] = {constructor}("
+    if len(inline) <= 88 or len(f"{name}: {constructor}[{annotation}] = (") <= 88:
+        return inline
+    items = f"    {annotation}"
+    if len(items) > 88:
+        items = "\n".join(f"    {argument}," for argument in arguments)
+    return f"{name}: {constructor}[\n{items}\n] = {constructor}("
+
+
+def _wrap_constructor(statement: str) -> str:
+    lines = statement.strip().splitlines()
+    if len(lines[0]) <= 88:
+        return "\n".join(lines)
+    prefix, value = lines[0].split(" = ", 1)
+    body = "\n".join(f"    {line}" for line in (value, *lines[1:]))
+    return f"{prefix} = (\n{body}\n)"
 
 
 def _annotation(expression: TypeExpr, imports: _Imports) -> str:
@@ -999,6 +1040,23 @@ def _template_filters(
         "docstring": _docstring,
         "enum_decl": lambda declaration: isinstance(declaration, EnumDecl),
         "field_line": lambda field: _field_line(field, imports),
+        "type_alias": lambda declaration: _type_alias(declaration, imports),
+        "wrap_constructor": _wrap_constructor,
+        "route_declaration": lambda route: _typed_constructor(
+            route.method_member,
+            "RpcRouteInfo",
+            (
+                "None"
+                if route.params_model is None
+                else _schema_name(route.params_model),
+                _annotation(route.result, imports),
+            ),
+        ),
+        "notification_declaration": lambda event: _typed_constructor(
+            _constant(event.rpc_name),
+            "RpcNotificationInfo",
+            (_annotation(event.payload, imports),),
+        ),
         "identifier": _identifier,
         "literal": _literal,
         "model_decl": lambda declaration: isinstance(declaration, ModelDecl),
