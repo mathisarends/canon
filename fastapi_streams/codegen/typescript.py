@@ -50,20 +50,19 @@ def render_type(type_: Type, prefix: str = "") -> str:
         case Array(item=item):
             return f"Array<{render_type(item, prefix=prefix)}>"
         case Union(members=members):
-            return (
-                "("
-                + " | ".join(render_type(part, prefix=prefix) for part in members)
-                + ")"
+            return " | ".join(
+                dict.fromkeys(render_type(part, prefix=prefix) for part in members)
             )
         case Intersection(members=members):
-            return (
-                "("
-                + " & ".join(render_type(part, prefix=prefix) for part in members)
-                + ")"
+            return " & ".join(
+                f"({render_type(part, prefix=prefix)})"
+                if isinstance(part, Union)
+                else render_type(part, prefix=prefix)
+                for part in members
             )
         case Object(fields=fields, additional=additional):
             parts = [
-                f"{json.dumps(field.name)}{'' if field.required else '?'}: "
+                f"{_property_name(field.name)}{'' if field.required else '?'}: "
                 f"{render_type(field.type, prefix=prefix)};"
                 for field in fields
             ]
@@ -199,6 +198,10 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
 
 def _input_name(operation: Operation) -> str:
     return identifier(operation.operation_id, upper=True) + "Params"
+
+
+def _property_name(name: str) -> str:
+    return name if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", name) else json.dumps(name)
 
 
 def _path(operation: Operation) -> str:

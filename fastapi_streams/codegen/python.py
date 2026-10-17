@@ -360,8 +360,15 @@ class _Models:
                         enum_values = [
                             part for part in literals if isinstance(part, EnumValue)
                         ]
-                        constant_default = (
-                            len(enum_values) == len(literals) and not field.required
+                        literal_values = [
+                            part
+                            for part in literals
+                            if isinstance(part, LiteralType)
+                            and isinstance(part.value, str)
+                        ]
+                        constant_default = not field.required and (
+                            len(enum_values) == len(literals)
+                            or len(literal_values) == len(literals)
                         )
                         if (
                             not field.required
@@ -371,7 +378,7 @@ class _Models:
                             annotation = f"{annotation} | None"
                             nonnullable_optional.append(field_name)
                         default = "None" if not field.required else "..."
-                        if constant_default:
+                        if constant_default and enum_values:
                             selected = enum_values[0]
                             for value in enum_values:
                                 enum = self.declarations[value.enum]
@@ -384,6 +391,16 @@ class _Models:
                                     selected = value
                                     break
                             default = f"{selected.enum}.{selected.member}"
+                        elif constant_default:
+                            selected_literal = next(
+                                (
+                                    part
+                                    for part in literal_values
+                                    if part == field.default
+                                ),
+                                literal_values[0],
+                            )
+                            default = repr(selected_literal.value)
                         assignment = (
                             f" = Field(default={default}, alias={field.name!r})"
                             if field_name != field.name

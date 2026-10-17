@@ -3,25 +3,25 @@
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 export type DoneEvent = {
-  "count": number;
-  "type": typeof FixtureEventType.DONE;
+  count: number;
+  type: typeof FixtureEventType.DONE;
 };
-export type FixtureEvent = (NestedEvent | DoneEvent);
+export type FixtureEvent = NestedEvent | DoneEvent;
 export const FixtureEventType = {
   DONE: "done",
   NESTED: "nested",
 } as const;
 export type FixtureEventType = (typeof FixtureEventType)[keyof typeof FixtureEventType];
 export type HTTPValidationError = {
-  "detail"?: Array<ValidationError>;
+  detail?: Array<ValidationError>;
 };
 export type Metadata = {
-  "labels": Array<string>;
-  "limits": {
+  labels: Array<string>;
+  limits: {
   [key: string]: number;
 };
-  "mode"?: MetadataMode;
-  "note"?: (string | null);
+  mode?: MetadataMode;
+  note?: string | null;
 };
 export const MetadataMode = {
   FAST: "fast",
@@ -29,17 +29,17 @@ export const MetadataMode = {
 } as const;
 export type MetadataMode = (typeof MetadataMode)[keyof typeof MetadataMode];
 export type NestedEvent = {
-  "children"?: Array<NestedEvent>;
+  children?: Array<NestedEvent>;
   "external-id": string;
-  "metadata": Metadata;
-  "type": typeof FixtureEventType.NESTED;
+  metadata: Metadata;
+  type: typeof FixtureEventType.NESTED;
 };
 export type ValidationError = {
-  "ctx"?: {
+  ctx?: {
   [key: string]: JsonValue;
 };
-  "input"?: JsonValue;
-  "loc": Array<(string | number)>;
-  "msg": string;
-  "type": string;
+  input?: JsonValue;
+  loc: Array<string | number>;
+  msg: string;
+  type: string;
 };

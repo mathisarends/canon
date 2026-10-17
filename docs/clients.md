@@ -5,8 +5,10 @@
 ## Named values and typed iteration
 
 Discriminated unions produce an enum named after the union and discriminator:
-`RunEvent` + `type` becomes `RunEventType`. String enums and literal model fields
-also get named values. Python emits `StrEnum`; TypeScript emits an `as const`
+`RunEvent` + `type` becomes `RunEventType`. Named string enums and multi-value
+literal model fields also get named values. Single constant fields, such as
+problem titles and URIs, remain inline literals. Python emits `StrEnum` for enums;
+TypeScript emits an `as const`
 object plus a union type. Both retain exhaustive discriminator narrowing.
 Parameters use camelCase in TypeScript and snake_case in Python; wire aliases
 are preserved.

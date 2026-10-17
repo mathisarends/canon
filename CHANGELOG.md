@@ -15,6 +15,24 @@ entries describe the next release; they do not change the installed version.
   stream event unions, including nested and referenced events. Diagnostics name
   the operation, route, model, and field; generation preserves schema requiredness.
 
+### Changed
+
+- Single-value string fields now use TypeScript/Python literals instead of
+  synthesizing a separate public constant object or `StrEnum` for every field.
+  Explicitly named enums, multi-value field enums, and shared event discriminator
+  enums remain available. TypeScript also omits unnecessary property quotes and
+  union parentheses while preserving intersection grouping and extra-field types.
+
+### Breaking generated-code changes
+
+- Synthesized single-field constants such as `InvalidCredentialsProblemTitle`
+  and `InvalidCredentialsProblemType` are no longer exported. Replace usages like
+  `InvalidCredentialsProblemTitle.INVALID_CREDENTIALS` with the wire literal
+  `"Invalid credentials"`, then remove unused imports. Python singleton fields
+  now contain plain strings instead of generated `StrEnum` members; replace
+  identity checks with value comparisons. Shared discriminator values such as
+  `RunEventType.RUN_STARTED` and explicit schema enums are unchanged.
+
 ### Upgrade from 0.0.1
 
 1. Update the `fastapi-streams[codegen]` dependency to the release containing
@@ -39,6 +57,8 @@ entries describe the next release; they do not change the installed version.
    whose defaults are always serialized, see the serialization configuration in
    [the codegen guide](docs/codegen.md#event-discriminators). Do not make optional
    request fields required merely because they have Python defaults.
+5. Apply the single-field constant migration above if the application imported
+   these generated names. HTTP payloads, method names, and signatures are unchanged.
 
 ## 0.0.1
 

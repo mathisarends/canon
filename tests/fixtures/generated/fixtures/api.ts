@@ -4,9 +4,9 @@ import type { ClientOptions, RequestOptions } from "../transport/sse.js";
 import { stream, encodePath, appendQuery, setHeader } from "../transport/sse.js";
 
 export interface NestedEventsParams {
-  xTrace?: (string | null);
+  xTrace?: string | null;
   itemId: number;
-  labels?: (Array<string> | null);
+  labels?: Array<string> | null;
 }
 export type NestedEventsError = Types.HTTPValidationError;
 
