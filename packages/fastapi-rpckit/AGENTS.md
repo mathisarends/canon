@@ -5,7 +5,7 @@ Guidance for AI coding agents working in this repository.
 ## Project
 
 `fastapi_rpckit` is a Python library with distribution name `fastapi-rpckit`
-(initial successor release not yet published). It turns
+(initial successor version 0.1.0). It turns
 decorated channel functions and mounted service endpoints into a JSON-RPC 2.0
 protocol: definition (`channel.py`, `protocol.py`), serving (`service.py`,
 `runtime.py`, `dispatch.py`, `server.py`), contract generation (`schema/`), and

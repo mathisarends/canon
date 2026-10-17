@@ -26,7 +26,7 @@ dependency. REST and SSE stay with FastAPI/Canon and `fastapi-streams`.
 The existing dispatch engine, OpenRPC contracts, binary/raw channels, and client
 generators are retained. The old repository remains available.
 
-This is the unreleased 0.1.0 successor; see the [migration guide](docs/migration.md).
+Version 0.1.0 is the initial successor release; see the [migration guide](docs/migration.md).
 
 ## The idea
 
@@ -73,8 +73,7 @@ uv add "fastapi-rpckit[otel]"     # OpenTelemetry integration
 ```
 
 Python 3.12–3.14. FastAPI and Pydantic are required; Dishka, codegen, and
-OpenTelemetry remain optional extras. Until publication, install the built wheel
-or use the source workspace rather than expecting the new name on PyPI.
+OpenTelemetry remain optional extras.
 
 ## Serve with FastAPI
 

@@ -1,18 +1,17 @@
 # Migrate from pyrpckit to fastapi-rpckit
 
 The successor is developed inside Canon; the original repository remains
-available. This source migration has not published a new PyPI release.
+available. Version 0.1.0 is the initial successor release.
 
 | Before | After |
 | --- | --- |
-| distribution `pyrpckit` | `fastapi-rpckit` (initial unreleased version 0.1.0) |
+| distribution `pyrpckit` | `fastapi-rpckit` (initial version 0.1.0) |
 | Python import `rpckit` | `fastapi_rpckit` |
 | CLI `rpckit` | `fastapi-rpckit` |
 | optional `[fastapi]` extra | FastAPI is required; remove the extra |
 | logger `rpckit` | logger `fastapi_rpckit` |
 
-Use the wheel built by `uv build --package fastapi-rpckit` before publication.
-After publication the install will be `uv add fastapi-rpckit`; retain `[codegen]`,
+Install with `uv add fastapi-rpckit`; retain `[codegen]`,
 `[dishka]`, and `[otel]` only where needed. Update imports throughout application
 code, codegen source modules, monkeypatch targets, and configuration.
 
@@ -57,6 +56,5 @@ The initial local successor name was `fastapi-wsrpc` / `fastapi_wsrpc`. PyPI
 rejected its pending publisher registration as too similar to an existing project.
 On 2026-10-17 the user selected `fastapi-rpckit` / `fastapi_rpckit`, and PyPI
 accepted the new Pending Publisher for `mathisarends/canon`, `release.yml`,
-environment `pypi`. The first upload creates the project; the name is not reserved
-by the pending registration. Update imports, CLI commands and codegen references
+environment `pypi`. Update imports, CLI commands and codegen references
 if migrating from the earlier, unpublished workspace name.
