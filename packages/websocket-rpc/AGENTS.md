@@ -29,7 +29,9 @@ from the templates under `codegen/templates/python/runtime/`.
 - Library code lives in `rpckit/`; the public API is re-exported from `rpckit/__init__.py`.
 - Use relative imports for all public re-exports in `rpckit/__init__.py`.
 - No module-level docstrings. Document a class or function only where the name is not enough.
-- The library stays transport-agnostic: no HTTP, WebSocket, or framework dependencies.
+- During consolidation preserve the existing runtime and adapter behavior. The
+  successor direction is FastAPI-first; see the root VISION.md. Do not remove
+  test seams or redesign the public API as part of a workspace move.
 - Generators read the OpenRPC document, never the `RpcProtocol` object, so a new target
   language only needs an emitter beside `codegen/python.py` on top of `codegen/ir.py`.
 - Generated code must pass `ruff check` and `ruff format` in the consuming repository.

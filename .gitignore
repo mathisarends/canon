@@ -5,3 +5,12 @@ __pycache__/
 .ruff_cache/
 .venv/
 *.db
+.uv-cache/
+dist/
+node_modules/
+*.egg-info/
+.coverage
+.coverage.*
+coverage*.xml
+coverage*.lcov
+htmlcov/

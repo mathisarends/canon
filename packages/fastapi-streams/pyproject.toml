@@ -52,7 +52,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pyright]
 include = ["fastapi_streams", "examples", "tests/fixtures/generated_python"]
-venvPath = "."
+venvPath = "../.."
 venv = ".venv"
 typeCheckingMode = "strict"
 pythonVersion = "3.12"

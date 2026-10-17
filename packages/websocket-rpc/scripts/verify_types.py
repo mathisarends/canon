@@ -17,6 +17,8 @@ def main() -> int:
             "--verifytypes",
             "rpckit",
             "--ignoreexternal",
+            "--pythonpath",
+            sys.executable,
             "--pythonversion",
             "3.12",
             "--pythonplatform",
