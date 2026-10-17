@@ -53,6 +53,30 @@ For POST, TypeScript accepts `streamPrompt({ runId, body: { prompt: "Hello" } })
 Python accepts `stream_prompt(run_id="demo", body=RunRequest(prompt="Hello"))`;
 import `RunRequest` from the generated `models` module.
 
+## Python HTTP library
+
+Generated Python clients use HTTPX by default. Generate with
+`--python-http-client httpx2` to opt in to HTTPX2 and install
+`httpx2>=2.13.1,<3` alongside Pydantic in the consuming project. Client methods,
+event models and SDK errors stay the same. See the [generator options](codegen.md).
+
+When injecting a client, use the library selected at generation time:
+
+```python
+import httpx2
+from myapp.generated import Client
+
+async with httpx2.AsyncClient(timeout=30) as http:
+    async with Client("http://localhost:8000", http_client=http) as client:
+        async for event in client.agent_runs.stream_run_events(run_id="demo"):
+            print(event)
+```
+
+Use `httpx.AsyncClient` for the default generated client. Each generated variant
+uses its library's native client, response and exception types; Pyright rejects
+injection from the other library. HTTPX2 clients follow HTTPX2's native transport
+and TLS defaults; see its [migration guide](https://pydantic.dev/docs/httpx2/get-started/migration/).
+
 ## Cancellation and errors
 
 TypeScript accepts a custom `fetch`, base URL, client/request headers,
@@ -60,11 +84,11 @@ credentials and an `AbortSignal`. Breaking `for await` cancels the reader and
 aborts the request. Parsing handles arbitrary byte boundaries, fragmented UTF-8,
 LF/CRLF/CR, multiline data, comments, heartbeats and final EOF events.
 
-Python accepts an injected `httpx.AsyncClient` and per-call `RequestOptions`.
+Python accepts an injected async HTTP client and per-call `RequestOptions`.
 Injected clients stay caller-owned. Cancelling a consuming task closes its
 response.
 
-Requests inherit an injected HTTPX client's timeout unless explicitly overridden
+Requests inherit the injected client's timeout unless explicitly overridden
 with `RequestOptions(timeout=seconds)`. `RequestOptions(timeout=None)` disables
 timeouts for that request. The SDK-owned client defaults to no timeout for streams.
 

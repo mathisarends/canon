@@ -146,6 +146,9 @@ asyncio.run(main())
 ```
 
 Install `httpx` and `pydantic` in a Python consumer (`uv add httpx pydantic`).
+HTTPX remains the default; opt in to HTTPX2 at generation time with
+`--python-http-client httpx2` and install `httpx2` instead. See
+[Python HTTP library selection](docs/clients.md#python-http-library).
 Both SDKs handle fragmented SSE frames, UTF-8 decoding, HTTP errors, and resource
 cleanup. TypeScript supports `AbortSignal`; Python supports task cancellation and
 explicit async-generator closure. See [client usage](docs/clients.md).

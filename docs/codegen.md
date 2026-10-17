@@ -33,6 +33,26 @@ TypeScript has no runtime dependencies and uses Fetch-compatible APIs. The
 example uses ES modules and is tested on Node 24. Generated Python packages
 require Python 3.12+, `httpx>=0.28` and `pydantic>=2.11.2` (`uv add httpx pydantic`).
 
+HTTPX is the default. To generate a Python client using HTTPX2 instead, opt in
+when generating and checking it:
+
+```sh
+uv run fastapi-streams generate \
+  --schema tests/fixtures/agent_runs.openapi.json --language python \
+  --python-http-client httpx2 --output myapp/generated
+
+uv run fastapi-streams check \
+  --schema tests/fixtures/agent_runs.openapi.json --language python \
+  --python-http-client httpx2 --output myapp/generated
+```
+
+Install `httpx2>=2.13.1,<3` and `pydantic>=2.11.2` in that consumer. The
+generated package needs only the selected HTTP library; installing HTTPX2 does
+not change an existing HTTPX client. The Python generator API accepts the same
+choice as `generate_python(contract, http_client="httpx2")`. Pass the choice to
+every `check` or `generate --check` call; omitting it checks HTTPX output.
+`--python-http-client` requires `--language python`.
+
 REST operations remain available in the contract for an existing SDK generator
 such as Orval or HeyAPI. Keep REST and streaming SDKs in separate output
 directories. Reusing external generated model imports is a future feature.

@@ -46,7 +46,7 @@ uv run python scripts/test_compat.py --python 3.14 --dependencies latest
 ```
 
 The script creates an isolated environment under `.pytest_cache/compat-env`, resolves
-the published FastAPI, Pydantic, HTTPX and codegen bounds independently of `uv.lock`,
+the published FastAPI, Pydantic, HTTPX, HTTPX2 and codegen bounds independently of `uv.lock`,
 and runs the complete behavioral suite. Test tooling stays current. The lowest
 profile uses the oldest compatible binaries of the direct dependencies; on Python 3.14 this
 currently selects Pydantic 2.12.0. Python 3.12/3.13 test the declared 2.11.2 minimum.
@@ -56,8 +56,9 @@ excluded by the package metadata.
 Integration tests start a real Uvicorn server, export the installed FastAPI version's
 contract and generate both SDKs afresh. They check GET/POST, authentication, request
 validation, query/header values, custom success status, immediate event delivery,
-consumer cancellation and server/dependency cleanup. Node and HTTPX consume streams
-that stay open until the client disconnects.
+consumer cancellation and server/dependency cleanup. Node, HTTPX and HTTPX2 consume
+streams that stay open until the client disconnects. Every compatibility case tests
+both Python HTTP libraries, generating a separate SDK for each.
 
 Committed OpenAPI fixtures live in `tests/fixtures/*.openapi.json`. Only the locked
 job checks their exact snapshots; compatibility jobs generate fresh contracts and
@@ -72,11 +73,15 @@ example transport has floors of 95% lines, 90% branches and 90% functions. CI up
 the Python XML and TypeScript LCOV reports for each locked interpreter.
 
 The schema matrix validates accepted/rejected payloads and runs strict TypeScript
-and Python type checks on newly generated packages. Consumer type tests also assert
+and Python type checks on newly generated packages, including both HTTP backends.
+Consumer type tests also assert
 that missing arguments, wrong parameter types and invalid event fields are rejected.
 Contract boundary tests cover unsupported serialization, references and collisions.
 
-Package checks install the wheel with and without the codegen extra. In a directory
+Package checks install the freshly built wheel in three new environments: core
+only, codegen with HTTPX only, and codegen with HTTPX2 only. They bypass cached local
+wheels so repeated builds of the same release version test the current artifact.
+In a directory
 outside the checkout they invoke the installed `fastapi-streams` command, exercise
 `schema`, `generate`, `check` and drift exit codes, compile the generated TypeScript
 and consume an event through the generated Python SDK. Metadata and `__version__`
