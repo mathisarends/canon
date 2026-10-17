@@ -1,9 +1,9 @@
 # Changelog
 
-All notable changes and consumer upgrade steps are recorded here. Unreleased
-entries describe the next release; they do not change the installed version.
+All notable changes and consumer upgrade steps are recorded here. Entries marked
+unreleased describe prepared source versions that have not been published.
 
-## Unreleased
+## 0.1.0 (unreleased)
 
 ### Added
 
@@ -28,6 +28,8 @@ entries describe the next release; they do not change the installed version.
 
 ### Changed
 
+- Develop in `mathisarends/canon`; package source, documentation, and issue URLs
+  now point to the monorepo.
 - Single-value string fields now use TypeScript/Python literals instead of
   synthesizing a separate public constant object or `StrEnum` for every field.
   Explicitly named enums, multi-value field enums, and shared event discriminator
@@ -49,8 +51,9 @@ entries describe the next release; they do not change the installed version.
 
 ### Upgrade from 0.0.1
 
-1. Update the `fastapi-streams[codegen]` dependency to the release containing
-   these entries, using the same version for schema export and both SDKs.
+1. After publication, update `fastapi-streams[codegen]` to `0.1.0`, using the
+   same version for schema export and both SDKs. Before publication, use the
+   built 0.1.0 wheel.
 2. Regenerate committed clients from the application's OpenAPI document. Existing
    method names and call signatures are unchanged:
 

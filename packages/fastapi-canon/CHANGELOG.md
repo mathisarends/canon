@@ -2,7 +2,7 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
-## Unreleased
+## 0.5.0 (unreleased)
 
 ### Added
 
@@ -13,16 +13,24 @@ All notable changes to `fastapi-canon` are documented in this file.
   router-wide and local `raises=`, and RFC 9457 HTTP problems from dependencies.
   `Feature` automatically discovers its registry; full native SSE event schemas
   are retained for Python and TypeScript client generation.
-- A `streams` extra pinned to `fastapi-streams==0.0.1`, with
+- A `streams` extra pinned to `fastapi-streams==0.1.0`, with
   independent core imports and a separate codegen development group.
 - An integration API guide in `docs/streams.md` and an executable streaming
   example with Dishka-injected request services, documenting installation,
   HTTP method selection, client generation, and the boundary between
   pre-response HTTP problems, in-stream business error
   events, and transport failures.
-- Integration regression CI against the locked Streams release and upstream
-  `main` on Python 3.12/3.14, including weekly checks, both client generators,
-  and clean-wheel core runtime checks without Streams.
+- Workspace integration checks, both client generators, and clean-wheel core
+  runtime checks without Streams. Imported upstream workflow files are historical;
+  the root workflow owns CI in the monorepo.
+
+### Changed
+
+- Develop in `mathisarends/canon` and point package metadata to its package and
+  documentation directories. Publish Streams 0.1.0 before Canon 0.5.0 because
+  the optional integration pins that version.
+- Consumers moving from Streams 0.0.1 must regenerate SDKs and follow its
+  single-value enum and reserved error-alias migrations.
 
 ## 0.4.0 - 2026-09-10
 

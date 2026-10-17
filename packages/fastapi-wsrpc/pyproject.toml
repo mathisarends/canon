@@ -21,6 +21,8 @@ fastapi-wsrpc = "fastapi_wsrpc.codegen.cli:main"
 
 [project.urls]
 Repository = "https://github.com/mathisarends/canon"
+Source = "https://github.com/mathisarends/canon/tree/main/packages/fastapi-wsrpc"
+Documentation = "https://github.com/mathisarends/canon/tree/main/packages/fastapi-wsrpc/docs"
 Issues = "https://github.com/mathisarends/canon/issues"
 
 [build-system]
