@@ -21,6 +21,21 @@ literal/enum and error-alias migration. Versions do not need to match.
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
 
+## Prepared follow-up releases, 2026-10-18
+
+| Package | Prepared version | Scope |
+| --- | --- | --- |
+| Streams | 0.2.0 | Scalar validation preservation, unsupported-rule diagnostics, opt-in unknown-event ignoring, native/mixed-codegen recipes. |
+| Canon | 0.5.1 | Streams 0.2.0 optional/development pin and corrected integration guidance. |
+| RPCkit | 0.1.1 | Explicit Dishka mounting options, authenticated example and canonical FastAPI documentation. |
+
+These are unpublished source versions. Streams' regenerated Python SDKs may reject
+payloads that previously passed because constraints were dropped; read its
+changelog before regeneration. Publish Streams before Canon. RPCkit keeps wire
+contracts, `RpcRoutes` and existing nested imports. Changelog dates remain
+unreleased until publication is authorized. Local checks and CI/dry-run evidence
+are recorded in TODO and the compatibility record as they complete.
+
 ## Account configuration verified on 2026-10-17
 
 | PyPI project | Publisher state |
@@ -65,7 +80,7 @@ uv run --locked python scripts/check.py all
 uv run --locked python scripts/check_distributions.py
 uv run --locked python scripts/check_distributions.py --python 3.12 --dependencies minimum
 uv run --locked python scripts/check_streams_artifacts.py
-uv run --locked python scripts/release.py validate --package fastapi-streams --version 0.1.0
+uv run --locked python scripts/release.py validate --package fastapi-streams --version 0.2.0
 ```
 
 The last command checks local metadata without claiming remote CI/publication

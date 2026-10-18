@@ -4,6 +4,11 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ## 0.5.1 - unreleased
 
+- Pin the optional Streams integration and development tooling to 0.2.0.
+  Regenerated Python SDKs now enforce supported scalar constraints; follow the
+  [Streams upgrade notes](../fastapi-streams/CHANGELOG.md). Canon core remains
+  independent of Streams and RPCkit.
+
 - Correct Streams integration installation examples to match the pinned dependency.
 
 ## 0.5.0 - 2026-10-17

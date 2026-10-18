@@ -28,10 +28,27 @@ unreleased describe prepared source versions that have not been published.
 - Regenerate committed SDKs and run consumer validation tests. Pass HTTPX2
   generation/check options consistently if used. No wire names change.
 
+### Upgrade from 0.1.0
+
+1. Update `fastapi-streams[codegen]` to 0.2.0 and regenerate both SDKs from the
+   authoritative OpenAPI document. Keep the selected Python HTTP backend on
+   generation and check commands.
+2. Fix data violating preserved scalar constraints and review all unsupported-rule
+   diagnostics. Re-run consuming client validation and stream tests.
+3. Keep the default unknown-event error policy, or opt in per request only where
+   the upstream intentionally emits additional top-level discriminator values.
+
+### Release verification
+
+- Extend installed-wheel HTTPX/HTTPX2 smoke consumers to verify scalar constraints,
+  default unknown-event rejection, opt-in skipping and malformed known events.
+- Add a root `httpxgen-issue.md` draft for OpenAPI 3.2 acceptance and event-model
+  discovery. Changing HTTP backend remains independent of that generator issue.
+
 ### Documentation
 
-
-- Fix PyPI installation instructions and supported-scope wording. Replace the predecessor release guide with the workspace release process.
+- Fix PyPI installation instructions and supported-scope wording. Replace the
+  predecessor release guide with the workspace release process.
 
 ## 0.1.0 - 2026-10-17
 

@@ -1,6 +1,6 @@
 # Release status and remaining migration work
 
-Updated: 2026-10-17. This is the prioritized checklist for the next work block.
+Updated: 2026-10-18. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
 **Current scope:** The user authorized release-flow setup and then publication on
@@ -12,6 +12,31 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 **Goal:** Release the three packages independently from `mathisarends/canon`
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
+
+## Next releases: consumer integration feedback
+
+Prepared source versions (not published): Streams 0.2.0, Canon 0.5.1 and
+RPCkit 0.1.1. Publish Streams before Canon's updated optional pin.
+
+- [x] Correct PyPI instructions, dependency examples and optional-extra diagnostics;
+  add active-documentation checks to workspace lint and release validation.
+- [x] Make package-root RPC FastAPI imports canonical; retain `RpcRoutes` and the
+  existing nested imports. Add explicit `dishka_router` options and an executable
+  authenticated `RpcRoutes` example with rejection and credential-expiry tests.
+- [x] Preserve supported scalar constraints in generated Python models and
+  diagnose unsupported rules; document the stricter SDK migration.
+- [x] Add explicit unknown-event ignoring for top-level discriminated Python SSE
+  unions, retaining strict known-event validation and both HTTP backends.
+- [x] Add tested native-proxy and private REST-codegen compatibility recipes.
+- [x] Pass all workspace, current/minimum wheel and installed Streams backend
+  gates, including new generated validation/unknown-event smoke checks.
+- [ ] Push the prepared commit, pass exact-commit CI and all three release dry runs.
+- [ ] Finalize release dates and publish only after explicit publication authorization.
+
+The [consumer feedback decision](docs/design-decisions/0002-consumer-feedback.md)
+records scope and remaining limits. The root [httpxgen issue draft](httpxgen-issue.md)
+tracks the external OpenAPI/model-discovery request; it has not been submitted. Maximus feedback is consumer-reported evidence;
+this workspace does not claim a locally verified full Maximus or Cara migration.
 
 ## Completed
 

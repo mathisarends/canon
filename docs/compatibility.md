@@ -13,6 +13,33 @@ existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All three versions
 are available through PyPI and this repository's independent GitHub releases.
 
+## Prepared follow-up versions, 2026-10-18
+
+Unpublished sources: Canon 0.5.1, Streams 0.2.0 and RPCkit 0.1.1. The published
+version table above remains unchanged until verified publication.
+
+Local Windows checks passed 1,380 Python tests across isolated package/root
+processes and 22 TypeScript tests, all lint/type gates, both generator drift
+checks, and RPCkit's installed-wheel public type check (92.2%, minimum 92%).
+The six independent wheel combinations pass with current compatible dependencies
+on Python 3.14 and direct dependency minima on Python 3.12.12. Core-only imports
+remain independent. The installed reference-service wheel also passes five tests.
+Dependency inventories are `dist/compatibility-latest.json` and
+`dist/compatibility-minimum.json`; these are local generated evidence, not a
+claim of exhaustive transitive minima or public-index publication.
+
+The minimum full-stack profile uses FastAPI 0.143.3, Pydantic 2.11.2,
+Dishka 1.10.0, Jinja 3.1.0 and jsonschema 4.23.0. Canon alone also passes with
+FastAPI 0.115.0 and Pydantic 2.9.0. An additional installed Streams CLI/client
+smoke on Python 3.12 with FastAPI 0.143.3, Pydantic 2.11.2 and HTTPX 0.28.0
+verifies preserved scalar constraints, strict unknown variants, opt-in skipping,
+and malformed known-event rejection. Current-dependency installed CLI checks
+also pass core-only and with HTTPX 0.28.1 or HTTPX2 2.13.1 installed separately.
+
+CI and release dry-run results are separate from these local checks. Consumer
+feedback from Maximus is reported evidence; full external application migrations
+remain outside this verification. See the [feedback decision](design-decisions/0002-consumer-feedback.md).
+
 There are two verification modes:
 
 1. Workspace: one root lockfile, member-specific suites, current optional Streams

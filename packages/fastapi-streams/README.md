@@ -218,7 +218,8 @@ and regenerating committed clients.
 | [Development](docs/development.md) | Tests, supported scope, and roadmap. |
 | [Releasing](docs/releasing.md) | Tag-based releases and credential-free PyPI publishing. |
 
-The current release supports GET/POST JSON SSE streams. Ordinary REST endpoints stay in the
-contract for your existing REST SDK. See the [supported scope](docs/development.md#supported-scope-and-roadmap).
+The current release supports GET/POST JSON SSE streams. Ordinary REST endpoints
+stay in the contract for your existing REST SDK. See the
+[supported scope](docs/development.md#supported-scope-and-roadmap).
 
 Python 3.12+ · FastAPI 0.143.3+ · Pydantic v2 · [MIT](LICENSE)

@@ -2,12 +2,18 @@
 
 ## 0.1.1 - unreleased
 
+- Prepare independent 0.1.1 metadata and regenerate both example-client manifests.
+  Upgrading from 0.1.0 requires no wire or call-site migration. Prefer package-root
+  FastAPI imports and use `RpcRoutes` for context dependency factories.
+
 - Give `dishka_router` an explicit typed signature, optional resolver factory,
   and a diagnostic for accidentally passing a context function. Use `RpcRoutes`
   for FastAPI context dependencies. Add a tested cookie/Origin authentication
   example with typed handshake rejections, Dishka scopes and connection expiry.
 
-- Use package-root FastAPI imports in documentation and fix the optional Dishka installation diagnostic. RpcRoutes remains the public mounting name; nested imports remain available.
+- Use package-root FastAPI imports in documentation and fix the optional Dishka
+  installation diagnostic. `RpcRoutes` remains the public mounting name;
+  nested imports remain available.
 
 ## 0.1.0 - 2026-10-17
 

@@ -52,16 +52,20 @@ def main() -> None:
         working = Path(directory)
         (working / "app.py").write_text(
             "from collections.abc import AsyncIterator\n"
-            "from typing import Literal\n"
+            "from typing import Annotated, Literal\n"
             "from fastapi import FastAPI\n"
-            "from pydantic import BaseModel\n"
+            "from pydantic import BaseModel, Field\n"
             "from fastapi_streams import StreamRouter\n"
             "class Event(BaseModel):\n"
             '    type: Literal["event"]\n'
-            "    text: str\n"
+            "    text: str = Field(min_length=2, max_length=20, pattern='^[a-z]+$')\n"
+            "class Done(BaseModel):\n"
+            '    type: Literal["done"]\n'
+            "    count: int = Field(ge=0)\n"
+            "type Payload = Annotated[Event | Done, Field(discriminator='type')]\n"
             "router = StreamRouter()\n"
             '@router.stream("/events", operation_id="events")\n'
-            "async def events() -> AsyncIterator[Event]:\n"
+            "async def events() -> AsyncIterator[Payload]:\n"
             '    yield Event(type="event", text="packaged")\n'
             "app = FastAPI()\n"
             "app.include_router(router)\n",
@@ -121,15 +125,43 @@ def main() -> None:
         consumer = """
 import asyncio
 import httpx
-from sdk import Client
+from pydantic import ValidationError
+from sdk import Client, RequestOptions, StreamParseError
+from sdk.models import Event
 async def main():
+    for invalid in ('x', 'Bad', 'x' * 21):
+        try:
+            Event(type='event', text=invalid)
+        except ValidationError:
+            pass
+        else:
+            raise AssertionError('Generated scalar constraint was lost')
+    payload = 'data: {"type":"event","text":"packaged"}\\n\\n'
     def handler(request):
         return httpx.Response(200, headers={"Content-Type":"text/event-stream"},
-            content='data: {"type":"event","text":"packaged"}\\n\\n')
+            content=payload)
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         async with Client("http://example.test", http_client=http) as client:
             events = [event async for event in client.streams.events()]
             assert events[0].text == "packaged"
+            payload = 'data: {"type":"future"}\\n\\n' + payload
+            try:
+                await anext(client.streams.events())
+            except StreamParseError:
+                pass
+            else:
+                raise AssertionError('Default union must reject unknown events')
+            events = [event async for event in client.streams.events(
+                options=RequestOptions(unknown_events='ignore'))]
+            assert len(events) == 1 and events[0].text == 'packaged'
+            payload = 'data: {"type":"event","text":"Bad"}\\n\\n'
+            try:
+                await anext(client.streams.events(
+                    options=RequestOptions(unknown_events='ignore')))
+            except StreamParseError:
+                pass
+            else:
+                raise AssertionError('Known invalid events must still fail')
 asyncio.run(main())
 """
         consumer = consumer.replace(

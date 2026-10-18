@@ -18,7 +18,7 @@ For an installed canon checkout or release containing this integration:
 pip install "fastapi-canon[streams]"
 ```
 
-The `streams` extra installs exactly `fastapi-streams==0.1.0` from PyPI. Before
+The `streams` extra installs exactly `fastapi-streams==0.2.0` from PyPI. Before
 Streams 0.1, upgrading requires an explicit compatibility review and pin update.
 `uv.lock` records package hashes for reproducible repository checks. The extra
 selects Streams' higher requirements (FastAPI >=0.143.3 and Pydantic >=2.11.2).
@@ -95,7 +95,7 @@ uv run --group streams fastapi-streams generate --schema openapi.json --language
 uv run --group streams fastapi-streams generate --schema openapi.json --language typescript --output generated/typescript
 ```
 
-For an installed application, add `fastapi-streams[codegen]==0.1.0` and
+For an installed application, add `fastapi-streams[codegen]==0.2.0` and
 lock it alongside your application dependencies. Both clients consume the same
 exported OpenAPI 3.2 document, containing typed SSE events and canon problem schemas.
 

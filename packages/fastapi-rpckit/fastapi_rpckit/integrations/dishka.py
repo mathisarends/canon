@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from inspect import Parameter, signature
+from inspect import Parameter, iscoroutinefunction, signature
 from typing import TYPE_CHECKING, Any, get_type_hints
 
 if TYPE_CHECKING:
@@ -77,7 +77,7 @@ def dishka_router(
     """
     from fastapi_rpckit import create_router
 
-    if callable(context):
+    if iscoroutinefunction(context):
         raise TypeError(
             "dishka_router context is a value; use RpcRoutes(context=...) "
             "for an async FastAPI context dependency"
