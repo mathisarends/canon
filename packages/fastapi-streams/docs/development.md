@@ -88,6 +88,35 @@ outside the checkout they invoke the installed `fastapi-streams` command, exerci
 and consume an event through the generated Python SDK. Metadata and `__version__`
 must match the release version in `pyproject.toml`.
 
+## Generated SDK performance
+
+From the workspace root, use the locked environment and installed Node tooling:
+
+```console
+uv run --locked python packages/fastapi-streams/scripts/benchmark_runtime.py --memory --output dist/streams-baseline.json
+```
+
+The harness generates both SDKs from the same small discriminated-union contract.
+It measures request preparation separately from decoding, framing and complete
+HTTP/SSE consumption with an in-memory HTTPX transport or Fetch response. Cases
+cover small token events, nested batches, seven-byte fragments and Python's
+unknown-event ignore policy. Python validates generated models; TypeScript only
+decodes JSON. Their decoding results do not represent equivalent guarantees.
+
+Reports record source location, generator/runtime versions, platform, payload
+sizes, individual samples, median CPU/wall time per request or input event, and
+throughput. Ignore-policy throughput counts skipped input events too. `--memory`
+adds a separate Python traced peak-memory sample; it does not instrument timings
+or count total allocations. There are three warmup iterations per case. These
+are warmed batch measurements, not individual-event latency percentiles, cold
+startup measurements, real-network results or Hermes deployment evidence.
+
+Use `--runtime python` or `--runtime typescript` for focused runs. Adjust
+`--events`, `--iterations` and `--rounds` for longer samples. For a comparison,
+run the same harness with `--source-dir` pointing to the other revision's Streams
+package directory, keeping the interpreter, dependencies and arguments fixed.
+Repeat runs to assess noise; ordinary CI does not enforce timing thresholds.
+
 ## Supported scope and roadmap
 
 GET/POST JSON SSE data; scalar path and header parameters; scalar/array query parameters;
