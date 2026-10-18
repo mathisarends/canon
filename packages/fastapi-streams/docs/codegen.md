@@ -191,6 +191,26 @@ including inline schemas and referenced component definitions. Shared definition
 identify each affected operation; unused components do not generate warnings.
 SSE framing metadata is outside generated event-model validation.
 
+The version 1 report also carries additive `generation` and `validation` objects.
+Consumers should tolerate additional object keys. `generation` records the
+generator name/version, target, selected Python HTTP library (null for TypeScript)
+and `schema_sha256`. The hash covers the complete parsed OpenAPI document,
+including unused definitions. Its `canonical-json-v1` encoding is Python
+`json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`
+encoded as UTF-8. Whitespace and object-key order in the input file do not affect
+the hash; array order and values do. It is a content identifier, not a signature
+or proof of schema enforcement.
+
+`validation` distinguishes parameter/body validation at `method_call`, event
+decoding at `iteration` and HTTP-error handling at `consumer_controlled`.
+TypeScript parameter/body schema checks are `not_performed`. Each boundary has
+a `schema_validation` boolean, with `json_decoding: true` for events. Python's
+`runtime_scope` is `generated_types_and_supported_constraints`; TypeScript's is
+`json_decoding_only`. Both set `full_json_schema: false`. These target capabilities
+describe supported boundaries, even if an operation has no parameters or body;
+source-specific limitations remain in `diagnostics` with their accepted status.
+The report is generated only when requested and adds no SDK runtime checks.
+
 `unsupported-constraint` identifies an unenforced rule for the selected target;
 TypeScript also diagnoses Python-supported scalar constraints because TypeScript
 has no runtime schema validator. Python's `optional-discriminator` diagnoses event

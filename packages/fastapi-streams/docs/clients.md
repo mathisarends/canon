@@ -121,6 +121,15 @@ remain ordinary members of the user-defined union.
 
 ## HTTP error contracts
 
+Keep schema validation at transport boundaries. Python prepares and validates
+requests at the method call and validates received events during iteration.
+Pass those parsed event models onward instead of serializing them to dictionaries
+and validating the same schema again. Server request validation remains necessary
+regardless of SDK checks; authentication, authorization and domain invariants have
+separate responsibilities. Canon composition does not need an additional event
+validator around Streams. TypeScript keeps its documented static-only behavior;
+applications needing runtime event checks can validate once before using a value.
+
 Python request parameters and JSON bodies are validated when calling the method;
 catch Pydantic `ValidationError` around that call. Network and event errors occur
 while iterating. See the [validation matrix and CI policy](codegen.md#validation-support-matrix).

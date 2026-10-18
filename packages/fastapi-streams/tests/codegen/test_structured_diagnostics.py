@@ -207,3 +207,70 @@ def test_diagnostic_report_cannot_overwrite_inputs_or_generated_files(tmp_path):
             == 2
         )
         assert schema.read_text() == original
+
+
+@pytest.mark.parametrize(
+    "target,backend", [("python", "httpx"), ("python", "httpx2"), ("typescript", None)]
+)
+def test_report_describes_actual_target_phases_and_stable_schema_content(
+    tmp_path, target, backend
+):
+    from fastapi_streams import __version__
+
+    document = event_document(str)
+    schema, report = tmp_path / "openapi.json", tmp_path / "report.json"
+    schema.write_text(json.dumps(document), encoding="utf-8")
+    flags = [
+        "--schema",
+        str(schema),
+        "--language",
+        target,
+        "--output",
+        str(tmp_path / "sdk"),
+        "--diagnostics",
+        str(report),
+        "--strict",
+    ]
+    if backend:
+        flags += ["--python-http-client", backend]
+    assert main(["generate", *flags]) == 0
+    original = report.read_bytes()
+    result = json.loads(original)
+    generation = result["generation"]
+    assert generation["generator"] == "fastapi-streams"
+    assert generation["generator_version"] == __version__
+    assert generation["target"] == target
+    assert generation["python_http_client"] == backend
+    assert generation["schema_hash_encoding"] == "canonical-json-v1"
+    assert len(generation["schema_sha256"]) == 64
+    assert result["version"] == 1 and result["diagnostics"] == []
+    validation = result["validation"]
+    assert validation["full_json_schema"] is False
+    for boundary in ("parameters", "request_body"):
+        assert validation[boundary] == {
+            "phase": "method_call" if backend else "not_performed",
+            "schema_validation": bool(backend),
+        }
+    assert validation["events"] == {
+        "phase": "iteration",
+        "json_decoding": True,
+        "schema_validation": bool(backend),
+    }
+    assert validation["http_error_bodies"] == {
+        "phase": "consumer_controlled",
+        "schema_validation": False,
+    }
+    # Formatting and key order do not change provenance or report bytes.
+    schema.write_text(
+        json.dumps(dict(reversed(list(document.items()))), indent=4), encoding="utf-8"
+    )
+    assert main(["check", *flags]) == 0
+    assert report.read_bytes() == original
+    # The complete document participates, including components not emitted by SDKs.
+    document["info"]["description"] = "Changed contract provenance"
+    schema.write_text(json.dumps(document), encoding="utf-8")
+    assert main(["check", *flags]) == 0
+    assert (
+        json.loads(report.read_bytes())["generation"]["schema_sha256"]
+        != generation["schema_sha256"]
+    )

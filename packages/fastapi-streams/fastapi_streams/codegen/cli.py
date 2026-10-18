@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import sys
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, cast
 
 from fastapi import FastAPI
 
+from fastapi_streams import __version__
 from fastapi_streams.codegen.openapi import ContractError, Document, export_schema
 from fastapi_streams.codegen.writer import write_files
 
@@ -103,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
             document = json.loads(args.schema.read_text(encoding="utf-8"))
             if not isinstance(document, dict):
                 raise ContractError("The OpenAPI document must be an object")
+            document = cast(Document, document)
             if args.command == "check" and args.app:
                 expected = export_schema(_load_app(args.app))
                 if expected != document:
@@ -112,12 +115,17 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     return 1
             diagnostics: list[GenerationDiagnostic] = []
-            contract = build_ir(
-                cast(Document, document), target=args.language, diagnostics=diagnostics
-            )
+            contract = build_ir(document, target=args.language, diagnostics=diagnostics)
             # Reports precede strict-policy failures, so CI can review new IDs.
             if args.diagnostics:
-                _write_diagnostics(args.diagnostics, diagnostics, set())
+                _write_diagnostics(
+                    args.diagnostics,
+                    diagnostics,
+                    set(),
+                    document,
+                    args.language,
+                    args.python_http_client or "httpx",
+                )
             accepted: set[str] = (
                 accepted_diagnostics(
                     diagnostics, json.loads(args.allow_diagnostics.read_text("utf-8"))
@@ -126,7 +134,14 @@ def main(argv: list[str] | None = None) -> int:
                 else set()
             )
             if args.diagnostics:
-                _write_diagnostics(args.diagnostics, diagnostics, accepted)
+                _write_diagnostics(
+                    args.diagnostics,
+                    diagnostics,
+                    accepted,
+                    document,
+                    args.language,
+                    args.python_http_client or "httpx",
+                )
             pending = [item for item in diagnostics if item.id not in accepted]
             emit_diagnostics(pending)
             if args.strict and pending:
@@ -168,13 +183,57 @@ def _load_app(value: str) -> FastAPI:
 
 
 def _write_diagnostics(
-    path: Path, diagnostics: list[GenerationDiagnostic], accepted: set[str]
+    path: Path,
+    diagnostics: list[GenerationDiagnostic],
+    accepted: set[str],
+    document: Document,
+    target: str,
+    http_client: str,
 ) -> None:
+    # Canonical JSON binds reports to schema content, independent of file layout.
+    encoded = json.dumps(
+        document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    python = target == "python"
+    request_phase = "method_call" if python else "not_performed"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
             {
                 "version": 1,
+                "generation": {
+                    "generator": "fastapi-streams",
+                    "generator_version": __version__,
+                    "schema_sha256": hashlib.sha256(encoded).hexdigest(),
+                    "schema_hash_encoding": "canonical-json-v1",
+                    "target": target,
+                    "python_http_client": http_client if python else None,
+                },
+                "validation": {
+                    "full_json_schema": False,
+                    "runtime_scope": (
+                        "generated_types_and_supported_constraints"
+                        if python
+                        else "json_decoding_only"
+                    ),
+                    "parameters": {
+                        "phase": request_phase,
+                        "schema_validation": python,
+                    },
+                    "request_body": {
+                        "phase": request_phase,
+                        "schema_validation": python,
+                    },
+                    "events": {
+                        "phase": "iteration",
+                        "schema_validation": python,
+                        "json_decoding": True,
+                    },
+                    "http_error_bodies": {
+                        "phase": "consumer_controlled",
+                        "schema_validation": False,
+                    },
+                },
                 "diagnostics": [
                     item.to_dict(accepted=item.id in accepted) for item in diagnostics
                 ],
