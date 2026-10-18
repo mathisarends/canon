@@ -118,18 +118,29 @@ def main() -> None:
                 language,
                 "--output",
                 output,
+                "--diagnostics",
+                f"{language}-diagnostics.json",
             ]
             if language == "python":
                 flags += ["--python-http-client", args.http_client]
-                flags += ["--strict", "--diagnostics", "python-diagnostics.json"]
+                flags += ["--strict"]
             run("generate", *flags)
+            report = json.loads((working / f"{language}-diagnostics.json").read_text())
+            assert report["version"] == 1
+            assert report["generation"]["generator_version"] == args.expected_version
+            assert report["generation"]["target"] == language
+            assert report["generation"]["python_http_client"] == (
+                args.http_client if language == "python" else None
+            )
+            assert len(report["generation"]["schema_sha256"]) == 64
+            assert report["validation"]["full_json_schema"] is False
+            assert report["validation"]["events"] == {
+                "phase": "iteration",
+                "json_decoding": True,
+                "schema_validation": language == "python",
+            }
             if language == "python":
-                assert (
-                    json.loads((working / "python-diagnostics.json").read_text())[
-                        "diagnostics"
-                    ]
-                    == []
-                )
+                assert report["diagnostics"] == []
             run("check", "--app", "app:app", *flags)
             target = working / output / client_file
             original = target.read_bytes()
