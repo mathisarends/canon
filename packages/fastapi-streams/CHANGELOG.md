@@ -3,6 +3,41 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
+## 0.3.1 - unreleased
+
+### Added
+
+- Repeatable Python and Node benchmarks for generated SDK request preparation,
+  decoding/validation, SSE framing, complete consumption, fragmented chunks and
+  Python unknown-event ignoring. Reports include individual timing samples and
+  optional separate Python peak-memory measurements; no CI timing thresholds.
+- Add generation provenance and validation capabilities to version 1 diagnostic
+  reports: canonical schema SHA-256, generator version, target/HTTP backend and
+  request/event/error validation phases. Existing diagnostic fields, IDs and
+  exact reviewed allowances remain unchanged. Additional report object keys are
+  additive; the metadata does not introduce runtime checks or full JSON Schema
+  guarantees.
+
+### Performance
+
+- Reuse the JSON-value adapter for skipped unknown events and HTTP-error JSON
+  decoding. Cache top-level discriminator metadata per generated event adapter
+  instead of rebuilding its JSON Schema for every ignore-policy stream.
+- Prepare sanitized validation details only for errors that are actually raised.
+  Known events still use direct Pydantic JSON validation; malformed known events,
+  missing/non-string tags, invalid JSON and unknown nested variants still fail.
+  Public signatures, coercion, validation timing and wire encoding are unchanged.
+
+### Upgrade from 0.3.0
+
+1. Upgrade the generator to 0.3.1 and regenerate with the existing HTTP backend
+   to obtain the Python runtime improvements. Existing generated SDKs keep working.
+2. Diagnostic-report readers should tolerate the new `generation` and `validation`
+   keys. Existing exact diagnostic allowances need no migration.
+3. Continue validating server requests and domain invariants at their own
+   boundaries; consumers should reuse parsed events instead of validating the
+   same schema again. TypeScript remains static-only with no added dependency.
+
 ## 0.3.0 - 2026-10-18
 
 ### Breaking changes

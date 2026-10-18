@@ -2,6 +2,15 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## 0.5.3 - unreleased
+
+- Update the optional Streams integration and development pin to 0.3.1 for
+  generated Python runtime efficiency and additive diagnostic-report provenance.
+  Canon's public API and composition behavior remain unchanged; core imports
+  continue to work without Streams or RPCkit.
+- Regenerate stream SDKs to adopt runtime improvements; follow the
+  [Streams 0.3.1 upgrade notes](../fastapi-streams/CHANGELOG.md).
+
 ## 0.5.2 - 2026-10-18
 
 - Update the optional Streams integration and development pin to 0.3.0 and align

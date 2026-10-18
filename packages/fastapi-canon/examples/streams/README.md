@@ -18,9 +18,10 @@ For an installed canon checkout or release containing this integration:
 pip install "fastapi-canon[streams]"
 ```
 
-The `streams` extra installs exactly `fastapi-streams==0.3.0` from PyPI. Before
-Streams 0.1, upgrading requires an explicit compatibility review and pin update.
-`uv.lock` records package hashes for reproducible repository checks. The extra
+This source prepares Canon 0.5.3 with `fastapi-streams==0.3.1`; both versions are
+unreleased. Public Canon 0.5.2 installs Streams 0.3.0. Upgrading requires an
+explicit compatibility review and pin update. `uv.lock` records the workspace
+combination for reproducible repository checks. The extra
 selects Streams' higher requirements (FastAPI >=0.143.3 and Pydantic >=2.11.2).
 The core runtime dependencies and normal
 imports remain independent of Streams.
@@ -95,8 +96,9 @@ uv run --group streams fastapi-streams generate --schema openapi.json --language
 uv run --group streams fastapi-streams generate --schema openapi.json --language typescript --output generated/typescript
 ```
 
-For an installed application, add `fastapi-streams[codegen]==0.3.0` and
-lock it alongside your application dependencies. Both clients consume the same
+After publication, an installed application can add `fastapi-streams[codegen]==0.3.1`
+and lock it alongside its dependencies. Use generator 0.3.0 for the current public
+stack. Both clients consume the same
 exported OpenAPI 3.2 document, containing typed SSE events and canon problem schemas.
 
 ## Streaming boundary

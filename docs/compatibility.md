@@ -15,6 +15,40 @@ are available through PyPI and this repository's independent GitHub releases.
 
 ## Follow-up verification, 2026-10-18
 
+### SDK efficiency patch preparation
+
+Prepared source versions are Canon 0.5.3 / Streams 0.3.1 / RPCkit 0.2.0. Canon
+0.5.3 and Streams 0.3.1 are **not published**; the public versions in the table
+above remain current. RPCkit is unchanged. The [release proposal](releases.md#proposed-sdk-efficiency-patches-2026-10-18)
+and [validation/performance decision](design-decisions/0004-sdk-validation-efficiency.md)
+record scope, upgrade steps and bounded benchmark results.
+
+Local Windows/Python 3.14 checks pass all workspace gates: lint/formatting, package
+type checks, 1,458 Python tests in separate processes (Canon 251, Streams 320,
+RPCkit 839, reference service 5 and root integration/release 43), generator drift
+and 22 TypeScript tests with transport coverage. The initial combined check
+exposed seven root release tests still tied to the previous version numbers;
+after updating those fixtures, the complete root suite and remaining client gate
+pass separately. Existing unsupported-constraint and upstream deprecation warnings
+remain expected. No application runtime validation failure was found.
+
+Both independent six-combination wheel matrices pass: current compatible
+dependencies on Python 3.14 and direct minima on Python 3.12.12. The current
+profile also installs the reference-service wheel and passes its five tests with
+both extensions absent. Installed Streams checks pass core-only, HTTPX-only and
+HTTPX2-only environments, including generated diagnostic provenance/capabilities,
+request/event failures and unknown-event policy. An additional fresh Python
+3.12.12 wheel environment passes that SDK/CLI smoke with FastAPI 0.143.3,
+Pydantic 2.11.2, HTTPX 0.28.0, Jinja 3.1.0 and jsonschema 4.23.0.
+
+Dependency inventories are `dist/compatibility-latest.json` and
+`dist/compatibility-minimum.json`. Logs are `dist/sdk-efficiency-checks.log`,
+`dist/sdk-efficiency-root-tests.log`, `dist/sdk-efficiency-clients.log`,
+`dist/sdk-efficiency-artifacts-current.log`, `dist/sdk-efficiency-artifacts-minimum.log`,
+`dist/sdk-efficiency-streams-artifacts.log` and `dist/sdk-efficiency-minimum-sdk.log`.
+These are local source/artifact results, not exact-commit CI, release dry runs,
+public-index publication verification or native Hermes/application coverage.
+
 ### SDK hardening publications
 
 The current published combination is Canon 0.5.2 / Streams 0.3.0 / RPCkit 0.2.0.

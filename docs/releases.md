@@ -27,6 +27,35 @@ request-validation and diagnostic migration. Versions do not need to match.
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
 
+## Proposed SDK efficiency patches, 2026-10-18
+
+Prepared source versions, **not published**:
+
+| Distribution | Prepared version | Scope |
+| --- | --- | --- |
+| Streams | 0.3.1 | Cache ignore-policy metadata/JSON adapters, avoid unused error details, add provenance/validation-phase reports and benchmarks. |
+| Canon | 0.5.3 | Optional/development Streams 0.3.1 pin; composition API unchanged. |
+| RPCkit | 0.2.0 | Unchanged; no new release proposed. |
+
+These are patches because public signatures, accepted inputs, defaults and wire
+contracts remain unchanged. Report additions retain version 1 and existing
+diagnostic IDs/allowances. Regenerate Python SDKs using the existing backend to
+obtain the runtime improvement; existing generated SDKs remain compatible.
+TypeScript stays static-only. See the [decision and benchmark evidence](design-decisions/0004-sdk-validation-efficiency.md)
+and each prepared changelog for upgrade steps.
+
+The user authorized implementation and a release proposal, not publication.
+Before release, push the final source, pass CI on that exact commit, complete
+both package dry runs and finalize changelog dates. Only dispatch real publication
+after explicit authorization, with Streams before Canon. Then verify public-index
+installs, tags, GitHub Releases and original assets before updating current-release
+tables. Local verification is recorded in [compatibility](compatibility.md).
+
+Local validation passes 1,458 Python tests, 22 TypeScript tests, lint/types,
+generator drift and coverage, both six-combination current/minimum wheel matrices,
+isolated Streams CLI/backends and a minimum-dependency Python 3.12 SDK smoke.
+The README's current-release table continues to identify published versions only.
+
 ## SDK hardening publications, 2026-10-18
 
 The final dated source [`782d990`](https://github.com/mathisarends/canon/commit/782d990163b2b8172218d12306dd596e5e6b6835)

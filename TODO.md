@@ -15,15 +15,43 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
 
-## Next work block: external SDK adoption
+## Next work block: SDK efficiency patch releases
 
-- [ ] Regenerate the real consumer's Python SDK with Streams 0.3.0, preserving
-  its selected HTTP backend; update Canon to 0.5.2 where used.
-- [ ] Run that consumer's Python and native Hermes suites and review newly
-  rejected requests and source diagnostics. Record consumer-reported evidence
-  separately from this workspace's verified checks.
+Prepared and unpublished: Streams 0.3.1 and Canon 0.5.3; RPCkit stays 0.2.0.
+The user authorized implementation and a release proposal, not publication.
+See the [release proposal](docs/releases.md#proposed-sdk-efficiency-patches-2026-10-18)
+and [validation/performance decision](docs/design-decisions/0004-sdk-validation-efficiency.md).
+
+- [x] Add repeatable Python/Node SDK benchmarks and measure the current runtime.
+- [x] Cache Python ignore-policy setup and JSON-value adapters; defer details for
+  skipped events while retaining strict known-event validation on both backends.
+- [x] Extend optional diagnostic reports with schema/generator provenance and
+  target-specific validation phases, preserving IDs and reviewed allowances.
+- [x] Prepare independent patch versions, pins, root lockfile and upgrade notes.
+- [x] Complete workspace and current/minimum installed-artifact checks, including
+  both Streams backends and a Python 3.12 minimum-dependency generated SDK smoke.
+  See [local verification](docs/compatibility.md#sdk-efficiency-patch-preparation).
+- [ ] Push the final source and pass exact-commit CI and both package dry runs.
+- [ ] Obtain publication authorization, finalize changelog dates and publish
+  Streams before Canon with complete PyPI/tag/GitHub Release verification.
+
+## External SDK adoption
+
+- [x] Record the consumer-reported adoption of Canon 0.5.2, Streams 0.3.0 and
+  RPCkit 0.2.0, including early request validation, structured errors and exact
+  reviewed diagnostic allowances.
+- [ ] Regenerate the real consumer's SDK with Streams 0.3.1 when adopting the
+  patch, preserving its selected HTTP backend. Run its Python/native Hermes
+  suites and review diagnostics. Record consumer-reported evidence separately
+  from this workspace's verified checks.
 - [ ] Turn new contract/validation failures into minimal schema fixtures and
   regression cases before preparing another independent package release.
+
+The latest supplied Maximus report confirms adoption of Canon 0.5.2 / Streams
+0.3.0 / RPCkit 0.2.0 in its exercised integration, including strict diagnostics
+with 19 reviewed format limitations. This is consumer-reported evidence; native
+deployment and exhaustive application verification are not implied. The pending
+items above retain the distinction between reported adoption and local checks.
 
 ## Completed releases: generated SDK request validation and diagnostics
 
