@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Callable, Mapping
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from inspect import Parameter, signature
 from typing import TYPE_CHECKING, Any, get_type_hints
@@ -9,6 +9,10 @@ if TYPE_CHECKING:
     from dishka import AsyncContainer
     from fastapi import APIRouter, WebSocket
 
+    from fastapi_rpckit.connection import RpcBeforeAccept, RpcLimits, RpcRejections
+    from fastapi_rpckit.integrations.fastapi import FastApiResolverFactory
+    from fastapi_rpckit.middleware import RpcMiddlewareLike
+    from fastapi_rpckit.server import RpcErrorMapper
     from fastapi_rpckit.service import RpcService
 
 from fastapi_rpckit.dependencies import RpcResolver
@@ -54,16 +58,41 @@ class DishkaResolver:
             yield DishkaResolver(request_container)
 
 
-def dishka_router(service: RpcService, **options: Any) -> APIRouter:
-    """Serve a service with the app's root Dishka container."""
-    from fastapi_rpckit.integrations.fastapi import create_router
+def dishka_router(
+    service: RpcService,
+    *,
+    context: object | Mapping[type[Any], object] | None = None,
+    resolver_factory: FastApiResolverFactory | None = None,
+    error_mapper: RpcErrorMapper | None = None,
+    limits: RpcLimits | None = None,
+    before_accept: RpcBeforeAccept | None = None,
+    rejections: RpcRejections | None = None,
+    middleware: Sequence[RpcMiddlewareLike] = (),
+) -> APIRouter:
+    """Mount a service with a context value, not a FastAPI context dependency.
+
+    Use ``RpcRoutes(context=async_dependency, resolver=Dishka(), rejects=...)``
+    for per-connection authentication through FastAPI and Dishka dependencies.
+    ``resolver_factory`` can customize the resolver built for each WebSocket.
+    """
+    from fastapi_rpckit import create_router
+
+    if callable(context):
+        raise TypeError(
+            "dishka_router context is a value; use RpcRoutes(context=...) "
+            "for an async FastAPI context dependency"
+        )
 
     return create_router(
         service,
-        resolver_factory=lambda websocket: DishkaResolver(
-            websocket.app.state.dishka_container
-        ),
-        **options,
+        resolver_factory=resolver_factory
+        or (lambda websocket: DishkaResolver(websocket.app.state.dishka_container)),
+        context=context,
+        error_mapper=error_mapper,
+        limits=limits,
+        before_accept=before_accept,
+        rejections=rejections,
+        middleware=middleware,
     )
 
 

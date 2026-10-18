@@ -23,6 +23,6 @@ Start with services and channels if you are building a server. Start with the
 contract and client guide if the server definition already exists.
 
 The stable import surface is `fastapi_rpckit` plus the documented integration
-modules `fastapi_rpckit.integrations.fastapi`, `fastapi_rpckit.integrations.dishka`, and
+the package-root FastAPI API, `fastapi_rpckit.integrations.dishka`, and
 `fastapi_rpckit.integrations.opentelemetry`, plus `fastapi_rpckit.testing` and `fastapi_rpckit.codegen`.
 Other submodules are implementation details.

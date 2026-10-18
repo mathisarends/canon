@@ -159,4 +159,26 @@ connection above, so session-scoped values are never shared between the two.
 Keep RPC dependencies in the fastapi_rpckit scope and do not rely on
 `websocket.state.dishka_container` in RPC code.
 
+## Authenticated connections
+
+`dishka_router(service, context=value)` and `create_router` accept a context
+value or mapping. They do not execute `context` as a FastAPI dependency. The
+optional `resolver_factory` on `dishka_router` customizes per-socket resolution;
+`before_accept` and `rejections` retain their existing handshake semantics.
+Use `RpcRoutes(router, context=async_dependency, resolver=Dishka(), rejects=...)`
+when authentication needs FastAPI dependencies, cookies, origins or path values.
+
+The executable [authenticated example](../examples/authenticated.py) checks an
+Origin allowlist and a session cookie before accepting. Typed rejection bindings
+produce HTTP 401/403. A custom Dishka resolver arms `RpcConnection.expire_at()`
+from the authenticated login, closing an expired connection with
+`1008 / credentials_expired`. The APP session store is shared; the login belongs
+to the RPC SESSION and request identities belong to each call's REQUEST scope.
+The example owns and closes its APP container in the FastAPI lifespan.
+
+Run from this package directory with `uv run uvicorn examples.authenticated:app`.
+The in-memory demo session is for illustrating integration; use the application's
+session service and explicit production Origin allowlist. The tests cover denied
+handshakes, an authenticated call, and expiry of an established connection.
+
 [Back to documentation](README.md)
