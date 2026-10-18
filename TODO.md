@@ -4,7 +4,8 @@ Updated: 2026-10-18. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
 **Current scope:** The user authorized the initial publications on 2026-10-17
-and the follow-up publications with GitHub Releases on 2026-10-18. All three
+and the follow-up and SDK hardening publications with GitHub Releases on
+2026-10-18. All three
 packages are published on PyPI with matching GitHub releases
 in this repository. The [README](README.md#current-releases) shows every current
 package release. RPC is `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected the
@@ -14,12 +15,21 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
 
-## Next release: generated SDK request validation and diagnostics
+## Next work block: external SDK adoption
+
+- [ ] Regenerate the real consumer's Python SDK with Streams 0.3.0, preserving
+  its selected HTTP backend; update Canon to 0.5.2 where used.
+- [ ] Run that consumer's Python and native Hermes suites and review newly
+  rejected requests and source diagnostics. Record consumer-reported evidence
+  separately from this workspace's verified checks.
+- [ ] Turn new contract/validation failures into minimal schema fixtures and
+  regression cases before preparing another independent package release.
+
+## Completed releases: generated SDK request validation and diagnostics
 
 Authorized scope: implement directly on main and prepare Streams 0.3.0 and Canon
 0.5.2. The user explicitly authorized publication with matching GitHub Releases
-on 2026-10-18. RPCkit stays 0.2.0.
-Published-version tables remain unchanged until verified publication.
+on 2026-10-18. Both are published and verified; RPCkit stays 0.2.0.
 
 - [x] Validate Python path/query/header constraints at the method call while
   preserving valid serialization and existing body/event behavior.
@@ -35,8 +45,13 @@ Published-version tables remain unchanged until verified publication.
   CI and both release dry runs; verify downloaded wheel/sdist hashes and manifests.
   See [SDK hardening preparation](docs/releases.md#sdk-hardening-preparation-2026-10-18).
 - [x] Obtain explicit publication approval and finalize both changelog dates.
-- [ ] Pass final-source CI, publish Streams before Canon, and verify PyPI installs,
-  tags, GitHub Releases, changelog notes and attached original artifacts.
+- [x] Pass final-source CI at `782d990`, publish Streams before Canon, and verify
+  PyPI installs, tags, GitHub Releases, changelog notes and original artifacts.
+- [x] Match PyPI, Actions and GitHub asset hashes and record the actual releases
+  in README, compatibility and release documentation. See
+  [SDK hardening publications](docs/releases.md#sdk-hardening-publications-2026-10-18).
+- [x] Verify the public Streams HTTPX2 SDK/CLI and all three exact public package
+  versions together in fresh Windows/Python 3.14 environments.
 
 ## Completed releases: consumer integration feedback
 

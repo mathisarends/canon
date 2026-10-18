@@ -7,26 +7,54 @@ current package versions with PyPI and GitHub release links.
 
 ## Current released versions
 
-Prepared next versions: **Streams 0.3.0** (stricter generated Python request
+Published and verified: **Streams 0.3.0** (stricter generated Python request
 validation, source diagnostics/CI policy and structured stream failures) and
-**Canon 0.5.2** (optional Streams pin). These are unreleased source versions;
-RPCkit stays 0.2.0. Publish Streams first. The user explicitly authorized both
-publications on 2026-10-18, including GitHub Releases and current changelogs.
-Changelogs are dated; final-source CI and publication verification are pending.
+**Canon 0.5.2** (optional Streams pin). RPCkit stays 0.2.0. Streams was published
+first. The user explicitly authorized both publications on 2026-10-18, including
+GitHub Releases and current changelogs. Verification evidence is recorded below.
 
 | Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
-| `fastapi-streams` | `fastapi_streams` | 0.2.0 | `fastapi-streams-v0.2.0` |
-| `fastapi-canon` | `fastapi_canon` | 0.5.1 | `fastapi-canon-v0.5.1` |
+| `fastapi-streams` | `fastapi_streams` | 0.3.0 | `fastapi-streams-v0.3.0` |
+| `fastapi-canon` | `fastapi_canon` | 0.5.2 | `fastapi-canon-v0.5.2` |
 | `fastapi-rpckit` | `fastapi_rpckit` | 0.2.0 | `fastapi-rpckit-v0.2.0` |
 
-Published Canon 0.5.1 pins Streams 0.2.0 in its `streams` extra.
-RPC is independent. These Canon/Streams releases replace 0.5.0/0.1.0;
+Published Canon 0.5.2 pins Streams 0.3.0 in its `streams` extra.
+RPC is independent. These Canon/Streams releases replace 0.5.1/0.2.0;
 changed builds require new versions. Follow the Streams changelog's generated
-literal/enum and error-alias migration. Versions do not need to match.
+request-validation and diagnostic migration. Versions do not need to match.
 
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
+
+## SDK hardening publications, 2026-10-18
+
+The final dated source [`782d990`](https://github.com/mathisarends/canon/commit/782d990163b2b8172218d12306dd596e5e6b6835)
+passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39140129032).
+The user explicitly authorized publication and matching GitHub Releases.
+
+| Package | Published version | Successful publication | GitHub Release |
+| --- | --- | --- | --- |
+| Streams | [0.3.0](https://pypi.org/project/fastapi-streams/0.3.0/) | [39140501009](https://github.com/mathisarends/canon/actions/runs/39140501009) | [Notes and assets](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.3.0) |
+| Canon | [0.5.2](https://pypi.org/project/fastapi-canon/0.5.2/) | [39140884839](https://github.com/mathisarends/canon/actions/runs/39140884839) | [Notes and assets](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.2) |
+
+Streams completed publication and verification before Canon's dispatch. Both
+package-prefixed tags point to `782d990`. Each workflow passed current/minimum
+artifact gates, isolated Streams CLI/backends, public PyPI hashes and fresh public
+installs. Canon passed both core-only and `[streams]` public installs.
+
+Independent downloads verify identical wheel/sdist SHA-256 values across PyPI,
+Actions and GitHub Release assets, matching original manifests and exact-source
+CI. Each GitHub Release has the dated changelog notes, original wheel, sdist and
+manifest; release bodies match both workflow notes and repository changelogs.
+An additional fresh Windows/Python 3.14 public-index environment passes Streams'
+installed CLI, Python HTTPX2 SDK and TypeScript compilation. A second fresh public
+environment installs Canon 0.5.2, Streams 0.3.0 and RPCkit 0.2.0 together and passes
+combined HTTP/SSE/RPC, Dishka cleanup and generated RPC client checks. Initial
+local index-visibility delays were resolved with refreshed metadata and retries;
+no second upload or artifact replacement was needed.
+Evidence and inventories are under `dist/publications/`; command logs are
+`dist/sdk-publication-*.log`. Full external application migration remains separate.
 
 ## SDK hardening preparation, 2026-10-18
 
@@ -51,9 +79,8 @@ Original evidence is under `dist/dry-runs/RUN_ID/` and in the workflow artifacts
 This preparation does not publish either version or establish a full external
 application migration. The following documentation commit records the evidence;
 package sources and changelogs were unchanged and unreleased at that stage.
-The user subsequently authorized publication on 2026-10-18. Changelog dates are
-finalized; pass CI on this final dated source, publish Streams before Canon, and
-verify PyPI installs, matching tags, GitHub Releases and original artifacts.
+The user subsequently authorized publication on 2026-10-18. The final dated source
+passed CI, and Streams and Canon publications were verified as recorded above.
 
 ## Follow-up releases, 2026-10-18
 

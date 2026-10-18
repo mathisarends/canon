@@ -4,8 +4,8 @@ Published versions, verified on 2026-10-18:
 
 | Distribution | Version | Import |
 | --- | --- | --- |
-| `fastapi-canon` | 0.5.1 | `fastapi_canon` |
-| `fastapi-streams` | 0.2.0 | `fastapi_streams` |
+| `fastapi-canon` | 0.5.2 | `fastapi_canon` |
+| `fastapi-streams` | 0.3.0 | `fastapi_streams` |
 | `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.2.0 | `fastapi_rpckit` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
@@ -15,9 +15,11 @@ are available through PyPI and this repository's independent GitHub releases.
 
 ## Follow-up verification, 2026-10-18
 
-The next source combination is Canon 0.5.2 / Streams 0.3.0 / RPCkit 0.2.0.
-It is release preparation, not a publication or a verified external application
-migration. Streams' request validation now runs at method call; see the
+### SDK hardening publications
+
+The current published combination is Canon 0.5.2 / Streams 0.3.0 / RPCkit 0.2.0.
+This verifies the published stack; full external application migration remains
+separate. Streams' request validation now runs at method call; see the
 [upgrade notes](../packages/fastapi-streams/CHANGELOG.md#030---2026-10-18).
 Local Windows validation passes lint/type gates, all package/root suites (1,453
 Python tests in separate processes) and 22 TypeScript tests with generator drift
@@ -34,9 +36,27 @@ the [Streams 0.3.0 dry run](https://github.com/mathisarends/canon/actions/runs/3
 and the [Canon 0.5.2 dry run](https://github.com/mathisarends/canon/actions/runs/39139221925).
 Downloaded wheel/sdist hashes match both exact-source manifests. Both workflows
 passed current/minimum artifact and installed Streams backend gates; publication
-and tag/GitHub Release jobs were skipped. These versions remain unreleased,
-The user authorized publication on 2026-10-18. Changelogs are dated; final
-dated-source CI and the publication/install/tag/GitHub Release gates are pending.
+and tag/GitHub Release jobs were skipped at the preparation stage.
+
+The final dated source `782d990` passed
+[four-target CI](https://github.com/mathisarends/canon/actions/runs/39140129032).
+The authorized [Streams 0.3.0 publication](https://github.com/mathisarends/canon/actions/runs/39140501009)
+completed before [Canon 0.5.2](https://github.com/mathisarends/canon/actions/runs/39140884839).
+Both workflows verified current/minimum wheels, installed Streams CLI/backends,
+public-index installs and matching GitHub Releases. Canon passed core-only and
+`[streams]` installs. Independently downloaded PyPI, Actions and GitHub assets
+match their exact-source manifests; tags, dated changelog notes and attached
+files were verified. A fresh Windows/Python 3.14 public-index environment also
+passes the installed Streams CLI and HTTPX2 generated SDK smoke, including
+request/body constraints, structured stream errors and known/unknown event policy.
+TypeScript output compiles. A second fresh public-index environment verifies
+Canon 0.5.2, Streams 0.3.0 and RPCkit 0.2.0 together, including combined HTTP/SSE/RPC,
+Dishka state/cleanup and generated RPC clients. Its dependency inventory is
+`dist/publications/public-stack-sdk-hardening-inventory.json`. Evidence is under
+`dist/publications/`; initial local index-visibility delays were resolved by
+refreshing metadata and retrying the same public versions without another upload.
+
+### Previous consumer-feedback publications
 
 Canon 0.5.1, Streams 0.2.0 and RPCkit 0.2.0 are published. Final source
 `4af9092` passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39127577804).
