@@ -60,6 +60,20 @@ def validate_release(
     github: bool = False,
 ) -> dict[str, Any]:
     package = _selection(name, version, root)
+    documentation = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/check_documentation.py"),
+            "--root",
+            str(root),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if documentation.returncode:
+        raise ValueError(documentation.stdout + documentation.stderr)
     projects = {
         key: _toml(root / value.directory / "pyproject.toml")["project"]
         for key, value in packages(root).items()

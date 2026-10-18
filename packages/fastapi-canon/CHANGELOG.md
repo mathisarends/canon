@@ -2,6 +2,10 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## 0.5.1 - unreleased
+
+- Correct Streams integration installation examples to match the pinned dependency.
+
 ## 0.5.0 - 2026-10-17
 
 ### Added

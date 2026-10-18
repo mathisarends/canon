@@ -22,6 +22,7 @@ def main() -> None:
     gates = ("lint", "types", "test", "clients") if args.gate == "all" else (args.gate,)
     for gate in gates:
         if gate == "lint":
+            _run(ROOT, "scripts/check_documentation.py")
             for root in (ROOT, *MEMBERS):
                 targets = (
                     ("scripts", "tests", "examples/stack_service.py")

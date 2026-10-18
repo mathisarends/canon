@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 
 from fastapi_rpckit import RpcChannel, RpcService
-from fastapi_rpckit.integrations.fastapi import create_router
+from fastapi_rpckit import create_router
 from fastapi_rpckit.integrations.opentelemetry import OpenTelemetry
 
 media = RpcChannel("media")

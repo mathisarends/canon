@@ -22,6 +22,10 @@ def release_repo(tmp_path: Path) -> Path:
         "pyproject.toml",
         "uv.lock",
         "examples/reference-service/pyproject.toml",
+        "packages/fastapi-canon/docs/streams.md",
+        "packages/fastapi-canon/examples/streams/README.md",
+        "packages/fastapi-streams/README.md",
+        "packages/fastapi-rpckit/fastapi_rpckit/integrations/dishka.py",
     ]
     for package in release.packages().values():
         files.extend(
@@ -56,6 +60,13 @@ def release_repo(tmp_path: Path) -> Path:
             ["git", *arguments], cwd=tmp_path, check=True, capture_output=True
         )
     return tmp_path
+
+
+def test_release_rejects_stale_installation_docs(release_repo: Path) -> None:
+    path = release_repo / "packages/fastapi-canon/docs/streams.md"
+    path.write_text("Install fastapi-streams==0.0.1", encoding="utf-8")
+    with pytest.raises(ValueError, match="does not match"):
+        release.validate_release("fastapi-canon", "0.5.0", root=release_repo)
 
 
 @pytest.mark.parametrize(

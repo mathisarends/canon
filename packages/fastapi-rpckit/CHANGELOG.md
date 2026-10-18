@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 - unreleased
+
+- Use package-root FastAPI imports in documentation and fix the optional Dishka installation diagnostic. RpcRoutes remains the public mounting name; nested imports remain available.
+
 ## 0.1.0 - 2026-10-17
 
 - Use `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected the earlier local

@@ -86,7 +86,7 @@ class Dishka:
             from fastapi import WebSocket
         except ImportError as error:
             raise ModuleNotFoundError(
-                "Dishka requires the 'fastapi' and 'dishka' extras"
+                "Install fastapi-rpckit[dishka] to use Dishka dependencies"
             ) from error
         hints = get_type_hints(function)
         parameters = signature(function).parameters

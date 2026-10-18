@@ -27,10 +27,10 @@ A CI check catches drift between the Python app, the contract, and generated cod
 
 ## 1. Decorate your FastAPI endpoint
 
-Install from GitHub with the optional codegen extra:
+Install from PyPI with the optional codegen extra:
 
 ```sh
-uv add 'fastapi-streams[codegen] @ git+https://github.com/mathisarends/fastapi-streams.git'
+uv add 'fastapi-streams[codegen]'
 ```
 
 Save this as `app.py`:
@@ -218,7 +218,7 @@ and regenerating committed clients.
 | [Development](docs/development.md) | Tests, supported scope, and roadmap. |
 | [Releasing](docs/releasing.md) | Tag-based releases and credential-free PyPI publishing. |
 
-v0.0.1 supports GET/POST JSON SSE streams. Ordinary REST endpoints stay in the
+The current release supports GET/POST JSON SSE streams. Ordinary REST endpoints stay in the
 contract for your existing REST SDK. See the [supported scope](docs/development.md#supported-scope-and-roadmap).
 
 Python 3.12+ · FastAPI 0.143.3+ · Pydantic v2 · [MIT](LICENSE)

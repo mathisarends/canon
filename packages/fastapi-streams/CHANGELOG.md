@@ -3,6 +3,10 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
+## 0.2.0 - unreleased
+
+- Fix PyPI installation instructions and supported-scope wording. Replace the predecessor release guide with the workspace release process.
+
 ## 0.1.0 - 2026-10-17
 
 ### Added
