@@ -81,3 +81,53 @@ async def test_ignore_requires_a_discriminated_union(tmp_path):
                         options=sdk.RequestOptions(unknown_events="ignore")
                     )
                 )
+
+
+@pytest.mark.parametrize("backend", ["httpx", "httpx2"])
+async def test_ignore_reuses_policy_across_requests_and_keeps_nested_validation(
+    tmp_path, backend, monkeypatch
+):
+    class Container(BaseModel):
+        type: Literal["container"]
+        child: Event
+
+    event = Annotated[Container | Done, Field(discriminator="type")]
+    http = __import__(backend)
+    with load_package(
+        tmp_path / "sdk", generate_python(event_contract(event), http_client=backend)
+    ) as sdk:
+        content = (
+            'data: {"type":"future","nested":[{"unknown":true}]}\n\n' * 20
+            + 'data: {"type":"done","count":1}\n\n'
+        )
+        async with (
+            http.AsyncClient(
+                transport=http.MockTransport(
+                    lambda _: http.Response(
+                        200,
+                        content=content,
+                        headers={"content-type": "text/event-stream"},
+                    )
+                )
+            ) as client,
+            sdk.Client("http://example.test", http_client=client) as api,
+        ):
+            options = sdk.RequestOptions(unknown_events="ignore")
+            assert (
+                len([item async for item in api.streams.events(options=options)]) == 1
+            )
+
+            def unexpected_schema(*_args, **_kwargs):
+                raise AssertionError("Event policy must survive successive requests")
+
+            monkeypatch.setattr(
+                api.streams._events_event_adapter, "json_schema", unexpected_schema
+            )
+            assert (
+                len([item async for item in api.streams.events(options=options)]) == 1
+            )
+            content = 'data: {"type":"container","child":{"type":"future"}}\n\n'
+            with pytest.raises(sdk.StreamParseError) as caught:
+                await anext(api.streams.events(options=options))
+            assert caught.value.category == "invalid_event_schema"
+            assert caught.value.validation_errors[0]["loc"] == ("container", "child")

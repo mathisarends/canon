@@ -5,11 +5,14 @@ import codecs
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from functools import cache
 from typing import Literal, cast
 
 import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_core import ErrorDetails
+
+_JSON_ADAPTER = TypeAdapter[JsonValue](JsonValue)
 
 
 class TransportError(Exception):
@@ -180,19 +183,11 @@ class Transport:
         options: RequestOptions | None = None,
     ) -> AsyncGenerator[T, None]:
         discriminator: str | None = None
-        known_tags: set[str] = set()
+        known_tags: frozenset[str] = frozenset()
         if options and options.unknown_events not in {"error", "ignore"}:
             raise ValueError("unknown_events must be 'error' or 'ignore'")
         if options and options.unknown_events == "ignore":
-            schema = adapter.json_schema()
-            policy = schema.get("discriminator", {})
-            discriminator = policy.get("propertyName")
-            known_tags = set(policy.get("mapping", {}))
-            if not isinstance(discriminator, str) or not known_tags:
-                raise ValueError(
-                    "unknown_events='ignore' requires a top-level "
-                    "discriminated event union"
-                )
+            discriminator, known_tags = _unknown_event_policy(adapter)
         request_headers = self.headers.copy()
         request_headers.update(headers)
         if options and options.headers:
@@ -223,11 +218,7 @@ class Transport:
                         failure = exc
                     text = raw.decode("utf-8", errors="replace")
                     try:
-                        details = (
-                            TypeAdapter[JsonValue](JsonValue).validate_json(text)
-                            if text
-                            else None
-                        )
+                        details = _JSON_ADAPTER.validate_json(text) if text else None
                     except ValidationError:
                         details = text
                     raise HttpError(response, details) from failure
@@ -245,6 +236,16 @@ class Transport:
                     try:
                         yield adapter.validate_json(payload)
                     except ValidationError as exc:
+                        if discriminator is not None:
+                            try:
+                                value = _JSON_ADAPTER.validate_json(payload)
+                            except ValidationError:
+                                pass
+                            else:
+                                if isinstance(value, dict):
+                                    tag = value.get(discriminator)
+                                    if isinstance(tag, str) and tag not in known_tags:
+                                        continue
                         # Exclude input and arbitrary validator context from public
                         # diagnostics. The original cause remains available explicitly.
                         details = exc.errors(
@@ -257,22 +258,6 @@ class Transport:
                             if any(error["type"] == "json_invalid" for error in details)
                             else "invalid_event_schema"
                         )
-                        if discriminator is not None:
-                            try:
-                                value = TypeAdapter[JsonValue](JsonValue).validate_json(
-                                    payload
-                                )
-                            except ValidationError:
-                                raise StreamParseError(
-                                    payload,
-                                    operation_id=operation_id,
-                                    category="invalid_json",
-                                    validation_errors=details,
-                                ) from exc
-                            if isinstance(value, dict):
-                                tag = value.get(discriminator)
-                                if isinstance(tag, str) and tag not in known_tags:
-                                    continue
                         raise StreamParseError(
                             payload,
                             operation_id=operation_id,
@@ -283,6 +268,19 @@ class Transport:
             raise TransportError("SSE HTTP transport failed") from exc
         except UnicodeDecodeError as exc:
             raise TransportError("Invalid UTF-8 in SSE stream") from exc
+
+
+@cache
+def _unknown_event_policy[T](adapter: TypeAdapter[T]) -> tuple[str, frozenset[str]]:
+    schema = adapter.json_schema()
+    policy = schema.get("discriminator", {})
+    discriminator = policy.get("propertyName")
+    known_tags = frozenset(policy.get("mapping", {}))
+    if not isinstance(discriminator, str) or not known_tags:
+        raise ValueError(
+            "unknown_events='ignore' requires a top-level discriminated event union"
+        )
+    return discriminator, known_tags
 
 
 def _preserve_numbers[T](original: object, validated: T) -> T:
