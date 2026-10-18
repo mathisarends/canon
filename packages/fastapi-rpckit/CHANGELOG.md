@@ -24,7 +24,9 @@
   nested imports remain available.
 - Update metadata, root pins, lockfile and both generated-client manifests to
   0.2.0. The earlier 0.1.1 dry-run evidence is historical and does not validate
-  this version's artifacts; repeat the RPC release dry run after exact-commit CI.
+  this version's artifacts. Corrected source `0a2b097` passed four-target CI
+  and the [0.2.0 dry run](https://github.com/mathisarends/canon/actions/runs/39127145156);
+  downloaded wheel/sdist hashes match the manifest. Publication jobs were skipped.
 
 ## 0.1.0 - 2026-10-17
 

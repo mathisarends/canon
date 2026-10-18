@@ -20,8 +20,12 @@ version table above remains unchanged until verified publication.
 
 The initial checks below used RPCkit 0.1.1. That unpublished version is
 superseded by 0.2.0 for the breaking signature/context changes; its old artifact
-results do not validate the new version. Repeat the RPC release dry run after
-exact-commit CI. Runtime and generator behavior are unchanged by the version fix.
+results do not validate the new version. Corrected source `0a2b097` separately
+passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39126936002)
+and the [RPCkit 0.2.0 dry run](https://github.com/mathisarends/canon/actions/runs/39127145156),
+including current/minimum wheel and installed Streams backend gates. Downloaded
+artifact hashes match its manifest. Runtime and generator behavior are unchanged
+by the version fix; no publication occurred.
 
 Local Windows checks passed 1,380 Python tests across isolated package/root
 processes and 22 TypeScript tests, all lint/type gates, both generator drift

@@ -36,7 +36,9 @@ RPCkit 0.2.0. Publish Streams before Canon's updated optional pin.
 - [x] Record the pre-1.0 breaking-change policy in agent/release guidance and
   release validation; correct RPCkit to 0.2.0. The previous 0.1.1 dry run is
   historical and cannot validate the corrected version.
-- [ ] Pass CI and the RPCkit 0.2.0 release dry run after the version correction.
+- [x] Pass [four-target CI](https://github.com/mathisarends/canon/actions/runs/39126936002)
+  and the [RPCkit 0.2.0 dry run](https://github.com/mathisarends/canon/actions/runs/39127145156)
+  at `0a2b097`; downloaded artifact hashes match the manifest.
 - [ ] Finalize release dates and publish only after explicit publication authorization.
 
 The [consumer feedback decision](docs/design-decisions/0002-consumer-feedback.md)

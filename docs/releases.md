@@ -38,7 +38,7 @@ are recorded in TODO and the compatibility record as they complete.
 
 RPCkit's originally prepared 0.1.1 was superseded by 0.2.0 after classifying the
 mounting signature and context validation as breaking. Its earlier dry-run entry
-below remains historical; 0.2.0 needs exact-commit CI and its own release dry run.
+below remains historical; the corrected 0.2.0 evidence is recorded below.
 
 ## Verified follow-up preparation, 2026-10-18
 
@@ -63,6 +63,20 @@ The following documentation commit records this evidence; it does not change
 runtime or generator behavior. Before an authorized publication, finalize changelog
 dates, pass CI on the final source and follow the normal dry-run/publication flow.
 The current-release table continues to describe only published versions.
+
+### RPCkit version correction verified
+
+The user requires every pre-1.0 breaking change to use the next minor version
+with patch zero. Commit [`0a2b097`](https://github.com/mathisarends/canon/commit/0a2b097b2842ed7f95753047f16bc35a5cce4969)
+corrects RPCkit to 0.2.0, records the rule in agent guidance, and enforces declared
+breaking changelog sections during release validation. All 42 release tests pass.
+
+That exact commit passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39126936002)
+and the [RPCkit 0.2.0 dry run](https://github.com/mathisarends/canon/actions/runs/39127145156).
+The downloaded wheel/sdist hashes match its manifest. Current/minimum wheel gates
+and installed Streams backends passed; publication and tag/release jobs were
+skipped. The earlier RPCkit 0.1.1 result above is superseded preparation evidence,
+not a publication or verification of 0.2.0. Sources remain unreleased.
 
 ## Account configuration verified on 2026-10-17
 
