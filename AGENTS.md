@@ -79,3 +79,7 @@ verified artifacts; do not replace published contents or move existing tags.
 After verified publication, update the README's current-release table and the
 TODO/release/compatibility records. All workspace package releases belong in this
 repository's central GitHub Releases list, with independent package-prefixed tags.
+Always create the matching GitHub Release for every package publication, including
+changelog notes, the verified wheel/sdist and the release manifest. A publication
+is not complete until its PyPI install, tag, GitHub Release and attached artifacts
+have been verified. Do not treat a PyPI-only upload as a completed release.

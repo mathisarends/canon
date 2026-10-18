@@ -32,9 +32,10 @@ come from package metadata; the release check does not import business modules.
 These are unpublished source versions. Streams' regenerated Python SDKs may reject
 payloads that previously passed because constraints were dropped; read its
 changelog before regeneration. Publish Streams before Canon. RPCkit keeps wire
-contracts, `RpcRoutes` and existing nested imports. Changelog dates remain
-unreleased until publication is authorized. Local checks and CI/dry-run evidence
-are recorded in TODO and the compatibility record as they complete.
+contracts, `RpcRoutes` and existing nested imports. The user explicitly authorized
+publication on 2026-10-18; changelogs are dated for that release. These versions
+remain unpublished until public-index installs and matching GitHub Releases are
+verified. Local checks and CI/dry-run evidence are recorded below.
 
 RPCkit's originally prepared 0.1.1 was superseded by 0.2.0 after classifying the
 mounting signature and context validation as breaking. Its earlier dry-run entry
@@ -236,6 +237,12 @@ releases, and the original jobs then verified them successfully. Canon completed
 the corrected workflow on its first attempt.
 
 ## Publish when explicitly authorized
+
+Every package publication must include a matching GitHub Release in this
+repository, with the package-prefixed tag at the verified source commit,
+changelog notes, original wheel/sdist and release manifest. This is a standing
+user preference, confirmed on 2026-10-18. Verify the release and all assets before
+reporting completion; a successful PyPI upload alone is not a completed release.
 
 After preparing a new version, finalizing its changelog and passing CI, dispatch
 with `dry_run=false`. For a new Streams version:

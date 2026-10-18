@@ -3,12 +3,10 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
-## 0.2.0 - unreleased
+## 0.2.0 - 2026-10-18
 
 - Source preparation passed workspace CI, independent wheel matrices and the
   package release dry run. See the [release preparation evidence](../../docs/releases.md#verified-follow-up-preparation-2026-10-18).
-  This version remains unpublished; final publication needs a dated changelog
-  and CI on the final source.
 
 ### Added
 

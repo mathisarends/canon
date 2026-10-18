@@ -39,7 +39,12 @@ RPCkit 0.2.0. Publish Streams before Canon's updated optional pin.
 - [x] Pass [four-target CI](https://github.com/mathisarends/canon/actions/runs/39126936002)
   and the [RPCkit 0.2.0 dry run](https://github.com/mathisarends/canon/actions/runs/39127145156)
   at `0a2b097`; downloaded artifact hashes match the manifest.
-- [ ] Finalize release dates and publish only after explicit publication authorization.
+- [x] Obtain explicit publication authorization on 2026-10-18 and finalize the
+  three changelog dates. Every publication must include a verified GitHub Release.
+- [ ] Pass CI on the final dated source commit.
+- [ ] Publish Streams 0.2.0, RPCkit 0.2.0 and then Canon 0.5.1 after Streams.
+- [ ] Verify PyPI installs, matching tags, GitHub Releases and original assets;
+  update the current-release and compatibility records.
 
 The [consumer feedback decision](docs/design-decisions/0002-consumer-feedback.md)
 records scope and remaining limits. Maximus feedback is consumer-reported evidence;
