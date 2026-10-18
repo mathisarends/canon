@@ -2,7 +2,7 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
-## 0.5.2 - unreleased
+## 0.5.2 - 2026-10-18
 
 - Update the optional Streams integration and development pin to 0.3.0 and align
   installation examples. Canon's composition/runtime API is unchanged.

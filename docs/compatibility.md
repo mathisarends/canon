@@ -18,7 +18,7 @@ are available through PyPI and this repository's independent GitHub releases.
 The next source combination is Canon 0.5.2 / Streams 0.3.0 / RPCkit 0.2.0.
 It is release preparation, not a publication or a verified external application
 migration. Streams' request validation now runs at method call; see the
-[upgrade notes](../packages/fastapi-streams/CHANGELOG.md#030---unreleased).
+[upgrade notes](../packages/fastapi-streams/CHANGELOG.md#030---2026-10-18).
 Local Windows validation passes lint/type gates, all package/root suites (1,453
 Python tests in separate processes) and 22 TypeScript tests with generator drift
 and coverage checks. Both six-combination wheel matrices pass with current
@@ -35,7 +35,8 @@ and the [Canon 0.5.2 dry run](https://github.com/mathisarends/canon/actions/runs
 Downloaded wheel/sdist hashes match both exact-source manifests. Both workflows
 passed current/minimum artifact and installed Streams backend gates; publication
 and tag/GitHub Release jobs were skipped. These versions remain unreleased,
-pending separate publication approval and final dated-source CI.
+The user authorized publication on 2026-10-18. Changelogs are dated; final
+dated-source CI and the publication/install/tag/GitHub Release gates are pending.
 
 Canon 0.5.1, Streams 0.2.0 and RPCkit 0.2.0 are published. Final source
 `4af9092` passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39127577804).

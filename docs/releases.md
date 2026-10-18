@@ -10,9 +10,9 @@ current package versions with PyPI and GitHub release links.
 Prepared next versions: **Streams 0.3.0** (stricter generated Python request
 validation, source diagnostics/CI policy and structured stream failures) and
 **Canon 0.5.2** (optional Streams pin). These are unreleased source versions;
-RPCkit stays 0.2.0. Publish Streams first. The user requested preparation on main
-and will provide separate publication approval after reviewing validation and
-dry-run evidence. Changelog dates remain unreleased until that approval.
+RPCkit stays 0.2.0. Publish Streams first. The user explicitly authorized both
+publications on 2026-10-18, including GitHub Releases and current changelogs.
+Changelogs are dated; final-source CI and publication verification are pending.
 
 | Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
@@ -50,10 +50,10 @@ Original evidence is under `dist/dry-runs/RUN_ID/` and in the workflow artifacts
 
 This preparation does not publish either version or establish a full external
 application migration. The following documentation commit records the evidence;
-package sources and changelogs remain unchanged and unreleased. Publication is
-awaiting the user's separate approval. After approval, finalize changelog dates,
-pass CI on the final dated source, publish Streams before Canon, and verify PyPI
-installs, matching tags, GitHub Releases and attached original artifacts.
+package sources and changelogs were unchanged and unreleased at that stage.
+The user subsequently authorized publication on 2026-10-18. Changelog dates are
+finalized; pass CI on this final dated source, publish Streams before Canon, and
+verify PyPI installs, matching tags, GitHub Releases and original artifacts.
 
 ## Follow-up releases, 2026-10-18
 

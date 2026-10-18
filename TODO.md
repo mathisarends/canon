@@ -17,7 +17,8 @@ and GitHub Actions when asked to prepare or publish a release.
 ## Next release: generated SDK request validation and diagnostics
 
 Authorized scope: implement directly on main and prepare Streams 0.3.0 and Canon
-0.5.2. Publication requires the user's separate final approval. RPCkit stays 0.2.0.
+0.5.2. The user explicitly authorized publication with matching GitHub Releases
+on 2026-10-18. RPCkit stays 0.2.0.
 Published-version tables remain unchanged until verified publication.
 
 - [x] Validate Python path/query/header constraints at the method call while
@@ -33,8 +34,9 @@ Published-version tables remain unchanged until verified publication.
 - [x] Commit/push implementation `2d47c61` on main, pass exact-source four-target
   CI and both release dry runs; verify downloaded wheel/sdist hashes and manifests.
   See [SDK hardening preparation](docs/releases.md#sdk-hardening-preparation-2026-10-18).
-- [ ] After approval, finalize dates, pass final-source CI, publish Streams before
-  Canon, and verify PyPI installs, tags, GitHub Releases and attached artifacts.
+- [x] Obtain explicit publication approval and finalize both changelog dates.
+- [ ] Pass final-source CI, publish Streams before Canon, and verify PyPI installs,
+  tags, GitHub Releases, changelog notes and attached original artifacts.
 
 ## Completed releases: consumer integration feedback
 
