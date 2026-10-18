@@ -27,7 +27,7 @@ come from package metadata; the release check does not import business modules.
 | --- | --- | --- |
 | Streams | 0.2.0 | Scalar validation preservation, unsupported-rule diagnostics, opt-in unknown-event ignoring, native/mixed-codegen recipes. |
 | Canon | 0.5.1 | Streams 0.2.0 optional/development pin and corrected integration guidance. |
-| RPCkit | 0.1.1 | Explicit Dishka mounting options, authenticated example and canonical FastAPI documentation. |
+| RPCkit | 0.2.0 | Breaking Dishka signature/context clarification, authenticated example and canonical FastAPI documentation. |
 
 These are unpublished source versions. Streams' regenerated Python SDKs may reject
 payloads that previously passed because constraints were dropped; read its
@@ -35,6 +35,10 @@ changelog before regeneration. Publish Streams before Canon. RPCkit keeps wire
 contracts, `RpcRoutes` and existing nested imports. Changelog dates remain
 unreleased until publication is authorized. Local checks and CI/dry-run evidence
 are recorded in TODO and the compatibility record as they complete.
+
+RPCkit's originally prepared 0.1.1 was superseded by 0.2.0 after classifying the
+mounting signature and context validation as breaking. Its earlier dry-run entry
+below remains historical; 0.2.0 needs exact-commit CI and its own release dry run.
 
 ## Verified follow-up preparation, 2026-10-18
 
@@ -81,6 +85,19 @@ its pending publisher. The first successful OIDC upload created the project on
 [PyPI's pending publisher documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
 
 ## Prepare a version
+
+### Version policy before 1.0
+
+Every breaking change advances `0.x.y` to `0.(x+1).0`. Patch releases contain
+only backward-compatible fixes and documentation. This includes changes to public
+signatures, accepted inputs, validation, defaults and generated-client contracts;
+an unchanged wire format does not make a source API change compatible. Classify
+the impact before choosing a version and keep package versions independent.
+
+Use a `### Breaking changes` heading (or `### Breaking generated-code changes`)
+and document concrete migration steps. Release validation rejects a declared
+pre-1.0 breaking release unless it has the next minor version and patch zero. A small
+implementation change is not a reason to choose a patch release.
 
 1. Review changes and update the package's `pyproject.toml`, changelog and existing
    `__version__` constant. Canon obtains its version from installed metadata.

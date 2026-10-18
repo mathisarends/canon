@@ -16,7 +16,7 @@ and GitHub Actions when asked to prepare or publish a release.
 ## Next releases: consumer integration feedback
 
 Prepared source versions (not published): Streams 0.2.0, Canon 0.5.1 and
-RPCkit 0.1.1. Publish Streams before Canon's updated optional pin.
+RPCkit 0.2.0. Publish Streams before Canon's updated optional pin.
 
 - [x] Correct PyPI instructions, dependency examples and optional-extra diagnostics;
   add active-documentation checks to workspace lint and release validation.
@@ -33,6 +33,10 @@ RPCkit 0.1.1. Publish Streams before Canon's updated optional pin.
 - [x] Push prepared commit `de05d8c`, pass [four-target CI](https://github.com/mathisarends/canon/actions/runs/39126069250)
   and all three release dry runs. Downloaded artifacts match their manifest hashes;
   see [verified follow-up preparation](docs/releases.md#verified-follow-up-preparation-2026-10-18).
+- [x] Record the pre-1.0 breaking-change policy in agent/release guidance and
+  release validation; correct RPCkit to 0.2.0. The previous 0.1.1 dry run is
+  historical and cannot validate the corrected version.
+- [ ] Pass CI and the RPCkit 0.2.0 release dry run after the version correction.
 - [ ] Finalize release dates and publish only after explicit publication authorization.
 
 The [consumer feedback decision](docs/design-decisions/0002-consumer-feedback.md)

@@ -39,6 +39,10 @@ from the templates under `codegen/templates/python/runtime/`.
 - Generated code must pass `ruff check` and `ruff format` in the consuming repository.
 - Tests live in `tests/` and mirror the package structure.
 - Keep `pyproject.toml` as the single source of truth for metadata and tool config.
+- Before 1.0, any breaking change requires the next minor version with patch zero
+  (`0.x.y` to `0.(x+1).0`), including signature or validation changes without wire
+  changes. Follow the root release policy and record migration steps in the
+  changelog under `### Breaking changes`.
 
 - Use the current intended API only. Remove superseded APIs, compatibility aliases,
   deprecated wrappers, and parallel legacy implementations instead of preserving

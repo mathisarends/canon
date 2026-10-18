@@ -1,24 +1,30 @@
 # Changelog
 
-## 0.1.1 - unreleased
+## 0.2.0 - unreleased
 
-- Source preparation passed workspace CI, independent wheel matrices and the
-  package release dry run. See the [release preparation evidence](../../docs/releases.md#verified-follow-up-preparation-2026-10-18).
-  This version remains unpublished; final publication needs a dated changelog
-  and CI on the final source.
+### Breaking changes
 
-- Prepare independent 0.1.1 metadata and regenerate both example-client manifests.
-  Upgrading from 0.1.0 requires no wire or call-site migration. Prefer package-root
-  FastAPI imports and use `RpcRoutes` for context dependency factories.
+- `dishka_router` now exposes explicit keyword options and rejects an async
+  function passed as a context value. Its context is a fixed value or mapping;
+  mount per-connection FastAPI context dependencies with
+  `RpcRoutes(router, context=async_dependency, resolver=Dishka(), rejects=...)`.
+  Check wrappers that forward options and migrate context factories to RpcRoutes.
+- Classify these source API/validation changes as breaking even though JSON-RPC
+  wire contracts are unchanged. The prepared patch version 0.1.1 was never
+  published and is superseded by 0.2.0. Before 1.0, breaking changes always require
+  the next minor version with patch zero; release validation enforces this rule.
 
-- Give `dishka_router` an explicit typed signature, optional resolver factory,
-  and a diagnostic for accidentally passing a context function. Use `RpcRoutes`
-  for FastAPI context dependencies. Add a tested cookie/Origin authentication
-  example with typed handshake rejections, Dishka scopes and connection expiry.
+### Added and corrected
 
+- Allow a custom per-WebSocket resolver factory on `dishka_router`.
+- Add a tested cookie/Origin authentication example with typed handshake
+  rejections, Dishka APP/SESSION/REQUEST scopes and connection expiry.
 - Use package-root FastAPI imports in documentation and fix the optional Dishka
   installation diagnostic. `RpcRoutes` remains the public mounting name;
   nested imports remain available.
+- Update metadata, root pins, lockfile and both generated-client manifests to
+  0.2.0. The earlier 0.1.1 dry-run evidence is historical and does not validate
+  this version's artifacts; repeat the RPC release dry run after exact-commit CI.
 
 ## 0.1.0 - 2026-10-17
 

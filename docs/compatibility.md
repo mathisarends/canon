@@ -15,8 +15,13 @@ are available through PyPI and this repository's independent GitHub releases.
 
 ## Prepared follow-up versions, 2026-10-18
 
-Unpublished sources: Canon 0.5.1, Streams 0.2.0 and RPCkit 0.1.1. The published
+Unpublished sources: Canon 0.5.1, Streams 0.2.0 and RPCkit 0.2.0. The published
 version table above remains unchanged until verified publication.
+
+The initial checks below used RPCkit 0.1.1. That unpublished version is
+superseded by 0.2.0 for the breaking signature/context changes; its old artifact
+results do not validate the new version. Repeat the RPC release dry run after
+exact-commit CI. Runtime and generator behavior are unchanged by the version fix.
 
 Local Windows checks passed 1,380 Python tests across isolated package/root
 processes and 22 TypeScript tests, all lint/type gates, both generator drift

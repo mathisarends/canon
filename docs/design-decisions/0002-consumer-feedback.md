@@ -35,6 +35,9 @@ breaking changes. Publication remains a separate explicit action.
    policy does not add reconnect, retry or replay behavior.
 
 Canon advances to 0.5.1 for the updated optional Streams pin and guidance; RPCkit
-advances to 0.1.1 for compatible mounting/documentation improvements. Versions
-remain independent. Exported wire names are unchanged. Full Maximus/Cara tests,
+advances to 0.2.0 because the explicit mounting signature and stricter context
+acceptance are classified as breaking source API changes. The initially prepared
+0.1.1 was never published and is superseded. Before 1.0, any breaking change
+requires the next minor version with patch zero. Versions remain independent.
+Exported wire names are unchanged. Full Maximus/Cara tests,
 old-repository changes and real publication remain separate work.

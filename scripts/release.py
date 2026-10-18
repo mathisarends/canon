@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from packaging.requirements import Requirement
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = frozenset({"fastapi-canon", "fastapi-streams", "fastapi-rpckit"})
@@ -111,7 +112,9 @@ def validate_release(
     )
     if projects["fastapi-canon"]["version"] not in reference_canon.specifier:
         raise ValueError("Reference service excludes the prepared Canon version")
-    section = _changelog(root / package.directory / "CHANGELOG.md", version)
+    changelog = root / package.directory / "CHANGELOG.md"
+    section = _changelog(changelog, version)
+    _check_breaking_version(changelog, version, section)
     if publish and not re.match(
         rf"## {re.escape(version)} - \d{{4}}-\d{{2}}-\d{{2}}$", section.splitlines()[0]
     ):
@@ -397,6 +400,34 @@ def _changelog(path: Path, version: str) -> str:
         raise ValueError(f"Changelog must contain exactly one section for {version}")
     tail = text[matches[0].start() :]
     return re.split(r"\n## ", tail, maxsplit=1)[0].strip()
+
+
+def _check_breaking_version(path: Path, version: str, section: str) -> None:
+    target = Version(version)
+    if target.major != 0 or not re.search(
+        r"^### Breaking\b", section, re.MULTILINE | re.IGNORECASE
+    ):
+        return
+    headings = re.findall(
+        rf"^## ({VERSION.pattern})(?:\s[^\n]*)?$",
+        path.read_text("utf-8"),
+        re.MULTILINE,
+    )
+    previous = next(
+        (
+            Version(value)
+            for value in headings[headings.index(version) + 1 :]
+            if not Version(value).is_prerelease
+        ),
+        None,
+    )
+    if target.micro != 0 or (
+        previous is not None and target.minor != previous.minor + 1
+    ):
+        raise ValueError(
+            "Breaking changes before 1.0 require the next minor version with "
+            "patch zero: 0.x.y -> 0.(x+1).0"
+        )
 
 
 def _check_artifact_metadata(content: bytes, name: str, version: str) -> None:

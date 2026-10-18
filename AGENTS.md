@@ -44,6 +44,16 @@ configuration; only root workflows execute for this repository.
 
 ## Release preparation
 
+Before 1.0, every breaking change requires the next minor release:
+`0.x.y` becomes `0.(x+1).0`. Patch releases are only for backward-compatible
+fixes and documentation. Count public API/signature changes, stricter accepted
+inputs or validation, changed defaults and generated-client incompatibilities
+as breaking changes, even when the wire format stays unchanged. Record them
+under a `### Breaking changes` changelog heading with concrete migration steps.
+Keep versions independent; do not classify a breaking change as a patch merely
+because its implementation is small. Release validation checks declared breaking
+changelog sections against this policy.
+
 Read `docs/releases.md` for prepared versions, publication order, publisher setup
 and the release workflow. `docs/compatibility.md` records tested dependency
 combinations; `docs/rpc-parity.md` records the predecessor comparison and consumer
