@@ -30,7 +30,7 @@ async def consume_with_errors(client: Client, run_id: str) -> None:
         print("Unexpected HTTP response", error.status, error.details)
         raise
     except StreamParseError as error:
-        print("Invalid event data", error.data)
+        print("Invalid event data", error.operation_id, error.category)
         raise
     except TransportError as error:
         print("Stream transport failed", str(error))

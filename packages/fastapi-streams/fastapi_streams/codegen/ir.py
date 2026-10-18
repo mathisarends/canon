@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import re
-import warnings
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from fastapi_streams.codegen.names import identifier, slug
 from fastapi_streams.codegen.openapi import (
@@ -27,6 +26,12 @@ _REF_METADATA = {
     "externalDocs",
     "xml",
 }
+
+if TYPE_CHECKING:
+    from fastapi_streams.codegen.diagnostics import (
+        GenerationDiagnostic,
+        GenerationTarget,
+    )
 
 
 @dataclass(frozen=True)
@@ -178,7 +183,12 @@ class Contract:
     security_schemes: tuple[SecurityScheme, ...]
 
 
-def build_ir(document: Document) -> Contract:
+def build_ir(
+    document: Document,
+    *,
+    target: GenerationTarget = "python",
+    diagnostics: list[GenerationDiagnostic] | None = None,
+) -> Contract:
     validate_contract(document)
     types = _Types(document)
     operations: list[Operation] = []
@@ -350,11 +360,18 @@ def build_ir(document: Document) -> Contract:
         for name, value in sorted(security.items())
         for scheme in [resolve_ref(document, value)]
     )
-    from fastapi_streams.codegen.diagnostics import warn_optional_discriminators
+    from fastapi_streams.codegen.diagnostics import (
+        collect_diagnostics,
+        emit_diagnostics,
+    )
     from fastapi_streams.codegen.enums import with_enums
 
     contract = with_enums(Contract(tuple(operations), types.declarations(), schemes))
-    warn_optional_discriminators(contract)
+    found = collect_diagnostics(document, contract, target)
+    if diagnostics is None:
+        emit_diagnostics(found)
+    else:
+        diagnostics.extend(found)
     return contract
 
 
@@ -404,39 +421,6 @@ class _Types:
             self.names[name] = ref
             self.pending[name] = target
             return Reference(name)
-        unsupported = sorted(
-            set(node)
-            & {
-                "format",
-                "minItems",
-                "maxItems",
-                "uniqueItems",
-                "contains",
-                "minContains",
-                "maxContains",
-                "minProperties",
-                "maxProperties",
-                "patternProperties",
-                "propertyNames",
-                "dependentRequired",
-                "dependentSchemas",
-                "unevaluatedProperties",
-                "unevaluatedItems",
-                "not",
-                "if",
-                "then",
-                "else",
-            }
-        )
-        if unsupported:
-            from fastapi_streams.codegen.diagnostics import UnsupportedConstraintWarning
-
-            warnings.warn(
-                f"Schema {node.get('title', '<inline>')!r}: constraints "
-                f"{', '.join(unsupported)} are not enforced by generated clients",
-                UnsupportedConstraintWarning,
-                stacklevel=2,
-            )
         constraints = {
             "minLength": "min_length",
             "maxLength": "max_length",

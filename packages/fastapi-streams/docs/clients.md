@@ -121,6 +121,38 @@ remain ordinary members of the user-defined union.
 
 ## HTTP error contracts
 
+Python request parameters and JSON bodies are validated when calling the method;
+catch Pydantic `ValidationError` around that call. Network and event errors occur
+while iterating. See the [validation matrix and CI policy](codegen.md#validation-support-matrix).
+
+Generated Python `StreamParseError` provides these public fields:
+
+| Field | Meaning |
+| --- | --- |
+| `operation_id` | Source OpenAPI operation ID |
+| `category` | `invalid_json` for malformed JSON; `invalid_event_schema` for invalid event shapes/constraints |
+| `validation_errors` | Pydantic error dictionaries with `type`, `loc`, `msg`; input values, context and URLs are excluded |
+| `data` | Original SSE data payload, retained for explicit inspection |
+
+For errors raised by generated operations, category and operation ID are always
+set. The existing `StreamParseError(data)` constructor remains valid; manually
+constructed errors can have `None` provenance/category and empty details.
+The original Pydantic `ValidationError` remains chained as `__cause__`.
+
+```python
+try:
+    async for event in client.runs.run_events(run_id="run_abc"):
+        handle(event)
+except StreamParseError as error:
+    record_failure(error.operation_id, error.category, error.validation_errors)
+```
+
+The SDK does not log event payloads or exceptions automatically. Raw `.data` and
+the full chained exception may contain sensitive values; log only reviewed fields.
+Even structured messages and field names should follow the consumer's logging
+policy. Malformed known events still fail with `unknown_events="ignore"`; only
+valid JSON objects with unknown string discriminator tags can be skipped.
+
 The SDK works with ordinary OpenAPI response declarations, including
 `application/json`, `application/problem+json`, and other declared response media
 types. No error registry or particular problem envelope is required. Declare

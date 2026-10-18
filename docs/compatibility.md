@@ -15,6 +15,21 @@ are available through PyPI and this repository's independent GitHub releases.
 
 ## Follow-up verification, 2026-10-18
 
+The next source combination is Canon 0.5.2 / Streams 0.3.0 / RPCkit 0.2.0.
+It is release preparation, not a publication or a verified external application
+migration. Streams' request validation now runs at method call; see the
+[upgrade notes](../packages/fastapi-streams/CHANGELOG.md#030---unreleased).
+Local Windows validation passes lint/type gates, all package/root suites (1,453
+Python tests in separate processes) and 22 TypeScript tests with generator drift
+and coverage checks. Both six-combination wheel matrices pass with current
+dependencies on Python 3.14 and direct minima on Python 3.12.12. Installed Streams
+CLI checks pass core-only and with HTTPX/HTTPX2 installed separately. An additional
+Python 3.12.12 wheel environment passes the generated SDK request/error/unknown
+event smoke with FastAPI 0.143.3, Pydantic 2.11.2, Jinja 3.1.0, jsonschema 4.23.0
+and HTTPX 0.28.0. Inventories are `dist/compatibility-latest.json` and
+`dist/compatibility-minimum.json`; logs are `dist/sdk-hardening-*.log`.
+Exact-source remote CI and release dry runs remain the next release gates.
+
 Canon 0.5.1, Streams 0.2.0 and RPCkit 0.2.0 are published. Final source
 `4af9092` passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39127577804).
 All three [publication workflows](releases.md#follow-up-publications-2026-10-18)

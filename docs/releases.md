@@ -7,13 +7,20 @@ current package versions with PyPI and GitHub release links.
 
 ## Current released versions
 
+Prepared next versions: **Streams 0.3.0** (stricter generated Python request
+validation, source diagnostics/CI policy and structured stream failures) and
+**Canon 0.5.2** (optional Streams pin). These are unreleased source versions;
+RPCkit stays 0.2.0. Publish Streams first. The user requested preparation on main
+and will provide separate publication approval after reviewing validation and
+dry-run evidence. Changelog dates remain unreleased until that approval.
+
 | Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
 | `fastapi-streams` | `fastapi_streams` | 0.2.0 | `fastapi-streams-v0.2.0` |
 | `fastapi-canon` | `fastapi_canon` | 0.5.1 | `fastapi-canon-v0.5.1` |
 | `fastapi-rpckit` | `fastapi_rpckit` | 0.2.0 | `fastapi-rpckit-v0.2.0` |
 
-Publish Streams before Canon: Canon's `streams` extra pins Streams 0.2.0.
+Published Canon 0.5.1 pins Streams 0.2.0 in its `streams` extra.
 RPC is independent. These Canon/Streams releases replace 0.5.0/0.1.0;
 changed builds require new versions. Follow the Streams changelog's generated
 literal/enum and error-alias migration. Versions do not need to match.

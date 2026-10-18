@@ -6,10 +6,17 @@ from collections.abc import AsyncGenerator
 from pydantic import TypeAdapter
 
 from .. import models as Models
-from ..runtime import RequestOptions, Transport, append_query, encode_path
+from ..runtime import RequestOptions, Transport, append_query, encode_path, validate_parameter as _validate_parameter
 
 
 class AgentRunsApi:
+    _stream_prompt_run_id_adapter = TypeAdapter(str)
+    _stream_prompt_body_adapter = TypeAdapter(Models.RunRequest)
+    _stream_prompt_event_adapter = TypeAdapter(Models.RunEvent)
+    _stream_run_events_run_id_adapter = TypeAdapter(str)
+    _stream_run_events_delay_adapter = TypeAdapter(Models.StreamRunEventsDelay)
+    _stream_run_events_event_adapter = TypeAdapter(Models.RunEvent)
+
     def __init__(self, transport: Transport) -> None:
         self._transport = transport
 
@@ -33,20 +40,26 @@ class AgentRunsApi:
 
         Declared HTTP response bodies: StreamPromptErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
 
+        Path, query and header parameters and JSON bodies are validated with Pydantic at the method call, before serialization or HTTP I/O. Optional None parameters are omitted. Pydantic's normal type coercion applies; invalid arguments raise ValidationError.
+
         Use contextlib.aclosing for deterministic cleanup when exiting iteration early. Task cancellation closes the response and propagates normally.
 
         Events are validated with Pydantic against generated shapes, variants and supported scalar constraints (string pattern/length, numeric bounds/multiples). Unsupported source constraints are diagnosed during generation; this is not full JSON Schema validation.
 
         Unknown event variants fail by default. For a top-level discriminated union, RequestOptions(unknown_events='ignore') skips unknown string tags. Malformed known events, missing tags and invalid JSON still fail.
+
+        StreamParseError exposes operation_id, category (invalid_json or invalid_event_schema), and validation_errors without input values. Its data and chained cause may contain sensitive content; the SDK does not log them automatically.
         """
+        run_id = _validate_parameter(self._stream_prompt_run_id_adapter, run_id)
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
-        adapter = TypeAdapter(Models.RunRequest)
+        adapter = self._stream_prompt_body_adapter
         content = adapter.dump_json(adapter.validate_python(body), by_alias=True, exclude_unset=True)
         return self._transport.stream(
             '/v1/runs/' + encode_path(run_id) + '/events',
             'POST',
-            TypeAdapter(Models.RunEvent),
+            self._stream_prompt_event_adapter,
+            operation_id='stream_prompt',
             query=query,
             headers=headers,
             body=content,
@@ -73,19 +86,27 @@ class AgentRunsApi:
 
         Declared HTTP response bodies: StreamRunEventsErrorBody (422 application/json). HttpError.details may also contain undeclared JSON, text, or no body; validate it before accessing application fields.
 
+        Path, query and header parameters and JSON bodies are validated with Pydantic at the method call, before serialization or HTTP I/O. Optional None parameters are omitted. Pydantic's normal type coercion applies; invalid arguments raise ValidationError.
+
         Use contextlib.aclosing for deterministic cleanup when exiting iteration early. Task cancellation closes the response and propagates normally.
 
         Events are validated with Pydantic against generated shapes, variants and supported scalar constraints (string pattern/length, numeric bounds/multiples). Unsupported source constraints are diagnosed during generation; this is not full JSON Schema validation.
 
         Unknown event variants fail by default. For a top-level discriminated union, RequestOptions(unknown_events='ignore') skips unknown string tags. Malformed known events, missing tags and invalid JSON still fail.
+
+        StreamParseError exposes operation_id, category (invalid_json or invalid_event_schema), and validation_errors without input values. Its data and chained cause may contain sensitive content; the SDK does not log them automatically.
         """
+        run_id = _validate_parameter(self._stream_run_events_run_id_adapter, run_id)
+        if delay is not None:
+            delay = _validate_parameter(self._stream_run_events_delay_adapter, delay)
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
         append_query(query, 'delay', delay, explode=True)
         return self._transport.stream(
             '/v1/runs/' + encode_path(run_id) + '/events',
             'GET',
-            TypeAdapter(Models.RunEvent),
+            self._stream_run_events_event_adapter,
+            operation_id='stream_run_events',
             query=query,
             headers=headers,
             options=options,

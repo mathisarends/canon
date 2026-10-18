@@ -10,6 +10,16 @@ from ..runtime import {{ runtime_imports | join(', ') }}
 
 
 class {{ class_name }}:
+{% for operation in operations %}
+{% for parameter in operation.parameters %}
+    _{{ operation.operation_id | snake }}_{{ parameter.name | snake }}_adapter = TypeAdapter({{ parameter.type | py_type }})
+{% endfor %}
+{% if operation.body %}
+    _{{ operation.operation_id | snake }}_body_adapter = TypeAdapter({{ operation.body.type | py_type }})
+{% endif %}
+    _{{ operation.operation_id | snake }}_event_adapter = TypeAdapter({{ operation.event | py_type }})
+{% endfor %}
+
     def __init__(self, transport: Transport) -> None:
         self._transport = transport
 {% for operation in operations %}
@@ -30,6 +40,14 @@ class {{ class_name }}:
 {{ '        ' + line if line else '' }}
 {% endfor %}
         """
+{% for parameter in operation.parameters %}
+{% if not parameter.required %}
+        if {{ parameter.name | snake }} is not None:
+            {{ parameter.name | snake }} = _validate_parameter(self._{{ operation.operation_id | snake }}_{{ parameter.name | snake }}_adapter, {{ parameter.name | snake }})
+{% else %}
+        {{ parameter.name | snake }} = _validate_parameter(self._{{ operation.operation_id | snake }}_{{ parameter.name | snake }}_adapter, {{ parameter.name | snake }})
+{% endif %}
+{% endfor %}
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}
 {% for parameter in operation.parameters %}
@@ -40,13 +58,14 @@ class {{ class_name }}:
 {% endif %}
 {% endfor %}
 {% if operation.body %}
-        adapter = TypeAdapter({{ operation.body.type | py_type }})
+        adapter = self._{{ operation.operation_id | snake }}_body_adapter
         content = adapter.dump_json(adapter.validate_python(body), by_alias=True, exclude_unset=True){{ ' if body is not None else None' if not operation.body.required else '' }}
 {% endif %}
         return self._transport.stream(
             {{ operation | py_path }},
             {{ operation.method | repr }},
-            TypeAdapter({{ operation.event | py_type }}),
+            self._{{ operation.operation_id | snake }}_event_adapter,
+            operation_id={{ operation.operation_id | repr }},
             query=query,
             headers=headers,
 {% if operation.body %}

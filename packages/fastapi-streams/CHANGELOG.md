@@ -3,6 +3,51 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
+## 0.3.0 - unreleased
+
+### Breaking changes
+
+- Regenerated Python SDKs validate path, query and header parameters at the
+  method call, before serialization and HTTP I/O. Invalid types or supported
+  scalar constraints now raise Pydantic `ValidationError` locally. Regenerate
+  SDKs, fix rejected arguments, and catch request validation around the method
+  call rather than only around stream iteration. Request bodies retain their
+  existing validation timing; HTTP still starts when iteration begins.
+- TypeScript generation now diagnoses scalar constraints it cannot enforce.
+  Review the selected target's diagnostics before promoting warnings to errors.
+  Existing known limitations can be accepted by exact diagnostic ID with a
+  review reason; do not suppress the warning category globally.
+
+### Added
+
+- Cache generated parameter, body and event TypeAdapters. Keep valid parameter
+  encoding, integer representations of number parameters, query array explosion,
+  optional omission and JSON body aliases unchanged.
+- Source-located diagnostics include JSON Pointer, operation ID, method/path,
+  keyword/value, target and enforcement limitation. Referenced and inline schemas
+  are located in the original document, with each affected operation identified.
+- Add `--diagnostics FILE`, `--strict` and `--allow-diagnostics FILE` to generation
+  and drift checks. Reports are deterministic JSON with stable identities;
+  malformed, duplicate and stale allowances fail before generated files change.
+  Repository drift checks use strict mode with reviewed TypeScript limitations.
+- Generated Python `StreamParseError` exposes `operation_id`, `category`
+  (`invalid_json` or `invalid_event_schema`) and `validation_errors`. Structured
+  details exclude input values and validator context. Keep `.data`, exception
+  chaining and the existing constructor; raw data and chained causes can contain
+  sensitive values and are never logged automatically by the SDK.
+- Add request/diagnostic/error regression tests for both Python HTTP backends and
+  installed-wheel consumers, plus a documented validation support matrix.
+
+### Upgrade from 0.2.0
+
+1. Upgrade the generator to 0.3.0 and regenerate with your existing HTTP backend.
+2. Validate consumer call sites, including invalid requests, before adoption.
+   Ordinary Pydantic coercion applies; valid numeric serialization is preserved.
+3. Generate JSON diagnostics and review exact allowances before enabling strict
+   CI. Changed locations, constraints, values, operations or targets need review.
+4. Read stream failure categories and structured details through public fields.
+   Keep raw payloads and full exception chains out of routine logs.
+
 ## 0.2.0 - 2026-10-18
 
 - Source preparation passed workspace CI, independent wheel matrices and the

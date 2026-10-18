@@ -28,6 +28,12 @@ def run() -> int:
             ("typescript", "generated"),
             ("python", "generated_python"),
         ):
+            policy = ["--strict"]
+            if language == "typescript" and app == "examples.agent_runs:app":
+                policy += [
+                    "--allow-diagnostics",
+                    str(ROOT / "tests/fixtures/agent_runs.typescript.diagnostics.json"),
+                ]
             result |= main(
                 [
                     "check" if check else "generate",
@@ -37,6 +43,7 @@ def run() -> int:
                     language,
                     "--output",
                     str(ROOT / output / directory),
+                    *policy,
                     *(["--app", app] if check else []),
                 ]
             )

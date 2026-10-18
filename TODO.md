@@ -14,6 +14,27 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
 
+## Next release: generated SDK request validation and diagnostics
+
+Authorized scope: implement directly on main and prepare Streams 0.3.0 and Canon
+0.5.2. Publication requires the user's separate final approval. RPCkit stays 0.2.0.
+Published-version tables remain unchanged until verified publication.
+
+- [x] Validate Python path/query/header constraints at the method call while
+  preserving valid serialization and existing body/event behavior.
+- [x] Add source-located target-specific diagnostics, JSON reporting, strict CI
+  policy and exact reviewed allowances; enforce the policy in drift checks.
+- [x] Expose structured Python stream errors without automatic payload logging.
+- [x] Add both-backend regressions, installed-wheel smoke coverage, validation
+  matrix and consumer migration notes.
+- [x] Pass workspace lint/types/tests and client drift/coverage gates, both
+  current/minimum wheel matrices, isolated Streams backends and a minimum-version
+  Python 3.12 generator/SDK smoke. See the compatibility preparation record.
+- [ ] Commit/push on main, pass exact-source CI and both release dry runs; verify
+  downloaded manifests and artifacts before requesting publication approval.
+- [ ] After approval, finalize dates, pass final-source CI, publish Streams before
+  Canon, and verify PyPI installs, tags, GitHub Releases and attached artifacts.
+
 ## Completed releases: consumer integration feedback
 
 Published and verified: Streams 0.2.0, Canon 0.5.1 and RPCkit 0.2.0, each with

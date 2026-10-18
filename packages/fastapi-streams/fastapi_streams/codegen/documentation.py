@@ -42,6 +42,10 @@ def operation_doc(
     else:
         paragraphs.extend(
             [
+                "Path, query and header parameters and JSON bodies are validated "
+                "with Pydantic at the method call, before serialization or HTTP I/O. "
+                "Optional None parameters are omitted. Pydantic's normal type "
+                "coercion applies; invalid arguments raise ValidationError.",
                 "Use contextlib.aclosing for deterministic cleanup when exiting "
                 "iteration early. Task cancellation closes the response and "
                 "propagates normally.",
@@ -53,6 +57,10 @@ def operation_doc(
                 "union, RequestOptions(unknown_events='ignore') skips unknown string "
                 "tags. Malformed known events, missing tags and invalid JSON "
                 "still fail.",
+                "StreamParseError exposes operation_id, category (invalid_json or "
+                "invalid_event_schema), and validation_errors without input values. "
+                "Its data and chained cause may contain sensitive content; the "
+                "SDK does not log them automatically.",
             ]
         )
     if operation.deprecated:

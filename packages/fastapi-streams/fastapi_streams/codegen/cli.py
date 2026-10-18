@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import argparse
 import importlib
 import json
 import sys
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from fastapi import FastAPI
 
 from fastapi_streams.codegen.openapi import ContractError, Document, export_schema
 from fastapi_streams.codegen.writer import write_files
+
+if TYPE_CHECKING:
+    from fastapi_streams.codegen.diagnostics import GenerationDiagnostic
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,6 +35,15 @@ def main(argv: list[str] | None = None) -> int:
             "--language", choices=["typescript", "python"], default="typescript"
         )
         command.add_argument("--output", required=True, type=Path)
+        command.add_argument("--diagnostics", type=Path, help="Write JSON diagnostics")
+        command.add_argument(
+            "--strict", action="store_true", help="Fail on unaccepted diagnostics"
+        )
+        command.add_argument(
+            "--allow-diagnostics",
+            type=Path,
+            help="JSON allowances with exact IDs and review reasons",
+        )
         command.add_argument(
             "--python-http-client",
             choices=["httpx", "httpx2"],
@@ -65,8 +79,23 @@ def main(argv: list[str] | None = None) -> int:
                 output.parent.mkdir(parents=True, exist_ok=True)
                 output.write_text(content, encoding="utf-8", newline="\n")
         else:
+            if args.diagnostics:
+                report = args.diagnostics.resolve()
+                output = args.output.resolve()
+                inputs = {args.schema.resolve()}
+                if args.allow_diagnostics:
+                    inputs.add(args.allow_diagnostics.resolve())
+                if report in inputs or report == output or output in report.parents:
+                    raise ContractError(
+                        "--diagnostics must be outside the generated output "
+                        "and input files"
+                    )
             if args.language != "python" and args.python_http_client is not None:
                 raise ContractError("--python-http-client requires --language python")
+            from fastapi_streams.codegen.diagnostics import (
+                accepted_diagnostics,
+                emit_diagnostics,
+            )
             from fastapi_streams.codegen.ir import build_ir
             from fastapi_streams.codegen.python import generate_python
             from fastapi_streams.codegen.typescript import generate_typescript
@@ -82,7 +111,29 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                     return 1
-            contract = build_ir(cast(Document, document))
+            diagnostics: list[GenerationDiagnostic] = []
+            contract = build_ir(
+                cast(Document, document), target=args.language, diagnostics=diagnostics
+            )
+            # Reports precede strict-policy failures, so CI can review new IDs.
+            if args.diagnostics:
+                _write_diagnostics(args.diagnostics, diagnostics, set())
+            accepted: set[str] = (
+                accepted_diagnostics(
+                    diagnostics, json.loads(args.allow_diagnostics.read_text("utf-8"))
+                )
+                if args.allow_diagnostics
+                else set()
+            )
+            if args.diagnostics:
+                _write_diagnostics(args.diagnostics, diagnostics, accepted)
+            pending = [item for item in diagnostics if item.id not in accepted]
+            emit_diagnostics(pending)
+            if args.strict and pending:
+                raise ContractError(
+                    f"{len(pending)} unaccepted generation diagnostics; "
+                    "review --diagnostics and provide explicit --allow-diagnostics"
+                )
             generated = (
                 generate_python(
                     contract, http_client=args.python_http_client or "httpx"
@@ -114,6 +165,28 @@ def _load_app(value: str) -> FastAPI:
     if not isinstance(app, FastAPI):
         raise ContractError(f"{value} is not a FastAPI application")
     return app
+
+
+def _write_diagnostics(
+    path: Path, diagnostics: list[GenerationDiagnostic], accepted: set[str]
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "diagnostics": [
+                    item.to_dict(accepted=item.id in accepted) for item in diagnostics
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ def main() -> None:
         (working / "app.py").write_text(
             "from collections.abc import AsyncIterator\n"
             "from typing import Annotated, Literal\n"
-            "from fastapi import FastAPI\n"
+            "from fastapi import FastAPI, Path, Query\n"
             "from pydantic import BaseModel, Field\n"
             "from fastapi_streams import StreamRouter\n"
             "class Event(BaseModel):\n"
@@ -64,8 +64,15 @@ def main() -> None:
             "    count: int = Field(ge=0)\n"
             "type Payload = Annotated[Event | Done, Field(discriminator='type')]\n"
             "router = StreamRouter()\n"
-            '@router.stream("/events", operation_id="events")\n'
-            "async def events() -> AsyncIterator[Payload]:\n"
+            '@router.stream("/events/{run_id}", operation_id="events")\n'
+            "async def events(run_id: Annotated[str, Path(pattern='^run_[a-z]+$')], "
+            "limit: Annotated[int, Query(ge=1)] = 1) -> AsyncIterator[Payload]:\n"
+            '    yield Event(type="event", text="packaged")\n'
+            "class Request(BaseModel):\n"
+            "    prompt: str = Field(min_length=2)\n"
+            '@router.stream("/events", methods=["POST"], '
+            'operation_id="create_events")\n'
+            "async def create_events(body: Request) -> AsyncIterator[Payload]:\n"
             '    yield Event(type="event", text="packaged")\n'
             "app = FastAPI()\n"
             "app.include_router(router)\n",
@@ -114,7 +121,15 @@ def main() -> None:
             ]
             if language == "python":
                 flags += ["--python-http-client", args.http_client]
+                flags += ["--strict", "--diagnostics", "python-diagnostics.json"]
             run("generate", *flags)
+            if language == "python":
+                assert (
+                    json.loads((working / "python-diagnostics.json").read_text())[
+                        "diagnostics"
+                    ]
+                    == []
+                )
             run("check", "--app", "app:app", *flags)
             target = working / output / client_file
             original = target.read_bytes()
@@ -137,29 +152,50 @@ async def main():
         else:
             raise AssertionError('Generated scalar constraint was lost')
     payload = 'data: {"type":"event","text":"packaged"}\\n\\n'
+    requests = []
     def handler(request):
+        requests.append(request)
         return httpx.Response(200, headers={"Content-Type":"text/event-stream"},
             content=payload)
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         async with Client("http://example.test", http_client=http) as client:
-            events = [event async for event in client.streams.events()]
+            for arguments in ({'run_id': 'bad'}, {'run_id': 'run_ok', 'limit': 0}):
+                try:
+                    client.streams.events(**arguments)
+                except ValidationError:
+                    pass
+                else:
+                    raise AssertionError('Invalid request must fail at method call')
+            try:
+                client.streams.create_events(body={'prompt': 'x'})
+            except ValidationError:
+                pass
+            else:
+                raise AssertionError('Invalid body must fail at method call')
+            assert not requests
+            events = [event async for event in client.streams.events(run_id='run_ok')]
             assert events[0].text == "packaged"
             payload = 'data: {"type":"future"}\\n\\n' + payload
             try:
-                await anext(client.streams.events())
+                await anext(client.streams.events(run_id='run_ok'))
             except StreamParseError:
                 pass
             else:
                 raise AssertionError('Default union must reject unknown events')
             events = [event async for event in client.streams.events(
+                run_id='run_ok',
                 options=RequestOptions(unknown_events='ignore'))]
             assert len(events) == 1 and events[0].text == 'packaged'
             payload = 'data: {"type":"event","text":"Bad"}\\n\\n'
             try:
                 await anext(client.streams.events(
+                    run_id='run_ok',
                     options=RequestOptions(unknown_events='ignore')))
-            except StreamParseError:
-                pass
+            except StreamParseError as error:
+                assert error.operation_id == 'events'
+                assert error.category == 'invalid_event_schema'
+                assert error.validation_errors
+                assert all('input' not in detail for detail in error.validation_errors)
             else:
                 raise AssertionError('Known invalid events must still fail')
 asyncio.run(main())

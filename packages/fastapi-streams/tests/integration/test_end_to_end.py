@@ -10,6 +10,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from examples.agent_runs.generated_python import Client
 from examples.agent_runs.generated_python.models import RunRequest
@@ -185,14 +186,13 @@ async def test_current_generated_python_client_preserves_wire_values_and_validat
             assert events[0].metadata.labels == ["a b", "c&d"]
             assert events[0].metadata.note == "trace"
             assert [event.n async for event in client.compat.created()] == [2]
-            with pytest.raises(sdk.HttpError) as raised:
-                _ = [
-                    event
-                    async for event in client.agent_runs.stream_run_events(
-                        run_id="bad", delay=-1
-                    )
-                ]
-            assert raised.value.status == 422
+            with pytest.raises(ValidationError):
+                client.agent_runs.stream_run_events(run_id="bad", delay=-1)
+            async with python_backend.AsyncClient() as http:
+                response = await http.get(
+                    server + "/v1/runs/bad/events", params={"delay": -1}
+                )
+                assert response.status_code == 422
             with pytest.raises(sdk.HttpError) as raised:
                 _ = [
                     event

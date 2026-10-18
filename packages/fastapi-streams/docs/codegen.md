@@ -119,6 +119,15 @@ fail explicitly.
 
 ## Runtime validation and unknown variants
 
+Python validates path, query and header parameters and JSON request bodies at the
+method call, before serialization or HTTP I/O. Invalid arguments raise Pydantic
+`ValidationError` immediately, even if the returned iterator is never consumed.
+HTTP starts when iteration begins. Optional parameters supplied as `None` are
+omitted, preserving existing omission semantics. Pydantic's normal coercion
+applies; this is not Pydantic strict mode. Valid scalar encoding, integer values
+of number parameters (`0` stays `0`), query array explosion and body aliases are
+preserved. Adapters are cached in each generated API class.
+
 Python validates generated event models and request bodies with Pydantic. Supported
 scalar constraints are `pattern`, `minLength`, `maxLength`, `minimum`, `maximum`,
 `exclusiveMinimum`, `exclusiveMaximum`, and `multipleOf`. They survive nested
@@ -149,6 +158,73 @@ JSON, missing/non-string discriminators and malformed known variants still fail;
 unknown nested variants inside a known event fail too. The option adds no retry,
 reconnect or replay. TypeScript continues to forward JSON-decoded values without
 runtime union validation. Regenerate existing Python SDKs to obtain the option.
+
+## Validation support matrix
+
+| SDK target / boundary | Runtime shape validation | Supported scalar constraints | Timing |
+| --- | --- | --- | --- |
+| Python path/query/header | Yes | Yes, including referenced scalars and query array items | Method call, before serialization |
+| Python JSON request body | Yes | Yes, including nested values | Method call |
+| Python SSE event data | Yes | Yes, including nested values | Each event during iteration |
+| Python declared HTTP error bodies | Explicit consumer TypeAdapter | When explicitly validated | Consumer-controlled |
+| TypeScript parameters/body/events | Static types; events are JSON-decoded | No runtime enforcement | Generation diagnoses limitations |
+
+Unsupported formats and collection/object constraints remain diagnostics rather
+than implicit runtime validators. Optional `None` query/header parameters mean
+omission, not JSON null. Server-side validation remains necessary for every client.
+
+## Source diagnostics and CI policy
+
+`generate`, `generate --check` and `check` accept these options:
+
+```sh
+uv run fastapi-streams check --schema openapi.json --language python \
+  --output generated --diagnostics reports/python.json --strict \
+  --allow-diagnostics reviewed-python.json
+```
+
+Omit `--allow-diagnostics` when no limitations are accepted. The JSON report
+(`version: 1`, `diagnostics: [...]`) includes each diagnostic's `id`, `code`,
+`pointer`, `keyword`, `value`, `target`, `operation_id`, `method`, `path`, `message`
+and `accepted` status. Pointers are RFC 6901 paths into the original document,
+including inline schemas and referenced component definitions. Shared definitions
+identify each affected operation; unused components do not generate warnings.
+SSE framing metadata is outside generated event-model validation.
+
+`unsupported-constraint` identifies an unenforced rule for the selected target;
+TypeScript also diagnoses Python-supported scalar constraints because TypeScript
+has no runtime schema validator. Python's `optional-discriminator` diagnoses event
+selection risks without changing field requiredness. Human-readable warnings
+contain the same location, keyword/value, operation and limitation as the report.
+
+Without `--strict`, unaccepted diagnostics remain warnings. With it, any
+unaccepted diagnostic fails with exit code 2 before generated files change; drift
+still uses exit code 1. Reports are written even on strict-policy failure. Keep
+the report outside generated output and separate from schema/allowance inputs.
+
+Review the report and explicitly record an allowance, for example:
+
+```json
+{
+  "allow": [
+    {
+      "id": "unsupported-constraint:<copy the exact ID from the report>",
+      "reason": "Reviewed upstream UUID validation; client remains a string."
+    }
+  ]
+}
+```
+
+IDs include code, source pointer, keyword/value, target and operation context;
+message wording and schema filename are excluded. Changed constraints or contexts
+need a new review. Empty reasons, duplicate IDs, malformed files and stale
+allowances fail explicitly. Keep separate policies for each contract/target.
+Repository drift checks use strict mode with reviewed TypeScript allowances.
+
+Python generator API users can collect the same objects with
+`build_ir(document, target="python", diagnostics=items)` where `items` is an empty
+list. Omitting `diagnostics` emits warnings; the default target is Python. Select
+the matching target explicitly before calling the corresponding generator.
 
 ## Existing native streams and mixed REST generation
 

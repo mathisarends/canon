@@ -5,10 +5,11 @@ import codecs
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Literal
+from typing import Literal, cast
 
 import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
+from pydantic_core import ErrorDetails
 
 
 class TransportError(Exception):
@@ -24,8 +25,20 @@ class HttpError(TransportError):
 
 
 class StreamParseError(TransportError):
-    def __init__(self, data: str) -> None:
+    """Invalid event data. Raw data and chained exceptions may contain secrets."""
+
+    def __init__(
+        self,
+        data: str,
+        *,
+        operation_id: str | None = None,
+        category: Literal["invalid_json", "invalid_event_schema"] | None = None,
+        validation_errors: list[ErrorDetails] | None = None,
+    ) -> None:
         self.data = data
+        self.operation_id = operation_id
+        self.category = category
+        self.validation_errors = validation_errors or []
         super().__init__("Invalid JSON or event schema in SSE data")
 
 
@@ -41,6 +54,11 @@ class RequestOptions:
 
 
 type ParameterValue = str | int | float | bool | None
+
+
+def validate_parameter[T](adapter: TypeAdapter[T], value: T) -> T:
+    """Validate/coerce inputs while preserving valid numeric wire representations."""
+    return _preserve_numbers(value, adapter.validate_python(value))
 
 
 def encode_path(value: str | int | float | bool | None) -> str:
@@ -155,6 +173,7 @@ class Transport:
         method: str,
         adapter: TypeAdapter[T],
         *,
+        operation_id: str | None = None,
         query: list[tuple[str, str]],
         headers: Mapping[str, str],
         body: bytes | None = None,
@@ -226,19 +245,62 @@ class Transport:
                     try:
                         yield adapter.validate_json(payload)
                     except ValidationError as exc:
+                        # Exclude input and arbitrary validator context from public
+                        # diagnostics. The original cause remains available explicitly.
+                        details = exc.errors(
+                            include_input=False,
+                            include_context=False,
+                            include_url=False,
+                        )
+                        category: Literal["invalid_json", "invalid_event_schema"] = (
+                            "invalid_json"
+                            if any(error["type"] == "json_invalid" for error in details)
+                            else "invalid_event_schema"
+                        )
                         if discriminator is not None:
                             try:
                                 value = TypeAdapter[JsonValue](JsonValue).validate_json(
                                     payload
                                 )
                             except ValidationError:
-                                raise StreamParseError(payload) from exc
+                                raise StreamParseError(
+                                    payload,
+                                    operation_id=operation_id,
+                                    category="invalid_json",
+                                    validation_errors=details,
+                                ) from exc
                             if isinstance(value, dict):
                                 tag = value.get(discriminator)
                                 if isinstance(tag, str) and tag not in known_tags:
                                     continue
-                        raise StreamParseError(payload) from exc
+                        raise StreamParseError(
+                            payload,
+                            operation_id=operation_id,
+                            category=category,
+                            validation_errors=details,
+                        ) from exc
         except httpx.HTTPError as exc:
             raise TransportError("SSE HTTP transport failed") from exc
         except UnicodeDecodeError as exc:
             raise TransportError("Invalid UTF-8 in SSE stream") from exc
+
+
+def _preserve_numbers[T](original: object, validated: T) -> T:
+    if (
+        type(original) is int
+        and isinstance(validated, float)
+        and validated.is_integer()
+        and original == int(validated)
+    ):
+        return cast(T, original)
+    if isinstance(original, list | tuple) and isinstance(validated, list):
+        before = cast(Sequence[object], original)
+        after = cast(list[object], validated)
+        return cast(
+            T,
+            [
+                _preserve_numbers(old, new)
+                for old, new in zip(before, after, strict=True)
+            ],
+        )
+    return validated

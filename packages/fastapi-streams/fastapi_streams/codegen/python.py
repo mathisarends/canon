@@ -122,6 +122,8 @@ def generate_python(
         class_name = identifier(name, upper=True) + "Api"
         groups.append(dict(name=name, directory=name, class_name=class_name))
         functions = ["RequestOptions", "Transport"]
+        if any(op.parameters for op in operations):
+            functions.append("validate_parameter as _validate_parameter")
         for location, function in (
             ("path", "encode_path"),
             ("query", "append_query"),
