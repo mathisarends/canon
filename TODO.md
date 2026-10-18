@@ -36,8 +36,7 @@ RPCkit 0.1.1. Publish Streams before Canon's updated optional pin.
 - [ ] Finalize release dates and publish only after explicit publication authorization.
 
 The [consumer feedback decision](docs/design-decisions/0002-consumer-feedback.md)
-records scope and remaining limits. The root [httpxgen issue draft](httpxgen-issue.md)
-tracks the external OpenAPI/model-discovery request; it has not been submitted. Maximus feedback is consumer-reported evidence;
+records scope and remaining limits. Maximus feedback is consumer-reported evidence;
 this workspace does not claim a locally verified full Maximus or Cara migration.
 
 ## Completed

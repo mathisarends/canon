@@ -47,8 +47,6 @@ unreleased describe prepared source versions that have not been published.
 
 - Extend installed-wheel HTTPX/HTTPX2 smoke consumers to verify scalar constraints,
   default unknown-event rejection, opt-in skipping and malformed known events.
-- Add a root `httpxgen-issue.md` draft for OpenAPI 3.2 acceptance and event-model
-  discovery. Changing HTTP backend remains independent of that generator issue.
 
 ### Documentation
 
