@@ -5,6 +5,32 @@ unreleased describe prepared source versions that have not been published.
 
 ## 0.2.0 - unreleased
 
+### Added
+
+- Preserve supported string patterns/lengths and numeric bounds/multiples in the
+  codegen IR and generated Python Pydantic annotations, including nested and
+  referenced scalars. Diagnose unsupported constraints and regex expressions.
+- Add `RequestOptions(unknown_events="ignore")` to generated Python SDKs. It
+  skips unknown string tags in a top-level discriminated event union; the default
+  remains an error. Malformed known events, missing tags and invalid JSON fail.
+  Both HTTPX backends retain their validation and transport behavior.
+- Add tested contract-first native proxy and private OpenAPI 3.1 REST-codegen
+  recipes. The authoritative OpenAPI 3.2 artifact remains unchanged.
+
+### Breaking generated-code changes
+
+- Regenerated Python models enforce scalar rules that 0.1.0 silently dropped.
+  Fix invalid payloads before adopting the new SDK. Unsupported constraints emit
+  `UnsupportedConstraintWarning`; constraints alongside enum/const/composition
+  and unsupported Python regex patterns fail explicitly. Move supported scalar
+  constraints onto scalar branches where possible. This is not full JSON Schema
+  validation. TypeScript remains static-only.
+- Regenerate committed SDKs and run consumer validation tests. Pass HTTPX2
+  generation/check options consistently if used. No wire names change.
+
+### Documentation
+
+
 - Fix PyPI installation instructions and supported-scope wording. Replace the predecessor release guide with the workspace release process.
 
 ## 0.1.0 - 2026-10-17

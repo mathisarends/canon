@@ -69,7 +69,9 @@ def generate_python(
                 )
             seen.add(argument)
             type_ = parameter.type
-            if not isinstance(type_, Scalar | Reference):
+            if not isinstance(type_, Scalar | Reference) or (
+                isinstance(type_, Scalar) and type_.constraints
+            ):
                 type_ = models.add(name + identifier(parameter.name, upper=True), type_)
             parameters.append(replace(parameter, type=type_))
         body = operation.body
@@ -197,14 +199,37 @@ class _Models:
                 raise ContractError(
                     "The Python generator does not support never schemas"
                 )
-            case Scalar(name=name):
-                return {
+            case Scalar(name=name, constraints=constraints):
+                annotation = {
                     "string": "str",
                     "integer": "int",
                     "number": "float",
                     "boolean": "bool",
                     "null": "None",
                 }[name]
+                if constraints:
+                    from pydantic import Field as PydanticField
+                    from pydantic import TypeAdapter
+                    from pydantic_core import SchemaError
+
+                    if name == "string" and any(
+                        key == "pattern" for key, _ in constraints
+                    ):
+                        from typing import Annotated
+
+                        try:
+                            pattern = dict(constraints)["pattern"]
+                            assert isinstance(pattern, str)
+                            TypeAdapter(Annotated[str, PydanticField(pattern=pattern)])
+                        except SchemaError as exc:
+                            raise ContractError(
+                                f"Unsupported string pattern: {exc}"
+                            ) from exc
+                    arguments = ", ".join(
+                        f"{key}={value!r}" for key, value in constraints
+                    )
+                    return f"Annotated[{annotation}, Field({arguments})]"
+                return annotation
             case LiteralType(value=None):
                 return "None"
             case LiteralType(value=value):

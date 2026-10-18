@@ -38,7 +38,7 @@ class RunFailed(BaseModel):
 
 class RunRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    prompt: str
+    prompt: Annotated[str, Field(max_length=500, min_length=1)]
 
 class RunStarted(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -48,6 +48,8 @@ class RunStarted(BaseModel):
 type StreamPromptError = HTTPValidationError
 
 type StreamPromptErrorBody = StreamPromptError
+
+type StreamRunEventsDelay = Annotated[float, Field(le=1, ge=0)]
 
 type StreamRunEventsError = HTTPValidationError
 

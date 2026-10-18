@@ -5,6 +5,7 @@ import codecs
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from typing import Literal
 
 import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -36,6 +37,7 @@ class _Default(Enum):
 class RequestOptions:
     headers: Mapping[str, str] | None = None
     timeout: float | None | _Default = _Default.TIMEOUT
+    unknown_events: Literal["error", "ignore"] = "error"
 
 
 type ParameterValue = str | int | float | bool | None
@@ -158,6 +160,20 @@ class Transport:
         body: bytes | None = None,
         options: RequestOptions | None = None,
     ) -> AsyncGenerator[T, None]:
+        discriminator: str | None = None
+        known_tags: set[str] = set()
+        if options and options.unknown_events not in {"error", "ignore"}:
+            raise ValueError("unknown_events must be 'error' or 'ignore'")
+        if options and options.unknown_events == "ignore":
+            schema = adapter.json_schema()
+            policy = schema.get("discriminator", {})
+            discriminator = policy.get("propertyName")
+            known_tags = set(policy.get("mapping", {}))
+            if not isinstance(discriminator, str) or not known_tags:
+                raise ValueError(
+                    "unknown_events='ignore' requires a top-level "
+                    "discriminated event union"
+                )
         request_headers = self.headers.copy()
         request_headers.update(headers)
         if options and options.headers:
@@ -210,6 +226,17 @@ class Transport:
                     try:
                         yield adapter.validate_json(payload)
                     except ValidationError as exc:
+                        if discriminator is not None:
+                            try:
+                                value = TypeAdapter[JsonValue](JsonValue).validate_json(
+                                    payload
+                                )
+                            except ValidationError:
+                                raise StreamParseError(payload) from exc
+                            if isinstance(value, dict):
+                                tag = value.get(discriminator)
+                                if isinstance(tag, str) and tag not in known_tags:
+                                    continue
                         raise StreamParseError(payload) from exc
         except httpx.HTTPError as exc:
             raise TransportError("SSE HTTP transport failed") from exc

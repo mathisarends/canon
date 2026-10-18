@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
@@ -33,6 +34,7 @@ class Scalar:
     name: Literal[
         "string", "integer", "number", "boolean", "null", "never", "JsonValue"
     ]
+    constraints: tuple[tuple[str, str | int | float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -402,6 +404,56 @@ class _Types:
             self.names[name] = ref
             self.pending[name] = target
             return Reference(name)
+        unsupported = sorted(
+            set(node)
+            & {
+                "format",
+                "minItems",
+                "maxItems",
+                "uniqueItems",
+                "contains",
+                "minContains",
+                "maxContains",
+                "minProperties",
+                "maxProperties",
+                "patternProperties",
+                "propertyNames",
+                "dependentRequired",
+                "dependentSchemas",
+                "unevaluatedProperties",
+                "unevaluatedItems",
+                "not",
+                "if",
+                "then",
+                "else",
+            }
+        )
+        if unsupported:
+            from fastapi_streams.codegen.diagnostics import UnsupportedConstraintWarning
+
+            warnings.warn(
+                f"Schema {node.get('title', '<inline>')!r}: constraints "
+                f"{', '.join(unsupported)} are not enforced by generated clients",
+                UnsupportedConstraintWarning,
+                stacklevel=2,
+            )
+        constraints = {
+            "minLength": "min_length",
+            "maxLength": "max_length",
+            "pattern": "pattern",
+            "minimum": "ge",
+            "maximum": "le",
+            "exclusiveMinimum": "gt",
+            "exclusiveMaximum": "lt",
+            "multipleOf": "multiple_of",
+        }
+        if set(node) & constraints.keys() and any(
+            key in node for key in ("const", "enum", "oneOf", "anyOf", "allOf")
+        ):
+            raise ContractError(
+                "Scalar constraints alongside enum/const or composition are not "
+                "supported; put constraints on scalar branches instead"
+            )
         if "const" in node:
             return self.literal(node["const"])
         if "enum" in node:
@@ -436,10 +488,27 @@ class _Types:
                     self.parse({**node, "type": part}) for part in cast(list[str], kind)
                 )
             )
-        if kind in ("string", "boolean", "null"):
-            return Scalar(kind)
-        if kind in ("number", "integer"):
-            return Scalar(kind)
+        if kind in ("string", "boolean", "null", "number", "integer"):
+            applicable: set[str] = (
+                {"minLength", "maxLength", "pattern"}
+                if kind == "string"
+                else {
+                    "minimum",
+                    "maximum",
+                    "exclusiveMinimum",
+                    "exclusiveMaximum",
+                    "multipleOf",
+                }
+                if kind in ("number", "integer")
+                else set()
+            )
+            return Scalar(
+                kind,
+                tuple(
+                    (constraints[key], node[key])
+                    for key in sorted(applicable & node.keys())
+                ),
+            )
         if kind == "array":
             if "prefixItems" in node:
                 raise ContractError("Tuple schemas (prefixItems) are not supported")

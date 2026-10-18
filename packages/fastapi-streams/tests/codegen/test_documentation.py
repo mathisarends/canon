@@ -29,7 +29,9 @@ def test_endpoint_prose_is_preserved_without_changing_generated_python_source():
     assert operation["description"] in doc
     assert "Deprecated endpoint." in doc
     assert "contextlib.aclosing" in doc
-    assert "Events are validated with Pydantic." in doc
+    assert "Events are validated with Pydantic against generated shapes" in doc
+    assert "not full JSON Schema validation" in doc
+    assert "unknown_events='ignore'" in doc
     assert "AbortSignal" not in doc
     assert "Opens the HTTP request when iteration begins." in doc
 

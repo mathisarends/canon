@@ -116,3 +116,41 @@ Generation is deterministic. A manifest tracks owned files and cleans up stale
 generated files without deleting neighboring handwritten files. Use a dedicated
 output directory for each language. Unsafe paths and generated-name collisions
 fail explicitly.
+
+## Runtime validation and unknown variants
+
+Python validates generated event models and request bodies with Pydantic. Supported
+scalar constraints are `pattern`, `minLength`, `maxLength`, `minimum`, `maximum`,
+`exclusiveMinimum`, `exclusiveMaximum`, and `multipleOf`. They survive nested
+models, arrays, nullable types and referenced scalar aliases. Patterns use
+Pydantic's Rust regex engine; unsupported expressions fail generation. Numeric
+multiples follow Pydantic's floating-point tolerance. This is not a complete JSON
+Schema validator. Formats, collection/object limits and other unsupported rules
+emit `UnsupportedConstraintWarning`; promote it to an error in CI when required.
+Constraints alongside enum/const or composition fail explicitly; constraints on
+scalar branches are supported. TypeScript provides static shapes and does not
+validate incoming JSON or enforce scalar constraints at runtime.
+
+Python event unions are closed by default: unknown variants raise
+`StreamParseError`. For an upstream that emits more variants than your declared
+subset, explicitly choose a per-request policy:
+
+```python
+from generated import RequestOptions
+
+options = RequestOptions(unknown_events="ignore")
+async for event in client.runs.run_events(run_id="run_abc", options=options):
+    ...
+```
+
+Ignoring requires a top-level discriminated union with known string tags. Only
+valid JSON objects with an unknown string discriminator are skipped. Invalid
+JSON, missing/non-string discriminators and malformed known variants still fail;
+unknown nested variants inside a known event fail too. The option adds no retry,
+reconnect or replay. TypeScript continues to forward JSON-decoded values without
+runtime union validation. Regenerate existing Python SDKs to obtain the option.
+
+## Existing native streams and mixed REST generation
+
+See the [native transport and mixed-codegen recipe](native-transports.md) when
+an existing generator, native server or byte-preserving proxy owns the stream.

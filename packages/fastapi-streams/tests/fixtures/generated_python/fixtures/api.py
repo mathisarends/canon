@@ -36,7 +36,9 @@ class FixturesApi:
 
         Use contextlib.aclosing for deterministic cleanup when exiting iteration early. Task cancellation closes the response and propagates normally.
 
-        Events are validated with Pydantic.
+        Events are validated with Pydantic against generated shapes, variants and supported scalar constraints (string pattern/length, numeric bounds/multiples). Unsupported source constraints are diagnosed during generation; this is not full JSON Schema validation.
+
+        Unknown event variants fail by default. For a top-level discriminated union, RequestOptions(unknown_events='ignore') skips unknown string tags. Malformed known events, missing tags and invalid JSON still fail.
         """
         query: list[tuple[str, str]] = []
         headers: dict[str, str] = {}

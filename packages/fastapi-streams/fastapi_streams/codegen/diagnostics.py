@@ -15,6 +15,10 @@ class OptionalDiscriminatorWarning(UserWarning):
     """An event union may be missing the field used to select its variant."""
 
 
+class UnsupportedConstraintWarning(UserWarning):
+    """A source validation keyword cannot be enforced by generated clients."""
+
+
 def warn_optional_discriminators(contract: Contract) -> None:
     """Diagnose event discriminators without changing the declared requiredness."""
     declarations = {item.name: item.type for item in contract.declarations}

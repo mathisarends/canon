@@ -7,6 +7,7 @@ TypeScript Fetch and Python HTTPX clients from the same definitions.
 | --- | --- |
 | [Quickstart](quickstart.md) | Run the complete example and define your first stream. |
 | [Contracts and codegen](codegen.md) | Export OpenAPI, generate both clients, and detect drift in CI. |
+| [Native transports](native-transports.md) | Existing SSE proxies, contract-first generation and private REST codegen views. |
 | [Client usage](clients.md) | Named event values, typed iteration, authentication, cancellation, and errors. |
 | [Development](development.md) | Local checks, test coverage, supported features, and roadmap. |
 | [Releasing](releasing.md) | Workspace release preparation, PyPI publishing, and recovery. |
