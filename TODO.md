@@ -30,7 +30,9 @@ RPCkit 0.1.1. Publish Streams before Canon's updated optional pin.
 - [x] Add tested native-proxy and private REST-codegen compatibility recipes.
 - [x] Pass all workspace, current/minimum wheel and installed Streams backend
   gates, including new generated validation/unknown-event smoke checks.
-- [ ] Push the prepared commit, pass exact-commit CI and all three release dry runs.
+- [x] Push prepared commit `de05d8c`, pass [four-target CI](https://github.com/mathisarends/canon/actions/runs/39126069250)
+  and all three release dry runs. Downloaded artifacts match their manifest hashes;
+  see [verified follow-up preparation](docs/releases.md#verified-follow-up-preparation-2026-10-18).
 - [ ] Finalize release dates and publish only after explicit publication authorization.
 
 The [consumer feedback decision](docs/design-decisions/0002-consumer-feedback.md)

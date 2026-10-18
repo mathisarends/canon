@@ -36,6 +36,30 @@ contracts, `RpcRoutes` and existing nested imports. Changelog dates remain
 unreleased until publication is authorized. Local checks and CI/dry-run evidence
 are recorded in TODO and the compatibility record as they complete.
 
+## Verified follow-up preparation, 2026-10-18
+
+Prepared source commit [`de05d8c`](https://github.com/mathisarends/canon/commit/de05d8c272c297192c9e8e69d6738387038217b2)
+passed [all four CI targets](https://github.com/mathisarends/canon/actions/runs/39126069250)
+(Linux/Python 3.12, 3.13 and 3.14; Windows/Python 3.14).
+
+| Package | Unpublished version | Successful dry run |
+| --- | --- | --- |
+| Streams | 0.2.0 | [39126396251](https://github.com/mathisarends/canon/actions/runs/39126396251) |
+| Canon | 0.5.1 | [39126398149](https://github.com/mathisarends/canon/actions/runs/39126398149) |
+| RPCkit | 0.1.1 | [39126399949](https://github.com/mathisarends/canon/actions/runs/39126399949) |
+
+All three manifests record that exact commit, successful CI and artifact gates.
+The downloaded wheel and sdist SHA-256 values match every manifest. Each dry run
+passed current/minimum installed-wheel combinations and installed Streams backend
+checks. Publishing and tag/release jobs were skipped. No packages, tags or GitHub
+releases were published by this preparation. Local evidence is under
+`dist/dry-runs/RUN_ID/`; workflow artifacts retain the original checked bytes.
+
+The following documentation commit records this evidence; it does not change
+runtime or generator behavior. Before an authorized publication, finalize changelog
+dates, pass CI on the final source and follow the normal dry-run/publication flow.
+The current-release table continues to describe only published versions.
+
 ## Account configuration verified on 2026-10-17
 
 | PyPI project | Publisher state |

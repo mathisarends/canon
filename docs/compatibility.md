@@ -36,7 +36,10 @@ verifies preserved scalar constraints, strict unknown variants, opt-in skipping,
 and malformed known-event rejection. Current-dependency installed CLI checks
 also pass core-only and with HTTPX 0.28.1 or HTTPX2 2.13.1 installed separately.
 
-CI and release dry-run results are separate from these local checks. Consumer
+The prepared source at `de05d8c` also passed
+[four-target CI](https://github.com/mathisarends/canon/actions/runs/39126069250)
+and all three [release dry runs](releases.md#verified-follow-up-preparation-2026-10-18).
+Downloaded artifact hashes match their manifests; publication/tag jobs were skipped. Consumer
 feedback from Maximus is reported evidence; full external application migrations
 remain outside this verification. See the [feedback decision](design-decisions/0002-consumer-feedback.md).
 

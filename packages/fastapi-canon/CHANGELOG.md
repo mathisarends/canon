@@ -4,6 +4,11 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ## 0.5.1 - unreleased
 
+- Source preparation passed workspace CI, independent wheel matrices and the
+  package release dry run. See the [release preparation evidence](../../docs/releases.md#verified-follow-up-preparation-2026-10-18).
+  This version remains unpublished; final publication needs a dated changelog
+  and CI on the final source.
+
 - Pin the optional Streams integration and development tooling to 0.2.0.
   Regenerated Python SDKs now enforce supported scalar constraints; follow the
   [Streams upgrade notes](../fastapi-streams/CHANGELOG.md). Canon core remains

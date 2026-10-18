@@ -2,6 +2,11 @@
 
 ## 0.1.1 - unreleased
 
+- Source preparation passed workspace CI, independent wheel matrices and the
+  package release dry run. See the [release preparation evidence](../../docs/releases.md#verified-follow-up-preparation-2026-10-18).
+  This version remains unpublished; final publication needs a dated changelog
+  and CI on the final source.
+
 - Prepare independent 0.1.1 metadata and regenerate both example-client manifests.
   Upgrading from 0.1.0 requires no wire or call-site migration. Prefer package-root
   FastAPI imports and use `RpcRoutes` for context dependency factories.
