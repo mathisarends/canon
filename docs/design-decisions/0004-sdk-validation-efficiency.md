@@ -9,7 +9,8 @@ are consumer-reported integration results. They neither identify a new migration
 blocker nor establish exhaustive application or deployment coverage.
 
 The user authorized sequential implementation and isolated commits on main, plus
-a next-release proposal. Publication is not part of this authorization.
+a next-release proposal. The user subsequently authorized both package
+publications with matching GitHub Releases on 2026-10-18; see the release guide.
 
 ## Decisions
 

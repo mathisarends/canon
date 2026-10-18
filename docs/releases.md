@@ -44,10 +44,10 @@ obtain the runtime improvement; existing generated SDKs remain compatible.
 TypeScript stays static-only. See the [decision and benchmark evidence](design-decisions/0004-sdk-validation-efficiency.md)
 and each prepared changelog for upgrade steps.
 
-The user authorized implementation and a release proposal, not publication.
-Before release, push the final source, pass CI on that exact commit, complete
-both package dry runs and finalize changelog dates. Only dispatch real publication
-after explicit authorization, with Streams before Canon. Then verify public-index
+The user explicitly authorized both publications with matching GitHub Releases
+on 2026-10-18. Both changelog dates are finalized. Before release, push the final
+source, pass CI on that exact commit and complete both package dry runs. Publish
+Streams before Canon. Then verify public-index
 installs, tags, GitHub Releases and original assets before updating current-release
 tables. Local verification is recorded in [compatibility](compatibility.md).
 

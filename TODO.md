@@ -18,7 +18,8 @@ and GitHub Actions when asked to prepare or publish a release.
 ## Next work block: SDK efficiency patch releases
 
 Prepared and unpublished: Streams 0.3.1 and Canon 0.5.3; RPCkit stays 0.2.0.
-The user authorized implementation and a release proposal, not publication.
+The user explicitly authorized both publications with matching GitHub Releases
+on 2026-10-18. Changelog dates are finalized; publication verification is pending.
 See the [release proposal](docs/releases.md#proposed-sdk-efficiency-patches-2026-10-18)
 and [validation/performance decision](docs/design-decisions/0004-sdk-validation-efficiency.md).
 
@@ -32,8 +33,8 @@ and [validation/performance decision](docs/design-decisions/0004-sdk-validation-
   both Streams backends and a Python 3.12 minimum-dependency generated SDK smoke.
   See [local verification](docs/compatibility.md#sdk-efficiency-patch-preparation).
 - [ ] Push the final source and pass exact-commit CI and both package dry runs.
-- [ ] Obtain publication authorization, finalize changelog dates and publish
-  Streams before Canon with complete PyPI/tag/GitHub Release verification.
+- [x] Obtain publication authorization and finalize both changelog dates.
+- [ ] Publish Streams before Canon with complete PyPI/tag/GitHub Release verification.
 
 ## External SDK adoption
 

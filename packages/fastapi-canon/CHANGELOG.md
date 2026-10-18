@@ -2,7 +2,7 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
-## 0.5.3 - unreleased
+## 0.5.3 - 2026-10-18
 
 - Update the optional Streams integration and development pin to 0.3.1 for
   generated Python runtime efficiency and additive diagnostic-report provenance.
