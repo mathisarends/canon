@@ -195,6 +195,65 @@ the original status, response, and diagnostics. Schema unions with permissive
 variants may accept a broad range of bodies; inspect the parsed variant before
 using its fields. Existing limits on bounded HTTP diagnostics still apply.
 
+### Optional consumer decoders
+
+Build a decoder once per operation/status around the existing guard hook when
+several callers need the same declared error body. For example, this adapter
+accepts a consumer-provided validator with no additional SDK dependency:
+
+```typescript
+import { isHttpError, type StreamRunEventsErrorBody } from "./generated/index.js";
+
+function decodeValidationError(
+  error: unknown,
+  isBody: (value: unknown) => value is StreamRunEventsErrorBody,
+): StreamRunEventsErrorBody | undefined {
+  if (isHttpError(error, isBody) && error.status === 422) return error.details;
+  return undefined;
+}
+```
+
+Supply a handwritten guard or an existing validator that checks every field of
+the generated alias. A type assertion alone does not validate a response. Guards
+must validate the original value: if a decoder coerces or transforms data, use
+its successfully parsed output instead of narrowing the original `error.details`.
+Use this helper only for the operation whose errors the alias describes.
+
+If decoding returns `undefined`, continue handling the original `HttpError`
+generically or rethrow it. Its status, response and JSON/text details remain
+available, including unexpected proxy responses. Validators run only for SDK
+HTTP errors; `isHttpError` leaves network/stream failures alone. Status checks
+remain explicit because a matching body does not establish an HTTP status.
+The [TypeScript example](../examples/agent_runs/errors.ts) includes a complete
+guard and reusable decoder with this fallback behavior.
+
+In Python, construct and reuse an adapter rather than rebuilding it for each
+exception:
+
+```python
+from pydantic import TypeAdapter, ValidationError
+from myapp.generated import HttpError
+from myapp.generated.models import StreamRunEventsErrorBody
+
+error_body = TypeAdapter(StreamRunEventsErrorBody)
+
+
+def decode_validation_error(error: HttpError) -> StreamRunEventsErrorBody | None:
+    if error.status != 422:
+        return None
+    try:
+        return error_body.validate_python(error.details)
+    except ValidationError:
+        return None
+```
+
+Use the returned parsed body on success and retain the original exception for
+fallback handling. This alias describes an object response, so `None` can
+represent failure here; for a nullable body alias, use a separate success flag
+or sentinel. Neither recipe changes SDK defaults or automatically validates all
+HTTP failures. Diagnostic reports correctly retain `consumer_controlled` for
+HTTP-error body validation.
+
 The checked consumer examples show HTTP validation errors, fallback handling,
 stream parsing/transport errors, and ordinary application error events:
 

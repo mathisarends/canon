@@ -106,6 +106,9 @@ def main(argv: list[str] | None = None) -> int:
             if not isinstance(document, dict):
                 raise ContractError("The OpenAPI document must be an object")
             document = cast(Document, document)
+            generation = _generation_metadata(
+                document, args.language, args.python_http_client or "httpx"
+            )
             if args.command == "check" and args.app:
                 expected = export_schema(_load_app(args.app))
                 if expected != document:
@@ -122,9 +125,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.diagnostics,
                     diagnostics,
                     set(),
-                    document,
-                    args.language,
-                    args.python_http_client or "httpx",
+                    generation,
                 )
             accepted: set[str] = (
                 accepted_diagnostics(
@@ -138,9 +139,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.diagnostics,
                     diagnostics,
                     accepted,
-                    document,
-                    args.language,
-                    args.python_http_client or "httpx",
+                    generation,
                 )
             pending = [item for item in diagnostics if item.id not in accepted]
             emit_diagnostics(pending)
@@ -156,7 +155,9 @@ def main(argv: list[str] | None = None) -> int:
                 if args.language == "python"
                 else generate_typescript(contract)
             )
-            changed = write_files(args.output, generated, check=args.check)
+            changed = write_files(
+                args.output, generated, check=args.check, generation=generation
+            )
             if args.check and changed:
                 for path in changed:
                     print(f"Out of date: {path}", file=sys.stderr)
@@ -182,33 +183,37 @@ def _load_app(value: str) -> FastAPI:
     return app
 
 
+def _generation_metadata(
+    document: Document, target: str, http_client: str
+) -> dict[str, str | None]:
+    # Share canonical provenance between manifests and optional reports.
+    encoded = json.dumps(
+        document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return {
+        "generator": "fastapi-streams",
+        "generator_version": __version__,
+        "schema_sha256": hashlib.sha256(encoded).hexdigest(),
+        "schema_hash_encoding": "canonical-json-v1",
+        "target": target,
+        "python_http_client": http_client if target == "python" else None,
+    }
+
+
 def _write_diagnostics(
     path: Path,
     diagnostics: list[GenerationDiagnostic],
     accepted: set[str],
-    document: Document,
-    target: str,
-    http_client: str,
+    generation: dict[str, str | None],
 ) -> None:
-    # Canonical JSON binds reports to schema content, independent of file layout.
-    encoded = json.dumps(
-        document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-    python = target == "python"
+    python = generation["target"] == "python"
     request_phase = "method_call" if python else "not_performed"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
             {
                 "version": 1,
-                "generation": {
-                    "generator": "fastapi-streams",
-                    "generator_version": __version__,
-                    "schema_sha256": hashlib.sha256(encoded).hexdigest(),
-                    "schema_hash_encoding": "canonical-json-v1",
-                    "target": target,
-                    "python_http_client": http_client if python else None,
-                },
+                "generation": generation,
                 "validation": {
                     "full_json_schema": False,
                     "runtime_scope": (

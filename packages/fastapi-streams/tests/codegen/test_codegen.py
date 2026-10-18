@@ -11,6 +11,44 @@ from fastapi_streams.codegen.typescript import generate_typescript
 from fastapi_streams.codegen.writer import MANIFEST, write_files
 
 
+@pytest.mark.parametrize(
+    "target,backend", [("python", "httpx"), ("python", "httpx2"), ("typescript", None)]
+)
+def test_cli_upgrades_legacy_manifest_without_a_diagnostic_report(
+    tmp_path, target, backend
+):
+    schema, output = tmp_path / "schema.json", tmp_path / "sdk"
+    document = export_schema(app)
+    schema.write_text(json.dumps(document), encoding="utf-8")
+    write_files(output, {"stale.txt": "old"})
+    handwritten = output / "handwritten.txt"
+    handwritten.write_text("keep", encoding="utf-8")
+    flags = ["--schema", str(schema), "--language", target, "--output", str(output)]
+    if backend:
+        flags += ["--python-http-client", backend]
+    legacy = (output / MANIFEST).read_bytes()
+    assert main(["check", *flags]) == 1
+    assert (output / MANIFEST).read_bytes() == legacy
+    assert main(["generate", *flags]) == 0
+    manifest = json.loads((output / MANIFEST).read_bytes())
+    assert manifest["generation"]["target"] == target
+    assert manifest["generation"]["python_http_client"] == backend
+    assert manifest["files"] == sorted(
+        path.relative_to(output).as_posix()
+        for path in output.rglob("*")
+        if path.is_file() and path.name not in {MANIFEST, "handwritten.txt"}
+    )
+    assert not (output / "stale.txt").exists()
+    assert handwritten.read_text() == "keep"
+    assert main(["check", *flags]) == 0
+    # A different generator version is drift even if source files are identical.
+    manifest["generation"]["generator_version"] = "0.0.1"
+    (output / MANIFEST).write_text(json.dumps(manifest), encoding="utf-8")
+    stale = (output / MANIFEST).read_bytes()
+    assert main(["check", *flags]) == 1
+    assert (output / MANIFEST).read_bytes() == stale
+
+
 def test_ir_and_types_are_typed_and_streams_only():
     contract = build_ir(export_schema(app))
     assert {op.operation_id for op in contract.operations} == {

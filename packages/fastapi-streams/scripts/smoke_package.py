@@ -133,6 +133,11 @@ def main() -> None:
                 args.http_client if language == "python" else None
             )
             assert len(report["generation"]["schema_sha256"]) == 64
+            manifest = json.loads(
+                (working / output / ".fastapi-streams.json").read_text()
+            )
+            assert manifest["generation"] == report["generation"]
+            assert client_file in manifest["files"]
             assert report["validation"]["full_json_schema"] is False
             assert report["validation"]["events"] == {
                 "phase": "iteration",

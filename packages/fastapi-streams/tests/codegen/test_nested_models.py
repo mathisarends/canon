@@ -5,15 +5,13 @@ import httpx
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+from fastapi_streams.codegen.cli import main
 from fastapi_streams.codegen.ir import build_ir
 from fastapi_streams.codegen.openapi import (
     ContractError,
     export_schema,
     validate_contract,
 )
-from fastapi_streams.codegen.python import generate_python
-from fastapi_streams.codegen.typescript import generate_typescript
-from fastapi_streams.codegen.writer import write_files
 from tests.fixtures.generated_python import Client
 from tests.fixtures.generated_python.models import (
     FixtureEvent,
@@ -76,13 +74,25 @@ def test_fixture_generation_is_current():
     document = export_schema(app)
     snapshot = Path("tests/fixtures/models.openapi.json")
     assert json.loads(snapshot.read_text()) == document
-    contract = build_ir(document)
-    assert not write_files(
-        Path("tests/fixtures/generated"), generate_typescript(contract), check=True
-    )
-    assert not write_files(
-        Path("tests/fixtures/generated_python"), generate_python(contract), check=True
-    )
+    for language, directory in (
+        ("typescript", "generated"),
+        ("python", "generated_python"),
+    ):
+        assert (
+            main(
+                [
+                    "check",
+                    "--schema",
+                    str(snapshot),
+                    "--language",
+                    language,
+                    "--output",
+                    f"tests/fixtures/{directory}",
+                    "--strict",
+                ]
+            )
+            == 0
+        )
 
 
 def test_refs_in_properties_named_like_schema_annotations_are_checked():

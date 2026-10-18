@@ -15,6 +15,33 @@ are available through PyPI and this repository's independent GitHub releases.
 
 ## Follow-up verification, 2026-10-18
 
+### SDK review release preparation
+
+Prepared source versions are Canon 0.5.4 / Streams 0.4.0 / RPCkit 0.2.0; the
+published versions above remain current until separate publication approval.
+Streams uses the next minor version because manifest provenance makes drift
+checks stricter. Existing SDK callers and HTTP/SSE contracts stay compatible.
+
+The complete root workspace gate passes 1,463 Python tests and 23 TypeScript
+tests, lint, package-specific type checks, generator drift and coverage checks.
+The generated TypeScript transport has 100% line coverage, 93.44% branch coverage
+and 95.24% function coverage. The local log is
+`dist/consumer-review-workspace.log`.
+
+Local Windows verification passes both six-combination installed-wheel matrices:
+current compatible dependencies on Python 3.14 and minimum direct dependencies
+on Python 3.12. The current matrix also passes the independently installed
+reference service's five tests. Inventories are `dist/compatibility-latest.json`
+and `dist/compatibility-minimum.json`.
+
+Fresh installed Streams environments pass core-only CLI diagnostics and
+generation/drift/runtime/TypeScript checks with HTTPX and HTTPX2 separately.
+These include manifest/report provenance equality for each target/backend.
+Logs are `dist/consumer-review-distributions-current.log`,
+`dist/consumer-review-distributions-minimum.log` and
+`dist/consumer-review-streams-artifacts.log`. Consumer-reported Maximus adoption
+and remaining Hermes/browser coverage are recorded separately in TODO.md.
+
 ### SDK efficiency publications
 
 The current public combination is Canon 0.5.3 / Streams 0.3.1 / RPCkit 0.2.0.

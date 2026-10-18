@@ -1,6 +1,6 @@
 [project]
 name = "fastapi-streams"
-version = "0.3.1"
+version = "0.4.0"
 description = "Typed FastAPI streams with generated TypeScript and Python clients."
 readme = "README.md"
 requires-python = ">=3.12"

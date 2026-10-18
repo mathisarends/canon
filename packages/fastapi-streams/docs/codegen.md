@@ -117,6 +117,35 @@ generated files without deleting neighboring handwritten files. Use a dedicated
 output directory for each language. Unsafe paths and generated-name collisions
 fail explicitly.
 
+### SDK provenance
+
+CLI generation always writes `.fastapi-streams.json` alongside the SDK. Commit
+this file with the generated sources. Its existing `files` list still controls
+ownership and cleanup; the additional `generation` object contains the same
+provenance as an optional diagnostic report:
+
+| Field | Meaning |
+| --- | --- |
+| `generator`, `generator_version` | Generator distribution and version |
+| `schema_sha256` | SHA-256 of the complete source OpenAPI document |
+| `schema_hash_encoding` | `canonical-json-v1`: JSON with recursively sorted keys, compact separators and UTF-8 without ASCII escaping |
+| `target` | `python` or `typescript` |
+| `python_http_client` | `httpx` / `httpx2` for Python, JSON null for TypeScript |
+
+There are no timestamps or local paths. Formatting and object-key order do not
+affect the schema hash; changes to any schema content do, including descriptions
+and components unused by the SDK. This identifies the input and configuration;
+it is not a signature or an integrity check of the generated sources.
+
+`check` compares the manifest as well as SDK sources. A different generator
+version or source hash is drift even when the emitted code is identical.
+Regenerate once with the chosen language and existing HTTP backend to upgrade a
+legacy files-only manifest, then commit the manifest diff. Checks remain
+read-only; generation retains neighboring handwritten files and only removes
+previously owned stale files. No diagnostic report is required for provenance.
+The low-level `write_files` API accepts optional `generation` metadata; without
+it, its files-only behavior remains available for callers writing raw file maps.
+
 ## Runtime validation and unknown variants
 
 Python validates path, query and header parameters and JSON request bodies at the

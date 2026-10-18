@@ -12,6 +12,7 @@ import tempfile
 import time
 import tomllib
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -297,8 +298,8 @@ def main() -> None:
             )
             args.report.parent.mkdir(parents=True, exist_ok=True)
             _write_json(args.report, report)
-            notes = _changelog(
-                ROOT / packages()[args.package].directory / "CHANGELOG.md", args.version
+            notes = _release_notes(
+                ROOT, packages()[args.package], args.version, report["commit"]
             )
             (args.report.parent / "release-notes.md").write_text(
                 notes + "\n", encoding="utf-8"
@@ -400,6 +401,24 @@ def _changelog(path: Path, version: str) -> str:
         raise ValueError(f"Changelog must contain exactly one section for {version}")
     tail = text[matches[0].start() :]
     return re.split(r"\n## ", tail, maxsplit=1)[0].strip()
+
+
+def _release_notes(root: Path, package: Package, version: str, commit: str) -> str:
+    section = _changelog(root / package.directory / "CHANGELOG.md", version)
+    repository = _toml(root / "release.toml")["repository"]
+    base = (
+        f"https://github.com/{repository}/blob/{commit}/"
+        f"{package.directory}/CHANGELOG.md"
+    )
+    # Changelog links use inline Markdown destinations. Retain titles, fragments
+    # and absolute URLs; resolve relative paths from the original document.
+    return re.sub(
+        r"(?P<prefix>\[[^\]\n]*\]\(<?)(?P<url>[^\s<>)]*)(?P<suffix>>?(?:\s+\"[^\"]*\")?\))",
+        lambda match: (
+            match["prefix"] + urllib.parse.urljoin(base, match["url"]) + match["suffix"]
+        ),
+        section,
+    )
 
 
 def _check_breaking_version(path: Path, version: str, section: str) -> None:

@@ -237,6 +237,9 @@ def test_report_describes_actual_target_phases_and_stable_schema_content(
     original = report.read_bytes()
     result = json.loads(original)
     generation = result["generation"]
+    manifest_path = tmp_path / "sdk" / ".fastapi-streams.json"
+    manifest_bytes = manifest_path.read_bytes()
+    assert json.loads(manifest_bytes)["generation"] == generation
     assert generation["generator"] == "fastapi-streams"
     assert generation["generator_version"] == __version__
     assert generation["target"] == target
@@ -266,11 +269,18 @@ def test_report_describes_actual_target_phases_and_stable_schema_content(
     )
     assert main(["check", *flags]) == 0
     assert report.read_bytes() == original
+    assert manifest_path.read_bytes() == manifest_bytes
     # The complete document participates, including components not emitted by SDKs.
     document["info"]["description"] = "Changed contract provenance"
     schema.write_text(json.dumps(document), encoding="utf-8")
-    assert main(["check", *flags]) == 0
+    assert main(["check", *flags]) == 1
+    assert manifest_path.read_bytes() == manifest_bytes
     assert (
         json.loads(report.read_bytes())["generation"]["schema_sha256"]
         != generation["schema_sha256"]
+    )
+    assert main(["generate", *flags]) == 0
+    assert (
+        json.loads(manifest_path.read_bytes())["generation"]
+        == json.loads(report.read_bytes())["generation"]
     )

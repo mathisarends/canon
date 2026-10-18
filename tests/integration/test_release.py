@@ -66,7 +66,50 @@ def test_release_rejects_stale_installation_docs(release_repo: Path) -> None:
     path = release_repo / "packages/fastapi-canon/docs/streams.md"
     path.write_text("Install fastapi-streams==0.0.1", encoding="utf-8")
     with pytest.raises(ValueError, match="does not match"):
-        release.validate_release("fastapi-canon", "0.5.3", root=release_repo)
+        release.validate_release("fastapi-canon", "0.5.4", root=release_repo)
+
+
+def test_release_notes_resolve_links_against_the_release_commit(
+    release_repo: Path,
+) -> None:
+    package = release.packages(release_repo)["fastapi-canon"]
+    commit = "a" * 40
+    path = release_repo / package.directory / "CHANGELOG.md"
+    original = path.read_bytes()
+    notes = release._release_notes(release_repo, package, "0.5.4", commit)
+    assert (
+        f"https://github.com/mathisarends/canon/blob/{commit}/"
+        "packages/fastapi-streams/CHANGELOG.md"
+    ) in notes
+    assert "../fastapi-streams" not in notes
+    assert path.read_bytes() == original
+
+
+def test_release_notes_retain_external_links_titles_and_fragments(
+    release_repo: Path,
+) -> None:
+    package = release.packages(release_repo)["fastapi-streams"]
+    path = release_repo / package.directory / "CHANGELOG.md"
+    path.write_text(
+        "## 0.4.0 - 2026-10-18\n\n"
+        '[Guide](docs/codegen.md#validation "Read this")\n'
+        "[Evidence](../../docs/releases.md#verified)\n"
+        "[Section](#upgrade)\n"
+        "[External](https://example.test/docs#part)\n"
+        "[Email](mailto:maintainer@example.test)\n",
+        encoding="utf-8",
+    )
+    commit = "b" * 40
+    notes = release._release_notes(release_repo, package, "0.4.0", commit)
+    base = f"https://github.com/mathisarends/canon/blob/{commit}"
+    assert (
+        f'{base}/packages/fastapi-streams/docs/codegen.md#validation "Read this"'
+        in notes
+    )
+    assert f"{base}/docs/releases.md#verified" in notes
+    assert f"{base}/packages/fastapi-streams/CHANGELOG.md#upgrade" in notes
+    assert "[External](https://example.test/docs#part)" in notes
+    assert "[Email](mailto:maintainer@example.test)" in notes
 
 
 @pytest.mark.parametrize(
@@ -104,8 +147,8 @@ def test_breaking_pre_one_releases_require_next_minor(
 @pytest.mark.parametrize(
     ("name", "version"),
     [
-        ("fastapi-canon", "0.5.3"),
-        ("fastapi-streams", "0.3.1"),
+        ("fastapi-canon", "0.5.4"),
+        ("fastapi-streams", "0.4.0"),
         ("fastapi-rpckit", "0.2.0"),
     ],
 )
@@ -146,7 +189,7 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
 @pytest.mark.parametrize(
     ("path", "before", "after", "message"),
     [
-        ("uv.lock", 'version = "0.5.3"', 'version = "0.4.0"', "uv.lock"),
+        ("uv.lock", 'version = "0.5.4"', 'version = "0.4.0"', "uv.lock"),
         (
             "packages/fastapi-rpckit/fastapi_rpckit/__init__.py",
             '__version__ = "0.2.0"',
@@ -155,7 +198,7 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
         ),
         (
             "pyproject.toml",
-            "fastapi-streams[codegen]==0.3.1",
+            "fastapi-streams[codegen]==0.4.0",
             "fastapi-streams[codegen]==0.0.1",
             "Dependency pin",
         ),
@@ -165,7 +208,7 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
             "fastapi-canon>=0.4,<0.5",
             "Reference service",
         ),
-        ("packages/fastapi-streams/CHANGELOG.md", "## 0.3.1", "## 9.9.9", "Changelog"),
+        ("packages/fastapi-streams/CHANGELOG.md", "## 0.4.0", "## 9.9.9", "Changelog"),
     ],
 )
 def test_release_rejects_inconsistent_metadata(
@@ -176,7 +219,7 @@ def test_release_rejects_inconsistent_metadata(
         target.read_text("utf-8").replace(before, after), encoding="utf-8"
     )
     with pytest.raises(ValueError, match=message):
-        release.validate_release("fastapi-streams", "0.3.1", root=release_repo)
+        release.validate_release("fastapi-streams", "0.4.0", root=release_repo)
 
 
 def test_publication_requires_final_changelog(release_repo: Path) -> None:

@@ -2,7 +2,6 @@ import asyncio
 import importlib.util
 import sys
 from enum import StrEnum
-from pathlib import Path
 
 import httpx
 import pytest
@@ -22,7 +21,6 @@ from fastapi_streams.codegen.cli import main
 from fastapi_streams.codegen.ir import build_ir
 from fastapi_streams.codegen.openapi import export_schema
 from fastapi_streams.codegen.python import generate_python
-from fastapi_streams.codegen.writer import write_files
 
 
 class Chunks(httpx.AsyncByteStream):
@@ -379,8 +377,20 @@ def test_python_codegen_cli_and_snapshot(tmp_path):
     contract = build_ir(export_schema(app))
     files = generate_python(contract)
     assert files == generate_python(contract)
-    assert not write_files(
-        Path("examples/agent_runs/generated_python"), files, check=True
+    assert (
+        main(
+            [
+                "check",
+                "--schema",
+                "tests/fixtures/agent_runs.openapi.json",
+                "--language",
+                "python",
+                "--output",
+                "examples/agent_runs/generated_python",
+                "--strict",
+            ]
+        )
+        == 0
     )
     schema = tmp_path / "schema.json"
     assert (

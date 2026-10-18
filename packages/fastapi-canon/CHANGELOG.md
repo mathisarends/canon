@@ -2,6 +2,16 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## 0.5.4 - 2026-10-18
+
+- Update the optional Streams integration and development pin to 0.4.0 for
+  always-present SDK manifest provenance and optional error-decoder recipes.
+  Canon's public API and composition behavior remain unchanged.
+- Regenerate stream SDKs once and commit the updated provenance manifest before
+  running drift checks; follow the
+  [Streams 0.4.0 upgrade notes](../fastapi-streams/CHANGELOG.md).
+- Generate absolute commit-pinned changelog links in published release notes.
+
 ## 0.5.3 - 2026-10-18
 
 - Update the optional Streams integration and development pin to 0.3.1 for

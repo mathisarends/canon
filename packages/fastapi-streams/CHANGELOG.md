@@ -3,6 +3,38 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
+## 0.4.0 - 2026-10-18
+
+### Breaking changes
+
+- CLI drift checks now include SDK provenance in `.fastapi-streams.json`.
+  Existing files-only manifests, a different generator version, or a changed
+  source schema now fail `check`, including source changes that leave generated
+  code identical. Regenerate once with the existing language and HTTP backend,
+  review and commit the updated manifest. This stricter drift check requires
+  a minor release under the pre-1.0 version policy.
+
+### Added
+
+- Always record generator/version, canonical schema SHA-256, target and Python
+  HTTP backend in CLI-generated manifests, sharing metadata with diagnostic
+  reports. Preserve `files` ownership, safe cleanup and read-only checks.
+  Low-level file writers can supply optional `generation` metadata.
+- Document optional operation/status-specific error decoders using the existing
+  TypeScript guard hook and cached Python TypeAdapters. Add a checked consumer
+  decoder example; unexpected JSON/text/proxy errors retain the generic fallback.
+  Generated request/event APIs, HTTP/SSE contracts and runtime dependencies stay
+  unchanged.
+
+### Upgrade from 0.3.1
+
+1. Upgrade the generator to 0.4.0 and regenerate with the same language and
+   Python HTTP backend. Commit `.fastapi-streams.json` with the generated SDK.
+2. Expect a one-time manifest diff. CI checks now detect schema or generator
+   provenance changes even when generated source code is otherwise unchanged.
+3. Existing callers, HTTP/SSE contracts and exact diagnostic allowances require
+   no migration. Optional error decoders remain consumer-controlled.
+
 ## 0.3.1 - 2026-10-18
 
 ### Added

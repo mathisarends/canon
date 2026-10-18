@@ -15,6 +15,30 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
 
+## Active preparation: SDK review improvements
+
+The user authorized preparation of Streams 0.4.0 and Canon 0.5.4 on 2026-10-18
+and requested publication approval in this chat when ready. These are prepared
+source versions, not published releases; RPCkit remains 0.2.0. Changelog dates
+are finalized for review. Current public versions remain Streams 0.3.1 and
+Canon 0.5.3 until separately authorized publication and verification.
+
+- [x] Add SDK manifest provenance and checked optional HTTP-error decoder recipes.
+- [x] Resolve release-note links against the release commit; correct the existing
+  Canon 0.5.3 release body, preserving its original tag and artifact metadata.
+- [x] Prepare independent versions, optional/development pins, root lockfile,
+  regenerated clients and concrete migration notes.
+- [x] Pass current/minimum wheel matrices and installed CLI/backends.
+- [x] Pass final-version workspace checks: 1,463 Python tests, 23 TypeScript
+  tests, lint/types and generated-client drift/coverage.
+- [ ] Request explicit approval here before publication. Publish Streams before
+  Canon and verify each PyPI install, tag, GitHub Release and original assets.
+
+Before requesting approval, the final main commit must pass exact-source CI and
+both package dry runs. Verify their downloaded wheel/sdist hashes, manifests and
+absolute release-note links. Actions retains the source-specific results;
+downloaded evidence belongs under `dist/dry-runs/`.
+
 ## Completed releases: SDK efficiency patches
 
 Published and verified: Streams 0.3.1 and Canon 0.5.3; RPCkit stays 0.2.0.
@@ -38,23 +62,28 @@ and [validation/performance decision](docs/design-decisions/0004-sdk-validation-
 - [x] Independently match PyPI/Actions/GitHub bytes, tags, notes and manifests;
   pass public HTTPX2 SDK and combined three-package checks in fresh environments.
 
-## Next work block: external SDK adoption
+## External SDK adoption
 
 - [x] Record the consumer-reported adoption of Canon 0.5.2, Streams 0.3.0 and
   RPCkit 0.2.0, including early request validation, structured errors and exact
   reviewed diagnostic allowances.
-- [ ] Regenerate the real consumer's SDK with Streams 0.3.1 when adopting the
-  patch, preserving its selected HTTP backend. Run its Python/native Hermes
-  suites and review diagnostics. Record consumer-reported evidence separately
-  from this workspace's verified checks.
+- [x] Record consumer-reported adoption of Streams 0.3.1 / Canon 0.5.3 with
+  regenerated SDKs, unchanged callers/contracts, 19 exact TypeScript allowances
+  and no Python diagnostics. Keep the selected HTTP backend on regeneration.
+- [ ] Complete the consumer's native Hermes runtime and browser E2E validation.
+  Record consumer-reported evidence separately from this workspace's checks.
 - [ ] Turn new contract/validation failures into minimal schema fixtures and
   regression cases before preparing another independent package release.
 
-The latest supplied Maximus report confirms adoption of Canon 0.5.2 / Streams
-0.3.0 / RPCkit 0.2.0 in its exercised integration, including strict diagnostics
-with 19 reviewed format limitations. This is consumer-reported evidence; native
-deployment and exhaustive application verification are not implied. The pending
-items above retain the distinction between reported adoption and local checks.
+The latest supplied Maximus report for merge request 125 confirms adoption of
+Canon 0.5.3 / Streams 0.3.1 with regenerated SDKs and unchanged callers, HTTP/SSE
+contracts and TypeScript SDK. It reports 317 Python tests passed, 14 native
+Chromium tests skipped, frontend type checking and an SSE unit test passed, 19
+exact reviewed TypeScript allowances, and an empty Python diagnostic report.
+It also reports passing existing request/event/error/pool checks. No independent
+performance benchmark, full Linux Hermes runtime or browser E2E was run there.
+This is consumer-reported evidence, not locally verified application/deployment
+coverage. See [the supplied review](https://git.fh-muenster.de/fep_ai_agent/maximus-trading/-/merge_requests/125#note_242680).
 
 ## Completed releases: generated SDK request validation and diagnostics
 

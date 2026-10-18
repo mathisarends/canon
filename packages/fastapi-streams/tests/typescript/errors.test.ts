@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createClient, HttpError, isHttpError, TransportError } from "../../examples/agent_runs/generated/index.js";
-import { consumeWithErrors } from "../../examples/agent_runs/errors.js";
+import { consumeWithErrors, decodeValidationError } from "../../examples/agent_runs/errors.js";
 
 type MissingProblem = {
   code: "missing";
@@ -66,4 +66,19 @@ test("consumer example handles validated HTTP errors and rethrows unexpected bod
   for (const unexpected of [[], "<html>Bad gateway</html>", null, { detail: "invalid" }, { detail: [{}] }]) {
     await assert.rejects(() => consumeWithErrors(makeClient(unexpected), "demo"), HttpError);
   }
+});
+
+test("consumer decoder retains generic failures and checks the actual status", () => {
+  const body = { detail: [{ loc: ["run_id", 0], msg: "Invalid", type: "value_error" }] };
+  const response = new Response(null, { status: 422 });
+  const expected = new HttpError(422, body, response);
+  assert.equal(decodeValidationError(expected), body);
+  for (const details of ["Bad gateway", undefined, null, [], { detail: [{}] }]) {
+    const error = new HttpError(422, details, response);
+    assert.equal(decodeValidationError(error), undefined);
+    assert.equal(error.details, details);
+    assert.equal(error.response, response);
+  }
+  assert.equal(decodeValidationError(new HttpError(502, body, response)), undefined);
+  assert.equal(decodeValidationError(new TransportError("offline")), undefined);
 });

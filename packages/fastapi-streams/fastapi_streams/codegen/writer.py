@@ -8,7 +8,11 @@ MANIFEST = ".fastapi-streams.json"
 
 
 def write_files(
-    output: Path, files: Mapping[str, str], *, check: bool = False
+    output: Path,
+    files: Mapping[str, str],
+    *,
+    check: bool = False,
+    generation: Mapping[str, str | None] | None = None,
 ) -> tuple[Path, ...]:
     """Write deterministic output; only remove stale files owned by the manifest.
 
@@ -17,7 +21,10 @@ def write_files(
     expected = dict(files)
     if MANIFEST in expected:
         raise ValueError(f"{MANIFEST} is reserved")
-    expected[MANIFEST] = json.dumps({"files": sorted(files)}, indent=2) + "\n"
+    metadata: dict[str, Any] = {"files": sorted(files)}
+    if generation is not None:
+        metadata["generation"] = dict(generation)
+    expected[MANIFEST] = json.dumps(metadata, indent=2, sort_keys=True) + "\n"
     manifest = _owned_path(output, MANIFEST)
     previous: set[str] = set()
     if manifest.exists():

@@ -5,6 +5,38 @@ published releases from this repository. The root workspace and reference servic
 are not publication targets. The [README](../README.md#current-releases) lists all
 current package versions with PyPI and GitHub release links.
 
+## SDK review preparation, 2026-10-18
+
+The user authorized preparation and requested publication approval in this chat.
+Prepared source versions are **Streams 0.4.0** and **Canon 0.5.4**; RPCkit stays
+0.2.0. These versions are not published. Changelog dates are finalized for the
+review candidate; current public releases remain 0.3.1 and 0.5.3 respectively.
+
+Streams records generator/version, canonical source-schema hash, target and HTTP
+backend in each CLI-generated SDK manifest. It is a minor release because drift
+checks now reject older files-only manifests and changed provenance, including
+schema changes that leave generated source identical. Regenerate once with the
+existing language/backend and commit the manifest. Diagnostic IDs/allowances,
+runtime signatures, HTTP/SSE contracts and valid caller behavior are unchanged.
+Consumer decoder recipes reuse the existing optional TypeScript guard and cached
+Python adapters, retaining generic unexpected-response handling.
+
+Canon only updates the optional/development Streams pin; it remains an independent
+patch with unchanged composition APIs. Publish Streams first after explicit
+authorization. The shared release CLI now resolves inline changelog links to the
+verified release commit. The existing Canon 0.5.3 release body was corrected to
+link to its original `c9041d4` source; its tag and asset metadata are unchanged.
+
+Acceptance requires workspace checks, independent current/minimum wheel matrices,
+installed Streams CLI/backends, exact-source CI, dry runs for both packages and
+downloaded artifact/hash/notes verification before requesting publication
+approval. Both local six-combination wheel matrices and the isolated installed
+CLI/backends pass; see [local compatibility evidence](compatibility.md#sdk-review-release-preparation).
+The full workspace gate passes 1,463 Python tests, 23 TypeScript tests, lint/types,
+generator drift and coverage. Its log is `dist/consumer-review-workspace.log`.
+Remote CI and dry-run results are attached to the exact source in Actions;
+downloaded manifests and verified notes belong under `dist/dry-runs/`.
+
 ## Current released versions
 
 Published and verified: **Streams 0.3.1** (generated Python runtime efficiency,
@@ -26,6 +58,20 @@ runtime improvements. Versions do not need to match.
 
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
+
+## Release-note links
+
+The release CLI renders relative inline Markdown links from the selected
+changelog section as absolute GitHub links to the verified release commit.
+Paths resolve relative to the package's changelog, retaining anchors and link
+titles. For example, Canon's `../fastapi-streams/CHANGELOG.md` points to
+`packages/fastapi-streams/CHANGELOG.md` at that commit. Absolute external links
+remain unchanged. Repository changelogs retain their relative links.
+
+Generated `release-notes.md` is used for both dry-run review and GitHub Release
+creation. Existing published notes are not changed by local regeneration;
+correcting an older release body is a separate repository update, without
+rebuilding artifacts or moving tags.
 
 ## SDK efficiency publications, 2026-10-18
 

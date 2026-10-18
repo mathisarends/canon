@@ -8,6 +8,8 @@ from examples.agent_runs.generated_python import (
 )
 from examples.agent_runs.generated_python.models import StreamRunEventsErrorBody
 
+_ERROR_BODY = TypeAdapter(StreamRunEventsErrorBody)
+
 
 async def consume_with_errors(client: Client, run_id: str) -> None:
     try:
@@ -19,9 +21,7 @@ async def consume_with_errors(client: Client, run_id: str) -> None:
     except HttpError as error:
         if error.status == 422:
             try:
-                body = TypeAdapter(StreamRunEventsErrorBody).validate_python(
-                    error.details
-                )
+                body = _ERROR_BODY.validate_python(error.details)
             except ValidationError:
                 pass
             else:

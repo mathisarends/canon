@@ -15,8 +15,9 @@ export async function consumeWithErrors(
     }
   } catch (error: unknown) {
     if (options.signal?.aborted) throw error;
-    if (isHttpError(error, isValidationErrorBody) && error.status === 422) {
-      console.error("Invalid stream parameters", error.details.detail ?? []);
+    const body = decodeValidationError(error);
+    if (body !== undefined) {
+      console.error("Invalid stream parameters", body.detail ?? []);
       return;
     }
     if (error instanceof HttpError) {
@@ -28,6 +29,12 @@ export async function consumeWithErrors(
     }
     throw error;
   }
+}
+
+// Consumer-local decoder: scope the generated body alias to this operation/status.
+export function decodeValidationError(error: unknown): StreamRunEventsErrorBody | undefined {
+  if (isHttpError(error, isValidationErrorBody) && error.status === 422) return error.details;
+  return undefined;
 }
 
 function isValidationErrorBody(value: unknown): value is StreamRunEventsErrorBody {
