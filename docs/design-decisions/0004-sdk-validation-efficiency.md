@@ -1,6 +1,7 @@
 # 0004: Keep SDK validation at boundaries and remove repeated setup work
 
-Status: implemented; local release preparation, 2026-10-18.
+Status: implemented and published, 2026-10-18. See the
+[verified publication record](../releases.md#sdk-efficiency-publications-2026-10-18).
 
 The latest Maximus report exercises Canon 0.5.2, Streams 0.3.0 and RPCkit 0.2.0.
 It reports successful request validation, structured errors and strict drift
@@ -35,7 +36,7 @@ publications with matching GitHub Releases on 2026-10-18; see the release guide.
 4. Keep TypeScript static-only by default. A supported optional runtime decoder
    remains deferred until an application needs it. This change adds neither a
    validator dependency nor a broad validation-disable switch.
-5. Prepare Streams 0.3.1 and Canon 0.5.3 as unpublished patch releases. Public
+5. Release Streams 0.3.1 and Canon 0.5.3 as independent patch releases. Public
    signatures, accepted inputs, coercion, validation timing and wire contracts
    are unchanged. Canon only updates its optional/development Streams pin;
    RPCkit remains 0.2.0. Publish Streams before Canon if separately authorized.

@@ -4,8 +4,8 @@ Published versions, verified on 2026-10-18:
 
 | Distribution | Version | Import |
 | --- | --- | --- |
-| `fastapi-canon` | 0.5.2 | `fastapi_canon` |
-| `fastapi-streams` | 0.3.0 | `fastapi_streams` |
+| `fastapi-canon` | 0.5.3 | `fastapi_canon` |
+| `fastapi-streams` | 0.3.1 | `fastapi_streams` |
 | `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.2.0 | `fastapi_rpckit` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
@@ -15,11 +15,44 @@ are available through PyPI and this repository's independent GitHub releases.
 
 ## Follow-up verification, 2026-10-18
 
+### SDK efficiency publications
+
+The current public combination is Canon 0.5.3 / Streams 0.3.1 / RPCkit 0.2.0.
+Final source `c9041d4` passed
+[Linux/Python 3.12–3.14 and Windows/Python 3.14 CI](https://github.com/mathisarends/canon/actions/runs/39145291158).
+Both release dry runs passed on that source: [Streams](https://github.com/mathisarends/canon/actions/runs/39145653393)
+and [Canon](https://github.com/mathisarends/canon/actions/runs/39145658246).
+The authorized [Streams publication](https://github.com/mathisarends/canon/actions/runs/39145824967)
+completed and was independently verified before the
+[Canon publication](https://github.com/mathisarends/canon/actions/runs/39146194609).
+Both workflows passed current/minimum wheel and installed Streams backend gates,
+public PyPI checks, fresh public installs and matching GitHub Releases. Canon
+covered core-only and `[streams]`. PyPI, Actions and GitHub asset hashes match
+the original manifests and dry runs; package-prefixed tags, notes and attached
+artifacts were independently checked. See the [release evidence](releases.md#sdk-efficiency-publications-2026-10-18).
+
+An additional fresh Windows/Python 3.14 public-index environment passes Streams'
+HTTPX2 generated SDK/CLI smoke, including early request rejection, event
+validation, structured errors, unknown-event policy, report provenance/capabilities
+and TypeScript compilation. A separate public-index environment installs all
+three exact versions together and passes combined HTTP/SSE/RPC, shared Dishka
+state/cleanup and generated RPC clients. Inventories are
+`dist/publications/public-streams-httpx2-0.3.1-inventory.json` and
+`dist/publications/public-stack-sdk-efficiency-inventory.json`.
+
+Initial index visibility delays were resolved by retrying the same public
+versions; Streams resumed only failed jobs on its original run, without another
+upload. Downloaded evidence is under `dist/publications/39145824967/` and
+`dist/publications/39146194609/`; logs are `dist/sdk-efficiency-publication-*.log`,
+`dist/sdk-efficiency-*-verification.log` and `dist/sdk-efficiency-public-*.log`.
+These results verify the published stack, not full external application or
+native Hermes deployment coverage.
+
 ### SDK efficiency patch preparation
 
-Prepared source versions are Canon 0.5.3 / Streams 0.3.1 / RPCkit 0.2.0. Canon
-0.5.3 and Streams 0.3.1 are **not published**; the public versions in the table
-above remain current. RPCkit is unchanged. The [release proposal](releases.md#proposed-sdk-efficiency-patches-2026-10-18)
+Preparation used Canon 0.5.3 / Streams 0.3.1 / RPCkit 0.2.0 before publication;
+the subsequent public verification is recorded above. RPCkit is unchanged.
+The [release record](releases.md#sdk-efficiency-publications-2026-10-18)
 and [validation/performance decision](design-decisions/0004-sdk-validation-efficiency.md)
 record scope, upgrade steps and bounded benchmark results.
 
@@ -51,7 +84,7 @@ public-index publication verification or native Hermes/application coverage.
 
 ### SDK hardening publications
 
-The current published combination is Canon 0.5.2 / Streams 0.3.0 / RPCkit 0.2.0.
+The SDK hardening publication verified Canon 0.5.2 / Streams 0.3.0 / RPCkit 0.2.0.
 This verifies the published stack; full external application migration remains
 separate. Streams' request validation now runs at method call; see the
 [upgrade notes](../packages/fastapi-streams/CHANGELOG.md#030---2026-10-18).

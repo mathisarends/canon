@@ -4,7 +4,7 @@ Updated: 2026-10-18. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
 **Current scope:** The user authorized the initial publications on 2026-10-17
-and the follow-up and SDK hardening publications with GitHub Releases on
+and the follow-up, SDK hardening and SDK efficiency publications with GitHub Releases on
 2026-10-18. All three
 packages are published on PyPI with matching GitHub releases
 in this repository. The [README](README.md#current-releases) shows every current
@@ -15,12 +15,12 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
 
-## Next work block: SDK efficiency patch releases
+## Completed releases: SDK efficiency patches
 
-Prepared and unpublished: Streams 0.3.1 and Canon 0.5.3; RPCkit stays 0.2.0.
+Published and verified: Streams 0.3.1 and Canon 0.5.3; RPCkit stays 0.2.0.
 The user explicitly authorized both publications with matching GitHub Releases
-on 2026-10-18. Changelog dates are finalized; publication verification is pending.
-See the [release proposal](docs/releases.md#proposed-sdk-efficiency-patches-2026-10-18)
+on 2026-10-18. Both releases have verified PyPI installs, tags, GitHub Releases
+and original artifacts. See the [publication record](docs/releases.md#sdk-efficiency-publications-2026-10-18)
 and [validation/performance decision](docs/design-decisions/0004-sdk-validation-efficiency.md).
 
 - [x] Add repeatable Python/Node SDK benchmarks and measure the current runtime.
@@ -32,11 +32,13 @@ and [validation/performance decision](docs/design-decisions/0004-sdk-validation-
 - [x] Complete workspace and current/minimum installed-artifact checks, including
   both Streams backends and a Python 3.12 minimum-dependency generated SDK smoke.
   See [local verification](docs/compatibility.md#sdk-efficiency-patch-preparation).
-- [ ] Push the final source and pass exact-commit CI and both package dry runs.
+- [x] Push final source `c9041d4`, pass all four CI targets and both package dry runs.
 - [x] Obtain publication authorization and finalize both changelog dates.
-- [ ] Publish Streams before Canon with complete PyPI/tag/GitHub Release verification.
+- [x] Publish Streams before Canon with complete PyPI/tag/GitHub Release verification.
+- [x] Independently match PyPI/Actions/GitHub bytes, tags, notes and manifests;
+  pass public HTTPX2 SDK and combined three-package checks in fresh environments.
 
-## External SDK adoption
+## Next work block: external SDK adoption
 
 - [x] Record the consumer-reported adoption of Canon 0.5.2, Streams 0.3.0 and
   RPCkit 0.2.0, including early request validation, structured errors and exact

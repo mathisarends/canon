@@ -7,54 +7,89 @@ current package versions with PyPI and GitHub release links.
 
 ## Current released versions
 
-Published and verified: **Streams 0.3.0** (stricter generated Python request
-validation, source diagnostics/CI policy and structured stream failures) and
-**Canon 0.5.2** (optional Streams pin). RPCkit stays 0.2.0. Streams was published
+Published and verified: **Streams 0.3.1** (generated Python runtime efficiency,
+diagnostic provenance/validation phases and benchmarks) and
+**Canon 0.5.3** (optional Streams pin). RPCkit stays 0.2.0. Streams was published
 first. The user explicitly authorized both publications on 2026-10-18, including
 GitHub Releases and current changelogs. Verification evidence is recorded below.
 
 | Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
-| `fastapi-streams` | `fastapi_streams` | 0.3.0 | `fastapi-streams-v0.3.0` |
-| `fastapi-canon` | `fastapi_canon` | 0.5.2 | `fastapi-canon-v0.5.2` |
+| `fastapi-streams` | `fastapi_streams` | 0.3.1 | `fastapi-streams-v0.3.1` |
+| `fastapi-canon` | `fastapi_canon` | 0.5.3 | `fastapi-canon-v0.5.3` |
 | `fastapi-rpckit` | `fastapi_rpckit` | 0.2.0 | `fastapi-rpckit-v0.2.0` |
 
-Published Canon 0.5.2 pins Streams 0.3.0 in its `streams` extra.
-RPC is independent. These Canon/Streams releases replace 0.5.1/0.2.0;
-changed builds require new versions. Follow the Streams changelog's generated
-request-validation and diagnostic migration. Versions do not need to match.
+Published Canon 0.5.3 pins Streams 0.3.1 in its `streams` extra.
+RPC is independent. These Canon/Streams patches replace 0.5.2/0.3.0;
+changed builds require new versions. Regenerate Python stream SDKs to adopt
+runtime improvements. Versions do not need to match.
 
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
 
-## Proposed SDK efficiency patches, 2026-10-18
+## SDK efficiency publications, 2026-10-18
 
-Prepared source versions, **not published**:
+Published and independently verified:
 
-| Distribution | Prepared version | Scope |
+| Distribution | Version | Scope |
 | --- | --- | --- |
 | Streams | 0.3.1 | Cache ignore-policy metadata/JSON adapters, avoid unused error details, add provenance/validation-phase reports and benchmarks. |
 | Canon | 0.5.3 | Optional/development Streams 0.3.1 pin; composition API unchanged. |
-| RPCkit | 0.2.0 | Unchanged; no new release proposed. |
+| RPCkit | 0.2.0 | Unchanged; no new publication. |
 
 These are patches because public signatures, accepted inputs, defaults and wire
 contracts remain unchanged. Report additions retain version 1 and existing
 diagnostic IDs/allowances. Regenerate Python SDKs using the existing backend to
 obtain the runtime improvement; existing generated SDKs remain compatible.
 TypeScript stays static-only. See the [decision and benchmark evidence](design-decisions/0004-sdk-validation-efficiency.md)
-and each prepared changelog for upgrade steps.
+and each package changelog for upgrade steps.
 
 The user explicitly authorized both publications with matching GitHub Releases
-on 2026-10-18. Both changelog dates are finalized. Before release, push the final
-source, pass CI on that exact commit and complete both package dry runs. Publish
-Streams before Canon. Then verify public-index
-installs, tags, GitHub Releases and original assets before updating current-release
-tables. Local verification is recorded in [compatibility](compatibility.md).
+on 2026-10-18. Final dated source
+[`c9041d4`](https://github.com/mathisarends/canon/commit/c9041d43d0bc7ca3e270070d4a2b0e025bbd6815)
+passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39145291158)
+and both release dry runs: [Streams](https://github.com/mathisarends/canon/actions/runs/39145653393)
+and [Canon](https://github.com/mathisarends/canon/actions/runs/39145658246).
+Both dry runs passed current/minimum wheel matrices and installed Streams
+CLI/backends; downloaded wheels/sdists match their exact-source manifests.
+
+| Package | Version | Publication workflow | GitHub Release |
+| --- | --- | --- | --- |
+| Streams | [0.3.1](https://pypi.org/project/fastapi-streams/0.3.1/) | [39145824967](https://github.com/mathisarends/canon/actions/runs/39145824967) | [Notes and assets](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.3.1) |
+| Canon | [0.5.3](https://pypi.org/project/fastapi-canon/0.5.3/) | [39146194609](https://github.com/mathisarends/canon/actions/runs/39146194609) | [Notes and assets](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.3) |
+
+Streams completed publication and independent verification before Canon's
+dispatch. Both tags resolve to `c9041d4`. Public PyPI downloads, Actions artifacts
+and GitHub Release assets have identical wheel/sdist SHA-256 values, matching
+both the original publication manifests and dry-run artifacts. Each public,
+stable GitHub Release has its dated changelog notes and exactly the original
+wheel, sdist and manifest attached. Notes match the repository changelogs;
+attached manifests are byte-identical to the Actions originals.
+
+Both workflows verified fresh public-index installs; Canon covered core-only
+and `[streams]`. An additional Windows/Python 3.14 public-index environment
+passes Streams' HTTPX2 CLI/generated SDK smoke, including request/event failures,
+unknown-event policy, report provenance/capabilities and TypeScript compilation.
+A second fresh public-index environment passes all three exact published
+versions together, including combined HTTP/SSE/RPC, Dishka state/cleanup and
+generated RPC clients. Its inventory is
+`dist/publications/public-stack-sdk-efficiency-inventory.json`.
+
+Streams' first post-upload public install encountered temporary index visibility
+lag. Rerunning only failed jobs on the original run verified the same existing
+files, skipped another upload and completed the GitHub Release. Canon completed
+on its first workflow attempt. Local public-index checks also required metadata
+refresh/retry for the same versions. No published contents were replaced and no
+existing tags were moved. Downloaded evidence is under `dist/publications/39145824967/`
+and `dist/publications/39146194609/`; dry-run evidence is under `dist/dry-runs/`.
+Logs are `dist/sdk-efficiency-publication-*.log`,
+`dist/sdk-efficiency-*-verification.log` and `dist/sdk-efficiency-public-*.log`.
+Full external application migration remains separate.
 
 Local validation passes 1,458 Python tests, 22 TypeScript tests, lint/types,
 generator drift and coverage, both six-combination current/minimum wheel matrices,
 isolated Streams CLI/backends and a minimum-dependency Python 3.12 SDK smoke.
-The README's current-release table continues to identify published versions only.
+The README's current-release table now records these verified public versions.
 
 ## SDK hardening publications, 2026-10-18
 
