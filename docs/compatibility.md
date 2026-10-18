@@ -28,7 +28,14 @@ Python 3.12.12 wheel environment passes the generated SDK request/error/unknown
 event smoke with FastAPI 0.143.3, Pydantic 2.11.2, Jinja 3.1.0, jsonschema 4.23.0
 and HTTPX 0.28.0. Inventories are `dist/compatibility-latest.json` and
 `dist/compatibility-minimum.json`; logs are `dist/sdk-hardening-*.log`.
-Exact-source remote CI and release dry runs remain the next release gates.
+Implementation `2d47c61` passed
+[four-target CI](https://github.com/mathisarends/canon/actions/runs/39138900018),
+the [Streams 0.3.0 dry run](https://github.com/mathisarends/canon/actions/runs/39139216592)
+and the [Canon 0.5.2 dry run](https://github.com/mathisarends/canon/actions/runs/39139221925).
+Downloaded wheel/sdist hashes match both exact-source manifests. Both workflows
+passed current/minimum artifact and installed Streams backend gates; publication
+and tag/GitHub Release jobs were skipped. These versions remain unreleased,
+pending separate publication approval and final dated-source CI.
 
 Canon 0.5.1, Streams 0.2.0 and RPCkit 0.2.0 are published. Final source
 `4af9092` passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39127577804).

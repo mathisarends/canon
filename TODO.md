@@ -30,8 +30,9 @@ Published-version tables remain unchanged until verified publication.
 - [x] Pass workspace lint/types/tests and client drift/coverage gates, both
   current/minimum wheel matrices, isolated Streams backends and a minimum-version
   Python 3.12 generator/SDK smoke. See the compatibility preparation record.
-- [ ] Commit/push on main, pass exact-source CI and both release dry runs; verify
-  downloaded manifests and artifacts before requesting publication approval.
+- [x] Commit/push implementation `2d47c61` on main, pass exact-source four-target
+  CI and both release dry runs; verify downloaded wheel/sdist hashes and manifests.
+  See [SDK hardening preparation](docs/releases.md#sdk-hardening-preparation-2026-10-18).
 - [ ] After approval, finalize dates, pass final-source CI, publish Streams before
   Canon, and verify PyPI installs, tags, GitHub Releases and attached artifacts.
 

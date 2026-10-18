@@ -28,6 +28,33 @@ literal/enum and error-alias migration. Versions do not need to match.
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
 
+## SDK hardening preparation, 2026-10-18
+
+Implementation commit [`2d47c61`](https://github.com/mathisarends/canon/commit/2d47c61fbfa941b01795b40b9f177c4edd822407)
+passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39138900018)
+(Linux/Python 3.12, 3.13 and 3.14; Windows/Python 3.14). Local checks also passed
+1,453 Python tests, 22 TypeScript tests, lint/types, generator drift/coverage,
+current/minimum wheel matrices, isolated Streams CLI/backends, and an installed
+Python 3.12 SDK smoke with the minimum Pydantic/FastAPI/codegen dependencies.
+
+| Prepared package | Version | Successful dry run |
+| --- | --- | --- |
+| Streams | 0.3.0 | [39139216592](https://github.com/mathisarends/canon/actions/runs/39139216592) |
+| Canon | 0.5.2 | [39139221925](https://github.com/mathisarends/canon/actions/runs/39139221925) |
+
+Both manifests identify that exact implementation commit and successful CI.
+Downloaded wheel and sdist SHA-256 values match every manifest. Both dry runs
+passed current/minimum dependency artifact gates and isolated installed Streams
+CLI/backend checks. PyPI publication and tag/GitHub Release jobs were skipped.
+Original evidence is under `dist/dry-runs/RUN_ID/` and in the workflow artifacts.
+
+This preparation does not publish either version or establish a full external
+application migration. The following documentation commit records the evidence;
+package sources and changelogs remain unchanged and unreleased. Publication is
+awaiting the user's separate approval. After approval, finalize changelog dates,
+pass CI on the final dated source, publish Streams before Canon, and verify PyPI
+installs, matching tags, GitHub Releases and attached original artifacts.
+
 ## Follow-up releases, 2026-10-18
 
 | Package | Released version | Scope |
