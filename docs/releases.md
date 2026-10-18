@@ -9,33 +9,33 @@ current package versions with PyPI and GitHub release links.
 
 | Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
-| `fastapi-streams` | `fastapi_streams` | 0.1.0 | `fastapi-streams-v0.1.0` |
-| `fastapi-canon` | `fastapi_canon` | 0.5.0 | `fastapi-canon-v0.5.0` |
-| `fastapi-rpckit` | `fastapi_rpckit` | 0.1.0 | `fastapi-rpckit-v0.1.0` |
+| `fastapi-streams` | `fastapi_streams` | 0.2.0 | `fastapi-streams-v0.2.0` |
+| `fastapi-canon` | `fastapi_canon` | 0.5.1 | `fastapi-canon-v0.5.1` |
+| `fastapi-rpckit` | `fastapi_rpckit` | 0.2.0 | `fastapi-rpckit-v0.2.0` |
 
-Publish Streams before Canon: Canon's `streams` extra pins Streams 0.1.0.
-RPC is independent. These Canon/Streams releases replace 0.4.0/0.0.1;
+Publish Streams before Canon: Canon's `streams` extra pins Streams 0.2.0.
+RPC is independent. These Canon/Streams releases replace 0.5.0/0.1.0;
 changed builds require new versions. Follow the Streams changelog's generated
 literal/enum and error-alias migration. Versions do not need to match.
 
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
 
-## Prepared follow-up releases, 2026-10-18
+## Follow-up releases, 2026-10-18
 
-| Package | Prepared version | Scope |
+| Package | Released version | Scope |
 | --- | --- | --- |
 | Streams | 0.2.0 | Scalar validation preservation, unsupported-rule diagnostics, opt-in unknown-event ignoring, native/mixed-codegen recipes. |
 | Canon | 0.5.1 | Streams 0.2.0 optional/development pin and corrected integration guidance. |
 | RPCkit | 0.2.0 | Breaking Dishka signature/context clarification, authenticated example and canonical FastAPI documentation. |
 
-These are unpublished source versions. Streams' regenerated Python SDKs may reject
+These versions are published and independently verified. Streams' regenerated Python SDKs may reject
 payloads that previously passed because constraints were dropped; read its
 changelog before regeneration. Publish Streams before Canon. RPCkit keeps wire
 contracts, `RpcRoutes` and existing nested imports. The user explicitly authorized
-publication on 2026-10-18; changelogs are dated for that release. These versions
-remain unpublished until public-index installs and matching GitHub Releases are
-verified. Local checks and CI/dry-run evidence are recorded below.
+publication on 2026-10-18; changelogs are dated for that release. Public-index
+installs and matching GitHub Releases are verified. Preparation and publication
+evidence are recorded below.
 
 RPCkit's originally prepared 0.1.1 was superseded by 0.2.0 after classifying the
 mounting signature and context validation as breaking. Its earlier dry-run entry
@@ -77,7 +77,8 @@ and the [RPCkit 0.2.0 dry run](https://github.com/mathisarends/canon/actions/run
 The downloaded wheel/sdist hashes match its manifest. Current/minimum wheel gates
 and installed Streams backends passed; publication and tag/release jobs were
 skipped. The earlier RPCkit 0.1.1 result above is superseded preparation evidence,
-not a publication or verification of 0.2.0. Sources remain unreleased.
+not a publication or verification of 0.2.0. At that preparation stage, sources
+remained unreleased.
 
 ## Account configuration verified on 2026-10-17
 
@@ -235,6 +236,42 @@ uses a separate upload staging directory. Because that workflow change advanced
 release tags; the existing authorized CLI login completed those exact original
 releases, and the original jobs then verified them successfully. Canon completed
 the corrected workflow on its first attempt.
+
+## Follow-up publications, 2026-10-18
+
+The user explicitly authorized all three publications and their GitHub Releases.
+Every package was published from final dated source
+[`4af9092`](https://github.com/mathisarends/canon/commit/4af9092477ec3fb7a0224b9fea5242216859a37a),
+after [four-target CI](https://github.com/mathisarends/canon/actions/runs/39127577804)
+passed. Streams completed before Canon's new optional pin was published.
+
+| Package | Version | PyPI | GitHub Release | Workflow |
+| --- | --- | --- | --- | --- |
+| `fastapi-streams` | 0.2.0 | [Files](https://pypi.org/project/fastapi-streams/0.2.0/) | [Notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.2.0) | [39127849552](https://github.com/mathisarends/canon/actions/runs/39127849552) |
+| `fastapi-rpckit` | 0.2.0 | [Files](https://pypi.org/project/fastapi-rpckit/0.2.0/) | [Notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.2.0) | [39127851605](https://github.com/mathisarends/canon/actions/runs/39127851605) |
+| `fastapi-canon` | 0.5.1 | [Files](https://pypi.org/project/fastapi-canon/0.5.1/) | [Notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.1) | [39128242039](https://github.com/mathisarends/canon/actions/runs/39128242039) |
+
+All release runs completed successfully. Each manifest records the exact source,
+CI and artifact gates. Downloaded Actions wheel/sdist files, GitHub release assets
+and PyPI SHA-256 digests agree. GitHub release notes match the exported changelogs;
+every stable release is public, has exactly the original wheel, sdist and manifest
+attached, and its package-prefixed tag resolves to `4af9092`.
+
+Each workflow verified fresh public-index installs; Canon covered core-only and
+`[streams]`. Additional public Streams CLI/SDK checks pass core-only, HTTPX and
+HTTPX2 separately, including scalar constraints and unknown-event policy. Public
+RPCkit 0.2.0 also passes both SDK generation, drift, compilation and Python Ruff
+checks for Cara's 15-method contract; this does not establish its full service
+migration. A fresh Windows/Python 3.14 virtual environment also installs all
+three exact releases directly from PyPI and passes combined HTTP/SSE/RPC,
+Dishka state/cleanup, an RPC Python SDK roundtrip and TypeScript compilation.
+That environment resolves FastAPI 0.144.0, Pydantic 2.14.1 and Dishka 1.10.1.
+Local downloaded evidence is under `dist/publications/`.
+
+Streams' first post-upload install encountered temporary PyPI index visibility
+lag. Rerunning only failed jobs on the original run verified the same existing
+files, skipped another upload and created the matching GitHub Release. No
+published contents were replaced and no existing tags were moved.
 
 ## Publish when explicitly authorized
 

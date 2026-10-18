@@ -3,8 +3,9 @@
 Updated: 2026-10-18. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
-**Current scope:** The user authorized release-flow setup and then publication on
-2026-10-17. All three packages are published on PyPI with matching GitHub releases
+**Current scope:** The user authorized the initial publications on 2026-10-17
+and the follow-up publications with GitHub Releases on 2026-10-18. All three
+packages are published on PyPI with matching GitHub releases
 in this repository. The [README](README.md#current-releases) shows every current
 package release. RPC is `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected the
 initial `fastapi-wsrpc` name. Full external application migration remains open.
@@ -13,10 +14,11 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
 
-## Next releases: consumer integration feedback
+## Completed releases: consumer integration feedback
 
-Prepared source versions (not published): Streams 0.2.0, Canon 0.5.1 and
-RPCkit 0.2.0. Publish Streams before Canon's updated optional pin.
+Published and verified: Streams 0.2.0, Canon 0.5.1 and RPCkit 0.2.0, each with
+its own tag and GitHub Release. Streams was published before Canon's updated
+optional pin. The next work block is the remaining external consumer migration.
 
 - [x] Correct PyPI instructions, dependency examples and optional-extra diagnostics;
   add active-documentation checks to workspace lint and release validation.
@@ -41,10 +43,12 @@ RPCkit 0.2.0. Publish Streams before Canon's updated optional pin.
   at `0a2b097`; downloaded artifact hashes match the manifest.
 - [x] Obtain explicit publication authorization on 2026-10-18 and finalize the
   three changelog dates. Every publication must include a verified GitHub Release.
-- [ ] Pass CI on the final dated source commit.
-- [ ] Publish Streams 0.2.0, RPCkit 0.2.0 and then Canon 0.5.1 after Streams.
-- [ ] Verify PyPI installs, matching tags, GitHub Releases and original assets;
-  update the current-release and compatibility records.
+- [x] Pass [four-target CI](https://github.com/mathisarends/canon/actions/runs/39127577804)
+  on the final dated source commit `4af9092`.
+- [x] Publish Streams 0.2.0, RPCkit 0.2.0 and then Canon 0.5.1 after Streams.
+- [x] Verify PyPI installs, matching tags, GitHub Releases and original assets;
+  update the current-release and compatibility records. See
+  [publication evidence](docs/releases.md#follow-up-publications-2026-10-18).
 
 The [consumer feedback decision](docs/design-decisions/0002-consumer-feedback.md)
 records scope and remaining limits. Maximus feedback is consumer-reported evidence;

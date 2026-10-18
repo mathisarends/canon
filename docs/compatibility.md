@@ -1,22 +1,31 @@
 # Compatibility
 
-Published versions, verified on 2026-10-17:
+Published versions, verified on 2026-10-18:
 
 | Distribution | Version | Import |
 | --- | --- | --- |
-| `fastapi-canon` | 0.5.0 | `fastapi_canon` |
-| `fastapi-streams` | 0.1.0 | `fastapi_streams` |
-| `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.1.0 | `fastapi_rpckit` |
+| `fastapi-canon` | 0.5.1 | `fastapi_canon` |
+| `fastapi-streams` | 0.2.0 | `fastapi_streams` |
+| `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.2.0 | `fastapi_rpckit` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
 existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All three versions
 are available through PyPI and this repository's independent GitHub releases.
 
-## Prepared follow-up versions, 2026-10-18
+## Follow-up verification, 2026-10-18
 
-Unpublished sources: Canon 0.5.1, Streams 0.2.0 and RPCkit 0.2.0. The published
-version table above remains unchanged until verified publication.
+Canon 0.5.1, Streams 0.2.0 and RPCkit 0.2.0 are published. Final source
+`4af9092` passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39127577804).
+All three [publication workflows](releases.md#follow-up-publications-2026-10-18)
+verified current/minimum wheel gates, public-index installs and matching GitHub
+Releases. Downloaded PyPI, Actions and GitHub asset hashes, release notes and tags
+match their exact-source manifests. Streams' public CLI/SDK passes core-only,
+HTTPX and HTTPX2 separately. Public RPCkit passes both SDKs for Cara's 15-method
+contract. An additional fresh Windows/Python 3.14 environment installs all three
+exact versions together from PyPI and passes combined runtime/Dishka and generated
+RPC client checks with FastAPI 0.144.0, Pydantic 2.14.1 and Dishka 1.10.1.
+Full external application migration remains separate.
 
 The initial checks below used RPCkit 0.1.1. That unpublished version is
 superseded by 0.2.0 for the breaking signature/context changes; its old artifact
@@ -25,7 +34,7 @@ passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39126
 and the [RPCkit 0.2.0 dry run](https://github.com/mathisarends/canon/actions/runs/39127145156),
 including current/minimum wheel and installed Streams backend gates. Downloaded
 artifact hashes match its manifest. Runtime and generator behavior are unchanged
-by the version fix; no publication occurred.
+by the version fix; no publication had occurred at that preparation stage.
 
 Local Windows checks passed 1,380 Python tests across isolated package/root
 processes and 22 TypeScript tests, all lint/type gates, both generator drift
