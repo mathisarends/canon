@@ -7,6 +7,7 @@ dependencies = [
     "fastapi-canon[streams]==0.5.4",
     "fastapi-streams[codegen]==0.4.0",
     "fastapi-rpckit[codegen,dishka,otel]==0.2.0",
+    "fastapi-webrtc[aiortc]==0.1.0",
     "fastapi-canon-reference",
 ]
 
@@ -23,6 +24,7 @@ members = ["packages/*", "examples/reference-service"]
 fastapi-canon = { workspace = true }
 fastapi-streams = { workspace = true }
 fastapi-rpckit = { workspace = true }
+fastapi-webrtc = { workspace = true }
 fastapi-canon-reference = { workspace = true }
 
 [tool.ruff]
