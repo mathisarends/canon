@@ -28,6 +28,7 @@ from fastapi_webrtc import (
     WebRtcError,
     WebRtcRouter,
 )
+from fastapi_webrtc.engine import PeerConfig, PeerObserver
 from tests.fake_engine import FakeEngine, FakePeer, FakeTrack, NativeTrack, sdp
 from tests.server import serve
 from tests.signaling import Signal, until
@@ -233,6 +234,73 @@ async def test_engine_failure_closes_with_engine_failure() -> None:
         assert await signal.closed() == (1011, "engine_failure")
     assert closes == [ErrorCode.ENGINE_FAILURE]
     assert [e.kind for e in events] == ["admitted", "closed"]
+
+
+@pytest.mark.parametrize("stage", ["ice", "engine"])
+@pytest.mark.parametrize("shutdown", [False, True])
+@pytest.mark.parametrize("suppress_cancel", [False, True])
+async def test_blocked_startup_is_cancelled_and_releases_resources(
+    stage: str, shutdown: bool, suppress_cancel: bool
+) -> None:
+    entered = asyncio.Event()
+    cancelled = asyncio.Event()
+    teardown: list[str] = []
+
+    async def block() -> None:
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            if not suppress_cancel:
+                raise
+        finally:
+            cancelled.set()
+
+    class BlockingEngine(FakeEngine):
+        async def create_peer(
+            self, config: PeerConfig, observer: PeerObserver
+        ) -> FakePeer:
+            if stage == "engine":
+                await block()
+            return await super().create_peer(config, observer)
+
+    async def ice(context: SessionContext) -> IceServers:
+        if stage == "ice":
+            await block()
+        return IceServers()
+
+    async def resource() -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            teardown.append("closed")
+
+    rtc = router(
+        BlockingEngine(),
+        ice_servers=ice,
+        max_sessions=1,
+        limits=SessionLimits(negotiation_timeout_seconds=0.2),
+    )
+
+    @rtc.session("/blocked", dependencies=[Depends(resource)])
+    def session() -> Session:
+        return Session()
+
+    async with serve(application(rtc)) as base:
+        signal = await Signal.open(f"{base}/blocked")
+        await asyncio.wait_for(entered.wait(), 1)
+        if shutdown:
+            await asyncio.wait_for(rtc.aclose(), 1)
+        expected = (1001, "shutdown") if shutdown else (4000, "negotiation_timeout")
+        assert await signal.closed(timeout=1) == expected
+        await until(lambda: teardown == ["closed"])
+        assert cancelled.is_set()
+        assert rtc.active_sessions == 0
+        if stage == "engine" and suppress_cancel:
+            assert len(engine_of(rtc).peers) == 1
+            assert engine_of(rtc).peer.closed
+        else:
+            assert engine_of(rtc).peers == []
 
 
 # ---------------------------------------------------------------- signaling

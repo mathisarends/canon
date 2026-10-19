@@ -324,6 +324,10 @@ class SessionRuntime:
             self._limits.negotiation_timeout_seconds,
             ErrorCode.NEGOTIATION_TIMEOUT,
         )
+        self._spawn(self._startup(), "startup", ErrorCode.ENGINE_FAILURE)
+        await self._done.wait()
+
+    async def _startup(self) -> None:
         source = (
             self._session.ice_servers
             if self._session.ice_servers is not None
@@ -334,6 +338,7 @@ class SessionRuntime:
         except Exception as error:
             logger.exception("ICE server provider failed for %s", self._label)
             raise WebRtcError(ErrorCode.HANDLER_FAILURE) from error
+        self._ensure_active()
         await self._create_peer(ice)
         try:
             await self._ws.send_text(protocol.encode(self._hello(ice)))
@@ -343,7 +348,6 @@ class SessionRuntime:
         self._spawn(self._write(), "signaling-write", ErrorCode.SIGNALING_LOST)
         if self.declaration.role is Role.OFFERER:
             self._spawn(self._renegotiate(), "offer", ErrorCode.NEGOTIATION_FAILED)
-        await self._done.wait()
 
     async def _create_peer(self, ice: IceServers) -> None:
         try:
@@ -354,6 +358,11 @@ class SessionRuntime:
             logger.exception("Engine could not create a peer for %s", self._label)
             raise WebRtcError(ErrorCode.ENGINE_FAILURE) from error
         peer = self._peer
+        if self.code is not None:
+            # An adapter may return a peer while handling cancellation. Do not
+            # start signaling or leak a peer returned after cleanup's deadline.
+            await peer.close()
+            self._ensure_active()
         declaration = self.declaration
         for spec in declaration.channels:
             if not declaration.server_creates(spec):
