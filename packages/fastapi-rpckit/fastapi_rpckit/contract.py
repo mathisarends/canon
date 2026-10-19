@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi_rpckit.errors import ProtocolDefinitionError, RpcErrorBinding
 from fastapi_rpckit.protocol import RpcProtocol
+from fastapi_rpckit.sockets import RpcSocketProtocol
 from fastapi_rpckit.streams import RpcStreamDirection
 from fastapi_rpckit.websocket import REJECTION_CLOSE_CODES, close_reason
 
@@ -49,12 +50,12 @@ class RpcContract:
     description: str = "Typed JSON-RPC API."
     servers: tuple[Mapping[str, Any], ...] = ()
     binary_streams: tuple[Mapping[str, Any], ...] = ()
-    raw_sockets: tuple[Mapping[str, Any], ...] = ()
+    sockets: tuple[Mapping[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.title:
             raise ProtocolDefinitionError("RPC contract title cannot be empty")
-        for name in ("servers", "binary_streams", "raw_sockets"):
+        for name in ("servers", "binary_streams", "sockets"):
             object.__setattr__(
                 self,
                 name,
@@ -73,7 +74,7 @@ class RpcContract:
             description=self.description,
             servers=self.servers,
             binary_streams=self.binary_streams,
-            raw_sockets=self.raw_sockets,
+            sockets=self.sockets,
         )
 
     def to_json(self) -> str:
@@ -93,7 +94,7 @@ def contract_from_service(
 ) -> RpcContract:
     from fastapi_rpckit.service import (
         RpcEndpoint,
-        RpcRawSocketEndpoint,
+        RpcSocketEndpoint,
         RpcStreamEndpoint,
     )
 
@@ -114,7 +115,7 @@ def contract_from_service(
     used: set[str] = set()
     servers = []
     streams = []
-    raw_sockets = []
+    sockets = []
     for endpoint in service.endpoints:
         url = base_url + endpoint.path
         names = tuple(dict.fromkeys(re.findall(r"{([^{}]+)}", url)))
@@ -161,23 +162,25 @@ def contract_from_service(
             if endpoint.subprotocol:
                 item["subprotocols"] = [endpoint.subprotocol]
             streams.append(item)
-        elif isinstance(endpoint, RpcRawSocketEndpoint):
-            definition = endpoint.raw_socket
-            raw: dict[str, Any] = {
+        elif isinstance(endpoint, RpcSocketEndpoint):
+            definition = endpoint.socket
+            entry: dict[str, Any] = {
                 "name": definition.name,
                 "url": url,
                 "messageTypes": [item.value for item in definition.messages],
             }
             summary = definition.summary or endpoint.summary
             if summary:
-                raw["summary"] = summary
+                entry["summary"] = summary
             if variable_docs:
-                raw["variables"] = variable_docs
+                entry["variables"] = variable_docs
             if endpoint.subprotocol:
-                raw["subprotocols"] = [endpoint.subprotocol]
+                entry["subprotocols"] = [endpoint.subprotocol]
             if definition.closes:
-                raw["closes"] = [_close(binding) for binding in definition.closes]
-            raw_sockets.append(raw)
+                entry["closes"] = [_close(binding) for binding in definition.closes]
+            if definition.protocol is not None:
+                entry["x-rpckit-protocol"] = _socket_protocol(definition.protocol)
+            sockets.append(entry)
     unused = set(supplied) - used
     if unused:
         raise ProtocolDefinitionError(
@@ -190,7 +193,7 @@ def contract_from_service(
         description,
         tuple(servers),
         tuple(streams),
-        tuple(raw_sockets),
+        tuple(sockets),
     )
 
 
@@ -204,3 +207,13 @@ def _close(binding: RpcErrorBinding[Any]) -> dict[str, Any]:
     if not callable(binding._message):
         close["reason"] = close_reason(binding.error_type.message)
     return close
+
+
+def _socket_protocol(protocol: RpcSocketProtocol) -> dict[str, Any]:
+    entry: dict[str, Any] = {"name": protocol.name}
+    if protocol.version is not None:
+        entry["version"] = protocol.version
+    entry["encoding"] = protocol.encoding
+    if protocol.schemas:
+        entry["schemas"] = list(protocol.schemas)
+    return entry

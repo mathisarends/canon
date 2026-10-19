@@ -60,15 +60,19 @@ export type {
 } from "./streams";
 export { BinaryWebSocketStream } from "./streams";
 export type { BinaryWebSocketFactory, BinaryWebSocketOptions } from "./streams";
-export { RawSocket, rawSockets, resolveRawSocketEndpoint } from "./rawSockets";
+export { Socket, sockets, resolveSocketEndpoint } from "./sockets";
 export type {
-  RawMessage,
-  RawMessageType,
-  RawSocketEndpoint,
-  RawSocketName,
-  RawSocketOpener,
-  RawSocketTransport,
-} from "./rawSockets";
-export { RawWebSocketStream } from "./rawSockets";
-export type { RawWebSocketFactory, RawWebSocketOptions } from "./rawSockets";
+  SocketMessage,
+  SocketMessageType,
+  SocketEndpoint,
+  SocketName,
+  SocketOpener,
+  SocketProtocol,
+  SocketTransport,
+} from "./sockets";
+export { SocketConnectionStream } from "./sockets";
+export type {
+  SocketConnectionFactory,
+  SocketConnectionOptions,
+} from "./sockets";
 export type * from "./models";

@@ -8,11 +8,7 @@ import type {
   BinaryStreamEndpoint,
   BinaryStreamOpener,
 } from "./streams";
-import type {
-  RawSocketEndpoint,
-  RawSocketOpener,
-  RawSocketTransport,
-} from "./rawSockets";
+import type { SocketEndpoint, SocketOpener, SocketTransport } from "./sockets";
 
 export type RpcRequestOptions = {
   readonly signal?: AbortSignal;
@@ -706,13 +702,13 @@ export class RpcRemoteError extends RpcClientError {
   }
 }
 
-/** No opener was configured for a stream or raw socket of this client. */
+/** No opener was configured for a stream or socket of this client. */
 export class RpcStreamsUnavailableError extends RpcClientError {}
 
-/** Raised when a stream or raw socket ended because the server closed it. */
+/** Raised when a stream or socket ended because the server closed it. */
 export class RpcStreamClosed extends RpcClientError {}
 
-/** Raised when the server closed a stream or raw socket with an error code. */
+/** Raised when the server closed a stream or socket with an error code. */
 export class RpcStreamFailed extends RpcClientError {
   readonly code: number;
   readonly reason: string;
@@ -728,7 +724,7 @@ export class RpcStreamFailed extends RpcClientError {
   }
 }
 
-/** Raised when the server refused a stream or raw socket by policy (1008). */
+/** Raised when the server refused a stream or socket by policy (1008). */
 export class RpcStreamRefused extends RpcStreamFailed {}
 
 export class RpcClientCore {
@@ -739,7 +735,7 @@ export class RpcClientCore {
   readonly #source: RpcTransportSource;
   readonly #closeTransport: boolean;
   readonly streamOpener?: BinaryStreamOpener;
-  readonly rawSocketOpener?: RawSocketOpener;
+  readonly socketOpener?: SocketOpener;
   readonly variables: Readonly<Record<string, string>>;
 
   readonly #hubs = new WeakMap<RpcTransport, NotificationHub>();
@@ -783,7 +779,7 @@ export class RpcClientCore {
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
-      readonly rawSocketOpener?: RawSocketOpener;
+      readonly socketOpener?: SocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
     },
   ) {
@@ -813,7 +809,7 @@ export class RpcClientCore {
       throw new RpcTransportError("notificationQueueSize must be positive");
     }
     this.streamOpener = options?.streamOpener;
-    this.rawSocketOpener = options?.rawSocketOpener;
+    this.socketOpener = options?.socketOpener;
     this.variables = options?.variables ?? {};
   }
 
@@ -839,19 +835,29 @@ export class RpcClientCore {
     return connect(transport as BinaryInputTransport);
   }
 
-  async openRawSocket<Connection>(
-    endpoint: RawSocketEndpoint,
+  async openSocket<Connection>(
+    endpoint: SocketEndpoint,
     connect: (
-      transport: RawSocketTransport,
-      endpoint: RawSocketEndpoint,
-    ) => Connection,
+      transport: SocketTransport,
+      endpoint: SocketEndpoint,
+    ) => Connection | Promise<Connection>,
   ): Promise<Connection> {
-    if (this.rawSocketOpener === undefined) {
+    if (this.socketOpener === undefined) {
       throw new RpcStreamsUnavailableError(
-        "No raw socket opener configured; pass rawSocketOpener",
+        "No socket opener configured; pass socketOpener",
       );
     }
-    return connect(await this.rawSocketOpener(endpoint), endpoint);
+    const transport = await this.socketOpener(endpoint);
+    try {
+      return await connect(transport, endpoint);
+    } catch (error) {
+      try {
+        await transport.close();
+      } catch {
+        // Preserve the binding's initialization error if cleanup also fails.
+      }
+      throw error;
+    }
   }
 
   async request<Route extends RpcRouteInfo>(

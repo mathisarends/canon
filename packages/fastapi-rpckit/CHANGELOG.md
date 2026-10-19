@@ -12,7 +12,7 @@
   `RpcTestClient.handle()` are gone.
 - Remove `channel.server`. Declare operations directly on the channel with
   `@channel.method()`, `@channel.event()`, `@channel.subscription()`,
-  `@channel.stream()` and `@channel.raw_socket()`. These were already the
+  `@channel.stream()` and `@channel.socket()`. These were already the
   default spelling; `channel.server.X` was an alias.
 - OpenRPC documents no longer contain `x-rpc-client-methods` or
   `*ClientMethod` request schemas, and the generators reject documents that
@@ -24,6 +24,36 @@
   clients, they answer any request the server sends with `method_not_found`.
 - The server no longer accepts JSON-RPC response frames from the client. They
   are answered with `invalid_request` like any other malformed request.
+- Raw sockets are now sockets. A socket is a transport endpoint; the messages
+  it carries belong to the handler. Migrate as follows:
+  - `@channel.raw_socket(...)` becomes `@channel.socket(...)` with the same
+    options.
+  - `service.raw_socket(path, handler, ...)` becomes
+    `service.socket(path, handler, ...)`. `service.socket(path, channels=...)`
+    still mounts JSON-RPC endpoints; passing both a handler and `channels=`, or
+    JSON-RPC-only options with a handler, raises `ProtocolDefinitionError`.
+  - Inject `RpcSocket` instead of `RpcRawSocket`; `RpcRawMessage` is
+    `RpcSocketMessage` and `RpcRawSocketEndpoint` is `RpcSocketEndpoint`.
+    The module `fastapi_rpckit.raw_sockets` is now `fastapi_rpckit.sockets`.
+  - The low-level WebSocket adapter protocol formerly named `RpcSocket` is now
+    `RpcWebSocket`. Rename custom adapters and annotations that implemented or
+    referenced the old protocol; `FastApiSocket` is unchanged.
+- The contract lists sockets under `x-rpckit-sockets` instead of
+  `x-rpckit-raw-sockets`. Re-export contracts and regenerate clients together;
+  generators reject contracts that still contain `x-rpckit-raw-sockets`.
+- Generated clients rename their socket API. Python: module `sockets` (was
+  `raw_sockets`), `Socket`, `SocketMessage`, `SocketMessageType`, `SocketName`,
+  `SocketEndpoint`, `SocketTransport`, `SocketOpener`, `SOCKETS`,
+  `SocketConnection`, `SocketConnectionFactory`, `SocketConnectionStream`;
+  `connect(socket_connection_factory=...)` and `socket_opener=...` replace
+  `raw_socket_factory` and `raw_socket_opener`. TypeScript: module `sockets`
+  (was `rawSockets`), `Socket`, `sockets`, `resolveSocketEndpoint`,
+  `SocketConnectionStream`, and the options `socketConnectionFactory`,
+  `socketQueueSize`, and `socketOpener` replace `rawSocketFactory`,
+  `rawSocketQueueSize`, and `rawSocketOpener`. Regenerate clients and rename
+  these references in consuming code.
+- Server log messages and close reasons say "socket" instead of "raw socket".
+  Socket wire behavior, close codes, and message framing are unchanged.
 
 Migration:
 
@@ -35,6 +65,41 @@ Migration:
    from `RpcTestClient(...)`.
 4. Regenerate clients and remove handler classes and `handlers=` arguments
    from `Client.connect(...)` calls.
+5. Rename `@channel.raw_socket` to `@channel.socket`, `service.raw_socket(...)` to
+   `service.socket(...)`, `RpcRawSocket` to `RpcSocket`, and the adapter
+   protocol `RpcSocket` to `RpcWebSocket`, then re-export contracts and
+   regenerate clients as described above.
+
+### Added
+
+- Declare the application protocol of a socket with
+  `@channel.socket(..., protocol=RpcSocketProtocol(...))`. The declaration
+  holds a protocol name, version, encoding, and specification URI references.
+  It is metadata only: messages still pass through unchanged. Handlers read it
+  as `RpcSocket.protocol`.
+- Contracts export declared protocols as `x-rpckit-protocol` on socket entries.
+  The generator IR keeps them as `SocketProtocolDecl`, whose
+  `resolve_schemas()` resolves relative schema references against the contract
+  location. Generated Python and TypeScript clients expose them as
+  `SocketProtocol` on socket endpoints.
+- Plug typed protocol clients into code generation with
+  `fastapi_rpckit.codegen.bindings`. A `ProtocolBinding` selected by protocol
+  name emits a module into the generated client, and matching socket methods
+  return its session instead of a generic `Socket`. Select bindings with
+  `bindings = [...]` in the generator config, `--binding`, or the
+  `fastapi_rpckit.socket_bindings` entry point group. Sockets without a
+  binding keep the generic `Socket`.
+- Add the `socket_protocol` example: a small CDP-shaped protocol with Python and
+  TypeScript bindings, tested against a live server.
+
+### Fixed
+
+- Close an opened TypeScript socket when a protocol binding fails to initialize,
+  including asynchronous failures. Preserve the initialization error if closing
+  the transport also fails.
+- Keep bindings with identical exported factory or session names separate in
+  generated Python and TypeScript clients by importing their modules under
+  distinct aliases.
 
 ## 0.2.0 - 2026-10-18
 

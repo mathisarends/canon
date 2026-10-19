@@ -24,11 +24,11 @@ from fastapi_rpckit import (
     RpcConnection,
     RpcDisconnect,
     RpcErrorBinding,
-    RpcRawSocket,
     RpcReject,
     RpcRejection,
     RpcRejections,
     RpcService,
+    RpcSocket,
 )
 from fastapi_rpckit.integrations.fastapi import (
     FastApiSocket,
@@ -1062,19 +1062,17 @@ class JobDeleted(Exception):
     pass
 
 
-def create_raw_socket_app(released: list[bool]) -> FastAPI:
+def create_socket_app(released: list[bool]) -> FastAPI:
     shell = RpcChannel("jobs")
 
-    @shell.raw_socket(
+    @shell.socket(
         closes=(
             RpcErrorBinding(
                 JobDeleted, rejection=RpcRejection.NOT_FOUND, message="Job deleted"
             ),
         )
     )
-    async def terminal(
-        socket: Inject[RpcRawSocket], session: Inject[JobSession]
-    ) -> None:
+    async def terminal(socket: Inject[RpcSocket], session: Inject[JobSession]) -> None:
         try:
             await socket.send(f"hello {session.actor.name}")
             async for message in socket:
@@ -1085,7 +1083,7 @@ def create_raw_socket_app(released: list[bool]) -> FastAPI:
             released.append(True)
 
     service = RpcService()
-    service.raw_socket(
+    service.socket(
         "/jobs/{job_id}/terminal", terminal, name="terminal", context=JobSession
     )
     router = APIRouter(prefix="/jobs")
@@ -1097,9 +1095,9 @@ def create_raw_socket_app(released: list[bool]) -> FastAPI:
     return web
 
 
-def test_rpc_routes_serve_raw_sockets_with_mixed_messages() -> None:
+def test_rpc_routes_serve_sockets_with_mixed_messages() -> None:
     released: list[bool] = []
-    web = create_raw_socket_app(released)
+    web = create_socket_app(released)
 
     with (
         TestClient(web) as client,
@@ -1117,9 +1115,9 @@ def test_rpc_routes_serve_raw_sockets_with_mixed_messages() -> None:
     assert released == [True]
 
 
-def test_rpc_routes_reject_raw_sockets_before_accepting() -> None:
+def test_rpc_routes_reject_sockets_before_accepting() -> None:
     released: list[bool] = []
-    web = create_raw_socket_app(released)
+    web = create_socket_app(released)
 
     with (
         TestClient(web) as client,
@@ -1132,9 +1130,9 @@ def test_rpc_routes_reject_raw_sockets_before_accepting() -> None:
     assert released == []
 
 
-def test_raw_socket_disconnects_release_the_handler() -> None:
+def test_socket_disconnects_release_the_handler() -> None:
     released: list[bool] = []
-    web = create_raw_socket_app(released)
+    web = create_socket_app(released)
 
     with (
         TestClient(web) as client,

@@ -1,4 +1,5 @@
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -10,6 +11,7 @@ from fastapi_rpckit.codegen.ir import (
     NamedType,
     Primitive,
     PrimitiveType,
+    SocketProtocolDecl,
     UnionType,
     UnsupportedSchemaError,
     type_expression,
@@ -240,3 +242,99 @@ def test_documents_with_client_methods_are_rejected(
 
     with pytest.raises(UnsupportedSchemaError, match="x-rpc-client-methods"):
         build_ir(legacy)
+
+
+def test_contracts_with_the_renamed_raw_socket_key_are_rejected(
+    document: dict[str, Any],
+) -> None:
+    legacy = {
+        **document,
+        "x-rpckit-raw-sockets": [{"name": "browser.cdp", "url": "wss://api/cdp"}],
+    }
+
+    with pytest.raises(UnsupportedSchemaError, match="renamed to x-rpckit-sockets"):
+        build_ir(legacy)
+
+
+def _with_socket(document: dict[str, Any], protocol: object) -> dict[str, Any]:
+    return {
+        **document,
+        "x-rpckit-sockets": [
+            {
+                "name": "browser.cdp",
+                "url": "wss://api/cdp",
+                "x-rpckit-protocol": protocol,
+            }
+        ],
+    }
+
+
+def test_socket_protocols_are_kept_in_the_ir(document: dict[str, Any]) -> None:
+    ir = build_ir(
+        _with_socket(
+            document,
+            {
+                "name": "cdp",
+                "version": "1.3",
+                "encoding": "json",
+                "schemas": ["schemas/browser.json", "https://cdn/js.json"],
+            },
+        )
+    )
+
+    assert ir.sockets[0].protocol == SocketProtocolDecl(
+        name="cdp",
+        encoding="json",
+        version="1.3",
+        schemas=("schemas/browser.json", "https://cdn/js.json"),
+    )
+    assert ir.api[-1].sockets[0].protocol == ir.sockets[0].protocol
+
+
+def test_sockets_without_a_protocol_keep_none(document: dict[str, Any]) -> None:
+    ir = build_ir(
+        {
+            **document,
+            "x-rpckit-sockets": [{"name": "terminal", "url": "wss://api/terminal"}],
+        }
+    )
+
+    assert ir.sockets[0].protocol is None
+
+
+@pytest.mark.parametrize(
+    ("protocol", "message"),
+    [
+        ("cdp", "must be an object"),
+        ({"name": "CDP"}, "lowercase token"),
+        ({"name": "cdp", "encoding": ""}, "encoding"),
+        ({"name": "cdp", "version": 1}, "version"),
+        ({"name": "cdp", "schemas": "a.json"}, "URI references"),
+        ({"name": "cdp", "schemas": ["a b"]}, "URI references"),
+    ],
+)
+def test_invalid_socket_protocols_are_rejected(
+    document: dict[str, Any], protocol: object, message: str
+) -> None:
+    with pytest.raises(UnsupportedSchemaError, match=message):
+        build_ir(_with_socket(document, protocol))
+
+
+def test_relative_protocol_schemas_resolve_against_the_contract(
+    tmp_path: Path,
+) -> None:
+    protocol = SocketProtocolDecl(
+        name="cdp", schemas=("schemas/browser.json", "https://cdn/js.json")
+    )
+    contract = tmp_path / "contracts" / "browser.openrpc.json"
+
+    assert protocol.resolve_schemas(None) == protocol.schemas
+    assert protocol.resolve_schemas("https://api.example.com/v1/openrpc.json") == (
+        "https://api.example.com/v1/schemas/browser.json",
+        "https://cdn/js.json",
+    )
+    assert protocol.resolve_schemas(contract) == (
+        (tmp_path / "contracts" / "schemas" / "browser.json").resolve().as_uri(),
+        "https://cdn/js.json",
+    )
+    assert protocol.resolve_schemas(str(contract)) == protocol.resolve_schemas(contract)

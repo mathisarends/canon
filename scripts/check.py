@@ -74,15 +74,19 @@ def main() -> None:
             for root in (*MEMBERS, ROOT):
                 _run(root, "-m", "pytest", "-q")
         elif gate == "clients":
-            _run(
-                MEMBERS[2],
-                "-m",
-                "fastapi_rpckit.codegen.cli",
-                "generate",
-                "--config",
+            for config in (
                 "examples/generated_clients/rpcgen.toml",
-                "--check",
-            )
+                "examples/socket_protocol/rpcgen.toml",
+            ):
+                _run(
+                    MEMBERS[2],
+                    "-m",
+                    "fastapi_rpckit.codegen.cli",
+                    "generate",
+                    "--config",
+                    config,
+                    "--check",
+                )
             _run(MEMBERS[1], "scripts/codegen.py", "--check")
             npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
             if npm is None:

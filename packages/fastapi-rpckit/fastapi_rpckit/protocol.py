@@ -33,7 +33,7 @@ from fastapi_rpckit.errors import (
     bind_contracts,
     contract_of,
 )
-from fastapi_rpckit.raw_sockets import RpcMessageType, RpcRawSocket
+from fastapi_rpckit.sockets import RpcMessageType, RpcSocket, RpcSocketProtocol
 from fastapi_rpckit.streams import RpcBinaryInput, RpcBinaryOutput, RpcStreamDirection
 from fastapi_rpckit.wire import wire_annotation
 
@@ -113,7 +113,7 @@ class RpcStreamDefinition:
 
 
 @dataclass(frozen=True, slots=True)
-class RpcRawSocketDefinition:
+class RpcSocketDefinition:
     name: str
     function: FunctionType
     messages: tuple[RpcMessageType, ...]
@@ -124,6 +124,7 @@ class RpcRawSocketDefinition:
     server: str | None = None
     path_parameters: tuple[str, ...] = ()
     path_model: type[BaseModel] | None = None
+    protocol: RpcSocketProtocol | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,7 +144,7 @@ class RpcProtocol:
         subscriptions: Iterable[RpcSubscriptionDefinition] = (),
         notification_types: Iterable[RpcNotificationTypeDefinition] = (),
         streams: Iterable[RpcStreamDefinition] = (),
-        raw_sockets: Iterable[RpcRawSocketDefinition] = (),
+        sockets: Iterable[RpcSocketDefinition] = (),
         version: int = 1,
     ) -> None:
         self._version = version
@@ -163,9 +164,7 @@ class RpcProtocol:
             ((item.name, item) for item in notification_types),
         )
         self._streams = _unique("stream", ((item.name, item) for item in streams))
-        self._raw_sockets = _unique(
-            "raw socket", ((item.name, item) for item in raw_sockets)
-        )
+        self._sockets = _unique("socket", ((item.name, item) for item in sockets))
         for operation in (*self.methods, *self.notifications, *self.subscriptions):
             bind_contracts(
                 (
@@ -201,8 +200,8 @@ class RpcProtocol:
         return tuple(self._streams.values())
 
     @property
-    def raw_sockets(self) -> tuple[RpcRawSocketDefinition, ...]:
-        return tuple(self._raw_sockets.values())
+    def sockets(self) -> tuple[RpcSocketDefinition, ...]:
+        return tuple(self._sockets.values())
 
     def method(self, name: str) -> RpcMethodDefinition:
         try:
@@ -514,33 +513,33 @@ def stream_definition(
     )
 
 
-def raw_socket_definition(
+def socket_definition(
     *,
     name: str,
     function: FunctionType,
     messages: tuple[RpcMessageType, ...],
+    protocol: RpcSocketProtocol | None,
     closes: tuple[RpcErrorBinding[Any], ...],
     summary: str | None,
     resolver_scope: RpcResolverScope,
-) -> RpcRawSocketDefinition:
+) -> RpcSocketDefinition:
     qualname = function.__qualname__
     if not inspect.iscoroutinefunction(function):
         raise ProtocolDefinitionError(
-            f"RPC raw socket {qualname} must be an async function"
+            f"RPC socket {qualname} must be an async function"
         )
     hints, injected, path_parameters = _split_parameters(function)
-    sockets = sum(parameter.dependency is RpcRawSocket for parameter in injected)
+    sockets = sum(parameter.dependency is RpcSocket for parameter in injected)
     if sockets != 1:
         raise ProtocolDefinitionError(
-            f"RPC raw socket {qualname} must inject RpcRawSocket exactly once"
+            f"RPC socket {qualname} must inject RpcSocket exactly once"
         )
     result = hints.get("return")
     if result is not None and result is not type(None):
         raise ProtocolDefinitionError(
-            f"RPC raw socket {qualname} must return None; send messages through "
-            "RpcRawSocket"
+            f"RPC socket {qualname} must return None; send messages through RpcSocket"
         )
-    return RpcRawSocketDefinition(
+    return RpcSocketDefinition(
         name=name,
         function=function,
         messages=messages,
@@ -549,7 +548,8 @@ def raw_socket_definition(
         resolver_scope=resolver_scope,
         closes=closes,
         path_parameters=tuple(parameter.name for parameter in path_parameters),
-        path_model=_path_model(function, hints, path_parameters, kind="raw socket"),
+        path_model=_path_model(function, hints, path_parameters, kind="socket"),
+        protocol=protocol,
     )
 
 

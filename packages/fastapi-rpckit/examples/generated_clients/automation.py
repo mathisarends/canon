@@ -7,10 +7,12 @@ from fastapi_rpckit import (
     RpcBinaryOutput,
     RpcChannel,
     RpcErrorBinding,
+    RpcMessageType,
     RpcModel,
-    RpcRawSocket,
     RpcRejection,
     RpcService,
+    RpcSocket,
+    RpcSocketProtocol,
     ServerVariable,
 )
 
@@ -63,6 +65,9 @@ BROWSER_NOT_FOUND = RpcErrorBinding(
 
 
 tasks = RpcChannel("tasks")
+# Declared for the contract; clients without a binding get a generic socket.
+CDP = RpcSocketProtocol(name="cdp", version="1.3")
+
 browser = RpcChannel("browser")
 tabs = browser.child("tabs")
 screencast = browser.child("screencast")
@@ -135,11 +140,13 @@ async def control(
         await output.send(b"\xff\xd8\xff\xd9")
 
 
-@browser.raw_socket(
+@browser.socket(
+    protocol=CDP,
+    messages=(RpcMessageType.TEXT,),
     closes=(BROWSER_NOT_FOUND,),
-    summary="Proxy the Chrome DevTools Protocol with native text and binary messages.",
+    summary="Proxy the Chrome DevTools Protocol unchanged.",
 )
-async def cdp(socket: Inject[RpcRawSocket]) -> None:
+async def cdp(socket: Inject[RpcSocket]) -> None:
     async for message in socket:
         await socket.send(message)
 
@@ -156,7 +163,7 @@ service.socket(
 service.stream("/browser/screencast", frames)
 service.stream("/browser/screencast/upload", upload)
 service.stream("/browser/screencast/control", control)
-service.raw_socket("/browser/cdp", cdp)
+service.socket("/browser/cdp", cdp)
 
 contract = service.contract(
     title="Automation",

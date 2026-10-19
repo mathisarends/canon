@@ -27,6 +27,9 @@ client, or application structure. Each file is standalone and executable.
   uv run python -m fastapi_rpckit.codegen.cli generate \
     --config examples/generated_clients/rpcgen.toml
   ```
+- [`socket_protocol`](socket_protocol/README.md) declares a small CDP-shaped
+  protocol on a socket and plugs typed Python and TypeScript clients for it
+  into the generators.
 
 Run an example from the repository root:
 

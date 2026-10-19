@@ -797,15 +797,14 @@
       }
     }
   ],
-  "x-rpckit-raw-sockets": [
+  "x-rpckit-sockets": [
     {
       "name": "browser.cdp",
       "url": "wss://{host}/browser/cdp",
       "messageTypes": [
-        "text",
-        "binary"
+        "text"
       ],
-      "summary": "Proxy the Chrome DevTools Protocol with native text and binary messages.",
+      "summary": "Proxy the Chrome DevTools Protocol unchanged.",
       "variables": {
         "host": {
           "default": "api.example.com"
@@ -817,7 +816,12 @@
           "x-rpckit-code": "browser_not_found",
           "reason": "Unknown browser"
         }
-      ]
+      ],
+      "x-rpckit-protocol": {
+        "name": "cdp",
+        "version": "1.3",
+        "encoding": "json"
+      }
     }
   ]
 }

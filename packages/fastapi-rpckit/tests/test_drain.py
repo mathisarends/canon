@@ -20,8 +20,8 @@ from fastapi_rpckit import (
     RpcDisconnect,
     RpcDrain,
     RpcMiddleware,
-    RpcRawSocket,
     RpcService,
+    RpcSocket,
 )
 from fastapi_rpckit.integrations.fastapi import create_router
 from fastapi_rpckit.testing import InMemorySocketFactory, RpcTestHandshakeRejected
@@ -338,8 +338,8 @@ async def test_long_lived_streams_close_with_restart_at_grace_expiry(kind, monke
         finally:
             cancelled.set()
 
-    @channel.raw_socket()
-    async def raw(socket: Inject[RpcRawSocket]) -> None:
+    @channel.socket()
+    async def raw(socket: Inject[RpcSocket]) -> None:
         entered.set()
         try:
             await asyncio.Future()
@@ -350,7 +350,7 @@ async def test_long_lived_streams_close_with_restart_at_grace_expiry(kind, monke
     if kind == "binary":
         service.stream("/stream", frames)
     else:
-        service.raw_socket("/stream", raw)
+        service.socket("/stream", raw)
     proxy = SimpleNamespace(**vars(asyncio))
     real_wait = asyncio.wait
     calls = 0

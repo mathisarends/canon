@@ -1,8 +1,9 @@
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
 
+from fastapi_rpckit.codegen.bindings import SocketBinding, bind_sockets
 from fastapi_rpckit.codegen.ir import (
     BinaryStreamDecl,
     ClientIr,
@@ -16,10 +17,10 @@ from fastapi_rpckit.codegen.ir import (
     NotificationDecl,
     Primitive,
     PrimitiveType,
-    RawSocketDecl,
     RouteDecl,
     ServerDecl,
     ServerVariableDecl,
+    SocketDecl,
     TypeExpr,
     UnionType,
     UnsupportedSchemaError,
@@ -43,11 +44,12 @@ def render_files(ir: ClientIr, options: TypeScriptClientOptions) -> dict[str, st
     _validate(
         ir,
         view.root_operations,
-        (*view.root_streams, *view.root_raw_sockets),
+        (*view.root_streams, *view.root_sockets),
         view.nodes,
         options,
         client_name,
     )
+    bound = bind_sockets(ir.sockets, options.bindings, "typescript", options.contract)
     renderer = _Renderer(
         ir,
         view.root_operations,
@@ -56,7 +58,8 @@ def render_files(ir: ClientIr, options: TypeScriptClientOptions) -> dict[str, st
         view.root_streams,
         options,
         client_name,
-        view.root_raw_sockets,
+        view.root_sockets,
+        bound,
     )
     files = {
         "core.ts": renderer.core(),
@@ -72,8 +75,10 @@ def render_files(ir: ClientIr, options: TypeScriptClientOptions) -> dict[str, st
         files["endpoints.ts"] = renderer.endpoints()
     if ir.binary_streams:
         files["streams.ts"] = renderer.streams()
-    if ir.raw_sockets:
-        files["rawSockets.ts"] = renderer.raw_sockets()
+    if ir.sockets:
+        files["sockets.ts"] = renderer.sockets()
+    for binding in bound.values():
+        files[f"bindings/{binding.module}.ts"] = renderer.module(binding.source.strip())
     if options.with_transport == "websocket":
         files["transport.ts"] = renderer.transport()
     if view.nodes:
@@ -93,14 +98,16 @@ class _Renderer:
         root_streams: tuple[BinaryStreamDecl, ...],
         options: TypeScriptClientOptions,
         client_name: str,
-        root_raw_sockets: tuple[RawSocketDecl, ...] = (),
+        root_sockets: tuple[SocketDecl, ...] = (),
+        bound: Mapping[str, SocketBinding] | None = None,
     ) -> None:
         self.ir = ir
         self.root_operations = root_operations
         self.nodes = nodes
         self.root_events = root_events
         self.root_streams = root_streams
-        self.root_raw_sockets = root_raw_sockets
+        self.root_sockets = root_sockets
+        self.bound = bound or {}
         self.options = options
         self.client_name = client_name
 
@@ -140,8 +147,10 @@ class _Renderer:
                 not field.required and not _is_discriminator(field.name, field.type)
             ),
             "property": _property,
-            "raw_socket_endpoint": _raw_socket_endpoint,
-            "raw_socket_signature": _raw_socket_signature,
+            "socket_handle_endpoint": _socket_handle_endpoint,
+            "schema_array": _schema_array,
+            "socket_handle_signature": self._socket_handle_signature,
+            "socket_handle_connect": self._socket_handle_connect,
             "route_access": lambda route: f"routes.{_route_key(route)}",
             "route_key": _route_key,
             "route_params": lambda route: (
@@ -199,7 +208,7 @@ class _Renderer:
             "typescript/core.ts.j2",
             transport_module=json.dumps(self._transport_module()),
             binary_streams=bool(self.ir.binary_streams),
-            raw_sockets=bool(self.ir.raw_sockets),
+            sockets=bool(self.ir.sockets),
         ).rstrip()
         return self.module(body)
 
@@ -215,11 +224,11 @@ class _Renderer:
             )
         )
 
-    def raw_sockets(self) -> str:
+    def sockets(self) -> str:
         return self.module(
             self.template(
-                "rawSockets",
-                sockets=self.ir.raw_sockets,
+                "sockets",
+                sockets=self.ir.sockets,
                 with_websocket=self.options.with_transport == "websocket",
             )
         )
@@ -244,11 +253,16 @@ class _Renderer:
                     f"{root}streams",
                 )
             )
-        if any(node.raw_sockets for node in nodes):
+        if any(node.sockets for node in nodes):
             imports.append(
                 _value_import(
-                    ["RawSocket", "rawSockets", "resolveRawSocketEndpoint"],
-                    f"{root}rawSockets",
+                    ["Socket", "sockets", "resolveSocketEndpoint"],
+                    f"{root}sockets",
+                )
+            )
+            imports.extend(
+                self._binding_imports(
+                    (socket for node in nodes for socket in node.sockets), root
                 )
             )
         route_imports = []
@@ -280,6 +294,44 @@ class _Renderer:
         )
         return self.module(body)
 
+    def _socket_binding(self, socket: SocketDecl) -> SocketBinding | None:
+        if socket.protocol is None:
+            return None
+        return self.bound.get(socket.protocol.name)
+
+    def _binding_imports(self, sockets: Iterable[SocketDecl], root: str) -> list[str]:
+        modules: dict[str, SocketBinding] = {}
+        for socket in sockets:
+            binding = self._socket_binding(socket)
+            if binding is not None:
+                modules.setdefault(binding.module, binding)
+        return [
+            f"import * as socketBinding_{binding.module} "
+            f'from "{root}bindings/{binding.module}";'
+            for binding in modules.values()
+        ]
+
+    def _socket_handle_signature(self, socket: SocketDecl) -> str:
+        binding = self._socket_binding(socket)
+        session = (
+            "Socket"
+            if binding is None
+            else f"socketBinding_{binding.module}.{binding.session}"
+        )
+        return _socket_signature(socket, f"Promise<{session}>")
+
+    def _socket_handle_connect(self, socket: SocketDecl) -> str:
+        """The ``openSocket`` connect callback, laid out as Prettier would."""
+        binding = self._socket_binding(socket)
+        create = "new Socket(transport, endpoint)"
+        if binding is None:
+            return f"      (transport, endpoint) => {create},"
+        open_binding = f"socketBinding_{binding.module}.{binding.open}"
+        inline = f"      (transport, endpoint) => {open_binding}({create}),"
+        if len(inline) <= _TS_WIDTH:
+            return inline
+        return f"      (transport, endpoint) =>\n        {open_binding}({create}),"
+
     def client(self) -> str:
         core_imports = [
             "RpcClientCore",
@@ -310,22 +362,23 @@ class _Renderer:
                     "type BinaryWebSocketFactory",
                 ]
             imports.append(_value_import(stream_imports, "./streams"))
-        if self.ir.raw_sockets:
-            socket_imports = ["type RawSocketOpener"]
-            if self.root_raw_sockets:
+        if self.ir.sockets:
+            socket_imports = ["type SocketOpener"]
+            if self.root_sockets:
                 socket_imports = [
-                    "RawSocket",
-                    "rawSockets",
-                    "resolveRawSocketEndpoint",
+                    "Socket",
+                    "sockets",
+                    "resolveSocketEndpoint",
                     *socket_imports,
                 ]
             if self.options.with_transport == "websocket":
                 socket_imports = [
-                    "RawWebSocketStream",
+                    "SocketConnectionStream",
                     *socket_imports,
-                    "type RawWebSocketFactory",
+                    "type SocketConnectionFactory",
                 ]
-            imports.append(_value_import(socket_imports, "./rawSockets"))
+            imports.append(_value_import(socket_imports, "./sockets"))
+            imports.extend(self._binding_imports(self.root_sockets, "./"))
         route_imports = []
         if self.root_operations:
             route_imports.append("routes")
@@ -362,7 +415,7 @@ class _Renderer:
                     "  type WebSocketCredentialsProvider,",
                     *(
                         ["  resolveWebSocketCredentials,"]
-                        if self.ir.binary_streams or self.ir.raw_sockets
+                        if self.ir.binary_streams or self.ir.sockets
                         else []
                     ),
                     '} from "./transport";',
@@ -386,8 +439,8 @@ class _Renderer:
             notifications=self.root_events,
             streams=self.root_streams,
             binary_streams=self.ir.binary_streams,
-            root_raw_sockets=self.root_raw_sockets,
-            raw_sockets=self.ir.raw_sockets,
+            root_sockets=self.root_sockets,
+            sockets=self.ir.sockets,
             with_websocket=self.options.with_transport == "websocket",
             heartbeat=self.ir.heartbeat,
             request_metadata=self.ir.request_metadata,
@@ -467,7 +520,7 @@ class _Renderer:
             routes=bool(self.ir.operations),
             notifications=self.ir.notifications,
             binary_streams=self.ir.binary_streams,
-            raw_sockets=self.ir.raw_sockets,
+            sockets=self.ir.sockets,
             models=bool(self.ir.declarations),
         )
         return self.module(body)
@@ -499,7 +552,7 @@ def _connect_variables(ir: ClientIr) -> tuple[ServerVariableDecl, ...]:
     """The server URL variables `connect` accepts; streams inherit them too."""
     declared = {variable.name for server in ir.servers for variable in server.variables}
     merged: dict[str, ServerVariableDecl] = {}
-    for declaration in (*ir.servers, *ir.binary_streams, *ir.raw_sockets):
+    for declaration in (*ir.servers, *ir.binary_streams, *ir.sockets):
         for variable in declaration.variables:
             if variable.name not in declared:
                 continue
@@ -514,7 +567,7 @@ def _connect_variables(ir: ClientIr) -> tuple[ServerVariableDecl, ...]:
 def _validate(
     ir: ClientIr,
     root_operations: tuple[RouteDecl, ...],
-    root_streams: tuple[BinaryStreamDecl | RawSocketDecl, ...],
+    root_streams: tuple[BinaryStreamDecl | SocketDecl, ...],
     nodes: tuple[NamespaceViewNode, ...],
     options: TypeScriptClientOptions,
     client_name: str,
@@ -613,11 +666,11 @@ def _validate(
                     ("<connect.streamQueueSize>", "streamQueueSize"),
                 ]
             )
-        if ir.raw_sockets:
+        if ir.sockets:
             connect_options.extend(
                 [
-                    ("<connect.rawSocketFactory>", "rawSocketFactory"),
-                    ("<connect.rawSocketQueueSize>", "rawSocketQueueSize"),
+                    ("<connect.socketConnectionFactory>", "socketConnectionFactory"),
+                    ("<connect.socketQueueSize>", "socketQueueSize"),
                 ]
             )
         assert_unique_names("connect options", connect_options)
@@ -640,8 +693,8 @@ def _validate(
         ((stream.name, _identifier(stream.name)) for stream in ir.binary_streams),
     )
     assert_unique_names(
-        "raw sockets",
-        ((socket.name, _identifier(socket.name)) for socket in ir.raw_sockets),
+        "sockets",
+        ((socket.name, _identifier(socket.name)) for socket in ir.sockets),
     )
     for server in ir.servers:
         assert_unique_names(
@@ -668,7 +721,7 @@ def _validate_nodes(nodes: tuple[NamespaceViewNode, ...]) -> None:
         )
         values.extend(
             (stream.rpc_name, _identifier(stream.operation_name))
-            for stream in (*node.streams, *node.raw_sockets)
+            for stream in (*node.streams, *node.sockets)
         )
         assert_unique_names(f"API path {'.'.join(node.path)}", values)
         _validate_nodes(node.children)
@@ -786,16 +839,22 @@ def _array(values: Iterable[object]) -> str:
     return "[" + ", ".join(_ts_literal(value) for value in values) + "]"
 
 
+def _schema_array(schemas: Iterable[str]) -> str:
+    """A protocol's ``schemas`` property, laid out as Prettier would."""
+    values = [_ts_literal(value) for value in schemas]
+    inline = f"      schemas: [{', '.join(values)}],"
+    if len(inline) <= _TS_WIDTH:
+        return inline
+    body = "".join(f"        {value},\n" for value in values)
+    return f"      schemas: [\n{body}      ],"
+
+
 def _stream_signature(stream: BinaryStreamDecl) -> str:
     """A stream method's opening line, laid out as Prettier would."""
     return _socket_signature(stream, f"Promise<{_stream_connection(stream)}>")
 
 
-def _raw_socket_signature(socket: RawSocketDecl) -> str:
-    return _socket_signature(socket, "Promise<RawSocket>")
-
-
-def _socket_signature(stream: BinaryStreamDecl | RawSocketDecl, returns: str) -> str:
+def _socket_signature(stream: BinaryStreamDecl | SocketDecl, returns: str) -> str:
     name = _identifier(stream.operation_name)
     if not stream.call_variables:
         return f"  {name}(): {returns} {{"
@@ -820,17 +879,17 @@ def _stream_endpoint(stream: BinaryStreamDecl, rpc: str) -> str:
     )
 
 
-def _raw_socket_endpoint(socket: RawSocketDecl, rpc: str) -> str:
+def _socket_handle_endpoint(socket: SocketDecl, rpc: str) -> str:
     return _socket_endpoint(
         socket,
-        f"rawSockets.{_identifier(socket.name)}",
+        f"sockets.{_identifier(socket.name)}",
         rpc,
-        "resolveRawSocketEndpoint",
+        "resolveSocketEndpoint",
     )
 
 
 def _socket_endpoint(
-    stream: BinaryStreamDecl | RawSocketDecl, info: str, rpc: str, function: str
+    stream: BinaryStreamDecl | SocketDecl, info: str, rpc: str, function: str
 ) -> str:
     indent = " " * 6
     head = [info, f"{rpc}.variables"]

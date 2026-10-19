@@ -9,7 +9,7 @@ from fastapi_rpckit.connection import (
     RpcConnection,
     RpcConnectionClose,
     RpcDisconnect,
-    RpcSocket,
+    RpcWebSocket,
 )
 
 _END = object()
@@ -95,7 +95,7 @@ class RpcBinaryOutput:
     @classmethod
     def _create(
         cls,
-        socket: RpcSocket,
+        socket: RpcWebSocket,
         connection: RpcConnection,
         activity: _Activity | None = None,
     ) -> Self:

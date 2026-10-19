@@ -70,8 +70,8 @@ from fastapi_rpckit.server import RpcErrorMapper
 from fastapi_rpckit.service import (
     RpcAnyEndpoint,
     RpcEndpoint,
-    RpcRawSocketEndpoint,
     RpcService,
+    RpcSocketEndpoint,
     RpcStreamEndpoint,
     endpoint_rejections,
 )
@@ -381,7 +381,7 @@ class RpcRoutes[ContextT]:
         endpoint: (
             RpcEndpoint[ContextT]
             | RpcStreamEndpoint[ContextT]
-            | RpcRawSocketEndpoint[ContextT]
+            | RpcSocketEndpoint[ContextT]
         ),
         *,
         handler: Callable[..., Awaitable[None]] | None = None,

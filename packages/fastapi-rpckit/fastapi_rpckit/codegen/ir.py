@@ -4,7 +4,9 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from fastapi_rpckit.request_metadata import REQUEST_METADATA_CAPABILITY
 
@@ -211,7 +213,29 @@ class BinaryStreamDecl:
 
 
 @dataclass(frozen=True, slots=True)
-class RawSocketDecl:
+class SocketProtocolDecl:
+    """The application protocol a socket declared in ``x-rpckit-protocol``."""
+
+    name: str
+    encoding: str = "json"
+    version: str | None = None
+    schemas: tuple[str, ...] = ()
+    """URI references as written in the contract; see ``resolve_schemas``."""
+
+    def resolve_schemas(self, base: str | Path | None) -> tuple[str, ...]:
+        """Resolve relative schema references against the contract location.
+
+        Absolute URIs stay unchanged. ``base`` is the contract's URL or file path;
+        without it, relative references are returned as written.
+        """
+        if base is None:
+            return self.schemas
+        root = _base_uri(base)
+        return tuple(urljoin(root, schema) for schema in self.schemas)
+
+
+@dataclass(frozen=True, slots=True)
+class SocketDecl:
     rpc_name: str
     operation_name: str
     path: tuple[str, ...]
@@ -223,6 +247,7 @@ class RawSocketDecl:
     subprotocols: tuple[str, ...] = ()
     call_variables: tuple[ServerVariableDecl, ...] = ()
     """The variables each call fills; the rest come from ``connect``."""
+    protocol: SocketProtocolDecl | None = None
 
     @property
     def name(self) -> str:
@@ -236,7 +261,7 @@ class ApiNode:
     operations: tuple[RouteDecl, ...] = ()
     streams: tuple[BinaryStreamDecl, ...] = ()
     children: tuple[ApiNode, ...] = ()
-    raw_sockets: tuple[RawSocketDecl, ...] = ()
+    sockets: tuple[SocketDecl, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,7 +292,7 @@ class ClientIr:
     api: tuple[ApiNode, ...] = ()
     notifications: tuple[NotificationDecl, ...] = ()
     binary_streams: tuple[BinaryStreamDecl, ...] = ()
-    raw_sockets: tuple[RawSocketDecl, ...] = ()
+    sockets: tuple[SocketDecl, ...] = ()
 
     @property
     def models(self) -> tuple[ModelDecl, ...]:
@@ -297,19 +322,18 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         variable.name for server in servers for variable in server.variables
     }
     binary_streams = _binary_streams(document, server_variables)
-    raw_sockets = _raw_sockets(document, server_variables)
+    sockets = _sockets(document, server_variables)
     duplicates = sorted(
-        {stream.name for stream in binary_streams}
-        & {socket.name for socket in raw_sockets}
+        {stream.name for stream in binary_streams} & {socket.name for socket in sockets}
     )
     if duplicates:
         raise UnsupportedSchemaError(
-            "Names are both a binary stream and a raw socket: " + ", ".join(duplicates)
+            "Names are both a binary stream and a socket: " + ", ".join(duplicates)
         )
     api = _api_tree(
         (route for route in routes if route.path),
         (stream for stream in binary_streams if stream.path),
-        (socket for socket in raw_sockets if socket.path),
+        (socket for socket in sockets if socket.path),
     )
     notifications = _notifications(document, schemas)
     if "x-rpc-client-methods" in document:
@@ -341,7 +365,7 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         api=api,
         notifications=notifications,
         binary_streams=binary_streams,
-        raw_sockets=raw_sockets,
+        sockets=sockets,
     )
 
 
@@ -758,26 +782,31 @@ def _binary_streams(
     return tuple(streams)
 
 
-def _raw_sockets(
+def _sockets(
     document: dict[str, Any], server_variables: set[str]
-) -> tuple[RawSocketDecl, ...]:
-    values = document.get("x-rpckit-raw-sockets", ())
+) -> tuple[SocketDecl, ...]:
+    if "x-rpckit-raw-sockets" in document:
+        raise UnsupportedSchemaError(
+            "x-rpckit-raw-sockets was renamed to x-rpckit-sockets; re-export the "
+            "contract with fastapi-rpckit 0.3.0 or later"
+        )
+    values = document.get("x-rpckit-sockets", ())
     if not isinstance(values, list | tuple):
-        raise UnsupportedSchemaError("x-rpckit-raw-sockets must be an array")
-    sockets: list[RawSocketDecl] = []
+        raise UnsupportedSchemaError("x-rpckit-sockets must be an array")
+    sockets: list[SocketDecl] = []
     names: set[str] = set()
     for value in values:
         if not isinstance(value, dict):
-            raise UnsupportedSchemaError("Raw socket entries must be objects")
+            raise UnsupportedSchemaError("Socket entries must be objects")
         name = value.get("name")
         url = value.get("url")
         if not isinstance(name, str) or not name:
-            raise UnsupportedSchemaError("Raw sockets need a non-empty name")
+            raise UnsupportedSchemaError("Sockets need a non-empty name")
         if name in names:
-            raise UnsupportedSchemaError(f"Duplicate raw socket name: {name}")
+            raise UnsupportedSchemaError(f"Duplicate socket name: {name}")
         names.add(name)
         if not isinstance(url, str) or not url:
-            raise UnsupportedSchemaError(f"Raw socket {name!r} needs a non-empty URL")
+            raise UnsupportedSchemaError(f"Socket {name!r} needs a non-empty URL")
         message_types = value.get("messageTypes", list(_MESSAGE_TYPES))
         if (
             not isinstance(message_types, list | tuple)
@@ -786,13 +815,13 @@ def _raw_sockets(
             or len(set(message_types)) != len(message_types)
         ):
             raise UnsupportedSchemaError(
-                f"Raw socket {name!r} messageTypes must list distinct values of "
+                f"Socket {name!r} messageTypes must list distinct values of "
                 + ", ".join(_MESSAGE_TYPES)
             )
-        declared = _url_variables(value, f"Raw socket {name!r}")
+        declared = _url_variables(value, f"Socket {name!r}")
         *path, operation_name = name.split(".")
         sockets.append(
-            RawSocketDecl(
+            SocketDecl(
                 rpc_name=name,
                 operation_name=operation_name,
                 path=tuple(path),
@@ -801,7 +830,8 @@ def _raw_sockets(
                 summary=value.get("summary", ""),
                 description=value.get("description", ""),
                 variables=declared,
-                subprotocols=_subprotocols(value, f"Raw socket {name!r}"),
+                subprotocols=_subprotocols(value, f"Socket {name!r}"),
+                protocol=_socket_protocol(value, f"Socket {name!r}"),
                 call_variables=tuple(
                     variable
                     for variable in declared
@@ -810,6 +840,43 @@ def _raw_sockets(
             )
         )
     return tuple(sockets)
+
+
+def _base_uri(base: str | Path) -> str:
+    # A one-letter scheme is a Windows drive, not a URL.
+    if isinstance(base, str) and len(urlsplit(base).scheme) > 1:
+        return base
+    return Path(base).resolve().as_uri()
+
+
+def _socket_protocol(value: dict[str, Any], owner: str) -> SocketProtocolDecl | None:
+    protocol = value.get("x-rpckit-protocol")
+    if protocol is None:
+        return None
+    if not isinstance(protocol, dict):
+        raise UnsupportedSchemaError(f"{owner} x-rpckit-protocol must be an object")
+    name = protocol.get("name")
+    encoding = protocol.get("encoding", "json")
+    version = protocol.get("version")
+    schemas = protocol.get("schemas", [])
+    if not isinstance(name, str) or not _PROTOCOL_TOKEN.fullmatch(name):
+        raise UnsupportedSchemaError(f"{owner} protocol name must be a lowercase token")
+    if not isinstance(encoding, str) or not _PROTOCOL_TOKEN.fullmatch(encoding):
+        raise UnsupportedSchemaError(
+            f"{owner} protocol encoding must be a lowercase token"
+        )
+    if version is not None and (not isinstance(version, str) or not version):
+        raise UnsupportedSchemaError(
+            f"{owner} protocol version must be a non-empty string"
+        )
+    if not isinstance(schemas, list) or any(
+        not isinstance(item, str) or not item or item.split() != [item]
+        for item in schemas
+    ):
+        raise UnsupportedSchemaError(f"{owner} protocol schemas must be URI references")
+    return SocketProtocolDecl(
+        name=name, encoding=encoding, version=version, schemas=tuple(schemas)
+    )
 
 
 def _subprotocols(value: dict[str, Any], owner: str) -> tuple[str, ...]:
@@ -837,6 +904,7 @@ def _url_variables(value: dict[str, Any], owner: str) -> tuple[ServerVariableDec
 
 
 _STREAM_DIRECTIONS = ("server-to-client", "client-to-server", "bidirectional")
+_PROTOCOL_TOKEN = re.compile(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*")
 _MESSAGE_TYPES = ("text", "binary")
 
 
@@ -911,7 +979,7 @@ def _transport(value: Any, server_name: str) -> TransportDecl | None:
 def _api_tree(
     routes: Iterable[RouteDecl],
     streams: Iterable[BinaryStreamDecl] = (),
-    raw_sockets: Iterable[RawSocketDecl] = (),
+    sockets: Iterable[SocketDecl] = (),
 ) -> tuple[ApiNode, ...]:
     tree: dict[str, Any] = {}
     for route in routes:
@@ -919,7 +987,7 @@ def _api_tree(
         for segment in route.path:
             cursor = cursor.setdefault(segment, {"$operations": []})
         cursor["$operations"].append(route)
-    for key, items in (("$streams", streams), ("$raw_sockets", raw_sockets)):
+    for key, items in (("$streams", streams), ("$sockets", sockets)):
         for item in items:
             cursor = tree
             for segment in item.path:
@@ -935,11 +1003,11 @@ def _api_node(segment: str, value: dict[str, Any], parent: tuple[str, ...]) -> A
         path=path,
         operations=tuple(value.get("$operations", ())),
         streams=tuple(value.get("$streams", ())),
-        raw_sockets=tuple(value.get("$raw_sockets", ())),
+        sockets=tuple(value.get("$sockets", ())),
         children=tuple(
             _api_node(child_segment, child, path)
             for child_segment, child in value.items()
-            if child_segment not in {"$operations", "$streams", "$raw_sockets"}
+            if child_segment not in {"$operations", "$streams", "$sockets"}
         ),
     )
 

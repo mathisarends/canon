@@ -17,12 +17,12 @@ from automation_client.internal import (
     RpcTransportSource,
 )
 from automation_client.namespaces import Browser, Tasks
-from automation_client.raw_sockets import (
-    RawSocketEndpoint,
-    RawSocketOpener,
-    RawSocketTransport,
-    RawWebSocketFactory,
-    RawWebSocketStream,
+from automation_client.sockets import (
+    SocketConnectionFactory,
+    SocketConnectionStream,
+    SocketEndpoint,
+    SocketOpener,
+    SocketTransport,
 )
 from automation_client.streams import (
     BinaryStreamEndpoint,
@@ -48,7 +48,7 @@ class AutomationClient:
         retry_attempts: int = 0,
         retry_attempt_timeout: float | None = None,
         stream_opener: BinaryStreamOpener | None = None,
-        raw_socket_opener: RawSocketOpener | None = None,
+        socket_opener: SocketOpener | None = None,
         variables: Mapping[str, str] | None = None,
     ) -> None:
         self._rpc = RpcClientCore(
@@ -61,7 +61,7 @@ class AutomationClient:
             retry_attempts=retry_attempts,
             retry_attempt_timeout=retry_attempt_timeout,
             stream_opener=stream_opener,
-            raw_socket_opener=raw_socket_opener,
+            socket_opener=socket_opener,
             variables=variables,
         )
         self.tasks = Tasks(self._rpc)
@@ -95,7 +95,7 @@ class AutomationClient:
         retry_attempts: int = 0,
         retry_attempt_timeout: float | None = None,
         stream_opener: BinaryStreamOpener | None = None,
-        raw_socket_opener: RawSocketOpener | None = None,
+        socket_opener: SocketOpener | None = None,
         variables: Mapping[str, str] | None = None,
     ) -> Self:
         """Build a client on transports the caller owns, for tests and adapters."""
@@ -108,7 +108,7 @@ class AutomationClient:
             retry_attempts=retry_attempts,
             retry_attempt_timeout=retry_attempt_timeout,
             stream_opener=stream_opener,
-            raw_socket_opener=raw_socket_opener,
+            socket_opener=socket_opener,
             variables=variables,
         )
 
@@ -129,7 +129,7 @@ class AutomationClient:
         ) = None,
         socket_factory: WebSocketFactory | None = None,
         stream_socket_factory: BinaryWebSocketFactory | None = None,
-        raw_socket_factory: RawWebSocketFactory | None = None,
+        socket_connection_factory: SocketConnectionFactory | None = None,
         middleware: Iterable[RpcClientMiddleware] = (),
         lazy: bool = False,
         reconnect: bool = False,
@@ -178,11 +178,11 @@ class AutomationClient:
                 socket_factory=stream_socket_factory,
             )
 
-        async def open_raw(endpoint: RawSocketEndpoint) -> RawSocketTransport:
-            return await RawWebSocketStream.open(
+        async def open_socket_transport(endpoint: SocketEndpoint) -> SocketTransport:
+            return await SocketConnectionStream.open(
                 endpoint,
                 headers=await resolve_headers(),
-                socket_factory=raw_socket_factory,
+                socket_factory=socket_connection_factory,
             )
 
         pool = RpcTransportPool(
@@ -208,7 +208,7 @@ class AutomationClient:
                 retry_attempt_timeout=retry_attempt_timeout,
                 notification_queue_size=notification_queue_size,
                 stream_opener=open_stream,
-                raw_socket_opener=open_raw,
+                socket_opener=open_socket_transport,
                 variables={
                     name: value
                     for name, value in variables.items()

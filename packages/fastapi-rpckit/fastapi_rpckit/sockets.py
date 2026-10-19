@@ -1,5 +1,7 @@
 import asyncio
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Self
 
@@ -9,7 +11,7 @@ from fastapi_rpckit.connection import (
     RpcConnectionClose,
     RpcDisconnect,
     RpcLimits,
-    RpcSocket,
+    RpcWebSocket,
 )
 
 
@@ -18,10 +20,59 @@ class RpcMessageType(StrEnum):
     BINARY = "binary"
 
 
-type RpcRawMessage = str | bytes
+type RpcSocketMessage = str | bytes
+
+_TOKEN = re.compile(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*")
 
 
-class RpcRawSocket:
+@dataclass(frozen=True, slots=True)
+class RpcSocketProtocol:
+    """The application protocol a socket carries, declared for its contract.
+
+    fastapi_rpckit never decodes, validates, or dispatches these messages. The
+    declaration identifies the protocol so generators can select a client binding.
+    ``schemas`` lists URI references to the protocol's specification files;
+    relative references resolve against the contract document's location.
+    """
+
+    name: str
+    version: str | None = None
+    encoding: str = "json"
+    schemas: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not _TOKEN.fullmatch(self.name):
+            raise ValueError(
+                "Socket protocol names are lowercase tokens such as 'cdp' or "
+                "'graphql-ws'"
+            )
+        if self.version is not None and (
+            not isinstance(self.version, str)
+            or not self.version
+            or self.version != self.version.strip()
+        ):
+            raise ValueError("Socket protocol versions are non-empty strings")
+        if not isinstance(self.encoding, str) or not _TOKEN.fullmatch(self.encoding):
+            raise ValueError(
+                "Socket protocol encodings are lowercase tokens such as 'json'"
+            )
+        schemas: Iterable[object] = self.schemas
+        if isinstance(schemas, str) or not isinstance(schemas, Iterable):
+            raise TypeError("Socket protocol schemas must be a sequence of strings")
+        values = tuple(schemas)
+        if any(
+            not isinstance(value, str) or not value or value.split() != [value]
+            for value in values
+        ):
+            raise ValueError(
+                "Socket protocol schemas must be URI references without whitespace"
+            )
+        if len(set(values)) != len(values):
+            raise ValueError("Socket protocol schemas must be distinct")
+        object.__setattr__(self, "schemas", values)
+
+
+class RpcSocket:
     """An accepted WebSocket that passes text and binary messages through as-is.
 
     Iteration ends when the connection closes. fastapi_rpckit cancels the handler when
@@ -34,6 +85,7 @@ class RpcRawSocket:
         "_disconnected",
         "_lock",
         "_messages",
+        "_protocol",
         "_activity",
         "_queue",
         "_request_close",
@@ -42,14 +94,15 @@ class RpcRawSocket:
     )
 
     def __init__(self) -> None:
-        raise TypeError("RpcRawSocket instances are created by fastapi_rpckit")
+        raise TypeError("RpcSocket instances are created by fastapi_rpckit")
 
     @classmethod
     def _create(
         cls,
-        socket: RpcSocket,
+        socket: RpcWebSocket,
         connection: RpcConnection,
         messages: tuple[RpcMessageType, ...],
+        protocol: RpcSocketProtocol | None,
         limits: RpcLimits,
         activity: _Activity | None,
         request_close: Callable[[RpcConnectionClose, str], None],
@@ -59,9 +112,10 @@ class RpcRawSocket:
         self._socket = socket
         self._connection = connection
         self._messages = messages
+        self._protocol = protocol
         self._activity = activity
         self._send_timeout = limits.send_timeout
-        self._queue = asyncio.Queue[RpcRawMessage](limits.max_queue_size)
+        self._queue = asyncio.Queue[RpcSocketMessage](limits.max_queue_size)
         self._lock = asyncio.Lock()
         self._request_close = request_close
         self._disconnected = disconnected
@@ -73,10 +127,15 @@ class RpcRawSocket:
         return self._messages
 
     @property
+    def protocol(self) -> RpcSocketProtocol | None:
+        """The application protocol this endpoint declared, if any."""
+        return self._protocol
+
+    @property
     def closed(self) -> bool:
         return self._connection.closed or self._connection.close_code is not None
 
-    async def receive(self) -> RpcRawMessage:
+    async def receive(self) -> RpcSocketMessage:
         """Wait for the next client message; ``str`` is text, ``bytes`` binary."""
         if self.closed and self._queue.empty():
             raise RpcDisconnect(
@@ -88,7 +147,7 @@ class RpcRawSocket:
     def __aiter__(self) -> Self:
         return self
 
-    async def __anext__(self) -> RpcRawMessage:
+    async def __anext__(self) -> RpcSocketMessage:
         try:
             return await self.receive()
         except RpcDisconnect:
@@ -101,12 +160,12 @@ class RpcRawSocket:
         elif isinstance(message, bytes | bytearray | memoryview):
             message_type = RpcMessageType.BINARY
         else:
-            raise TypeError("RpcRawSocket.send() expects str or bytes")
+            raise TypeError("RpcSocket.send() expects str or bytes")
         if message_type not in self._messages:
-            raise TypeError(f"This raw socket does not send {message_type} messages")
+            raise TypeError(f"This socket does not send {message_type} messages")
         async with self._lock:
             if self.closed:
-                raise RpcDisconnect(reason="The raw socket is closed")
+                raise RpcDisconnect(reason="The socket is closed")
             try:
                 async with asyncio.timeout(self._send_timeout):
                     if isinstance(message, str):
@@ -142,5 +201,5 @@ class RpcRawSocket:
         """Close the connection and cancel its handler."""
         await self._connection.close(close, reason=reason)
 
-    async def _put(self, message: RpcRawMessage) -> None:
+    async def _put(self, message: RpcSocketMessage) -> None:
         await self._queue.put(message)
