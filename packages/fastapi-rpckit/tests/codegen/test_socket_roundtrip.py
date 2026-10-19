@@ -95,10 +95,12 @@ def client_package(tmp_path_factory: pytest.TempPathFactory) -> Iterator[ModuleT
 class LoopbackSocket:
     """A raw socket transport served by the real runtime over an in-memory socket."""
 
-    def __init__(self, package: ModuleType, path: str) -> None:
+    def __init__(
+        self, package: ModuleType, path: str, rpc: RpcService = service
+    ) -> None:
         self._package = package
         self.socket = InMemorySocket(path)
-        self.task = asyncio.create_task(service.serve(self.socket))
+        self.task = asyncio.create_task(rpc.serve(self.socket))
         self._closed: Exception | None = None
 
     async def receive(self) -> str | bytes:

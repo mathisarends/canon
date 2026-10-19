@@ -56,8 +56,8 @@ class SocketBinding:
 
     Python: ``open(socket: AbstractAsyncContextManager[Socket])`` returns an
     ``AbstractAsyncContextManager[session]``; import ``Socket`` from
-    ``..sockets``. TypeScript: ``open(socket: Socket)`` returns ``session``;
-    import ``Socket`` from ``"../sockets"``.
+    ``..sockets``. TypeScript: ``open(socket: Socket)`` returns ``session`` or
+    a promise of it; import ``Socket`` from ``"../sockets"``.
     """
 
     module: str

@@ -840,7 +840,7 @@ export class RpcClientCore {
     connect: (
       transport: SocketTransport,
       endpoint: SocketEndpoint,
-    ) => Connection,
+    ) => Connection | Promise<Connection>,
   ): Promise<Connection> {
     if (this.socketOpener === undefined) {
       throw new RpcStreamsUnavailableError(

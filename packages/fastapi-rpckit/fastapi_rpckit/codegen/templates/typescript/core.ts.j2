@@ -842,7 +842,7 @@ export class RpcStreamRefused extends RpcStreamFailed {}
     connect: (
       transport: SocketTransport,
       endpoint: SocketEndpoint,
-    ) => Connection,
+    ) => Connection | Promise<Connection>,
   ): Promise<Connection> {
     if (this.socketOpener === undefined) {
       throw new RpcStreamsUnavailableError(

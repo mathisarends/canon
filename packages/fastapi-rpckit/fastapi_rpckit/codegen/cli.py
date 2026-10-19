@@ -212,17 +212,22 @@ def _generate_config(path: Path, *, check: bool) -> int:
 
     contract_document = json.loads(contract_job[1]) if contract_job else None
     rendered: list[tuple[argparse.Namespace, dict[str, str]]] = []
-    for arguments in arguments_list:
-        document = (
-            contract_document
-            if contract_job is not None and arguments.schema == contract_job[0]
-            else json.loads(arguments.schema.read_text(encoding="utf-8"))
-        )
-        try:
-            rendered.append((arguments, _render_client(arguments, document)))
-        except (OSError, SyntaxError, UnsupportedSchemaError, ValueError) as error:
-            print(f"error: Invalid client: {error}", file=sys.stderr)
-            return 2
+    # Bindings named as module:attr resolve relative to the config file.
+    sys.path.insert(0, str(path.parent.resolve()))
+    try:
+        for arguments in arguments_list:
+            document = (
+                contract_document
+                if contract_job is not None and arguments.schema == contract_job[0]
+                else json.loads(arguments.schema.read_text(encoding="utf-8"))
+            )
+            try:
+                rendered.append((arguments, _render_client(arguments, document)))
+            except (OSError, SyntaxError, UnsupportedSchemaError, ValueError) as error:
+                print(f"error: Invalid client: {error}", file=sys.stderr)
+                return 2
+    finally:
+        sys.path.pop(0)
 
     changed_contract: tuple[Path, ...] = ()
     if contract_job is not None:
