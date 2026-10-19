@@ -1,6 +1,6 @@
-# Raw sockets
+# Sockets
 
-A raw socket is a WebSocket endpoint that carries another protocol unchanged.
+A socket is a WebSocket endpoint that carries its messages unchanged.
 fastapi_rpckit owns acceptance, dependencies, limits, cancellation, and closure, and
 passes every text and binary message through without JSON parsing, JSON-RPC
 envelopes, or framing. Use it to proxy a native protocol such as the Chrome
@@ -8,10 +8,10 @@ DevTools Protocol (CDP), whose existing clients must keep speaking their own
 wire format.
 
 Use a [binary stream](streams.md) when you control the protocol and only move
-bytes. Use a raw socket when the messages belong to someone else's protocol,
+bytes. Use a socket when the messages belong to someone else's protocol,
 or when text and binary messages must keep their type.
 
-## Declare and mount a raw socket
+## Declare and mount a socket
 
 ```python
 import asyncio
@@ -20,7 +20,7 @@ from fastapi_rpckit import (
     Inject,
     RpcChannel,
     RpcErrorBinding,
-    RpcRawSocket,
+    RpcSocket,
     RpcRejection,
     RpcService,
 )
@@ -44,8 +44,8 @@ CDP_UNAVAILABLE = RpcErrorBinding(
 browser = RpcChannel("browser")
 
 
-@browser.raw_socket("cdp", closes=(UNKNOWN_BROWSER, CDP_UNAVAILABLE))
-async def cdp(socket: Inject[RpcRawSocket], browsers: Inject[BrowserService]) -> None:
+@browser.socket("cdp", closes=(UNKNOWN_BROWSER, CDP_UNAVAILABLE))
+async def cdp(socket: Inject[RpcSocket], browsers: Inject[BrowserService]) -> None:
     async with browsers.connect_page_cdp() as upstream:
 
         async def to_upstream() -> None:
@@ -60,14 +60,20 @@ async def cdp(socket: Inject[RpcRawSocket], browsers: Inject[BrowserService]) ->
 
 
 app = RpcService()
-app.raw_socket("/browser/cdp", cdp)
+app.socket("/browser/cdp", cdp)
 ```
 
 The handler is an async function that returns `None` and injects
-`RpcRawSocket` exactly once. Its operation name is `browser.cdp`, and the
+`RpcSocket` exactly once. Its operation name is `browser.cdp`, and the
 mounted path becomes its own WebSocket endpoint. Handler parameters without
 `Inject[...]` are path variables, validated before the handshake is accepted,
 exactly as for [binary streams](streams.md#path-variables).
+
+`RpcService.socket()` mounts both kinds of WebSocket endpoint. With
+`channels=...` it serves rpckit's managed JSON-RPC protocol. With a handler
+decorated by `@channel.socket()` it serves a socket whose messages belong to
+the handler. JSON-RPC-only options such as `error_mapper=`, `path_model=`, and
+`close_when_events_complete=` are rejected for socket handlers.
 
 `messages=` declares the accepted message types and defaults to
 `(RpcMessageType.TEXT, RpcMessageType.BINARY)`. fastapi_rpckit closes the socket with
@@ -131,7 +137,7 @@ close with `socket.close()` also cancels the handler at its next `await`.
 
 ## FastAPI and dependencies
 
-Raw socket endpoints mount like any other endpoint, with `create_router()` or
+Socket endpoints mount like any other endpoint, with `create_router()` or
 `RpcRoutes.mount()`. The route's context function, `rejects=`, rejections,
 middleware, and a Dishka resolver apply unchanged:
 
@@ -140,19 +146,19 @@ routes = RpcRoutes(router, context=open_session, resolver=Dishka())
 routes.mount(app.endpoint("cdp"))
 ```
 
-Connection middleware sees raw sockets as connections. Every
+Connection middleware sees sockets as connections. Every
 message increments the `stream_frame_sent` and `stream_frame_received`
 callbacks, so the OpenTelemetry `fastapi_rpckit.stream.frames` and
-`fastapi_rpckit.stream.bytes` counters include them. Raw sockets do not open a
+`fastapi_rpckit.stream.bytes` counters include them. Sockets do not open a
 `stream` middleware scope.
 
-To test a raw socket without a server, use `RpcTestClient` with
+To test a socket without a server, use `RpcTestClient` with
 `send_message()` and `next_message()`.
 
 ## Contract and generated clients
 
-Raw sockets are not JSON-RPC methods. The contract lists them in
-`x-rpckit-raw-sockets` with their URL, URL variables, message types,
+Sockets are not JSON-RPC methods. The contract lists them in
+`x-rpckit-sockets` with their URL, URL variables, message types,
 subprotocols, and declared close outcomes:
 
 ```json
@@ -172,7 +178,7 @@ structured details. Generated clients therefore raise transport errors for
 them. Errors inside the proxied protocol, such as CDP command errors, pass
 through as ordinary messages.
 
-Both generators place a raw socket on the namespace tree of its name:
+Both generators place a socket on the namespace tree of its name:
 
 ```python
 async with AutomationClient.connect(host="api.example.com") as client:
@@ -197,10 +203,10 @@ normally; `receive()` then raises `RpcStreamClosed`. Other close codes raise
 `RpcStreamRefused`. A rejected handshake fails before a socket exists: Python
 raises the `websockets` handshake error, TypeScript rejects with an `Error`.
 
-`connect()` accepts `raw_socket_factory` (`rawSocketFactory` and
-`rawSocketQueueSize` in TypeScript) to customize the socket. Clients built
-with `with_transports()` take a `raw_socket_opener` / `rawSocketOpener`;
-without one, opening a raw socket raises `RpcStreamsUnavailableError`.
+`connect()` accepts `socket_connection_factory` (`socketConnectionFactory` and
+`socketQueueSize` in TypeScript) to customize the socket. Clients built
+with `with_transports()` take a `socket_opener` / `socketOpener`;
+without one, opening a socket raises `RpcStreamsUnavailableError`.
 Request correlation, sessions, reconnection, and replay stay with the
 protocol's own client library, such as an existing CDP client.
 

@@ -4,46 +4,46 @@
 
 import { RpcStreamClosed, RpcStreamFailed, RpcStreamRefused } from "./core";
 
-export type RawSocketName = "browser.cdp";
+export type SocketName = "browser.cdp";
 
-export type RawMessageType = "text" | "binary";
+export type SocketMessageType = "text" | "binary";
 
 /** A text message arrives as a string, a binary message as an ArrayBuffer. */
-export type RawMessage = string | ArrayBuffer;
+export type SocketMessage = string | ArrayBuffer;
 
-export type RawSocketEndpoint = {
-  readonly name: RawSocketName;
+export type SocketEndpoint = {
+  readonly name: SocketName;
   readonly url: string | URL;
-  readonly messageTypes: readonly RawMessageType[];
+  readonly messageTypes: readonly SocketMessageType[];
   readonly subprotocols?: readonly string[];
 };
 
 /** Rejects `receive()` with `RpcStreamClosed` once the server closed normally. */
-export type RawSocketTransport = {
-  receive(): Promise<RawMessage>;
+export type SocketTransport = {
+  receive(): Promise<SocketMessage>;
   send(message: string | ArrayBuffer | ArrayBufferView): Promise<void>;
   close(): Promise<void>;
 };
 
-export type RawSocketOpener = (
-  endpoint: RawSocketEndpoint,
-) => Promise<RawSocketTransport>;
+export type SocketOpener = (
+  endpoint: SocketEndpoint,
+) => Promise<SocketTransport>;
 
 /** Sends and receives text and binary messages as-is. */
-export class RawSocket implements AsyncIterable<RawMessage> {
-  readonly endpoint: RawSocketEndpoint;
-  readonly #transport: RawSocketTransport;
+export class Socket implements AsyncIterable<SocketMessage> {
+  readonly endpoint: SocketEndpoint;
+  readonly #transport: SocketTransport;
 
-  constructor(transport: RawSocketTransport, endpoint: RawSocketEndpoint) {
+  constructor(transport: SocketTransport, endpoint: SocketEndpoint) {
     this.#transport = transport;
     this.endpoint = endpoint;
   }
 
-  receive(): Promise<RawMessage> {
+  receive(): Promise<SocketMessage> {
     return this.#transport.receive();
   }
 
-  async *[Symbol.asyncIterator](): AsyncIterator<RawMessage> {
+  async *[Symbol.asyncIterator](): AsyncIterator<SocketMessage> {
     try {
       while (true) yield await this.receive();
     } catch (error) {
@@ -53,12 +53,12 @@ export class RawSocket implements AsyncIterable<RawMessage> {
 
   /** Send one message; a string is sent as text, bytes as binary. */
   send(message: string | ArrayBuffer | ArrayBufferView): Promise<void> {
-    const messageType: RawMessageType =
+    const messageType: SocketMessageType =
       typeof message === "string" ? "text" : "binary";
     if (!this.endpoint.messageTypes.includes(messageType)) {
       return Promise.reject(
         new TypeError(
-          `The raw socket ${this.endpoint.name} does not accept ${messageType} messages`,
+          `The socket ${this.endpoint.name} does not accept ${messageType} messages`,
         ),
       );
     }
@@ -74,10 +74,10 @@ export class RawSocket implements AsyncIterable<RawMessage> {
   }
 }
 
-export type RawSocketInfo = {
-  readonly name: RawSocketName;
+export type SocketInfo = {
+  readonly name: SocketName;
   readonly url: string;
-  readonly messageTypes: readonly RawMessageType[];
+  readonly messageTypes: readonly SocketMessageType[];
   readonly subprotocols?: readonly string[];
   readonly variables?: Readonly<
     Record<
@@ -90,7 +90,7 @@ export type RawSocketInfo = {
   >;
 };
 
-export const rawSockets = {
+export const sockets = {
   browserCdp: {
     name: "browser.cdp",
     url: "wss://{host}/browser/cdp",
@@ -101,23 +101,21 @@ export const rawSockets = {
       },
     },
   },
-} as const satisfies Record<string, RawSocketInfo>;
+} as const satisfies Record<string, SocketInfo>;
 
-export type RawSocketVariables = Readonly<Record<string, string | undefined>>;
+export type SocketVariables = Readonly<Record<string, string | undefined>>;
 
 /** Fill a socket URL from the call's values, then the client's connect values. */
-export function resolveRawSocketEndpoint(
-  socket: RawSocketInfo,
-  connected: RawSocketVariables = {},
-  values: RawSocketVariables = {},
-): RawSocketEndpoint {
+export function resolveSocketEndpoint(
+  socket: SocketInfo,
+  connected: SocketVariables = {},
+  values: SocketVariables = {},
+): SocketEndpoint {
   let url = socket.url;
   for (const [name, variable] of Object.entries(socket.variables ?? {})) {
     const value = values[name] ?? connected[name] ?? variable.default;
     if (variable.enum !== undefined && !variable.enum.includes(value)) {
-      throw new Error(
-        `Invalid value for raw socket variable ${name}: ${value}`,
-      );
+      throw new Error(`Invalid value for socket variable ${name}: ${value}`);
     }
     url = url.replaceAll(`{${name}}`, value);
   }
@@ -129,26 +127,26 @@ export function resolveRawSocketEndpoint(
   };
 }
 
-export type RawWebSocketFactory = (
+export type SocketConnectionFactory = (
   url: string | URL,
   protocols?: readonly string[],
-) => RawWebSocket;
+) => SocketConnection;
 
-export type RawWebSocketOptions = {
+export type SocketConnectionOptions = {
   readonly incomingQueueSize?: number;
-  readonly socketFactory?: RawWebSocketFactory;
+  readonly socketFactory?: SocketConnectionFactory;
 };
 
-type RawCloseEvent = { readonly code?: number; readonly reason?: string };
+type SocketCloseEvent = { readonly code?: number; readonly reason?: string };
 
-type RawWebSocket = {
+type SocketConnection = {
   binaryType: string;
   readonly readyState: number;
   send(data: string | ArrayBuffer | ArrayBufferView): void;
   close(): void;
   addEventListener(
     type: "open" | "close" | "error",
-    listener: (event?: RawCloseEvent) => void,
+    listener: (event?: SocketCloseEvent) => void,
   ): void;
   addEventListener(
     type: "message",
@@ -156,20 +154,20 @@ type RawWebSocket = {
   ): void;
 };
 
-export class RawWebSocketStream implements RawSocketTransport {
-  readonly endpoint: RawSocketEndpoint;
-  readonly #socket: RawWebSocket;
-  readonly #messages: RawMessageQueue;
+export class SocketConnectionStream implements SocketTransport {
+  readonly endpoint: SocketEndpoint;
+  readonly #socket: SocketConnection;
+  readonly #messages: SocketMessageQueue;
   #closed = false;
 
   private constructor(
-    socket: RawWebSocket,
-    endpoint: RawSocketEndpoint,
+    socket: SocketConnection,
+    endpoint: SocketEndpoint,
     incomingQueueSize: number,
   ) {
     this.#socket = socket;
     this.endpoint = endpoint;
-    this.#messages = new RawMessageQueue(incomingQueueSize);
+    this.#messages = new SocketMessageQueue(incomingQueueSize);
     socket.binaryType = "arraybuffer";
     socket.addEventListener("message", (event) => {
       try {
@@ -178,16 +176,16 @@ export class RawWebSocketStream implements RawSocketTransport {
           event.data instanceof ArrayBuffer
         ) {
           this.#messages.push(event.data);
-        } else throw new Error("The raw WebSocket returned an unknown message");
+        } else throw new Error("The socket returned an unknown message");
       } catch (error) {
         this.#fail(
-          error instanceof Error ? error : new Error("Invalid raw message"),
+          error instanceof Error ? error : new Error("Invalid socket message"),
         );
         socket.close();
       }
     });
     socket.addEventListener("error", () =>
-      this.#fail(new Error("The raw WebSocket connection failed")),
+      this.#fail(new Error("The socket connection failed")),
     );
     socket.addEventListener("close", (event) => {
       const code = event?.code ?? 1000;
@@ -200,10 +198,11 @@ export class RawWebSocketStream implements RawSocketTransport {
   }
 
   static async open(
-    endpoint: RawSocketEndpoint,
-    options: RawWebSocketOptions = {},
-  ): Promise<RawWebSocketStream> {
-    const socketFactory = options.socketFactory ?? defaultRawWebSocketFactory;
+    endpoint: SocketEndpoint,
+    options: SocketConnectionOptions = {},
+  ): Promise<SocketConnectionStream> {
+    const socketFactory =
+      options.socketFactory ?? defaultSocketConnectionFactory;
     const incomingQueueSize = options.incomingQueueSize ?? 100;
     if (!Number.isInteger(incomingQueueSize) || incomingQueueSize <= 0) {
       throw new Error("incomingQueueSize must be a positive integer");
@@ -211,18 +210,18 @@ export class RawWebSocketStream implements RawSocketTransport {
     const socket = socketFactory(endpoint.url, endpoint.subprotocols);
     socket.binaryType = "arraybuffer";
     await waitForOpen(socket);
-    return new RawWebSocketStream(socket, endpoint, incomingQueueSize);
+    return new SocketConnectionStream(socket, endpoint, incomingQueueSize);
   }
 
-  receive(): Promise<RawMessage> {
+  receive(): Promise<SocketMessage> {
     if (this.#closed)
-      return Promise.reject(new RpcStreamClosed("The raw socket is closed"));
+      return Promise.reject(new RpcStreamClosed("The socket is closed"));
     return this.#messages.receive();
   }
 
   send(message: string | ArrayBuffer | ArrayBufferView): Promise<void> {
     if (this.#closed)
-      return Promise.reject(new RpcStreamClosed("The raw socket is closed"));
+      return Promise.reject(new RpcStreamClosed("The socket is closed"));
     this.#socket.send(message);
     return Promise.resolve();
   }
@@ -236,7 +235,7 @@ export class RawWebSocketStream implements RawSocketTransport {
 
   #end(): void {
     this.#closed = true;
-    this.#messages.fail(new RpcStreamClosed("The raw socket is closed"));
+    this.#messages.fail(new RpcStreamClosed("The socket is closed"));
   }
 
   #fail(error: Error): void {
@@ -246,11 +245,11 @@ export class RawWebSocketStream implements RawSocketTransport {
   }
 }
 
-class RawMessageQueue {
+class SocketMessageQueue {
   readonly #capacity: number;
-  readonly #values: RawMessage[] = [];
+  readonly #values: SocketMessage[] = [];
   readonly #waiters: Array<{
-    readonly resolve: (value: RawMessage) => void;
+    readonly resolve: (value: SocketMessage) => void;
     readonly reject: (error: unknown) => void;
   }> = [];
   #failure?: unknown;
@@ -259,7 +258,7 @@ class RawMessageQueue {
     this.#capacity = capacity;
   }
 
-  receive(): Promise<RawMessage> {
+  receive(): Promise<SocketMessage> {
     if (this.#values.length > 0) return Promise.resolve(this.#values.shift()!);
     if (this.#failure !== undefined) return Promise.reject(this.#failure);
     return new Promise((resolve, reject) =>
@@ -267,12 +266,12 @@ class RawMessageQueue {
     );
   }
 
-  push(value: RawMessage): void {
+  push(value: SocketMessage): void {
     const waiter = this.#waiters.shift();
     if (waiter !== undefined) waiter.resolve(value);
     else {
       if (this.#values.length === this.#capacity) {
-        throw new Error("The raw WebSocket message queue overflowed");
+        throw new Error("The socket message queue overflowed");
       }
       this.#values.push(value);
     }
@@ -285,16 +284,16 @@ class RawMessageQueue {
   }
 }
 
-function defaultRawWebSocketFactory(
+function defaultSocketConnectionFactory(
   url: string | URL,
   protocols?: readonly string[],
-): RawWebSocket {
+): SocketConnection {
   const constructor = (
     globalThis as unknown as {
       readonly WebSocket?: new (
         url: string | URL,
         protocols?: readonly string[],
-      ) => RawWebSocket;
+      ) => SocketConnection;
     }
   ).WebSocket;
   if (constructor === undefined) {
@@ -305,15 +304,13 @@ function defaultRawWebSocketFactory(
   return new constructor(url, protocols);
 }
 
-function waitForOpen(socket: RawWebSocket): Promise<void> {
+function waitForOpen(socket: SocketConnection): Promise<void> {
   if (socket.readyState === 1) return Promise.resolve();
   return new Promise((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () =>
-      reject(new Error("Raw WebSocket open failed")),
+      reject(new Error("Socket open failed")),
     );
-    socket.addEventListener("close", () =>
-      reject(new Error("Raw WebSocket closed")),
-    );
+    socket.addEventListener("close", () => reject(new Error("Socket closed")));
   });
 }

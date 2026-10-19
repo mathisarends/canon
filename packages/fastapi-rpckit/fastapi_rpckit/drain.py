@@ -6,7 +6,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from math import isfinite
 
-from .connection import RpcConnection, RpcConnectionClose, RpcRejection, RpcSocket
+from .connection import RpcConnection, RpcConnectionClose, RpcRejection, RpcWebSocket
 
 
 @dataclass(eq=False)
@@ -95,7 +95,9 @@ class RpcDrain:
                 task.add_done_callback(_consume)
 
     @asynccontextmanager
-    async def _session(self, socket: RpcSocket) -> AsyncIterator[_DrainSession | None]:
+    async def _session(
+        self, socket: RpcWebSocket
+    ) -> AsyncIterator[_DrainSession | None]:
         if self.draining:
             await socket.reject(RpcRejection.UNAVAILABLE, "Server restarting")
             yield None

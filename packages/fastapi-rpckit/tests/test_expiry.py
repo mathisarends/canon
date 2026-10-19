@@ -12,8 +12,8 @@ from fastapi_rpckit import (
     RpcConnectionClose,
     RpcConnectionExpiry,
     RpcMiddleware,
-    RpcRawSocket,
     RpcService,
+    RpcSocket,
 )
 from fastapi_rpckit.testing import InMemorySocket, InMemorySocketFactory
 
@@ -53,8 +53,8 @@ def expiring_service(timestamp, *, middleware=()):
         await asyncio.Future()
         yield b"frame"
 
-    @channel.server.raw_socket()
-    async def raw(socket: Inject[RpcRawSocket]) -> None:
+    @channel.server.socket()
+    async def raw(socket: Inject[RpcSocket]) -> None:
         await asyncio.Future()
 
     async def authenticate(handshake):
@@ -63,7 +63,7 @@ def expiring_service(timestamp, *, middleware=()):
     service = RpcService(middleware=middleware)
     service.socket("/rpc", channels=[channel], before_accept=authenticate)
     service.stream("/binary", frames, before_accept=authenticate)
-    service.raw_socket("/raw", raw, before_accept=authenticate)
+    service.socket("/raw", raw, before_accept=authenticate)
     return service
 
 
@@ -212,8 +212,8 @@ async def test_expiry_interrupts_accepted_connection_initialization(
         raise AssertionError("Expired connection must not start a stream")
         yield b""
 
-    @channel.raw_socket()
-    async def raw(socket: Inject[RpcRawSocket], dependency: Inject[Dependency]) -> None:
+    @channel.socket()
+    async def raw(socket: Inject[RpcSocket], dependency: Inject[Dependency]) -> None:
         raise AssertionError("Expired connection must not start a handler")
 
     async def authenticate(handshake):
@@ -222,7 +222,7 @@ async def test_expiry_interrupts_accepted_connection_initialization(
     service = RpcService(middleware=[Instrumentation()])
     service.socket("/rpc", channels=[channel], before_accept=authenticate)
     service.stream("/binary", frames, before_accept=authenticate)
-    service.raw_socket("/raw", raw, before_accept=authenticate)
+    service.socket("/raw", raw, before_accept=authenticate)
     socket = InMemorySocket(path)
     serving = asyncio.create_task(service.serve(socket, resolver=Resolver()))
     try:

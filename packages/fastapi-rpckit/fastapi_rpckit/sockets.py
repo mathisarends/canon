@@ -9,7 +9,7 @@ from fastapi_rpckit.connection import (
     RpcConnectionClose,
     RpcDisconnect,
     RpcLimits,
-    RpcSocket,
+    RpcWebSocket,
 )
 
 
@@ -18,10 +18,10 @@ class RpcMessageType(StrEnum):
     BINARY = "binary"
 
 
-type RpcRawMessage = str | bytes
+type RpcSocketMessage = str | bytes
 
 
-class RpcRawSocket:
+class RpcSocket:
     """An accepted WebSocket that passes text and binary messages through as-is.
 
     Iteration ends when the connection closes. fastapi_rpckit cancels the handler when
@@ -42,12 +42,12 @@ class RpcRawSocket:
     )
 
     def __init__(self) -> None:
-        raise TypeError("RpcRawSocket instances are created by fastapi_rpckit")
+        raise TypeError("RpcSocket instances are created by fastapi_rpckit")
 
     @classmethod
     def _create(
         cls,
-        socket: RpcSocket,
+        socket: RpcWebSocket,
         connection: RpcConnection,
         messages: tuple[RpcMessageType, ...],
         limits: RpcLimits,
@@ -61,7 +61,7 @@ class RpcRawSocket:
         self._messages = messages
         self._activity = activity
         self._send_timeout = limits.send_timeout
-        self._queue = asyncio.Queue[RpcRawMessage](limits.max_queue_size)
+        self._queue = asyncio.Queue[RpcSocketMessage](limits.max_queue_size)
         self._lock = asyncio.Lock()
         self._request_close = request_close
         self._disconnected = disconnected
@@ -76,7 +76,7 @@ class RpcRawSocket:
     def closed(self) -> bool:
         return self._connection.closed or self._connection.close_code is not None
 
-    async def receive(self) -> RpcRawMessage:
+    async def receive(self) -> RpcSocketMessage:
         """Wait for the next client message; ``str`` is text, ``bytes`` binary."""
         if self.closed and self._queue.empty():
             raise RpcDisconnect(
@@ -88,7 +88,7 @@ class RpcRawSocket:
     def __aiter__(self) -> Self:
         return self
 
-    async def __anext__(self) -> RpcRawMessage:
+    async def __anext__(self) -> RpcSocketMessage:
         try:
             return await self.receive()
         except RpcDisconnect:
@@ -101,12 +101,12 @@ class RpcRawSocket:
         elif isinstance(message, bytes | bytearray | memoryview):
             message_type = RpcMessageType.BINARY
         else:
-            raise TypeError("RpcRawSocket.send() expects str or bytes")
+            raise TypeError("RpcSocket.send() expects str or bytes")
         if message_type not in self._messages:
-            raise TypeError(f"This raw socket does not send {message_type} messages")
+            raise TypeError(f"This socket does not send {message_type} messages")
         async with self._lock:
             if self.closed:
-                raise RpcDisconnect(reason="The raw socket is closed")
+                raise RpcDisconnect(reason="The socket is closed")
             try:
                 async with asyncio.timeout(self._send_timeout):
                     if isinstance(message, str):
@@ -142,5 +142,5 @@ class RpcRawSocket:
         """Close the connection and cancel its handler."""
         await self._connection.close(close, reason=reason)
 
-    async def _put(self, message: RpcRawMessage) -> None:
+    async def _put(self, message: RpcSocketMessage) -> None:
         await self._queue.put(message)

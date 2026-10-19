@@ -24,7 +24,7 @@ from fastapi_rpckit.connection import (
     RpcReject,
     RpcRejection,
     RpcRejections,
-    RpcSocket,
+    RpcWebSocket,
     rejection_for,
 )
 from fastapi_rpckit.constants import LOGGER_NAME
@@ -61,9 +61,9 @@ from fastapi_rpckit.middleware import (
     _serving_scope,
     _stream_scope,
 )
-from fastapi_rpckit.raw_sockets import RpcMessageType, RpcRawSocket
 from fastapi_rpckit.server import _CLIENT_CANCEL, RpcErrorMapper, RpcServer
-from fastapi_rpckit.service import RpcEndpoint, RpcRawSocketEndpoint, RpcStreamEndpoint
+from fastapi_rpckit.service import RpcEndpoint, RpcSocketEndpoint, RpcStreamEndpoint
+from fastapi_rpckit.sockets import RpcMessageType, RpcSocket
 from fastapi_rpckit.streams import (
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -158,7 +158,7 @@ async def _prepare(
 
 async def serve_endpoint(
     endpoint: RpcEndpoint,
-    socket: RpcSocket,
+    socket: RpcWebSocket,
     *,
     resolver: RpcResolverLike | None = None,
     context: object | Mapping[type[Any], object] | None = None,
@@ -191,7 +191,7 @@ async def serve_endpoint(
 
 async def _serve_endpoint(
     endpoint: RpcEndpoint,
-    socket: RpcSocket,
+    socket: RpcWebSocket,
     *,
     resolver: RpcResolverLike | None = None,
     context: object | Mapping[type[Any], object] | None = None,
@@ -819,7 +819,7 @@ async def _event_source(event, resolver, send, activity, rejections, server):
 
 async def serve_stream_endpoint(
     endpoint: RpcStreamEndpoint,
-    socket: RpcSocket,
+    socket: RpcWebSocket,
     *,
     resolver: RpcResolverLike | None = None,
     context: object | Mapping[type[Any], object] | None = None,
@@ -852,7 +852,7 @@ async def serve_stream_endpoint(
 
 async def _serve_stream_endpoint(
     endpoint: RpcStreamEndpoint,
-    socket: RpcSocket,
+    socket: RpcWebSocket,
     *,
     resolver: RpcResolverLike | None = None,
     context: object | Mapping[type[Any], object] | None = None,
@@ -900,7 +900,7 @@ async def _serve_stream_endpoint(
 
 @asynccontextmanager
 async def _accepted(
-    socket: RpcSocket,
+    socket: RpcWebSocket,
     connection: RpcConnection,
 ) -> AsyncGenerator[None, None]:
     """Close accepted sockets even when expiry interrupts their initialization."""
@@ -1156,9 +1156,9 @@ def _is_input_end(frame: str) -> bool:
     return True
 
 
-async def serve_raw_socket_endpoint(
-    endpoint: RpcRawSocketEndpoint,
-    socket: RpcSocket,
+async def serve_socket_endpoint(
+    endpoint: RpcSocketEndpoint,
+    socket: RpcWebSocket,
     *,
     resolver: RpcResolverLike | None = None,
     context: object | Mapping[type[Any], object] | None = None,
@@ -1179,7 +1179,7 @@ async def serve_raw_socket_endpoint(
             socket,
             resolver,
             context,
-            endpoint.raw_socket.path_model,
+            endpoint.socket.path_model,
             before_accept,
             rejections,
         )
@@ -1189,7 +1189,7 @@ async def serve_raw_socket_endpoint(
         activity = None if state is None else state.activity
         async with _accepted(socket, connection):
             await notify_activity(activity, "connection_opened", connection)
-            await _run_raw_socket(
+            await _run_socket(
                 endpoint,
                 socket,
                 connection,
@@ -1202,9 +1202,9 @@ async def serve_raw_socket_endpoint(
             )
 
 
-async def _run_raw_socket(
-    endpoint: RpcRawSocketEndpoint,
-    socket: RpcSocket,
+async def _run_socket(
+    endpoint: RpcSocketEndpoint,
+    socket: RpcWebSocket,
     connection: RpcConnection,
     resolved,
     values,
@@ -1213,7 +1213,7 @@ async def _run_raw_socket(
     rejections: RpcRejections | None,
     activity: _Activity | None,
 ) -> None:
-    definition = endpoint.raw_socket
+    definition = endpoint.socket
     closes = bind_contracts(definition.closes)
     close_event = asyncio.Event()
     close_value = [RpcConnectionClose.NORMAL, ""]
@@ -1252,17 +1252,17 @@ async def _run_raw_socket(
             try:
                 rejected = binding.reject(failure)
             except Exception:
-                logger.exception("RPC raw socket close binding failed")
+                logger.exception("RPC socket close binding failed")
         if rejected is None:
             rejected = _rejection(failure, rejections)
         if rejected is not None:
             request_close(REJECTION_CLOSES[rejected.rejection], rejected.reason)
             return
-        logger.error("RPC raw socket %s failed", definition.name, exc_info=failure)
+        logger.error("RPC socket %s failed", definition.name, exc_info=failure)
         request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
 
     connection._set_close_handler(request_close)
-    raw_socket = RpcRawSocket._create(
+    socket_handle = RpcSocket._create(
         socket,
         connection,
         definition.messages,
@@ -1271,7 +1271,7 @@ async def _run_raw_socket(
         request_close,
         client_disconnected,
     )
-    values = {**values, RpcRawSocket: raw_socket}
+    values = {**values, RpcSocket: socket_handle}
     try:
         async with (
             connection_scope(resolved, values) as scoped,
@@ -1316,7 +1316,7 @@ async def _run_raw_socket(
                                 f"Unsupported {message_type} message",
                             )
                             return
-                        await raw_socket._put(message)
+                        await socket_handle._put(message)
                         await notify_activity(
                             activity, "stream_frame_received", connection, size
                         )
@@ -1324,7 +1324,7 @@ async def _run_raw_socket(
                     client_disconnected(error)
                 except Exception as error:
                     _record_error(error)
-                    logger.exception("RPC raw socket reader failed")
+                    logger.exception("RPC socket reader failed")
                     request_close(RpcConnectionClose.INTERNAL_ERROR, "Internal error")
 
             tasks = [asyncio.create_task(handle()), asyncio.create_task(read())]

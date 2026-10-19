@@ -1094,7 +1094,7 @@
       }
     }
   ],
-  "x-rpckit-raw-sockets": [
+  "x-rpckit-sockets": [
     {
       "name": "browser.cdp",
       "url": "wss://{host}/browser/cdp",

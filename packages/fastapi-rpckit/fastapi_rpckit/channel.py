@@ -31,22 +31,22 @@ from fastapi_rpckit.protocol import (
     RpcClientMethod,
     RpcNotificationDefinition,
     RpcProtocol,
-    RpcRawSocketDefinition,
+    RpcSocketDefinition,
     RpcStreamDefinition,
     RpcSubscriptionDefinition,
     client_method_definition,
     method_definition,
     notification_definition,
     notification_type_definitions,
-    raw_socket_definition,
+    socket_definition,
     stream_definition,
     subscription_definition,
 )
-from fastapi_rpckit.raw_sockets import RpcMessageType
 from fastapi_rpckit.server import (
     RpcErrorMapper,
     RpcServer,
 )
+from fastapi_rpckit.sockets import RpcMessageType
 
 
 class _TimeoutDefault(Enum):
@@ -327,10 +327,10 @@ class RpcServerDeclarations:
         return decorate
 
     @overload
-    def raw_socket(self, function: FunctionType, /) -> FunctionType: ...
+    def socket(self, function: FunctionType, /) -> FunctionType: ...
 
     @overload
-    def raw_socket(
+    def socket(
         self,
         name: str | None = None,
         /,
@@ -343,7 +343,7 @@ class RpcServerDeclarations:
         summary: str | None = None,
     ) -> Callable[[FunctionType], FunctionType]: ...
 
-    def raw_socket(
+    def socket(
         self,
         name: str | FunctionType | None = None,
         /,
@@ -355,7 +355,7 @@ class RpcServerDeclarations:
         closes: Iterable[RpcErrorBinding[Any]] = (),
         summary: str | None = None,
     ) -> Any:
-        """Declare a WebSocket that passes text and binary messages through as-is.
+        """Declare a WebSocket endpoint that passes its messages through as-is.
 
         ``closes`` binds the exceptions the handler may raise to the close code
         and reason the client receives.
@@ -363,38 +363,36 @@ class RpcServerDeclarations:
         channel = self._channel
         channel._ensure_mutable()
         if isinstance(name, FunctionType):
-            return self.raw_socket()(name)
+            return self.socket()(name)
         if name is not None and not isinstance(name, str):
             raise ProtocolDefinitionError(
-                "RPC raw socket decorator expects a function or name"
+                "RPC socket decorator expects a function or name"
             )
         try:
             declared = frozenset(RpcMessageType(item) for item in messages)
         except ValueError as error:
             raise ProtocolDefinitionError(
-                "RPC raw socket messages must be RpcMessageType values"
+                "RPC socket messages must be RpcMessageType values"
             ) from error
         if not declared:
-            raise ProtocolDefinitionError(
-                "RPC raw socket needs at least one message type"
-            )
+            raise ProtocolDefinitionError("RPC socket needs at least one message type")
         message_types = tuple(item for item in RpcMessageType if item in declared)
 
         def decorate(function: FunctionType) -> FunctionType:
-            channel._validate_function(function, "raw socket", coroutine=False)
-            local = _name(name or function.__name__, "raw socket name")
+            channel._validate_function(function, "socket", coroutine=False)
+            local = _name(name or function.__name__, "socket name")
             wire_name = join_rpc_name(channel.namespace, local)
-            definition = raw_socket_definition(
+            definition = socket_definition(
                 name=wire_name,
                 function=function,
                 messages=message_types,
-                closes=rejecting_contracts(closes, f"RPC raw socket {wire_name}"),
+                closes=rejecting_contracts(closes, f"RPC socket {wire_name}"),
                 summary=summary or _docstring_summary(function),
                 resolver_scope=channel.resolver_scope,
             )
             channel._reserve(wire_name)
-            channel._raw_sockets.append(definition)
-            function.__dict__["__rpckit_raw_socket__"] = channel, local
+            channel._sockets.append(definition)
+            function.__dict__["__rpckit_socket__"] = channel, local
             return function
 
         return decorate
@@ -433,7 +431,7 @@ class RpcChannel(RpcServerDeclarations):
         self._events: list[RpcNotificationDefinition] = []
         self._subscriptions: list[RpcSubscriptionDefinition] = []
         self._streams: list[RpcStreamDefinition] = []
-        self._raw_sockets: list[RpcRawSocketDefinition] = []
+        self._sockets: list[RpcSocketDefinition] = []
         self._client_methods: list[RpcClientMethod[Any, Any]] = []
         self._children: list[RpcChannel] = []
         self._names: set[str] = set()
@@ -474,8 +472,8 @@ class RpcChannel(RpcServerDeclarations):
         return tuple(self._streams)
 
     @property
-    def raw_sockets(self) -> tuple[RpcRawSocketDefinition, ...]:
-        return tuple(self._raw_sockets)
+    def sockets(self) -> tuple[RpcSocketDefinition, ...]:
+        return tuple(self._sockets)
 
     @property
     def client_methods(self) -> tuple[RpcClientMethod[Any, Any], ...]:
@@ -551,7 +549,7 @@ class RpcChannel(RpcServerDeclarations):
                 for item in notification_type_definitions(event.payload)
             ]
             streams = list(self.streams)
-            raw_sockets = list(self.raw_sockets)
+            sockets = list(self.sockets)
             client_methods = list(self.client_methods)
             for child in self.children:
                 protocol = child.freeze()
@@ -560,7 +558,7 @@ class RpcChannel(RpcServerDeclarations):
                 subscriptions.extend(protocol.subscriptions)
                 notification_types.extend(protocol.notification_types)
                 streams.extend(protocol.streams)
-                raw_sockets.extend(protocol.raw_sockets)
+                sockets.extend(protocol.sockets)
                 client_methods.extend(protocol.client_methods)
             duplicate_requests = {
                 name
@@ -583,7 +581,7 @@ class RpcChannel(RpcServerDeclarations):
                 notification_types=notification_types,
                 streams=streams,
                 client_methods=client_methods,
-                raw_sockets=raw_sockets,
+                sockets=sockets,
             )
         return self._protocol
 

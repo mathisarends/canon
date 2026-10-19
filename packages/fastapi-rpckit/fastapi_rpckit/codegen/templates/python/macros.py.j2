@@ -58,21 +58,21 @@
         )
 {% endmacro %}
 
-{% macro raw_socket(item) %}{% set inline_signature = "    def " ~ (item.operation_name | identifier) ~ "(self) -> AbstractAsyncContextManager[RawSocket]:" %}{% if not item.call_variables and inline_signature | length <= 88 %}{{ inline_signature }}
+{% macro socket_method(item) %}{% set inline_signature = "    def " ~ (item.operation_name | identifier) ~ "(self) -> AbstractAsyncContextManager[Socket]:" %}{% if not item.call_variables and inline_signature | length <= 88 %}{{ inline_signature }}
 {% else %}    def {{ item.operation_name | identifier }}(
         self,
 {% if item.call_variables %}        *,
 {% for variable in item.call_variables %}        {{ variable.name | identifier }}: {{ variable | variable_annotation }} | None = None,
-{% endfor %}{% endif %}    ) -> AbstractAsyncContextManager[RawSocket]:
+{% endfor %}{% endif %}    ) -> AbstractAsyncContextManager[Socket]:
 {% endif %}{% if item.summary %}        """{{ item.summary | docstring }}"""
-{% endif %}        return open_raw_socket(
-            resolve_raw_socket_endpoint(
-                RAW_SOCKETS[RawSocketName.{{ item.name | constant }}],
+{% endif %}        return open_socket(
+            resolve_socket_endpoint(
+                SOCKETS[SocketName.{{ item.name | constant }}],
                 self._rpc.variables,
 {% if item.call_variables %}                {
 {% for variable in item.call_variables %}                    {{ variable.name | literal }}: {{ variable.name | identifier }},
 {% endfor %}                },
 {% endif %}            ),
-            self._rpc.raw_socket_opener,
+            self._rpc.socket_opener,
         )
 {% endmacro %}

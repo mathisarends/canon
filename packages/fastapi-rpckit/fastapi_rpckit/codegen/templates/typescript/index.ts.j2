@@ -32,7 +32,7 @@ export type {
   WebSocketFactory,
   WebSocketOptions,
 } from "./transport";
-{% endif %}{% if binary_streams or raw_sockets %}export {
+{% endif %}{% if binary_streams or sockets %}export {
   RpcStreamClosed,
   RpcStreamFailed,
   RpcStreamRefused,
@@ -56,15 +56,18 @@ export type {
 } from "./streams";
 {% if with_websocket %}export { BinaryWebSocketStream } from "./streams";
 export type { BinaryWebSocketFactory, BinaryWebSocketOptions } from "./streams";
-{% endif %}{% endif %}{% if raw_sockets %}export { RawSocket, rawSockets, resolveRawSocketEndpoint } from "./rawSockets";
+{% endif %}{% endif %}{% if sockets %}export { Socket, sockets, resolveSocketEndpoint } from "./sockets";
 export type {
-  RawMessage,
-  RawMessageType,
-  RawSocketEndpoint,
-  RawSocketName,
-  RawSocketOpener,
-  RawSocketTransport,
-} from "./rawSockets";
-{% if with_websocket %}export { RawWebSocketStream } from "./rawSockets";
-export type { RawWebSocketFactory, RawWebSocketOptions } from "./rawSockets";
+  SocketMessage,
+  SocketMessageType,
+  SocketEndpoint,
+  SocketName,
+  SocketOpener,
+  SocketTransport,
+} from "./sockets";
+{% if with_websocket %}export { SocketConnectionStream } from "./sockets";
+export type {
+  SocketConnectionFactory,
+  SocketConnectionOptions,
+} from "./sockets";
 {% endif %}{% endif %}{% if models %}export type * from "./models";{% endif %}

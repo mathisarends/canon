@@ -4,11 +4,7 @@ import type { RpcTransport as BaseRpcTransport } from {{ transport_module }};
   BinaryStreamEndpoint,
   BinaryStreamOpener,
 } from "./streams";
-{% endif %}{% if raw_sockets %}import type {
-  RawSocketEndpoint,
-  RawSocketOpener,
-  RawSocketTransport,
-} from "./rawSockets";
+{% endif %}{% if sockets %}import type { SocketEndpoint, SocketOpener, SocketTransport } from "./sockets";
 {% endif %}
 
 export type RpcRequestOptions = {
@@ -706,13 +702,13 @@ export class RpcRemoteError extends RpcClientError {
 
 
 
-{% if binary_streams or raw_sockets %}/** No opener was configured for a stream or raw socket of this client. */
+{% if binary_streams or sockets %}/** No opener was configured for a stream or socket of this client. */
 export class RpcStreamsUnavailableError extends RpcClientError {}
 
-/** Raised when a stream or raw socket ended because the server closed it. */
+/** Raised when a stream or socket ended because the server closed it. */
 export class RpcStreamClosed extends RpcClientError {}
 
-/** Raised when the server closed a stream or raw socket with an error code. */
+/** Raised when the server closed a stream or socket with an error code. */
 export class RpcStreamFailed extends RpcClientError {
   readonly code: number;
   readonly reason: string;
@@ -728,7 +724,7 @@ export class RpcStreamFailed extends RpcClientError {
   }
 }
 
-/** Raised when the server refused a stream or raw socket by policy (1008). */
+/** Raised when the server refused a stream or socket by policy (1008). */
 export class RpcStreamRefused extends RpcStreamFailed {}
 
 {% endif %}export class RpcClientCore {
@@ -739,8 +735,8 @@ export class RpcStreamRefused extends RpcStreamFailed {}
   readonly #source: RpcTransportSource;
   readonly #closeTransport: boolean;
 {% if binary_streams %}  readonly streamOpener?: BinaryStreamOpener;
-{% endif %}{% if raw_sockets %}  readonly rawSocketOpener?: RawSocketOpener;
-{% endif %}{% if binary_streams or raw_sockets %}  readonly variables: Readonly<Record<string, string>>;
+{% endif %}{% if sockets %}  readonly socketOpener?: SocketOpener;
+{% endif %}{% if binary_streams or sockets %}  readonly variables: Readonly<Record<string, string>>;
 {% endif %}
   readonly #hubs = new WeakMap<RpcTransport, NotificationHub>();
   readonly #activeHubs = new Set<NotificationHub>();
@@ -783,8 +779,8 @@ export class RpcStreamRefused extends RpcStreamFailed {}
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
 {% if binary_streams %}      readonly streamOpener?: BinaryStreamOpener;
-{% endif %}{% if raw_sockets %}      readonly rawSocketOpener?: RawSocketOpener;
-{% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
+{% endif %}{% if sockets %}      readonly socketOpener?: SocketOpener;
+{% endif %}{% if binary_streams or sockets %}      readonly variables?: Readonly<Record<string, string>>;
 {% endif %}    },
   ) {
     this.#source = isTransportSource(transport)
@@ -813,8 +809,8 @@ export class RpcStreamRefused extends RpcStreamFailed {}
       throw new RpcTransportError("notificationQueueSize must be positive");
     }
 {% if binary_streams %}    this.streamOpener = options?.streamOpener;
-{% endif %}{% if raw_sockets %}    this.rawSocketOpener = options?.rawSocketOpener;
-{% endif %}{% if binary_streams or raw_sockets %}    this.variables = options?.variables ?? {};
+{% endif %}{% if sockets %}    this.socketOpener = options?.socketOpener;
+{% endif %}{% if binary_streams or sockets %}    this.variables = options?.variables ?? {};
 {% endif %}  }
 {% if binary_streams %}
 
@@ -839,21 +835,21 @@ export class RpcStreamRefused extends RpcStreamFailed {}
     }
     return connect(transport as BinaryInputTransport);
   }
-{% endif %}{% if raw_sockets %}
+{% endif %}{% if sockets %}
 
-  async openRawSocket<Connection>(
-    endpoint: RawSocketEndpoint,
+  async openSocket<Connection>(
+    endpoint: SocketEndpoint,
     connect: (
-      transport: RawSocketTransport,
-      endpoint: RawSocketEndpoint,
+      transport: SocketTransport,
+      endpoint: SocketEndpoint,
     ) => Connection,
   ): Promise<Connection> {
-    if (this.rawSocketOpener === undefined) {
+    if (this.socketOpener === undefined) {
       throw new RpcStreamsUnavailableError(
-        "No raw socket opener configured; pass rawSocketOpener",
+        "No socket opener configured; pass socketOpener",
       );
     }
-    return connect(await this.rawSocketOpener(endpoint), endpoint);
+    return connect(await this.socketOpener(endpoint), endpoint);
   }
 {% endif %}
 

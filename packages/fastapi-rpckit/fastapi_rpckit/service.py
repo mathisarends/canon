@@ -4,7 +4,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from types import FunctionType, NoneType
-from typing import Any
+from typing import Any, overload
 from urllib.parse import unquote
 
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ from fastapi_rpckit.connection import (
     RpcLimits,
     RpcRejection,
     RpcRejections,
-    RpcSocket,
+    RpcWebSocket,
     chain_rejections,
 )
 from fastapi_rpckit.contract import RpcContract, ServerVariable
@@ -30,7 +30,7 @@ from fastapi_rpckit.errors import (
 from fastapi_rpckit.middleware import RpcMiddlewareLike
 from fastapi_rpckit.protocol import (
     RpcProtocol,
-    RpcRawSocketDefinition,
+    RpcSocketDefinition,
     RpcStreamDefinition,
 )
 from fastapi_rpckit.server import (
@@ -98,7 +98,7 @@ class RpcEndpoint[ContextT]:
 
     async def serve(
         self,
-        socket: RpcSocket,
+        socket: RpcWebSocket,
         *,
         resolver: RpcResolverLike | None = None,
         context: object | Mapping[type[Any], object] | None = None,
@@ -163,7 +163,7 @@ class RpcStreamEndpoint[ContextT]:
 
     async def serve(
         self,
-        socket: RpcSocket,
+        socket: RpcWebSocket,
         *,
         resolver: RpcResolverLike | None = None,
         context: object | Mapping[type[Any], object] | None = None,
@@ -189,11 +189,11 @@ class RpcStreamEndpoint[ContextT]:
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class RpcRawSocketEndpoint[ContextT]:
+class RpcSocketEndpoint[ContextT]:
     service: "RpcService"
     name: str
     path: str
-    raw_socket: RpcRawSocketDefinition
+    socket: RpcSocketDefinition
     limits: RpcLimits
     subprotocol: str | None
     summary: str | None
@@ -208,7 +208,7 @@ class RpcRawSocketEndpoint[ContextT]:
 
     async def serve(
         self,
-        socket: RpcSocket,
+        socket: RpcWebSocket,
         *,
         resolver: RpcResolverLike | None = None,
         context: object | Mapping[type[Any], object] | None = None,
@@ -217,9 +217,9 @@ class RpcRawSocketEndpoint[ContextT]:
         rejections: RpcRejections | None = None,
         middleware: Sequence[RpcMiddlewareLike] = (),
     ) -> None:
-        from fastapi_rpckit.runtime import serve_raw_socket_endpoint
+        from fastapi_rpckit.runtime import serve_socket_endpoint
 
-        await serve_raw_socket_endpoint(
+        await serve_socket_endpoint(
             self,
             socket,
             resolver=resolver,
@@ -231,9 +231,7 @@ class RpcRawSocketEndpoint[ContextT]:
         )
 
 
-type RpcAnyEndpoint = (
-    RpcEndpoint[Any] | RpcStreamEndpoint[Any] | RpcRawSocketEndpoint[Any]
-)
+type RpcAnyEndpoint = RpcEndpoint[Any] | RpcStreamEndpoint[Any] | RpcSocketEndpoint[Any]
 
 
 class RpcService:
@@ -262,7 +260,7 @@ class RpcService:
         self._endpoints: list[RpcAnyEndpoint] = []
         self._channels: set[RpcChannel] = set()
         self._mounted_streams: set[FunctionType] = set()
-        self._mounted_raw_sockets: set[FunctionType] = set()
+        self._mounted_sockets: set[FunctionType] = set()
         self._protocol: RpcProtocol | None = None
 
     @property
@@ -285,7 +283,89 @@ class RpcService:
     def rejects(self) -> tuple[RpcErrorBinding[Any], ...]:
         return self._rejects
 
+    @overload
     def socket[ContextT](
+        self,
+        path: str,
+        /,
+        *,
+        channels: Sequence[RpcChannel],
+        name: str | None = None,
+        error_mapper: RpcErrorMapper | None = None,
+        middleware: Sequence[RpcMiddlewareLike] = (),
+        limits: RpcLimits | None = None,
+        subprotocol: str | None = None,
+        summary: str | None = None,
+        before_accept: RpcBeforeAccept | None = None,
+        path_model: type[BaseModel] | None = None,
+        context: type[ContextT] = NoneType,
+        close_when_events_complete: bool = False,
+        rejects: Sequence[RpcErrorBinding[Any]] = (),
+    ) -> RpcEndpoint[ContextT]: ...
+
+    @overload
+    def socket[ContextT](
+        self,
+        path: str,
+        handler: Callable[..., Any],
+        /,
+        *,
+        name: str | None = None,
+        middleware: Sequence[RpcMiddlewareLike] = (),
+        limits: RpcLimits | None = None,
+        subprotocol: str | None = None,
+        summary: str | None = None,
+        before_accept: RpcBeforeAccept | None = None,
+        context: type[ContextT] = NoneType,
+        rejects: Sequence[RpcErrorBinding[Any]] = (),
+    ) -> RpcSocketEndpoint[ContextT]: ...
+
+    def socket(
+        self,
+        path: str,
+        handler: Callable[..., Any] | None = None,
+        /,
+        *,
+        channels: Sequence[RpcChannel] | None = None,
+        error_mapper: RpcErrorMapper | None = None,
+        path_model: type[BaseModel] | None = None,
+        close_when_events_complete: bool = False,
+        **options: Any,
+    ) -> RpcEndpoint[Any] | RpcSocketEndpoint[Any]:
+        """Mount a WebSocket endpoint at ``path``.
+
+        Pass ``channels=`` for an rpckit JSON-RPC endpoint, or a function decorated
+        with ``@channel.socket()`` for a socket that carries its own messages.
+        """
+        if handler is None:
+            if channels is None:
+                raise ProtocolDefinitionError(
+                    "rpc.socket() needs channels=... or a @channel.socket() handler"
+                )
+            return self._rpc_socket(
+                path,
+                channels=channels,
+                error_mapper=error_mapper,
+                path_model=path_model,
+                close_when_events_complete=close_when_events_complete,
+                **options,
+            )
+        if channels is not None:
+            raise ProtocolDefinitionError(
+                "rpc.socket() accepts either channels=... or a socket handler"
+            )
+        if (
+            error_mapper is not None
+            or path_model is not None
+            or close_when_events_complete
+        ):
+            raise ProtocolDefinitionError(
+                "error_mapper, path_model and close_when_events_complete only apply "
+                "to JSON-RPC sockets mounted with channels=..."
+            )
+        return self._handler_socket(path, handler, **options)
+
+    def _rpc_socket[ContextT](
         self,
         path: str,
         /,
@@ -408,10 +488,10 @@ class RpcService:
         self._mounted_streams.add(stream)
         return endpoint
 
-    def raw_socket[ContextT](
+    def _handler_socket[ContextT](
         self,
         path: str,
-        raw_socket: Callable[..., Any],
+        handler: Callable[..., Any],
         /,
         *,
         name: str | None = None,
@@ -422,30 +502,29 @@ class RpcService:
         before_accept: RpcBeforeAccept | None = None,
         context: type[ContextT] = NoneType,
         rejects: Sequence[RpcErrorBinding[Any]] = (),
-    ) -> RpcRawSocketEndpoint[ContextT]:
+    ) -> RpcSocketEndpoint[ContextT]:
         self._ensure_mutable()
+        marker = getattr(handler, "__rpckit_socket__", None)
+        if not isinstance(handler, FunctionType) or marker is None:
+            raise ProtocolDefinitionError(
+                "rpc.socket() expects a function decorated by @channel.socket()"
+            )
         variables = _validate_endpoint(self._endpoints, path, name, subprotocol)
         _validate_context(context)
-        marker = getattr(raw_socket, "__rpckit_raw_socket__", None)
-        if not isinstance(raw_socket, FunctionType) or marker is None:
+        if handler in self._mounted_sockets:
             raise ProtocolDefinitionError(
-                "rpc.raw_socket() expects a function decorated by "
-                "@channel.server.raw_socket"
+                "An RPC socket handler can only be mounted once"
             )
-        if raw_socket in self._mounted_raw_sockets:
-            raise ProtocolDefinitionError("An RPC raw socket can only be mounted once")
         channel, _ = marker
-        definition = next(
-            item for item in channel.raw_sockets if item.function is raw_socket
-        )
+        definition = next(item for item in channel.sockets if item.function is handler)
         missing = [p for p in definition.path_parameters if p not in variables]
         if missing:
             raise ProtocolDefinitionError(
-                f"RPC raw socket {definition.name} parameters "
+                f"RPC socket {definition.name} parameters "
                 f"{', '.join(missing)} are not path variables of {path!r}; "
                 "annotate dependencies as Inject[T]"
             )
-        endpoint = RpcRawSocketEndpoint(
+        endpoint = RpcSocketEndpoint(
             self,
             name or _endpoint_name(path),
             path,
@@ -456,12 +535,12 @@ class RpcService:
             variables,
             before_accept,
             None if context is NoneType else context,
-            rejecting_contracts(rejects, f"RPC raw socket {path!r}"),
+            rejecting_contracts(rejects, f"RPC socket {path!r}"),
         )
         self._endpoints.append(endpoint)
         object.__setattr__(endpoint, "middleware", (*self._middleware, *middleware))
         self._channels.add(channel)
-        self._mounted_raw_sockets.add(raw_socket)
+        self._mounted_sockets.add(handler)
         return endpoint
 
     def endpoint(self, name: str) -> RpcAnyEndpoint:
@@ -491,7 +570,7 @@ class RpcService:
         subscriptions = []
         types = []
         streams = []
-        raw_sockets = []
+        sockets = []
         client_methods = []
         owners: dict[str, str] = {}
         errors: dict[str, type] = {}
@@ -548,11 +627,11 @@ class RpcService:
                 _unique_name(owners, endpoint.stream.name, channel.name)
                 streams.append(replace(endpoint.stream, server=endpoint.name))
             else:
-                definition = endpoint.raw_socket
-                channel = definition.function.__rpckit_raw_socket__[0]
+                definition = endpoint.socket
+                channel = definition.function.__rpckit_socket__[0]
                 channel.freeze()
                 _unique_name(owners, definition.name, channel.name)
-                raw_sockets.append(replace(definition, server=endpoint.name))
+                sockets.append(replace(definition, server=endpoint.name))
         all_names = set(owners)
         numeric_codes: dict[int, list[str]] = {}
         for error in errors.values():
@@ -594,14 +673,14 @@ class RpcService:
             notification_types=types,
             streams=streams,
             client_methods=client_methods,
-            raw_sockets=raw_sockets,
+            sockets=sockets,
             version=self.version,
         )
         return self._protocol
 
     async def serve(
         self,
-        socket: RpcSocket,
+        socket: RpcWebSocket,
         *,
         resolver: RpcResolverLike | None = None,
         context: object | Mapping[type[Any], object] | None = None,

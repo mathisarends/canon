@@ -160,7 +160,7 @@ def chain_rejections(*levels: RpcRejections | None) -> RpcRejections | None:
     return reject
 
 
-class RpcSocket(Protocol):
+class RpcWebSocket(Protocol):
     @property
     def handshake(self) -> RpcHandshake: ...
     async def accept(self, subprotocol: str | None = None) -> None: ...
@@ -252,7 +252,10 @@ class RpcConnection:
 
     @classmethod
     def _create(
-        cls, endpoint, socket: RpcSocket, path_params: Mapping[str, str] | None = None
+        cls,
+        endpoint,
+        socket: RpcWebSocket,
+        path_params: Mapping[str, str] | None = None,
     ):
         self = cls.__new__(cls)
         self._endpoint = endpoint.name

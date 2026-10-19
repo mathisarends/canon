@@ -167,7 +167,7 @@ class RpcClientCore:
         middleware: Iterable[RpcClientMiddleware] = (),
         supports_metadata: bool = False,
         stream_opener: Any = None,
-        raw_socket_opener: Any = None,
+        socket_opener: Any = None,
         variables: Mapping[str, str] | None = None,
         notification_queue_size: int = 100,
         on_overflow: RpcNotificationOverflowHandler | None = None,
@@ -197,7 +197,7 @@ class RpcClientCore:
         self._middleware = tuple(middleware)
         self._supports_metadata = supports_metadata
         self.stream_opener = stream_opener
-        self.raw_socket_opener = raw_socket_opener
+        self.socket_opener = socket_opener
         self.variables = MappingProxyType(dict(variables or {}))
         self._closed = False
         self._closing = asyncio.Event()

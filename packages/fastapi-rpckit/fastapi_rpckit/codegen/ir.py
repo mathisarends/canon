@@ -211,7 +211,7 @@ class BinaryStreamDecl:
 
 
 @dataclass(frozen=True, slots=True)
-class RawSocketDecl:
+class SocketDecl:
     rpc_name: str
     operation_name: str
     path: tuple[str, ...]
@@ -236,7 +236,7 @@ class ApiNode:
     operations: tuple[RouteDecl, ...] = ()
     streams: tuple[BinaryStreamDecl, ...] = ()
     children: tuple[ApiNode, ...] = ()
-    raw_sockets: tuple[RawSocketDecl, ...] = ()
+    sockets: tuple[SocketDecl, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,7 +269,7 @@ class ClientIr:
     binary_streams: tuple[BinaryStreamDecl, ...] = ()
     client_methods: tuple[RouteDecl, ...] = ()
     """Requests the server sends and the client answers."""
-    raw_sockets: tuple[RawSocketDecl, ...] = ()
+    sockets: tuple[SocketDecl, ...] = ()
 
     @property
     def models(self) -> tuple[ModelDecl, ...]:
@@ -299,19 +299,18 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         variable.name for server in servers for variable in server.variables
     }
     binary_streams = _binary_streams(document, server_variables)
-    raw_sockets = _raw_sockets(document, server_variables)
+    sockets = _sockets(document, server_variables)
     duplicates = sorted(
-        {stream.name for stream in binary_streams}
-        & {socket.name for socket in raw_sockets}
+        {stream.name for stream in binary_streams} & {socket.name for socket in sockets}
     )
     if duplicates:
         raise UnsupportedSchemaError(
-            "Names are both a binary stream and a raw socket: " + ", ".join(duplicates)
+            "Names are both a binary stream and a socket: " + ", ".join(duplicates)
         )
     api = _api_tree(
         (route for route in routes if route.path),
         (stream for stream in binary_streams if stream.path),
-        (socket for socket in raw_sockets if socket.path),
+        (socket for socket in sockets if socket.path),
     )
     notifications = _notifications(document, schemas)
     client_methods = tuple(
@@ -342,7 +341,7 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         notifications=notifications,
         binary_streams=binary_streams,
         client_methods=client_methods,
-        raw_sockets=raw_sockets,
+        sockets=sockets,
     )
 
 
@@ -759,26 +758,31 @@ def _binary_streams(
     return tuple(streams)
 
 
-def _raw_sockets(
+def _sockets(
     document: dict[str, Any], server_variables: set[str]
-) -> tuple[RawSocketDecl, ...]:
-    values = document.get("x-rpckit-raw-sockets", ())
+) -> tuple[SocketDecl, ...]:
+    if "x-rpckit-raw-sockets" in document:
+        raise UnsupportedSchemaError(
+            "x-rpckit-raw-sockets was renamed to x-rpckit-sockets; re-export the "
+            "contract with fastapi-rpckit 0.3.0 or later"
+        )
+    values = document.get("x-rpckit-sockets", ())
     if not isinstance(values, list | tuple):
-        raise UnsupportedSchemaError("x-rpckit-raw-sockets must be an array")
-    sockets: list[RawSocketDecl] = []
+        raise UnsupportedSchemaError("x-rpckit-sockets must be an array")
+    sockets: list[SocketDecl] = []
     names: set[str] = set()
     for value in values:
         if not isinstance(value, dict):
-            raise UnsupportedSchemaError("Raw socket entries must be objects")
+            raise UnsupportedSchemaError("Socket entries must be objects")
         name = value.get("name")
         url = value.get("url")
         if not isinstance(name, str) or not name:
-            raise UnsupportedSchemaError("Raw sockets need a non-empty name")
+            raise UnsupportedSchemaError("Sockets need a non-empty name")
         if name in names:
-            raise UnsupportedSchemaError(f"Duplicate raw socket name: {name}")
+            raise UnsupportedSchemaError(f"Duplicate socket name: {name}")
         names.add(name)
         if not isinstance(url, str) or not url:
-            raise UnsupportedSchemaError(f"Raw socket {name!r} needs a non-empty URL")
+            raise UnsupportedSchemaError(f"Socket {name!r} needs a non-empty URL")
         message_types = value.get("messageTypes", list(_MESSAGE_TYPES))
         if (
             not isinstance(message_types, list | tuple)
@@ -787,13 +791,13 @@ def _raw_sockets(
             or len(set(message_types)) != len(message_types)
         ):
             raise UnsupportedSchemaError(
-                f"Raw socket {name!r} messageTypes must list distinct values of "
+                f"Socket {name!r} messageTypes must list distinct values of "
                 + ", ".join(_MESSAGE_TYPES)
             )
-        declared = _url_variables(value, f"Raw socket {name!r}")
+        declared = _url_variables(value, f"Socket {name!r}")
         *path, operation_name = name.split(".")
         sockets.append(
-            RawSocketDecl(
+            SocketDecl(
                 rpc_name=name,
                 operation_name=operation_name,
                 path=tuple(path),
@@ -802,7 +806,7 @@ def _raw_sockets(
                 summary=value.get("summary", ""),
                 description=value.get("description", ""),
                 variables=declared,
-                subprotocols=_subprotocols(value, f"Raw socket {name!r}"),
+                subprotocols=_subprotocols(value, f"Socket {name!r}"),
                 call_variables=tuple(
                     variable
                     for variable in declared
@@ -912,7 +916,7 @@ def _transport(value: Any, server_name: str) -> TransportDecl | None:
 def _api_tree(
     routes: Iterable[RouteDecl],
     streams: Iterable[BinaryStreamDecl] = (),
-    raw_sockets: Iterable[RawSocketDecl] = (),
+    sockets: Iterable[SocketDecl] = (),
 ) -> tuple[ApiNode, ...]:
     tree: dict[str, Any] = {}
     for route in routes:
@@ -920,7 +924,7 @@ def _api_tree(
         for segment in route.path:
             cursor = cursor.setdefault(segment, {"$operations": []})
         cursor["$operations"].append(route)
-    for key, items in (("$streams", streams), ("$raw_sockets", raw_sockets)):
+    for key, items in (("$streams", streams), ("$sockets", sockets)):
         for item in items:
             cursor = tree
             for segment in item.path:
@@ -936,11 +940,11 @@ def _api_node(segment: str, value: dict[str, Any], parent: tuple[str, ...]) -> A
         path=path,
         operations=tuple(value.get("$operations", ())),
         streams=tuple(value.get("$streams", ())),
-        raw_sockets=tuple(value.get("$raw_sockets", ())),
+        sockets=tuple(value.get("$sockets", ())),
         children=tuple(
             _api_node(child_segment, child, path)
             for child_segment, child in value.items()
-            if child_segment not in {"$operations", "$streams", "$raw_sockets"}
+            if child_segment not in {"$operations", "$streams", "$sockets"}
         ),
     )
 

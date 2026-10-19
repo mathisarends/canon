@@ -1,13 +1,13 @@
 # Transports
 
 FastAPI is the supported application entry point for WebSocket RPC. The runtime's
-`RpcSocket` seam remains available for isolated tests and existing adapters; it is
+`RpcWebSocket` seam remains available for isolated tests and existing adapters; it is
 not a promise to maintain other framework integrations.
 
 ## Message size and transport buffering
 
 `RpcLimits.max_message_bytes` defaults to 1 MiB and is checked after
-`RpcSocket.receive()` returns an assembled message. Configure the transport's
+`RpcWebSocket.receive()` returns an assembled message. Configure the transport's
 message-size limit too, so oversized input is rejected before the application
 buffers it. For Uvicorn with its explicit `websockets` backend:
 
@@ -267,7 +267,7 @@ Prefer `RpcRoutes` for routes that only need FastAPI dependencies.
 
 ## Custom adapters
 
-Implement `RpcSocket` and pass it to `app.serve(socket)`. The protocol consists
+Implement `RpcWebSocket` and pass it to `app.serve(socket)`. The protocol consists
 of a handshake property and six async operations:
 
 ```python
@@ -407,7 +407,7 @@ from fastapi_rpckit import create_router
 
 drain = RpcDrain()
 rpc = RpcService(drain=drain)
-# Register rpc.socket(...), rpc.stream(...), and rpc.raw_socket(...) here.
+# Register rpc.socket(...) and rpc.stream(...) here.
 
 
 @asynccontextmanager

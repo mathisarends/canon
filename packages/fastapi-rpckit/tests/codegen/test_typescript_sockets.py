@@ -13,7 +13,7 @@ from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
 _RUNNER = """
 import {
   GreetingClient,
-  RawSocket,
+  Socket,
   RpcStreamClosed,
   RpcStreamFailed,
   RpcStreamRefused,
@@ -23,12 +23,12 @@ import {
 type Listener = (...args: any[]) => void;
 type Message = string | ArrayBuffer | ArrayBufferView;
 
-const sockets: FakeRawSocket[] = [];
+const sockets: FakeMessageSocket[] = [];
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 // Echoes every message with its original type, like a transparent proxy.
-class FakeRawSocket {
+class FakeMessageSocket {
   readyState = 1;
   binaryType: BinaryType = "blob";
   readonly received: Message[] = [];
@@ -96,12 +96,12 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 async function main(): Promise<void> {
   const client = await GreetingClient.connect({
     lazy: true,
-    rawSocketFactory: (url) => new FakeRawSocket(String(url)) as never,
+    socketConnectionFactory: (url) => new FakeMessageSocket(String(url)) as never,
   });
 
   {
     await using cdp = await client.browser.cdp();
-    assert(cdp instanceof RawSocket, "raw sockets open a RawSocket");
+    assert(cdp instanceof Socket, "raw sockets open a Socket");
     assert(sockets.at(-1)!.url === "wss://api/browser/cdp", "socket url");
     await cdp.send('{"id":1,"method":"Page.enable"}');
     await cdp.send(encoder.encode("frame"));
@@ -163,7 +163,7 @@ def deployed(document: dict[str, Any]) -> dict[str, Any]:
             "x-rpckit-transport": {"type": "websocket", "messageEncoding": "json"},
         }
     ]
-    deployed["x-rpckit-raw-sockets"] = [
+    deployed["x-rpckit-sockets"] = [
         {
             "name": "browser.cdp",
             "url": "wss://api/browser/cdp",
@@ -191,7 +191,7 @@ def _tools() -> tuple[str, str]:
     return npx, node
 
 
-def test_generated_typescript_raw_sockets_pass_messages_through(
+def test_generated_typescript_sockets_pass_messages_through(
     deployed: dict[str, Any], tmp_path: Path
 ) -> None:
     npx, node = _tools()
@@ -245,7 +245,7 @@ def test_generated_typescript_raw_sockets_pass_messages_through(
 
 
 @pytest.mark.parametrize("with_transport", [None, "websocket"])
-def test_generated_typescript_raw_sockets_are_prettier_formatted(
+def test_generated_typescript_sockets_are_prettier_formatted(
     deployed: dict[str, Any], tmp_path: Path, with_transport: str | None
 ) -> None:
     npx, _ = _tools()
@@ -264,7 +264,7 @@ def test_generated_typescript_raw_sockets_are_prettier_formatted(
     assert formatting.returncode == 0, formatting.stdout + formatting.stderr
 
 
-def test_raw_sockets_are_exported_without_binary_streams(
+def test_sockets_are_exported_without_binary_streams(
     deployed: dict[str, Any],
 ) -> None:
     files = render_typescript_client(
@@ -273,5 +273,5 @@ def test_raw_sockets_are_exported_without_binary_streams(
 
     assert "streams.ts" not in files
     assert "export class RpcStreamClosed" in files["core.ts"]
-    assert 'from "./rawSockets"' in files["index.ts"]
-    assert "rawSocketFactory?: RawWebSocketFactory" in files["client.ts"]
+    assert 'from "./sockets"' in files["index.ts"]
+    assert "socketConnectionFactory?: SocketConnectionFactory" in files["client.ts"]

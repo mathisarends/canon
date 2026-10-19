@@ -1,4 +1,4 @@
-{% from "typescript/macros.ts.j2" import operation, notification, stream, raw_socket with context %}{% for line in imports %}{{ line }}
+{% from "typescript/macros.ts.j2" import operation, notification, stream, socket_method with context %}{% for line in imports %}{{ line }}
 {% endfor %}
 export class {{ client_name }} {
 {% for node in nodes %}  readonly {{ node.segment | identifier }}: {{ node.path | api_class }};
@@ -34,8 +34,8 @@ export class {{ client_name }} {
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
 {% if binary_streams %}      readonly streamOpener?: BinaryStreamOpener;
-{% endif %}{% if raw_sockets %}      readonly rawSocketOpener?: RawSocketOpener;
-{% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
+{% endif %}{% if sockets %}      readonly socketOpener?: SocketOpener;
+{% endif %}{% if binary_streams or sockets %}      readonly variables?: Readonly<Record<string, string>>;
 {% endif %}    },
   ) {
     this.#rpc = new RpcClientCore(transport, {
@@ -58,8 +58,8 @@ export class {{ client_name }} {
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
 {% if binary_streams %}      readonly streamOpener?: BinaryStreamOpener;
-{% endif %}{% if raw_sockets %}      readonly rawSocketOpener?: RawSocketOpener;
-{% endif %}{% if binary_streams or raw_sockets %}      readonly variables?: Readonly<Record<string, string>>;
+{% endif %}{% if sockets %}      readonly socketOpener?: SocketOpener;
+{% endif %}{% if binary_streams or sockets %}      readonly variables?: Readonly<Record<string, string>>;
 {% endif %}    },
   ): {{ client_name }} {
     return new {{ client_name }}(transports, options);
@@ -94,8 +94,8 @@ export class {{ client_name }} {
       ) => void;
 {% if binary_streams %}      readonly streamSocketFactory?: BinaryWebSocketFactory;
       readonly streamQueueSize?: number;
-{% endif %}{% if raw_sockets %}      readonly rawSocketFactory?: RawWebSocketFactory;
-      readonly rawSocketQueueSize?: number;
+{% endif %}{% if sockets %}      readonly socketConnectionFactory?: SocketConnectionFactory;
+      readonly socketQueueSize?: number;
 {% endif %}
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
@@ -165,28 +165,28 @@ export class {{ client_name }} {
           },
         );
       },
-{% endif %}{% if raw_sockets %}      rawSocketOpener: async (endpoint) => {
+{% endif %}{% if sockets %}      socketOpener: async (endpoint) => {
         const credentials = await resolveWebSocketCredentials(
           endpoint.url,
           endpoint.subprotocols,
           options.credentials,
         );
-        return RawWebSocketStream.open(
+        return SocketConnectionStream.open(
           { ...endpoint, ...credentials },
           {
-            socketFactory: options.rawSocketFactory,
-            incomingQueueSize: options.rawSocketQueueSize,
+            socketFactory: options.socketConnectionFactory,
+            incomingQueueSize: options.socketQueueSize,
           },
         );
       },
-{% endif %}{% if binary_streams or raw_sockets %}      variables: definedVariables(variables),
+{% endif %}{% if binary_streams or sockets %}      variables: definedVariables(variables),
 {% endif %}    });
   }
 {% endif %}{% for route in operations %}
 {{ operation(route, true) }}{% endfor %}{% for event in notifications %}
 {{ notification(event, true) }}{% endfor %}{% for item in streams %}
-{{ stream(item, true) }}{% endfor %}{% for item in root_raw_sockets %}
-{{ raw_socket(item, true) }}{% endfor %}
+{{ stream(item, true) }}{% endfor %}{% for item in root_sockets %}
+{{ socket_method(item, true) }}{% endfor %}
   close(): Promise<void> {
     return this.#rpc.close();
   }
@@ -195,7 +195,7 @@ export class {{ client_name }} {
     return this.close();
   }
 }
-{% if with_websocket and (binary_streams or raw_sockets) %}
+{% if with_websocket and (binary_streams or sockets) %}
 function definedVariables(
   values: Readonly<Record<string, string | undefined>>,
 ): Readonly<Record<string, string>> {

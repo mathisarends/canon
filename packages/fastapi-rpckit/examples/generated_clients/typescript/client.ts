@@ -17,10 +17,10 @@ import {
   type BinaryWebSocketFactory,
 } from "./streams";
 import {
-  RawWebSocketStream,
-  type RawSocketOpener,
-  type RawWebSocketFactory,
-} from "./rawSockets";
+  SocketConnectionStream,
+  type SocketOpener,
+  type SocketConnectionFactory,
+} from "./sockets";
 import {
   resolveEndpoints,
   type EndpointOverrides,
@@ -68,7 +68,7 @@ export class AutomationClient {
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
-      readonly rawSocketOpener?: RawSocketOpener;
+      readonly socketOpener?: SocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
     },
   ) {
@@ -92,7 +92,7 @@ export class AutomationClient {
       readonly notificationQueueSize?: number;
       readonly onOverflow?: RpcNotificationOverflowHandler;
       readonly streamOpener?: BinaryStreamOpener;
-      readonly rawSocketOpener?: RawSocketOpener;
+      readonly socketOpener?: SocketOpener;
       readonly variables?: Readonly<Record<string, string>>;
     },
   ): AutomationClient {
@@ -127,8 +127,8 @@ export class AutomationClient {
       ) => void;
       readonly streamSocketFactory?: BinaryWebSocketFactory;
       readonly streamQueueSize?: number;
-      readonly rawSocketFactory?: RawWebSocketFactory;
-      readonly rawSocketQueueSize?: number;
+      readonly socketConnectionFactory?: SocketConnectionFactory;
+      readonly socketQueueSize?: number;
 
       readonly middleware?: readonly RpcClientMiddleware[];
       readonly retryAttempts?: number;
@@ -193,17 +193,17 @@ export class AutomationClient {
           },
         );
       },
-      rawSocketOpener: async (endpoint) => {
+      socketOpener: async (endpoint) => {
         const credentials = await resolveWebSocketCredentials(
           endpoint.url,
           endpoint.subprotocols,
           options.credentials,
         );
-        return RawWebSocketStream.open(
+        return SocketConnectionStream.open(
           { ...endpoint, ...credentials },
           {
-            socketFactory: options.rawSocketFactory,
-            incomingQueueSize: options.rawSocketQueueSize,
+            socketFactory: options.socketConnectionFactory,
+            incomingQueueSize: options.socketQueueSize,
           },
         );
       },

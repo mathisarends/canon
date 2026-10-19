@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.3.0 - Unreleased
+
+### Breaking changes
+
+- Raw sockets are now sockets. A socket is a transport endpoint; the messages
+  it carries belong to the handler. Migrate as follows:
+  - `@channel.raw_socket(...)` / `@channel.server.raw_socket(...)` becomes
+    `@channel.socket(...)` / `@channel.server.socket(...)` with the same options.
+  - `service.raw_socket(path, handler, ...)` becomes
+    `service.socket(path, handler, ...)`. `service.socket(path, channels=...)`
+    still mounts JSON-RPC endpoints; passing both a handler and `channels=`, or
+    JSON-RPC-only options with a handler, raises `ProtocolDefinitionError`.
+  - Inject `RpcSocket` instead of `RpcRawSocket`; `RpcRawMessage` is
+    `RpcSocketMessage` and `RpcRawSocketEndpoint` is `RpcSocketEndpoint`.
+    The module `fastapi_rpckit.raw_sockets` is now `fastapi_rpckit.sockets`.
+  - The low-level WebSocket adapter protocol formerly named `RpcSocket` is now
+    `RpcWebSocket`. Rename custom adapters and annotations that implemented or
+    referenced the old protocol; `FastApiSocket` is unchanged.
+- The contract lists sockets under `x-rpckit-sockets` instead of
+  `x-rpckit-raw-sockets`. Re-export contracts and regenerate clients together;
+  generators reject contracts that still contain `x-rpckit-raw-sockets`.
+- Generated clients rename their socket API. Python: module `sockets` (was
+  `raw_sockets`), `Socket`, `SocketMessage`, `SocketMessageType`, `SocketName`,
+  `SocketEndpoint`, `SocketTransport`, `SocketOpener`, `SOCKETS`,
+  `SocketConnection`, `SocketConnectionFactory`, `SocketConnectionStream`;
+  `connect(socket_connection_factory=...)` and `socket_opener=...` replace
+  `raw_socket_factory` and `raw_socket_opener`. TypeScript: module `sockets`
+  (was `rawSockets`), `Socket`, `sockets`, `resolveSocketEndpoint`,
+  `SocketConnectionStream`, and the options `socketConnectionFactory`,
+  `socketQueueSize`, and `socketOpener` replace `rawSocketFactory`,
+  `rawSocketQueueSize`, and `rawSocketOpener`. Regenerate clients and rename
+  these references in consuming code.
+- Server log messages and close reasons say "socket" instead of "raw socket".
+  Socket wire behavior, close codes, and message framing are unchanged.
+
 ## 0.2.0 - 2026-10-18
 
 ### Breaking changes

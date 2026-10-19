@@ -10,9 +10,9 @@ from fastapi_rpckit import (
     RpcError,
     RpcErrorBinding,
     RpcModel,
-    RpcRawSocket,
     RpcRejection,
     RpcService,
+    RpcSocket,
     ServerVariable,
 )
 
@@ -185,11 +185,11 @@ async def control(
         await output.send(b"\xff\xd8\xff\xd9")
 
 
-@browser.server.raw_socket(
+@browser.server.socket(
     closes=(BROWSER_NOT_FOUND,),
     summary="Proxy the Chrome DevTools Protocol with native text and binary messages.",
 )
-async def cdp(socket: Inject[RpcRawSocket]) -> None:
+async def cdp(socket: Inject[RpcSocket]) -> None:
     async for message in socket:
         await socket.send(message)
 
@@ -206,7 +206,7 @@ service.socket(
 service.stream("/browser/screencast", frames)
 service.stream("/browser/screencast/upload", upload)
 service.stream("/browser/screencast/control", control)
-service.raw_socket("/browser/cdp", cdp)
+service.socket("/browser/cdp", cdp)
 
 contract = service.contract(
     title="Automation",

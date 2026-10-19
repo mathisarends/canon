@@ -381,7 +381,7 @@ New connections are unavailable (WebSocket 1013; adapters may deny the handshake
 with HTTP 503). New ordinary calls on accepted sockets receive the built-in
 `server_shutting_down` error. Pings, cancellation controls, and reverse-call
 responses remain usable while admitted requests finish. Passive event sources
-stop immediately. Active subscriptions and dedicated binary/raw sockets may
+stop immediately. Active subscriptions and dedicated binary streams and sockets may
 finish naturally until the grace deadline; unfinished work is cancelled.
 
 The final tenth of the timeout is reserved for cooperative cleanup. Admitted
@@ -469,7 +469,7 @@ const client = await ApiClient.connect({
 ```
 
 The provider receives a copy of the URL and an attempt AbortSignal; it runs for
-every RPC handshake/reconnect, and for newly opened binary/raw sockets. Only
+every RPC handshake/reconnect, and for newly opened binary streams and sockets. Only
 RPC sockets reconnect automatically. It can return replacement `url` and/or
 `subprotocols`; omitted fields retain the resolved endpoint. Pool attempt/call
 timeouts also bound refresh waiting. Honor the signal to stop your own I/O;

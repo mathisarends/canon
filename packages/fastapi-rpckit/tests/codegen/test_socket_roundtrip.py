@@ -14,9 +14,9 @@ from fastapi_rpckit import (
     RpcDisconnect,
     RpcErrorBinding,
     RpcMessageType,
-    RpcRawSocket,
     RpcRejection,
     RpcService,
+    RpcSocket,
 )
 from fastapi_rpckit.codegen import generate_python_client
 from fastapi_rpckit.codegen.python import PythonClientOptions
@@ -35,7 +35,7 @@ browser = RpcChannel("browser")
 tabs = browser.child("tabs")
 
 
-@browser.server.raw_socket(
+@browser.server.socket(
     "cdp",
     closes=(
         RpcErrorBinding(
@@ -43,7 +43,7 @@ tabs = browser.child("tabs")
         ),
     ),
 )
-async def cdp(socket: Inject[RpcRawSocket]) -> None:
+async def cdp(socket: Inject[RpcSocket]) -> None:
     async for message in socket:
         if message == "done":
             return
@@ -54,19 +54,19 @@ async def cdp(socket: Inject[RpcRawSocket]) -> None:
         await socket.send(message)
 
 
-@tabs.server.raw_socket("cdp", messages=(RpcMessageType.TEXT,))
-async def tab_cdp(tab_id: str, socket: Inject[RpcRawSocket]) -> None:
+@tabs.server.socket("cdp", messages=(RpcMessageType.TEXT,))
+async def tab_cdp(tab_id: str, socket: Inject[RpcSocket]) -> None:
     await socket.send(tab_id)
 
 
 service = RpcService()
-service.raw_socket("/browser/cdp", cdp)
-service.raw_socket("/browser/tabs/{tab_id}/cdp", tab_cdp, name="tab-cdp")
+service.socket("/browser/cdp", cdp)
+service.socket("/browser/tabs/{tab_id}/cdp", tab_cdp, name="tab-cdp")
 
 
 @pytest.fixture(scope="module")
 def client_package(tmp_path_factory: pytest.TempPathFactory) -> Iterator[ModuleType]:
-    root = tmp_path_factory.mktemp("raw_socket_client")
+    root = tmp_path_factory.mktemp("socket_client")
     document = service.contract(title="Browser", base_url="ws://localhost").to_openrpc()
     generate_python_client(
         document,
@@ -141,7 +141,7 @@ def _client(package: ModuleType, opened: list | None = None):
         return socket
 
     return package.BrowserClient.with_transports(
-        UnusedTransport(), raw_socket_opener=opener
+        UnusedTransport(), socket_opener=opener
     )
 
 
@@ -152,7 +152,7 @@ async def test_mixed_messages_round_trip_until_a_normal_close(
     client = _client(client_package, opened)
 
     async with client.browser.cdp() as socket:
-        assert isinstance(socket, client_package.RawSocket)
+        assert isinstance(socket, client_package.Socket)
         await socket.send('{"id":1,"method":"Page.enable"}')
         await socket.send(bytearray(b"\x00\xff"))
         assert await socket.receive() == '{"id":1,"method":"Page.enable"}'
@@ -163,7 +163,7 @@ async def test_mixed_messages_round_trip_until_a_normal_close(
             await socket.receive()
 
     endpoint, loopback = opened[0]
-    assert endpoint.name is client_package.RawSocketName.BROWSER_CDP
+    assert endpoint.name is client_package.SocketName.BROWSER_CDP
     assert endpoint.url == "ws://localhost/browser/cdp"
     assert endpoint.message_types == ("text", "binary")
     assert loopback.socket.closed == (RpcConnectionClose.NORMAL, "")
@@ -208,6 +208,8 @@ async def test_clients_without_an_opener_report_unavailable_sockets(
 ) -> None:
     client = client_package.BrowserClient.with_transports(UnusedTransport())
 
-    with pytest.raises(client_package.RpcStreamsUnavailableError, match="raw socket"):
+    with pytest.raises(
+        client_package.RpcStreamsUnavailableError, match="socket opener"
+    ):
         async with client.browser.cdp():
             pass

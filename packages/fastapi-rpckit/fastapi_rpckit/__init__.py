@@ -20,7 +20,7 @@ from .connection import (
     RpcRejection,
     RpcRejectionMapper,
     RpcRejections,
-    RpcSocket,
+    RpcWebSocket,
 )
 from .constants import LOGGER_NAME
 from .contract import RpcContract, ServerVariable
@@ -71,9 +71,9 @@ from .middleware import (
 )
 from .models import RpcModel
 from .protocol import RpcClientMethod, RpcProtocol
-from .raw_sockets import RpcMessageType, RpcRawMessage, RpcRawSocket
 from .server import RpcErrorMapper, RpcResponseMessage, RpcServer
-from .service import RpcEndpoint, RpcRawSocketEndpoint, RpcService, RpcStreamEndpoint
+from .service import RpcEndpoint, RpcService, RpcSocketEndpoint, RpcStreamEndpoint
+from .sockets import RpcMessageType, RpcSocket, RpcSocketMessage
 from .streams import (
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -143,9 +143,9 @@ __all__ = [
     "RpcParseError",
     "RpcRequestCancelledError",
     "RpcRequestTimeoutError",
-    "RpcRawMessage",
-    "RpcRawSocket",
-    "RpcRawSocketEndpoint",
+    "RpcSocketMessage",
+    "RpcSocket",
+    "RpcSocketEndpoint",
     "RpcRejection",
     "RpcRejectionMapper",
     "RpcRejections",
@@ -159,7 +159,7 @@ __all__ = [
     "RpcProtocol",
     "RpcServer",
     "RpcService",
-    "RpcSocket",
+    "RpcWebSocket",
     "RpcStreamDirection",
     "RpcStreamClose",
     "RpcStreamEndpoint",

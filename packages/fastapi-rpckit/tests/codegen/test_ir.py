@@ -256,3 +256,15 @@ def test_documents_without_client_methods_lower_to_none(
     document: dict[str, Any],
 ) -> None:
     assert build_ir(document).client_methods == ()
+
+
+def test_contracts_with_the_renamed_raw_socket_key_are_rejected(
+    document: dict[str, Any],
+) -> None:
+    legacy = {
+        **document,
+        "x-rpckit-raw-sockets": [{"name": "browser.cdp", "url": "wss://api/cdp"}],
+    }
+
+    with pytest.raises(UnsupportedSchemaError, match="renamed to x-rpckit-sockets"):
+        build_ir(legacy)

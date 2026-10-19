@@ -14,7 +14,7 @@ from fastapi_rpckit.connection import (
     RpcDisconnect,
     RpcHandshake,
     RpcRejection,
-    RpcSocket,
+    RpcWebSocket,
 )
 from fastapi_rpckit.constants import LOGGER_NAME
 from fastapi_rpckit.envelopes import RpcRequestId
@@ -218,7 +218,7 @@ async def _middleware_scope(
 @dataclass(slots=True)
 class _ServingState:
     scope: RpcConnectionScope
-    socket: RpcSocket
+    socket: RpcWebSocket
     middleware: tuple[RpcMiddlewareLike, ...]
     activity: _Activity | None
     started_at: float = field(default_factory=time.perf_counter)
@@ -276,7 +276,7 @@ def _record_rejection(rejection: RpcRejection) -> None:
 @asynccontextmanager
 async def _serving_scope(
     endpoint: "RpcAnyEndpoint",
-    socket: RpcSocket,
+    socket: RpcWebSocket,
     middleware: Sequence[RpcMiddlewareLike] = (),
 ) -> AsyncGenerator[_ServingState | None, None]:
     active = _serving.get()
