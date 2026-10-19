@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 
 from fastapi_rpckit import (
+    CDP_PROTOCOL,
     Inject,
     ProtocolDefinitionError,
     RpcChannel,
@@ -18,6 +19,7 @@ from fastapi_rpckit import (
     RpcService,
     RpcSocket,
     RpcSocketEndpoint,
+    RpcSocketProtocol,
 )
 
 from .testing import RpcTestClient, RpcTestConnectionClosed
@@ -417,3 +419,51 @@ def test_service_sockets_take_channels_or_a_socket_handler() -> None:
 
     assert isinstance(endpoint, RpcSocketEndpoint)
     assert endpoint.socket.name == "terminal.shell"
+
+
+async def test_a_declared_protocol_is_exported_and_visible_to_the_handler() -> None:
+    channel = RpcChannel("browser")
+    seen: list[RpcSocketProtocol | None] = []
+
+    @channel.socket("cdp", protocol=CDP_PROTOCOL, messages=(RpcMessageType.TEXT,))
+    async def cdp(socket: Inject[RpcSocket]) -> None:
+        seen.append(socket.protocol)
+
+    service = RpcService()
+    service.socket("/browser/cdp", cdp)
+    document = service.contract(title="Browser", base_url="wss://h").to_openrpc()
+
+    assert document["x-rpckit-sockets"][0]["x-rpckit-protocol"] == {
+        "name": "cdp",
+        "version": "1.3",
+        "encoding": "json",
+        "schemas": list(CDP_PROTOCOL.schemas),
+    }
+    async with RpcTestClient(service, "/browser/cdp") as client:
+        assert await client.closed() == (RpcConnectionClose.NORMAL, "")
+    assert seen == [CDP_PROTOCOL]
+
+
+def test_sockets_without_a_protocol_export_no_protocol() -> None:
+    document = _service().contract(title="Browser", base_url="wss://h").to_openrpc()
+
+    assert "x-rpckit-protocol" not in document["x-rpckit-sockets"][0]
+
+
+def test_protocol_declarations_are_validated() -> None:
+    assert RpcSocketProtocol("graphql-ws", encoding="json").version is None
+    assert RpcSocketProtocol("x", schemas=["a.json"]).schemas == ("a.json",)
+    with pytest.raises(ValueError, match="lowercase tokens"):
+        RpcSocketProtocol("CDP")
+    with pytest.raises(ValueError, match="versions"):
+        RpcSocketProtocol("cdp", version=" 1.3")
+    with pytest.raises(ValueError, match="encodings"):
+        RpcSocketProtocol("cdp", encoding="JSON")
+    with pytest.raises(TypeError, match="sequence of strings"):
+        RpcSocketProtocol("cdp", schemas="schema.json")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="without whitespace"):
+        RpcSocketProtocol("cdp", schemas=("a b.json",))
+    with pytest.raises(ValueError, match="distinct"):
+        RpcSocketProtocol("cdp", schemas=("a.json", "a.json"))
+    with pytest.raises(ProtocolDefinitionError, match="RpcSocketProtocol"):
+        RpcChannel("browser").socket(protocol="cdp")  # type: ignore[arg-type]

@@ -101,7 +101,9 @@ async function main(): Promise<void> {
 
   {
     await using cdp = await client.browser.cdp();
-    assert(cdp instanceof Socket, "raw sockets open a Socket");
+    assert(cdp instanceof Socket, "sockets open a Socket");
+    assert(cdp.endpoint.protocol?.name === "cdp", "declared protocol name");
+    assert(cdp.endpoint.protocol?.version === "1.3", "declared protocol version");
     assert(sockets.at(-1)!.url === "wss://api/browser/cdp", "socket url");
     await cdp.send('{"id":1,"method":"Page.enable"}');
     await cdp.send(encoder.encode("frame"));
@@ -169,6 +171,15 @@ def deployed(document: dict[str, Any]) -> dict[str, Any]:
             "url": "wss://api/browser/cdp",
             "messageTypes": ["text", "binary"],
             "summary": "Proxy the Chrome DevTools Protocol.",
+            "x-rpckit-protocol": {
+                "name": "cdp",
+                "version": "1.3",
+                "encoding": "json",
+                "schemas": [
+                    "https://example.com/devtools-protocol/json/browser_protocol.json",
+                    "https://example.com/devtools-protocol/json/js_protocol.json",
+                ],
+            },
             "closes": [
                 {"code": 1008, "x-rpckit-code": "browser_not_found", "reason": "x"}
             ],
@@ -178,6 +189,7 @@ def deployed(document: dict[str, Any]) -> dict[str, Any]:
             "url": "wss://api/tabs/{tabId}/cdp",
             "messageTypes": ["text"],
             "variables": {"tabId": {"default": "{tabId}"}},
+            "x-rpckit-protocol": {"name": "cdp", "schemas": ["./cdp.json"]},
         },
     ]
     return deployed

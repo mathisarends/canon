@@ -17,6 +17,7 @@ from fastapi_rpckit import (
     RpcRejection,
     RpcService,
     RpcSocket,
+    RpcSocketProtocol,
 )
 from fastapi_rpckit.codegen import generate_python_client
 from fastapi_rpckit.codegen.python import PythonClientOptions
@@ -54,7 +55,11 @@ async def cdp(socket: Inject[RpcSocket]) -> None:
         await socket.send(message)
 
 
-@tabs.server.socket("cdp", messages=(RpcMessageType.TEXT,))
+@tabs.server.socket(
+    "cdp",
+    protocol=RpcSocketProtocol("cdp", version="1.3", schemas=("cdp.json",)),
+    messages=(RpcMessageType.TEXT,),
+)
 async def tab_cdp(tab_id: str, socket: Inject[RpcSocket]) -> None:
     await socket.send(tab_id)
 
@@ -166,6 +171,7 @@ async def test_mixed_messages_round_trip_until_a_normal_close(
     assert endpoint.name is client_package.SocketName.BROWSER_CDP
     assert endpoint.url == "ws://localhost/browser/cdp"
     assert endpoint.message_types == ("text", "binary")
+    assert endpoint.protocol is None
     assert loopback.socket.closed == (RpcConnectionClose.NORMAL, "")
 
 
@@ -201,6 +207,9 @@ async def test_call_variables_fill_the_socket_url(client_package: ModuleType) ->
     endpoint, _ = opened[0]
     assert endpoint.url == "ws://localhost/browser/tabs/tab-7/cdp"
     assert endpoint.message_types == ("text",)
+    assert endpoint.protocol == client_package.SocketProtocol(
+        name="cdp", version="1.3", schemas=("cdp.json",)
+    )
 
 
 async def test_clients_without_an_opener_report_unavailable_sockets(

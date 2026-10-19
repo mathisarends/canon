@@ -103,7 +103,7 @@ class Browser:
         self.screencast = BrowserScreencast(rpc)
 
     def cdp(self) -> AbstractAsyncContextManager[Socket]:
-        """Proxy the Chrome DevTools Protocol with native text and binary messages."""
+        """Proxy the Chrome DevTools Protocol unchanged."""
         return open_socket(
             resolve_socket_endpoint(
                 SOCKETS[SocketName.BROWSER_CDP],

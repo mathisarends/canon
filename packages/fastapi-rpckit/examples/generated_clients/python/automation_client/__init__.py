@@ -51,6 +51,7 @@ from .sockets import (
     SocketMessageType,
     SocketName,
     SocketOpener,
+    SocketProtocol,
     SocketTransport,
 )
 from .streams import (
@@ -117,6 +118,7 @@ __all__ = [
     "SocketMessageType",
     "SocketName",
     "SocketOpener",
+    "SocketProtocol",
     "SocketTransport",
     "StartScreencastParams",
     "Tab",

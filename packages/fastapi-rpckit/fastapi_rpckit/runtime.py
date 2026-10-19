@@ -1266,6 +1266,7 @@ async def _run_socket(
         socket,
         connection,
         definition.messages,
+        definition.protocol,
         limits,
         activity,
         request_close,

@@ -4,7 +4,9 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from fastapi_rpckit.request_metadata import REQUEST_METADATA_CAPABILITY
 
@@ -211,6 +213,28 @@ class BinaryStreamDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class SocketProtocolDecl:
+    """The application protocol a socket declared in ``x-rpckit-protocol``."""
+
+    name: str
+    encoding: str = "json"
+    version: str | None = None
+    schemas: tuple[str, ...] = ()
+    """URI references as written in the contract; see ``resolve_schemas``."""
+
+    def resolve_schemas(self, base: str | Path | None) -> tuple[str, ...]:
+        """Resolve relative schema references against the contract location.
+
+        Absolute URIs stay unchanged. ``base`` is the contract's URL or file path;
+        without it, relative references are returned as written.
+        """
+        if base is None:
+            return self.schemas
+        root = _base_uri(base)
+        return tuple(urljoin(root, schema) for schema in self.schemas)
+
+
+@dataclass(frozen=True, slots=True)
 class SocketDecl:
     rpc_name: str
     operation_name: str
@@ -223,6 +247,7 @@ class SocketDecl:
     subprotocols: tuple[str, ...] = ()
     call_variables: tuple[ServerVariableDecl, ...] = ()
     """The variables each call fills; the rest come from ``connect``."""
+    protocol: SocketProtocolDecl | None = None
 
     @property
     def name(self) -> str:
@@ -807,6 +832,7 @@ def _sockets(
                 description=value.get("description", ""),
                 variables=declared,
                 subprotocols=_subprotocols(value, f"Socket {name!r}"),
+                protocol=_socket_protocol(value, f"Socket {name!r}"),
                 call_variables=tuple(
                     variable
                     for variable in declared
@@ -815,6 +841,43 @@ def _sockets(
             )
         )
     return tuple(sockets)
+
+
+def _base_uri(base: str | Path) -> str:
+    # A one-letter scheme is a Windows drive, not a URL.
+    if isinstance(base, str) and len(urlsplit(base).scheme) > 1:
+        return base
+    return Path(base).resolve().as_uri()
+
+
+def _socket_protocol(value: dict[str, Any], owner: str) -> SocketProtocolDecl | None:
+    protocol = value.get("x-rpckit-protocol")
+    if protocol is None:
+        return None
+    if not isinstance(protocol, dict):
+        raise UnsupportedSchemaError(f"{owner} x-rpckit-protocol must be an object")
+    name = protocol.get("name")
+    encoding = protocol.get("encoding", "json")
+    version = protocol.get("version")
+    schemas = protocol.get("schemas", [])
+    if not isinstance(name, str) or not _PROTOCOL_TOKEN.fullmatch(name):
+        raise UnsupportedSchemaError(f"{owner} protocol name must be a lowercase token")
+    if not isinstance(encoding, str) or not _PROTOCOL_TOKEN.fullmatch(encoding):
+        raise UnsupportedSchemaError(
+            f"{owner} protocol encoding must be a lowercase token"
+        )
+    if version is not None and (not isinstance(version, str) or not version):
+        raise UnsupportedSchemaError(
+            f"{owner} protocol version must be a non-empty string"
+        )
+    if not isinstance(schemas, list) or any(
+        not isinstance(item, str) or not item or item.split() != [item]
+        for item in schemas
+    ):
+        raise UnsupportedSchemaError(f"{owner} protocol schemas must be URI references")
+    return SocketProtocolDecl(
+        name=name, encoding=encoding, version=version, schemas=tuple(schemas)
+    )
 
 
 def _subprotocols(value: dict[str, Any], owner: str) -> tuple[str, ...]:
@@ -842,6 +905,7 @@ def _url_variables(value: dict[str, Any], owner: str) -> tuple[ServerVariableDec
 
 
 _STREAM_DIRECTIONS = ("server-to-client", "client-to-server", "bidirectional")
+_PROTOCOL_TOKEN = re.compile(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*")
 _MESSAGE_TYPES = ("text", "binary")
 
 

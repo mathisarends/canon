@@ -8,11 +8,20 @@ export type SocketMessageType = "text" | "binary";
 /** A text message arrives as a string, a binary message as an ArrayBuffer. */
 export type SocketMessage = string | ArrayBuffer;
 
+/** The application protocol a socket declared; its messages pass through as-is. */
+export type SocketProtocol = {
+  readonly name: string;
+  readonly encoding: string;
+  readonly version?: string;
+  readonly schemas?: readonly string[];
+};
+
 export type SocketEndpoint = {
   readonly name: SocketName;
   readonly url: string | URL;
   readonly messageTypes: readonly SocketMessageType[];
   readonly subprotocols?: readonly string[];
+  readonly protocol?: SocketProtocol;
 };
 
 /** Rejects `receive()` with `RpcStreamClosed` once the server closed normally. */
@@ -76,6 +85,7 @@ export type SocketInfo = {
   readonly url: string;
   readonly messageTypes: readonly SocketMessageType[];
   readonly subprotocols?: readonly string[];
+  readonly protocol?: SocketProtocol;
   readonly variables?: Readonly<
     Record<
       string,
@@ -93,6 +103,12 @@ export const sockets = {
     url: {{ socket.url | literal }},
     messageTypes: {{ socket.message_types | array }},
 {% if socket.subprotocols %}    subprotocols: {{ socket.subprotocols | array }},
+{% endif %}{% if socket.protocol %}    protocol: {
+      name: {{ socket.protocol.name | literal }},
+      encoding: {{ socket.protocol.encoding | literal }},
+{% if socket.protocol.version is not none %}      version: {{ socket.protocol.version | literal }},
+{% endif %}{% if socket.protocol.schemas %}{{ socket.protocol.schemas | schema_array }}
+{% endif %}    },
 {% endif %}{% if socket.variables %}    variables: {
 {% for variable in socket.variables %}      {{ variable.name | property }}: {
         default: {{ variable.default | literal }},
@@ -123,6 +139,7 @@ export function resolveSocketEndpoint(
     url,
     messageTypes: socket.messageTypes,
     subprotocols: socket.subprotocols,
+    protocol: socket.protocol,
   };
 }
 {% if with_websocket %}

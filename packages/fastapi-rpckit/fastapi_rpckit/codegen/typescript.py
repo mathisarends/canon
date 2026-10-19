@@ -141,6 +141,7 @@ class _Renderer:
             ),
             "property": _property,
             "socket_handle_endpoint": _socket_handle_endpoint,
+            "schema_array": _schema_array,
             "socket_handle_signature": _socket_handle_signature,
             "route_access": lambda route: f"routes.{_route_key(route)}",
             "route_key": _route_key,
@@ -784,6 +785,16 @@ def _union_alias(name: str, values: Iterable[str]) -> str:
 
 def _array(values: Iterable[object]) -> str:
     return "[" + ", ".join(_ts_literal(value) for value in values) + "]"
+
+
+def _schema_array(schemas: Iterable[str]) -> str:
+    """A protocol's ``schemas`` property, laid out as Prettier would."""
+    values = [_ts_literal(value) for value in schemas]
+    inline = f"      schemas: [{', '.join(values)}],"
+    if len(inline) <= _TS_WIDTH:
+        return inline
+    body = "".join(f"        {value},\n" for value in values)
+    return f"      schemas: [\n{body}      ],"
 
 
 def _stream_signature(stream: BinaryStreamDecl) -> str:

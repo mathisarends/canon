@@ -33,7 +33,7 @@ from fastapi_rpckit.errors import (
     bind_contracts,
     contract_of,
 )
-from fastapi_rpckit.sockets import RpcMessageType, RpcSocket
+from fastapi_rpckit.sockets import RpcMessageType, RpcSocket, RpcSocketProtocol
 from fastapi_rpckit.streams import RpcBinaryInput, RpcBinaryOutput, RpcStreamDirection
 from fastapi_rpckit.wire import wire_annotation
 
@@ -136,6 +136,7 @@ class RpcSocketDefinition:
     server: str | None = None
     path_parameters: tuple[str, ...] = ()
     path_model: type[BaseModel] | None = None
+    protocol: RpcSocketProtocol | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -565,6 +566,7 @@ def socket_definition(
     name: str,
     function: FunctionType,
     messages: tuple[RpcMessageType, ...],
+    protocol: RpcSocketProtocol | None,
     closes: tuple[RpcErrorBinding[Any], ...],
     summary: str | None,
     resolver_scope: RpcResolverScope,
@@ -595,6 +597,7 @@ def socket_definition(
         closes=closes,
         path_parameters=tuple(parameter.name for parameter in path_parameters),
         path_model=_path_model(function, hints, path_parameters, kind="socket"),
+        protocol=protocol,
     )
 
 

@@ -73,7 +73,13 @@ from .models import RpcModel
 from .protocol import RpcClientMethod, RpcProtocol
 from .server import RpcErrorMapper, RpcResponseMessage, RpcServer
 from .service import RpcEndpoint, RpcService, RpcSocketEndpoint, RpcStreamEndpoint
-from .sockets import RpcMessageType, RpcSocket, RpcSocketMessage
+from .sockets import (
+    CDP_PROTOCOL,
+    RpcMessageType,
+    RpcSocket,
+    RpcSocketMessage,
+    RpcSocketProtocol,
+)
 from .streams import (
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -86,6 +92,7 @@ from .streams import (
 __version__ = "0.2.0"
 
 __all__ = [
+    "CDP_PROTOCOL",
     "FastApiSocket",
     "RpcRoutes",
     "create_router",
@@ -146,6 +153,7 @@ __all__ = [
     "RpcSocketMessage",
     "RpcSocket",
     "RpcSocketEndpoint",
+    "RpcSocketProtocol",
     "RpcRejection",
     "RpcRejectionMapper",
     "RpcRejections",

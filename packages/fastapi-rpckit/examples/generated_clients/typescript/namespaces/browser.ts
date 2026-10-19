@@ -77,7 +77,7 @@ export class Browser {
     this.screencast = new BrowserScreencast(rpc);
   }
 
-  /** Proxy the Chrome DevTools Protocol with native text and binary messages. */
+  /** Proxy the Chrome DevTools Protocol unchanged. */
   cdp(): Promise<Socket> {
     return this.rpc.openSocket(
       resolveSocketEndpoint(sockets.browserCdp, this.rpc.variables),

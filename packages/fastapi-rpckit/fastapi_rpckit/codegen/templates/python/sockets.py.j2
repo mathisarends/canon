@@ -8,11 +8,22 @@ type SocketMessage = str | bytes
 
 
 @dataclass(frozen=True, slots=True)
+class SocketProtocol:
+    """The application protocol a socket declared; its messages pass through as-is."""
+
+    name: str
+    encoding: str = "json"
+    version: str | None = None
+    schemas: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class SocketEndpoint:
     name: SocketName
     url: str
     message_types: tuple[SocketMessageType, ...] = ("text", "binary")
     subprotocols: tuple[str, ...] = ()
+    protocol: SocketProtocol | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +35,7 @@ class SocketInfo:
     message_types: tuple[SocketMessageType, ...] = ("text", "binary")
     subprotocols: tuple[str, ...] = ()
     variables: Mapping[str, RpcServerVariable] = field(default_factory=dict)
+    protocol: SocketProtocol | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "variables", MappingProxyType(dict(self.variables)))
@@ -53,6 +65,7 @@ def resolve_socket_endpoint(
         ),
         message_types=socket.message_types,
         subprotocols=socket.subprotocols,
+        protocol=socket.protocol,
     )
 
 
@@ -229,5 +242,13 @@ SOCKETS: Mapping[SocketName, SocketInfo] = {
 {% endif %}{% if variable.enum %}                enum={{ variable.enum | tuple_literal }},
 {% endif %}            ),
 {% endfor %}        },
+{% endif %}{% if socket.protocol %}        protocol=SocketProtocol(
+            name={{ socket.protocol.name | literal }},
+{% if socket.protocol.encoding != "json" %}            encoding={{ socket.protocol.encoding | literal }},
+{% endif %}{% if socket.protocol.version is not none %}            version={{ socket.protocol.version | literal }},
+{% endif %}{% if socket.protocol.schemas %}            schemas=(
+{% for schema in socket.protocol.schemas %}                {{ schema | literal }},
+{% endfor %}            ),
+{% endif %}        ),
 {% endif %}    ),
 {% endfor %}}

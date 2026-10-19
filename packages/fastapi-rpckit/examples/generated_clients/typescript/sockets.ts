@@ -11,11 +11,20 @@ export type SocketMessageType = "text" | "binary";
 /** A text message arrives as a string, a binary message as an ArrayBuffer. */
 export type SocketMessage = string | ArrayBuffer;
 
+/** The application protocol a socket declared; its messages pass through as-is. */
+export type SocketProtocol = {
+  readonly name: string;
+  readonly encoding: string;
+  readonly version?: string;
+  readonly schemas?: readonly string[];
+};
+
 export type SocketEndpoint = {
   readonly name: SocketName;
   readonly url: string | URL;
   readonly messageTypes: readonly SocketMessageType[];
   readonly subprotocols?: readonly string[];
+  readonly protocol?: SocketProtocol;
 };
 
 /** Rejects `receive()` with `RpcStreamClosed` once the server closed normally. */
@@ -79,6 +88,7 @@ export type SocketInfo = {
   readonly url: string;
   readonly messageTypes: readonly SocketMessageType[];
   readonly subprotocols?: readonly string[];
+  readonly protocol?: SocketProtocol;
   readonly variables?: Readonly<
     Record<
       string,
@@ -94,7 +104,16 @@ export const sockets = {
   browserCdp: {
     name: "browser.cdp",
     url: "wss://{host}/browser/cdp",
-    messageTypes: ["text", "binary"],
+    messageTypes: ["text"],
+    protocol: {
+      name: "cdp",
+      encoding: "json",
+      version: "1.3",
+      schemas: [
+        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json",
+        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/js_protocol.json",
+      ],
+    },
     variables: {
       host: {
         default: "api.example.com",
@@ -124,6 +143,7 @@ export function resolveSocketEndpoint(
     url,
     messageTypes: socket.messageTypes,
     subprotocols: socket.subprotocols,
+    protocol: socket.protocol,
   };
 }
 

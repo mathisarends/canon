@@ -80,6 +80,57 @@ the handler. JSON-RPC-only options such as `error_mapper=`, `path_model=`, and
 a protocol error (1002) when the client sends an undeclared type, and
 `send()` raises `TypeError` for one.
 
+## Declare the protocol
+
+A socket is the transport; the messages it carries follow an application
+protocol. Declare that protocol with `protocol=` so the contract and generated
+clients know what the endpoint speaks:
+
+```python
+from fastapi_rpckit import CDP_PROTOCOL, RpcMessageType
+
+
+@browser.socket("cdp", protocol=CDP_PROTOCOL, messages=(RpcMessageType.TEXT,))
+async def cdp(socket: Inject[RpcSocket], browsers: Inject[BrowserService]) -> None: ...
+```
+
+The declaration is metadata only. fastapi_rpckit does not decode, validate,
+correlate, or rewrite the messages: a CDP endpoint stays a CDP endpoint and
+forwards `{"id": 1, "method": "Page.enable", "params": {}}` byte for byte.
+Request correlation, events, and target sessions remain the job of the
+protocol's client. The handler can read the declaration as `socket.protocol`.
+
+`RpcSocketProtocol` describes any protocol:
+
+```python
+from fastapi_rpckit import RpcSocketProtocol
+
+GRAPHQL_WS = RpcSocketProtocol(
+    name="graphql-transport-ws",
+    version="5",
+    encoding="json",
+    schemas=("schemas/graphql-ws.json",),
+)
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | Lowercase protocol identifier; generators select client bindings by it |
+| `version` | The protocol's own version, independent of server or browser versions |
+| `encoding` | Payload encoding, such as `json`; defaults to `json` |
+| `schemas` | URI references to the specification, which may span several files |
+
+Absolute schema URIs are used as written. Relative references resolve against
+the location of the exported contract document, like OpenAPI `$ref` values, so
+`schemas/graphql-ws.json` next to `contract.openrpc.json` stays valid when both
+files move together.
+
+`CDP_PROTOCOL` declares the Chrome DevTools Protocol version 1.3 and references
+the `browser_protocol.json` and `js_protocol.json` files of the official
+[devtools-protocol](https://github.com/ChromeDevTools/devtools-protocol)
+repository. Use `dataclasses.replace(CDP_PROTOCOL, schemas=...)` to pin
+other files or revisions.
+
 ## Send and receive
 
 `receive()` and iteration return `str` for text messages and `bytes` for
@@ -159,19 +210,32 @@ To test a socket without a server, use `RpcTestClient` with
 
 Sockets are not JSON-RPC methods. The contract lists them in
 `x-rpckit-sockets` with their URL, URL variables, message types,
-subprotocols, and declared close outcomes:
+subprotocols, declared close outcomes, and declared protocol:
 
 ```json
 {
   "name": "browser.cdp",
   "url": "wss://{host}/browser/cdp",
-  "messageTypes": ["text", "binary"],
+  "messageTypes": ["text"],
   "variables": {"host": {"default": "api.example.com"}},
   "closes": [
     {"code": 1008, "x-rpckit-code": "browser_not_found", "reason": "Unknown browser"}
-  ]
+  ],
+  "x-rpckit-protocol": {
+    "name": "cdp",
+    "version": "1.3",
+    "encoding": "json",
+    "schemas": [
+      "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json",
+      "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/js_protocol.json"
+    ]
+  }
 }
 ```
+
+Generated clients keep the declaration as `endpoint.protocol`
+(`SocketProtocol` in both languages), so code holding a generic socket can
+tell which protocol it speaks.
 
 A close code and reason do not identify a domain exception or carry
 structured details. Generated clients therefore raise transport errors for

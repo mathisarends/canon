@@ -46,7 +46,7 @@ from fastapi_rpckit.server import (
     RpcErrorMapper,
     RpcServer,
 )
-from fastapi_rpckit.sockets import RpcMessageType
+from fastapi_rpckit.sockets import RpcMessageType, RpcSocketProtocol
 
 
 class _TimeoutDefault(Enum):
@@ -335,6 +335,7 @@ class RpcServerDeclarations:
         name: str | None = None,
         /,
         *,
+        protocol: RpcSocketProtocol | None = None,
         messages: Iterable[RpcMessageType] = (
             RpcMessageType.TEXT,
             RpcMessageType.BINARY,
@@ -348,6 +349,7 @@ class RpcServerDeclarations:
         name: str | FunctionType | None = None,
         /,
         *,
+        protocol: RpcSocketProtocol | None = None,
         messages: Iterable[RpcMessageType] = (
             RpcMessageType.TEXT,
             RpcMessageType.BINARY,
@@ -357,8 +359,10 @@ class RpcServerDeclarations:
     ) -> Any:
         """Declare a WebSocket endpoint that passes its messages through as-is.
 
-        ``closes`` binds the exceptions the handler may raise to the close code
-        and reason the client receives.
+        ``protocol`` declares the application protocol the messages follow, for
+        the contract and generated client bindings; it never changes how messages
+        are handled. ``closes`` binds the exceptions the handler may raise to the
+        close code and reason the client receives.
         """
         channel = self._channel
         channel._ensure_mutable()
@@ -367,6 +371,10 @@ class RpcServerDeclarations:
         if name is not None and not isinstance(name, str):
             raise ProtocolDefinitionError(
                 "RPC socket decorator expects a function or name"
+            )
+        if protocol is not None and not isinstance(protocol, RpcSocketProtocol):
+            raise ProtocolDefinitionError(
+                "RPC socket protocol must be an RpcSocketProtocol"
             )
         try:
             declared = frozenset(RpcMessageType(item) for item in messages)
@@ -386,6 +394,7 @@ class RpcServerDeclarations:
                 name=wire_name,
                 function=function,
                 messages=message_types,
+                protocol=protocol,
                 closes=rejecting_contracts(closes, f"RPC socket {wire_name}"),
                 summary=summary or _docstring_summary(function),
                 resolver_scope=channel.resolver_scope,

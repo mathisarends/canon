@@ -1593,6 +1593,7 @@ _SOCKET_EXPORTS = (
     "SocketEndpoint",
     "SocketName",
     "SocketOpener",
+    "SocketProtocol",
     "SocketTransport",
     "SocketConnectionStream",
 )

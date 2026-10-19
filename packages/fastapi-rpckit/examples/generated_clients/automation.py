@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator
 
 from fastapi_rpckit import (
+    CDP_PROTOCOL,
     Inject,
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -9,6 +10,7 @@ from fastapi_rpckit import (
     RpcConnectedClient,
     RpcError,
     RpcErrorBinding,
+    RpcMessageType,
     RpcModel,
     RpcRejection,
     RpcService,
@@ -186,8 +188,10 @@ async def control(
 
 
 @browser.server.socket(
+    protocol=CDP_PROTOCOL,
+    messages=(RpcMessageType.TEXT,),
     closes=(BROWSER_NOT_FOUND,),
-    summary="Proxy the Chrome DevTools Protocol with native text and binary messages.",
+    summary="Proxy the Chrome DevTools Protocol unchanged.",
 )
 async def cdp(socket: Inject[RpcSocket]) -> None:
     async for message in socket:

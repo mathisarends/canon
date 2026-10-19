@@ -35,6 +35,19 @@
 - Server log messages and close reasons say "socket" instead of "raw socket".
   Socket wire behavior, close codes, and message framing are unchanged.
 
+### Added
+
+- Declare the application protocol of a socket with
+  `@channel.socket(..., protocol=RpcSocketProtocol(...))`. The declaration
+  holds a protocol name, version, encoding, and specification URI references.
+  It is metadata only: messages still pass through unchanged. Handlers read it
+  as `RpcSocket.protocol`. `CDP_PROTOCOL` declares the Chrome DevTools Protocol.
+- Contracts export declared protocols as `x-rpckit-protocol` on socket entries.
+  The generator IR keeps them as `SocketProtocolDecl`, whose
+  `resolve_schemas()` resolves relative schema references against the contract
+  location. Generated Python and TypeScript clients expose them as
+  `SocketProtocol` on socket endpoints.
+
 ## 0.2.0 - 2026-10-18
 
 ### Breaking changes

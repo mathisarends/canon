@@ -67,6 +67,7 @@ export type {
   SocketEndpoint,
   SocketName,
   SocketOpener,
+  SocketProtocol,
   SocketTransport,
 } from "./sockets";
 export { SocketConnectionStream } from "./sockets";

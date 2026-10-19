@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi_rpckit.errors import ProtocolDefinitionError, RpcErrorBinding
 from fastapi_rpckit.protocol import RpcProtocol
+from fastapi_rpckit.sockets import RpcSocketProtocol
 from fastapi_rpckit.streams import RpcStreamDirection
 from fastapi_rpckit.websocket import REJECTION_CLOSE_CODES, close_reason
 
@@ -177,6 +178,8 @@ def contract_from_service(
                 entry["subprotocols"] = [endpoint.subprotocol]
             if definition.closes:
                 entry["closes"] = [_close(binding) for binding in definition.closes]
+            if definition.protocol is not None:
+                entry["x-rpckit-protocol"] = _socket_protocol(definition.protocol)
             sockets.append(entry)
     unused = set(supplied) - used
     if unused:
@@ -204,3 +207,13 @@ def _close(binding: RpcErrorBinding[Any]) -> dict[str, Any]:
     if not callable(binding._message):
         close["reason"] = close_reason(binding.error_type.message)
     return close
+
+
+def _socket_protocol(protocol: RpcSocketProtocol) -> dict[str, Any]:
+    entry: dict[str, Any] = {"name": protocol.name}
+    if protocol.version is not None:
+        entry["version"] = protocol.version
+    entry["encoding"] = protocol.encoding
+    if protocol.schemas:
+        entry["schemas"] = list(protocol.schemas)
+    return entry

@@ -27,11 +27,22 @@ type SocketMessage = str | bytes
 
 
 @dataclass(frozen=True, slots=True)
+class SocketProtocol:
+    """The application protocol a socket declared; its messages pass through as-is."""
+
+    name: str
+    encoding: str = "json"
+    version: str | None = None
+    schemas: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class SocketEndpoint:
     name: SocketName
     url: str
     message_types: tuple[SocketMessageType, ...] = ("text", "binary")
     subprotocols: tuple[str, ...] = ()
+    protocol: SocketProtocol | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +54,7 @@ class SocketInfo:
     message_types: tuple[SocketMessageType, ...] = ("text", "binary")
     subprotocols: tuple[str, ...] = ()
     variables: Mapping[str, RpcServerVariable] = field(default_factory=dict)
+    protocol: SocketProtocol | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "variables", MappingProxyType(dict(self.variables)))
@@ -72,6 +84,7 @@ def resolve_socket_endpoint(
         ),
         message_types=socket.message_types,
         subprotocols=socket.subprotocols,
+        protocol=socket.protocol,
     )
 
 
@@ -237,10 +250,19 @@ SOCKETS: Mapping[SocketName, SocketInfo] = {
     SocketName.BROWSER_CDP: SocketInfo(
         name=SocketName.BROWSER_CDP,
         url="wss://{host}/browser/cdp",
+        message_types=("text",),
         variables={
             "host": RpcServerVariable(
                 default="api.example.com",
             ),
         },
+        protocol=SocketProtocol(
+            name="cdp",
+            version="1.3",
+            schemas=(
+                "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json",
+                "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/js_protocol.json",
+            ),
+        ),
     ),
 }
