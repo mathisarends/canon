@@ -217,10 +217,6 @@
           "default": "{host}"
         }
       },
-      "codec": {
-        "name": "json",
-        "encoding": "json"
-      },
       "messages": {
         "client": {
           "$ref": "#/components/schemas/MessagesPingClientMessage"
@@ -240,10 +236,6 @@
         "host": {
           "default": "{host}"
         }
-      },
-      "codec": {
-        "name": "json",
-        "encoding": "json"
       },
       "messages": {
         "client": {

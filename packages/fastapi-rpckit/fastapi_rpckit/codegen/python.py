@@ -120,7 +120,7 @@ def render_files(ir: ClientIr, options: PythonClientOptions) -> dict[str, str]:
     if ir.binary_streams:
         files["streams.py"] = _render_streams(ir, options)
     if ir.sockets:
-        files["sockets.py"] = _render_sockets(ir, options, bound)
+        files["sockets.py"] = _render_sockets(ir, options)
     if bound:
         files["bindings/__init__.py"] = _module(options, _Imports(), "")
         for binding in bound.values():
@@ -370,9 +370,7 @@ def _render_streams(ir: ClientIr, options: PythonClientOptions) -> str:
     return _module(options, imports, body)
 
 
-def _render_sockets(
-    ir: ClientIr, options: PythonClientOptions, bound: Mapping[str, SocketBinding]
-) -> str:
+def _render_sockets(ir: ClientIr, options: PythonClientOptions) -> str:
     imports = _Imports()
     imports.add("collections.abc", "AsyncGenerator", "Awaitable", "Callable", "Mapping")
     imports.add("contextlib", "asynccontextmanager")
@@ -389,18 +387,13 @@ def _render_sockets(
     )
     if options.with_transport == "websocket":
         imports.add(_runtime_module(options), "RpcStreamFailed", "RpcStreamRefused")
-    json_sockets = tuple(
-        socket
-        for socket in ir.sockets
-        if socket.json_messages and _socket_binding(socket, bound) is None
-    )
-    typed = bool(json_sockets)
+    typed = any(socket.client_message is not None for socket in ir.sockets)
     if typed:
         imports.add("typing", "Any", "Generic")
         imports.add("typing_extensions", "TypeVar")
         imports.add("pydantic", "TypeAdapter", "ValidationError")
         imports.add("pydantic_core", "PydanticSerializationError")
-        for socket in json_sockets:
+        for socket in ir.sockets:
             for message in (socket.client_message, socket.server_message):
                 if message is not None:
                     imports.add(f"{options.package}.models", *_model_names(message))
@@ -408,7 +401,6 @@ def _render_sockets(
         "python/sockets.py.j2",
         filters=_template_filters(imports, options),
         sockets=ir.sockets,
-        json_sockets=json_sockets,
         typed=typed,
         with_websocket=options.with_transport == "websocket",
     )
@@ -431,11 +423,11 @@ def _add_socket_imports(
         "resolve_socket_endpoint",
     )
     for socket in sockets:
+        for message in (socket.client_message, socket.server_message):
+            if message is not None:
+                imports.add(f"{options.package}.models", *_model_names(message))
         binding = _socket_binding(socket, bound)
         if binding is None:
-            for message in (socket.client_message, socket.server_message):
-                if message is not None:
-                    imports.add(f"{options.package}.models", *_model_names(message))
             imports.add(f"{options.package}.sockets", "Socket")
         else:
             imports.add(
@@ -966,7 +958,7 @@ def _template_filters(
         "socket_return_type": lambda socket: (
             f"Socket[{_annotation(socket.server_message, imports)}, "
             f"{_annotation(socket.client_message, imports)}]"
-            if socket.json_messages
+            if socket.client_message is not None
             else "Socket"
         ),
         "annotation": lambda expression: _annotation(expression, imports),

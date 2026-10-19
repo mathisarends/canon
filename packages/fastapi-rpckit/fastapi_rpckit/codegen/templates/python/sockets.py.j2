@@ -283,9 +283,9 @@ SOCKETS: Mapping[SocketName, SocketInfo] = {
 
 
 _RECEIVE_ADAPTERS: Mapping[SocketName, TypeAdapter[Any]] = {
-{% for socket in json_sockets %}    SocketName.{{ socket.name | constant }}: TypeAdapter({{ socket.server_message | annotation }}),
-{% endfor %}}
+{% for socket in sockets %}{% if socket.server_message is not none %}    SocketName.{{ socket.name | constant }}: TypeAdapter({{ socket.server_message | annotation }}),
+{% endif %}{% endfor %}}
 _SEND_ADAPTERS: Mapping[SocketName, TypeAdapter[Any]] = {
-{% for socket in json_sockets %}    SocketName.{{ socket.name | constant }}: TypeAdapter({{ socket.client_message | annotation }}),
-{% endfor %}}
+{% for socket in sockets %}{% if socket.client_message is not none %}    SocketName.{{ socket.name | constant }}: TypeAdapter({{ socket.client_message | annotation }}),
+{% endif %}{% endfor %}}
 {% endif %}

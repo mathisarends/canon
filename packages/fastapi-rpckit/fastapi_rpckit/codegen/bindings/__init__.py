@@ -123,6 +123,16 @@ def bind_sockets(
             raise UnsupportedSchemaError(
                 f"Socket binding {name!r} matches no socket protocol in the contract"
             )
+        if any(
+            socket.protocol is not None
+            and socket.protocol.name == name
+            and socket.client_message is not None
+            for socket in sockets
+        ):
+            raise UnsupportedSchemaError(
+                f"Socket binding {name!r} cannot wrap typed JSON sockets; "
+                "use their generated message API or an untyped external socket"
+            )
         result = binding.bind(BindingContext(language, tuple(declared[name]), contract))
         _validate(name, result)
         if result.module in modules:
@@ -131,17 +141,6 @@ def bind_sockets(
             )
         modules.add(result.module)
         bound[name] = result
-    for socket in sockets:
-        if (
-            socket.client_message is not None
-            and not socket.json_messages
-            and (socket.protocol is None or socket.protocol.name not in bound)
-        ):
-            raise UnsupportedSchemaError(
-                f"Socket {socket.name!r} uses codec {socket.codec_name!r} "
-                f"(encoding {socket.message_encoding!r}); "
-                "configure a matching protocol binding for client generation"
-            )
     return bound
 
 

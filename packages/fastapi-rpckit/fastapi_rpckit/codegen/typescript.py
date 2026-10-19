@@ -323,7 +323,7 @@ class _Renderer:
             if binding is None
             else f"socketBinding_{binding.module}.{binding.session}"
         )
-        if binding is None and socket.json_messages:
+        if binding is None and socket.client_message is not None:
             session = (
                 f"Socket<{self._type(socket.server_message)}, "
                 f"{self._type(socket.client_message)}>"
@@ -334,7 +334,7 @@ class _Renderer:
         """The ``openSocket`` connect callback, laid out as Prettier would."""
         binding = self._socket_binding(socket)
         create = "new Socket(transport, endpoint)"
-        if binding is None and socket.json_messages:
+        if socket.client_message is not None:
             create = (
                 f"new Socket<{self._type(socket.server_message)}, "
                 f"{self._type(socket.client_message)}>(transport, endpoint, true)"

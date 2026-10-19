@@ -33,9 +33,9 @@ async def health() -> bool:
     return True
 
 
-@messages.socket("ping", outgoing=Pong)
-async def ping(message: Ping) -> dict[str, int]:
-    return {"value": message.value + 1}
+@messages.socket("ping")
+async def ping(message: Ping) -> Pong:
+    return Pong(value=message.value + 1)
 
 
 @messages.socket("session")

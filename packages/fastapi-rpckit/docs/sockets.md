@@ -1,12 +1,10 @@
 # Sockets
 
-A socket is a WebSocket endpoint. Its transport, message codec, application
-protocol, and handler lifecycle are separate choices. Inject `RpcSocket` for raw
-text/binary, `RpcSocket[Incoming, Outgoing]` for a validated connection, or use a
-message handler whose parameter and return annotations describe its messages.
-Typed annotations infer JSON. Optional `incoming=` and `outgoing=` models override
-each direction's inferred contract; `codec=` selects another codec class or factory.
-See [connection codecs](#connection-codecs) and [typed JSON messages](#typed-json-messages).
+A socket is a WebSocket endpoint. Annotate a message handler's parameter and
+return value to receive validated JSON and send typed responses. Inject
+`RpcSocket[Incoming, Outgoing]` for a typed connection loop, or bare `RpcSocket`
+to carry text and binary unchanged. Message types come only from annotations.
+See [typed JSON messages](#typed-json-messages) and [typed connections](#typed-connections).
 
 For an untyped socket,
 fastapi_rpckit owns acceptance, dependencies, limits, cancellation, and closure, and
@@ -53,63 +51,19 @@ service.socket("/messages/ping", ping)
 ```
 
 The first parameter without `Inject[...]` is the incoming message; its name is
-not significant. Further non-injected parameters are path variables. Each message
-direction needs an annotation or an explicit decorator model. Path parameters
-still require annotations. Injected dependencies are resolved in a
+not significant. Further non-injected parameters are path variables. Message
+and return annotations are required. Injected dependencies are resolved in a
 fresh invocation scope per message, within the existing connection scope. The
 scope stays open through response validation and sending, and is released on
 completion, failure, or disconnect. Calls are sequential on each connection.
 A `None` return annotation sends JSON `null`; it does not suppress the response.
-An explicit `codec=SomeCodec` can replace JSON, including with a binary codec.
-The class or factory receives the resolved `incoming=` and `outgoing=` types.
-Annotations supply the defaults, so a second message-type declaration is optional.
-
-### Explicit message models
-
-Use `outgoing=` like FastAPI's `response_model`: it defines output validation,
-serialization, exported schema, and generated SDK types, independently of the
-handler's implementation return annotation. The handler can return a normal
-dictionary:
-
-```python
-@channel.socket("ping", outgoing=Pong)
-async def ping(message: Ping) -> dict[str, int]:
-    return {"value": message.value + 1}
-```
-
-Input is still inferred from `message: Ping`. Outgoing values undergo strict
-Pydantic validation against `Pong`; extra fields are ignored, retained, or rejected
-according to its model configuration. Serialization uses the declared output
-schema, including when the implementation returns a model subclass.
-
-Both models can live on the decorator:
-
-```python
-@channel.socket("ping", incoming=Ping, outgoing=Pong)
-async def ping(message):
-    return {"value": message.value + 1}
-```
-
-The handler receives a validated `Ping`. Python type checkers cannot infer its
-type from decorator arguments; annotate it as `Ping` if you want IDE checking,
-or use `Any` or omit the annotation for a decorator-only declaration. A concrete
-received annotation must match `incoming=` so it describes the object actually
-passed to the handler. Conflicts fail at endpoint declaration.
-
-Each explicit direction takes precedence; the other direction still uses its
-annotation. `outgoing=` allows omitting a message handler's return annotation.
-Explicit `incoming=None` or `outgoing=None` declares JSON `null`, rather than
-disabling validation.
-
-### Validation and client contracts
 
 Incoming text is parsed and validated once with a cached Pydantic adapter in
 strict mode, before entering the socket queue or calling the handler. Set
-`extra="forbid"` on models to reject unknown fields. Pydantic constraints,
-unions, discriminators, aliases,
-and validators apply, including annotated type aliases. The inferred JSON codec
-uses text frames. Explicit codecs declare their own framing and encoding; these
-must agree with `messages=` and any declared protocol encoding.
+`extra="forbid"` on models to reject unknown fields. Pydantic constraints, unions,
+discriminators, aliases, and validators apply, including annotated type aliases. Message handlers always
+use JSON text frames; binary-only framing or a
+declared encoding other than JSON is rejected when the handler is declared.
 
 Invalid incoming messages close with 1002, `Invalid incoming socket message`.
 Invalid outgoing values close with 1011, `Invalid outgoing socket message`.
@@ -123,15 +77,15 @@ then serialized once. Serialization aliases and custom serializers apply.
 Adapters are built at declaration time, not for each message. This validates
 message structure; it does not correlate request IDs or track protocol sessions.
 For unsolicited messages, multiple responses per input, or an independent
-receive/send loop, use a [connection codec](#connection-codecs). Both handler
-styles use the same receive validation and send serialization. A connection
-handler continues to return `None` and owns all of its messages.
+receive/send loop, inject `RpcSocket[Incoming, Outgoing]` as a
+[typed connection](#typed-connections). Both handler styles use the same internal
+JSON validation and serialization. An endpoint selects one handler style; an
+injected socket handler continues to return `None` and owns all of its messages.
 
 The contract exports `messages.client` and `messages.server` as component schema
 references on the socket entry. Input schemas use Pydantic's validation mode and
 output schemas use serialization mode. These direction names are independent of
 whether the contract is being read by the server or a client.
-The socket's `codec` object records its codec `name` and payload `encoding`.
 
 Generated clients keep the same socket lifecycle and reverse the message roles:
 
@@ -157,17 +111,13 @@ runtime schema validation. Server validation remains authoritative in both cases
 `protocol=RpcSocketProtocol(...)` remains optional metadata. Schema URLs alone
 do not enable validation or generate models from foreign specifications. To type
 CDP, generate or import suitable Pydantic command/response/event types first.
-The built-in JSON codec uses generated typed message sockets by default. A
-selected protocol binding takes precedence and gets the original wire transport,
-including for a JSON codec, so the binding owns client-side decoding and session
-behavior. Other codecs require a binding: generators reject an unknown codec
-without one rather than guessing JSON from its encoding. Bound sockets are never
-also decoded by the generic JSON client.
+External protocol bindings continue to wrap untyped sockets; selecting one for a
+typed JSON socket fails generation rather than wrapping already-decoded messages.
 
 The [typed socket example](../examples/typed_socket/README.md) includes both
 generated clients and tests against a real WebSocket server.
 
-Measure codec CPU cost locally with:
+Measure JSON validation and serialization CPU cost locally with:
 
 ```console
 uv run --locked --directory packages/fastapi-rpckit python scripts/bench_socket_messages.py
@@ -178,14 +128,14 @@ for small and 64 KiB messages, plus adapter construction and standard-library JS
 comparisons. It excludes connection handling, queues, dependency scopes, network,
 and application code; it is not an end-to-end latency measurement.
 
-## Connection codecs
+## Typed connections
 
-By default, the handler annotation defines message types for validation,
-contract schemas, SDK generation, and static checking. JSON needs no separate
-codec declaration:
+Declare incoming and outgoing JSON types in the injected socket annotation. The
+handler runs once per connection and owns its receive/send loop:
 
 ```python
 from fastapi_rpckit import Inject, RpcSocket
+
 
 type PingSocket = RpcSocket[Ping, Pong]
 
@@ -196,56 +146,26 @@ async def session(socket: Inject[PingSocket]) -> None:
     async for message in socket:
         await socket.send(Pong(value=message.value))
         await socket.send(Pong(value=message.value + 1))
-
-
-@channel.socket("reply")
-async def reply(message: Ping) -> Pong:
-    return Pong(value=message.value + 1)
 ```
 
-The connection handler runs once per connection, with one dependency scope until
-it exits. It controls its own tasks, subscriptions, message timing, and reply
-counts. `receive()` returns `Ping`; `send()` accepts `Pong`. Malformed input is
-rejected before it reaches the queue, and output is validated before writing.
-Limits, backpressure, send locking, cancellation, and cleanup still apply.
+Type arguments are **incoming, outgoing**, from the server handler's perspective.
+`receive()` and iteration return validated `Ping` objects; `send()` accepts `Pong`.
+Unions such as `RpcSocket[Command, Reply | Event]` and reusable type aliases work
+the same way. These annotations drive runtime validation, directional contract
+schemas, generated SDK types, and IDE checking without a second declaration.
+Both directions need concrete types; use bare `RpcSocket` for transparent frames.
 
-The socket type arguments are **received, sent**, from the handler's perspective.
-The library derives a JSON codec from this same annotation, including through a
-type alias. Use shared aliases for complex unions instead of repeating schemas.
-For a custom wire mapping, pass its class or a configured factory as `codec=`;
-the factory receives the resolved types once at endpoint declaration. Preconfigured
-codec instances are rejected, and a factory returning different message types
-fails declaration instead of drifting from the static contract.
-The handler can inspect `socket.codec` and `socket.protocol` independently.
+Typed connections use JSON text frames and cached Pydantic adapters, with the
+same strict validation, serialization, and fixed failure reasons as message
+handlers. Injected dependencies have one connection scope, released when the
+handler exits or is cancelled. Unsolicited events, multiple replies, independent
+tasks, backpressure, send locking, limits, and cleanup remain under the existing
+socket lifecycle. The handler returns `None`; it sends every message explicitly.
 
-Connection handlers also accept decorator models. Keep concrete socket type
-arguments equal to the corresponding models, or use `Any` for a direction whose
-schema is declared only on the decorator. For example, infer the received type
-while validating dictionary sends against an explicit outgoing model:
-
-```python
-from typing import Any
-
-
-@channel.socket("session", outgoing=Pong)
-async def session(socket: Inject[RpcSocket[Ping, Any]]) -> None:
-    async for message in socket:  # Ping, including in the IDE.
-        await socket.send({"value": message.value + 1})
-```
-
-For both models on the decorator use `RpcSocket[Any, Any]`. Runtime validation
-and SDK types still follow the declared models, while `Any` honestly marks the
-handler's weaker static typing. Bare `RpcSocket` has raw text/binary static types
-and therefore rejects codec/model options; use the generic form for validation.
-
-Bare `Inject[RpcSocket]` retains unchanged text/binary semantics and
-does no JSON parsing. `protocol=...` remains optional metadata in both modes.
-Neither mode adds a JSON-RPC envelope or implements request correlation, CDP
-sessions, event routing, or automatic imports from schema URLs.
-
-See [custom codecs](socket-codecs.md) for the extension contract and a binary
-example. A custom codec can be used with either handler style; there is no
-registry of supported application protocols in the server.
+JSON validation checks message structure. It does not correlate IDs, route
+events or sessions, import specifications, or implement an application protocol.
+`protocol=` remains independent metadata. To proxy CDP unchanged and use its
+native client library through a protocol binding, inject bare `RpcSocket`.
 
 ## Declare and mount an untyped socket
 

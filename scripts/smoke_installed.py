@@ -95,9 +95,9 @@ def main() -> None:
         rpc = RpcService()
         rpc.socket("/rpc", channels=(channel,))
 
-        @channel.socket("messages", outgoing=SocketOutput)
-        async def messages(message: SocketInput) -> dict[str, int]:
-            return {"value": message.value + 1}
+        @channel.socket("messages")
+        async def messages(message: SocketInput) -> SocketOutput:
+            return SocketOutput(value=message.value + 1)
 
         rpc.socket("/messages", messages)
 

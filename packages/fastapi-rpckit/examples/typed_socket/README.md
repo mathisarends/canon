@@ -1,23 +1,19 @@
 # Typed JSON socket
 
-`ping.py` declares `@messages.socket("ping", outgoing=Pong)` on a handler with
-`message: Ping` and a normal dictionary return. The library infers input validation
-from `Ping`, validates and serializes that dictionary as `Pong`, and owns the
-connection loop. The explicit outgoing model also determines the SDK's response
-type; the implementation's `dict[str, int]` return annotation stays accurate.
+`ping.py` declares `async def ping(message: Ping) -> Pong`. The handler receives
+one validated `Ping` and returns a `Pong`; the library owns the connection loop.
 Malformed messages never reach the handler;
 the transport adds no JSON-RPC envelope to these messages.
 
-The connection handler `session(socket: Inject[PingSocket])` derives its JSON
-codec from `type PingSocket = RpcSocket[Ping, Pong]`. That handler sends an
-initial `Pong(value=0)` before receiving any input and sends two messages per
-`Ping`. The annotation defines runtime validation and precise IDE types once;
-there is no separate codec instance repeating the message types. Both Python and
-TypeScript integration tests exercise the free connection flow as well as the
-managed reply loop.
-
 The same app has a small `health()` JSON-RPC method. As in the existing client
 examples, that server supplies the connection configuration used by `connect()`.
+
+The connection handler `session(socket: Inject[PingSocket])` infers the same JSON
+validation from `type PingSocket = RpcSocket[Ping, Pong]`, with no second type
+declaration. It sends an initial `Pong(value=0)` before receiving input and sends
+two messages per `Ping`. This handler owns its loop and keeps one dependency scope
+per connection. Both generated clients exercise this flow as well as the managed
+message handler. Bare `RpcSocket` remains transparent text/binary transport.
 
 ```console
 uv run --locked uvicorn examples.typed_socket.ping:app
@@ -52,8 +48,6 @@ The SDK exposes `Socket<Pong, Ping>`: receive `Pong`, send `Ping`. TypeScript's
 payload types are static; runtime Pydantic validation runs on the server. The
 Python SDK also validates against its generated models. See the [socket guide](../../docs/sockets.md#typed-json-messages)
 for validation, close codes, schema support, and protocol-binding boundaries.
-The [codec extension guide](../../docs/socket-codecs.md) shows a binary codec and
-explains why custom wire mappings need a matching client binding.
 
 `tests/test_typed_socket_example.py` compiles the TypeScript caller with negative
 type checks and drives both clients against a live uvicorn server.

@@ -19,8 +19,10 @@ from fastapi_rpckit.codegen import (
 from fastapi_rpckit.codegen.bindings import bind_sockets
 from fastapi_rpckit.codegen.ir import UnsupportedSchemaError, build_ir
 
+from ..test_typed_connections import session as typed_session
 from ..test_typed_sockets import Ping, Pong
 from .test_bindings import EchoBinding
+from .test_bindings import session as raw_session
 from .test_socket_roundtrip import LoopbackSocket, UnusedTransport
 
 channel = RpcChannel("messages")
@@ -72,12 +74,52 @@ async def test_python_union_messages_round_trip(
                 del sys.modules[name]
 
 
-def test_protocol_bindings_can_replace_the_builtin_json_client() -> None:
-    document = app.contract(title="Union", base_url="ws://h").to_openrpc()
-    result = bind_sockets(
-        iter(build_ir(document).sockets), [EchoBinding(protocol="example")], "python"
+async def test_raw_protocol_binding_and_typed_connection_share_a_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mixed = RpcService()
+    mixed.socket("/typed", typed_session)
+    mixed.socket("/echo", raw_session)
+    document = mixed.contract(title="Mixed", base_url="ws://h").to_openrpc()
+    package_name = "mixed_client"
+    generate_python_client(
+        document,
+        tmp_path / package_name,
+        PythonClientOptions(package=package_name, bindings=(EchoBinding(),)),
     )
-    assert result["example"].session == "EchoSession"
+    monkeypatch.syspath_prepend(str(tmp_path))
+    try:
+        package = importlib.import_module(package_name)
+
+        async def opener(endpoint):
+            return LoopbackSocket(package, urlsplit(endpoint.url).path, mixed)
+
+        client = package.MixedClient.with_transports(
+            UnusedTransport(), socket_opener=opener
+        )
+        async with client.echo.session() as bound:
+            assert await bound.call("not JSON") == "echo:not JSON"
+        async with client.sessions.session() as socket:
+            assert isinstance(await socket.receive(), package.Ready)
+            await socket.send(package.Ping(value=41))
+            assert (await socket.receive()).value == 41
+            assert (await socket.receive()).value == 42
+    finally:
+        for name in list(sys.modules):
+            if name == package_name or name.startswith(package_name + "."):
+                del sys.modules[name]
+
+
+def test_foreign_bindings_do_not_wrap_already_decoded_messages() -> None:
+    class Binding:
+        protocol = "example"
+
+        def bind(self, context):
+            raise AssertionError("Typed sockets must not invoke the binding")
+
+    document = app.contract(title="Union", base_url="ws://h").to_openrpc()
+    with pytest.raises(UnsupportedSchemaError, match="typed JSON"):
+        bind_sockets(iter(build_ir(document).sockets), [Binding()], "python")
 
 
 @pytest.mark.parametrize("messages", [{}, {"client": {}}, {"client": {}, "server": 1}])

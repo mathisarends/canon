@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from fastapi_rpckit import RpcJsonCodec
+from fastapi_rpckit._socket_messages import SocketMessages
 
 
 class Message(BaseModel):
@@ -17,13 +17,13 @@ class Message(BaseModel):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Measure typed socket codec CPU cost")
+    parser = argparse.ArgumentParser(description="Measure typed socket JSON CPU cost")
     parser.add_argument("--iterations", type=int, default=20_000)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.iterations < 1:
         parser.error("--iterations must be positive")
-    codec = RpcJsonCodec(incoming=Message, outgoing=Message)
+    messages = SocketMessages.create(Message, Message)
 
     def measure(function, number: int) -> float:
         return (
@@ -43,10 +43,10 @@ def main() -> None:
                 "bytes": len(raw.encode()),
                 "iterations": count,
                 "validate_incoming_us": measure(
-                    lambda raw=raw: codec.decode(raw), count
+                    lambda raw=raw: messages.receive(raw), count
                 ),
                 "validate_and_encode_outgoing_us": measure(
-                    lambda message=message: codec.encode(message), count
+                    lambda message=message: messages.send(message), count
                 ),
                 "stdlib_json_loads_us": measure(lambda raw=raw: json.loads(raw), count),
                 "stdlib_json_dumps_us": measure(
@@ -57,9 +57,12 @@ def main() -> None:
     report = {
         "python": sys.version,
         "platform": platform.platform(),
-        "scope": "CPU codec only; excludes sockets, queues, network and application",
-        "codec_build_us": measure(
-            lambda: RpcJsonCodec(incoming=Message, outgoing=Message), 100
+        "scope": (
+            "JSON validation/serialization only; excludes sockets, queues, "
+            "network and application"
+        ),
+        "adapters_build_us": measure(
+            lambda: SocketMessages.create(Message, Message), 100
         ),
         "results": results,
     }

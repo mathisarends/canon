@@ -54,10 +54,10 @@
   these references in consuming code.
 - Server log messages and close reasons say "socket" instead of "raw socket".
   Socket wire behavior, close codes, and message framing are unchanged.
-- Socket contracts with message schemas now declare a codec name and encoding.
-  Custom codecs require an explicit protocol binding for SDK generation instead
-  of being interpreted as ordinary JSON. Codecs validate input before queueing;
-  an invalid queued message can therefore close an active message invocation.
+- Typed JSON input is now validated before queueing. A malformed later message
+  can therefore cancel an active invocation. Clients must send valid messages
+  throughout a connection rather than depending on an earlier reply before an
+  invalid queued message is rejected.
 
 Migration:
 
@@ -73,40 +73,16 @@ Migration:
    `service.socket(...)`, `RpcRawSocket` to `RpcSocket`, and the adapter
    protocol `RpcSocket` to `RpcWebSocket`, then re-export contracts and
    regenerate clients as described above.
-6. Re-export message socket contracts and regenerate clients to include codec
-   metadata. For a free JSON connection, inject `RpcSocket[In, Out]`; its
-   annotation infers the message contract and JSON validation. Optional
-   `incoming=`/`outgoing=` decorator models override each direction. With explicit
-   incoming models, concrete received annotations must agree; use `Any` (or omit
-   the message parameter annotation) for decorator-only input declarations. With
-   explicit outgoing models, message handlers may return dictionaries; connection
-   handlers use `Any` for the sent type when sending dictionary payloads.
-   Bare `RpcSocket` retains unchanged text/binary behavior. For another format,
-   pass a codec class or factory as `codec=SomeCodec`, accepting the library's
-   resolved `incoming=` and `outgoing=` arguments. Replace constructed
-   decorator codec instances with their class/factory; instances are rejected.
-   Register a matching protocol binding
-   when generating a client for a custom codec. Custom code referencing the
-   internal `RpcSocketDefinition.message_contract` uses `codec` instead.
 
 ### Added
 
-- Resolve one directional contract from optional `incoming=`/`outgoing=` decorator
-  models and otherwise handler annotations, driving runtime validation, contract
-  schemas, and SDK types. Explicit output models validate normal dictionary
-  responses independently of implementation return annotations. Typed socket and
-  message-handler annotations infer JSON; custom codec classes or configured
-  factories receive the resolved types once at declaration. Typed connections retain their own
-  receive/send loop, unsolicited messages, multiple replies and connection scope.
-  Message handlers use the same codec runtime path; factories returning different
-  message types are rejected. Untyped connections do no JSON parsing.
-- Extend `RpcSocketCodec` for other wire mappings and text/binary frames. Cached
-  directional adapters and output revalidation are available to codecs, with
-  fixed peer-facing failure reasons through `RpcSocketCodecError`. Codec names
-  distinguish custom JSON envelopes from the built-in direct JSON mapping.
-- Select a protocol-specific SDK binding even for a validated JSON connection.
-  Bound client sockets always receive unchanged wire messages, while unbound
-  JSON endpoints retain the generated Pydantic/static-TypeScript message API.
+- Infer typed JSON connections from `Inject[RpcSocket[Incoming, Outgoing]]`,
+  including aliases and unions. These handlers retain their own receive/send loop,
+  unsolicited messages, multiple replies, and one dependency scope per connection.
+  They share cached internal Pydantic validation and serialization with message
+  handlers. Annotations alone define message types, directional contract schemas,
+  and Python/TypeScript SDK types. Bare `RpcSocket` keeps raw text/binary behavior;
+  protocol metadata never enables validation.
 - Declare JSON socket message handlers as `async def ping(message: Ping) -> Pong`.
   The library validates each input, calls the handler sequentially in a fresh
   invocation scope, and validates and serializes its response. Invalid input
