@@ -7,6 +7,7 @@ from typing import Annotated, Any
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 from websockets.exceptions import InvalidStatus
 
@@ -1498,6 +1499,36 @@ async def test_failing_ice_providers_close_the_session() -> None:
 
 
 # ------------------------------------------------------------------ shutdown
+
+
+def test_asgi_cancellation_during_cleanup_keeps_dependencies_alive() -> None:
+    rtc = router()
+    events: list[str] = []
+    closing = asyncio.Event()
+    track = NativeTrack()
+
+    async def resource() -> AsyncIterator[None]:
+        yield
+        events.append(f"dependency_close:{track.stopped}")
+
+    @rtc.session("/s", dependencies=[Depends(resource)])
+    def factory() -> Session:
+        async def on_close(peer: Peer, code: ErrorCode) -> None:
+            closing.set()
+            await asyncio.sleep(0.05)
+            assert events == []
+            events.append("on_close")
+
+        return Session(tracks=[track], on_close=on_close)
+
+    with TestClient(application(rtc)) as client:
+        assert client.portal is not None
+        with client.websocket_connect("/s") as websocket:
+            assert websocket.receive_json()["type"] == "session"
+            websocket.close()
+            client.portal.call(closing.wait)
+        assert events == ["on_close", "dependency_close:True"]
+        assert rtc.active_sessions == 0
 
 
 async def test_router_close_shuts_sessions_down_and_refuses_new_ones() -> None:

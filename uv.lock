@@ -893,6 +893,7 @@ name = "fastapi-webrtc"
 version = "0.1.0"
 source = { editable = "packages/fastapi-webrtc" }
 dependencies = [
+    { name = "anyio" },
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "starlette" },
@@ -920,6 +921,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiortc", marker = "extra == 'aiortc'", specifier = ">=1.14,<2" },
+    { name = "anyio", specifier = ">=4" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "starlette", specifier = ">=0.41" },

@@ -17,7 +17,7 @@ classifiers = [
     "Topic :: Multimedia :: Video",
     "Typing :: Typed",
 ]
-dependencies = ["fastapi>=0.115,<1", "pydantic>=2.9,<3", "starlette>=0.41"]
+dependencies = ["anyio>=4", "fastapi>=0.115,<1", "pydantic>=2.9,<3", "starlette>=0.41"]
 
 [project.optional-dependencies]
 aiortc = ["aiortc>=1.14,<2"]

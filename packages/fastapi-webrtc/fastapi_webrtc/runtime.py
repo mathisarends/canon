@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from anyio import CancelScope
 from pydantic import ValidationError
 from starlette.websockets import WebSocket, WebSocketState
 
@@ -167,7 +168,16 @@ class SessionRuntime:
             logger.exception("Session %s failed unexpectedly", self.declaration.name)
             self.terminate(ErrorCode.ENGINE_FAILURE)
         finally:
-            await asyncio.shield(self._cleanup_once())
+            # ASGI servers may cancel the endpoint while cleanup is awaiting I/O.
+            # Do not let dependency scopes exit while the shielded task runs on.
+            cleanup = asyncio.create_task(self._cleanup_once())
+            with CancelScope(shield=True):
+                while not cleanup.done():
+                    try:
+                        await asyncio.shield(cleanup)
+                    except asyncio.CancelledError:
+                        cancelled = True
+                cleanup.result()
         if cancelled:
             raise asyncio.CancelledError
 

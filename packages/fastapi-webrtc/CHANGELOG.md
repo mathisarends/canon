@@ -53,6 +53,8 @@ adopting the reviewed 0.1.0 source; no published WebRTC release is superseded.
 
 ### Fixes
 
+- Finish session cleanup before dependency teardown even when ASGI cancels the
+  endpoint during cleanup; `on_close` retains access to its session services.
 - Bound browser renegotiation by the server's negotiation deadline, including
   stalled SDP/track operations. Bound sends independently of connect, and reject
   all pending operations on permanent peer-connection failure.
