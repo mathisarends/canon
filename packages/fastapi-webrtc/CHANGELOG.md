@@ -46,6 +46,8 @@ adopting the reviewed 0.1.0 source; no published WebRTC release is superseded.
 
 ### Fixes
 
+- Report unavailable aiortc jitter as `None`: its RTP timestamp units cannot
+  be converted to seconds without a reliable per-stream codec clock rate.
 - Count only active incoming tracks against media limits, releasing capacity
   exactly once when a track ends so replacements can use the same session.
 - Release tracks returned by session factories on router/endpoint capacity,

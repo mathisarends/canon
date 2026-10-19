@@ -265,7 +265,9 @@ class AiortcPeer:
                         kind=cast(MediaKind, item.kind),
                         packets=item.packetsReceived,
                         packets_lost=item.packetsLost,
-                        jitter_seconds=item.jitter,
+                        # aiortc reports RTP timestamp units, but exposes no
+                        # codec/clock-rate link for this stream in its stats.
+                        jitter_seconds=None,
                     )
                 )
             elif isinstance(item, RTCOutboundRtpStreamStats):
