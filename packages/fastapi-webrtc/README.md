@@ -138,6 +138,16 @@ Both commands accept `--check`, which fails on drift without writing.
 Generated directories contain a manifest. Stale generated files are removed;
 files you add yourself are kept.
 
+Configure shared credentials with `new PracticeRtcClient({ query: async () =>
+({ token: await refreshToken() }) })`. The provider runs for every connection.
+Query values are merged in this order, with later sources taking precedence:
+the `baseUrl` query string, `client.config.query`, `connect({ query: ... })`, then
+named connect parameters such as `connect({ lessonId: "greetings", token: "new" })`.
+Use wire aliases as keys inside query maps. An omitted named parameter preserves
+shared values; `null` explicitly removes a query value. Required query parameters
+are checked after merging. Generated query fields are optional so shared
+credentials can supply them; required path parameters must still be passed.
+
 ## Limits and ICE
 
 `SessionLimits` bounds negotiation time, pending candidates, signaling and

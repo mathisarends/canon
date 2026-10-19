@@ -608,6 +608,11 @@ def test_generated_clients_type_check(tmp_path: Path) -> None:
         'import { RtcClient } from "./client/index.js";\n'
         "const client = new RtcClient({ baseUrl: 'https://example.test' });\n"
         "export async function play(): Promise<void> {\n"
+        "  const shared = new RtcClient({ query: async () => ({ token: 'fresh' }) });\n"
+        "  await shared.game.connect({ gameId: 'g' });\n"
+        "  await client.game.connect({ gameId: 'g', query: { token: 'local' } });\n"
+        "  // @ts-expect-error: shared credentials cannot supply a path parameter.\n"
+        "  await shared.game.connect({});\n"
         "  const game = await client.game.connect({\n"
         "    gameId: 'g', token: 't', seat: 1,\n"
         "    onMessage: { moves: (state) => void state.pieces['king']?.x },\n"

@@ -129,6 +129,7 @@ export interface ClientConfig {
   /**
    * Extra query parameters for every session, for example an access token.
    * Browsers cannot set headers on WebSockets; cookies are sent automatically.
+   * Per-connect query values override these; named connect parameters override both.
    */
   readonly query?: QueryParams | (() => QueryParams | Promise<QueryParams>);
   /** Merged into every peer connection's configuration. */
@@ -351,19 +352,22 @@ export function sessionUrl(
       : encodeURIComponent(text);
   });
   url.pathname = url.pathname.replace(/\/+$/, "") + path;
-  for (const parameter of descriptor.parameters) {
-    if (parameter.in !== "query") continue;
-    const value = values[parameter.key];
-    if (value === undefined && parameter.required) {
-      throw new TypeError(`Missing query parameter ${parameter.key}`);
-    }
-    appendQuery(url, parameter.name, value as QueryValue);
-  }
   for (const query of queries) {
     if (query === undefined) continue;
     for (const [name, value] of Object.entries(query)) {
       url.searchParams.delete(name);
       appendQuery(url, name, value);
+    }
+  }
+  for (const parameter of descriptor.parameters) {
+    if (parameter.in !== "query") continue;
+    const value = values[parameter.key];
+    if (value !== undefined) {
+      url.searchParams.delete(parameter.name);
+      appendQuery(url, parameter.name, value as QueryValue);
+    }
+    if (parameter.required && !url.searchParams.has(parameter.name)) {
+      throw new TypeError(`Missing query parameter ${parameter.key}`);
     }
   }
   return url.toString();

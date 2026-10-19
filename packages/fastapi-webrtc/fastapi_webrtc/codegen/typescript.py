@@ -468,7 +468,11 @@ def _session_types(session: Mapping[str, Any], models: _Emitter) -> str:
             f"export type {pascal}Parameters = {{",
         ]
         for key, parameter in parameters:
-            optional = "" if parameter["required"] else "?"
+            # Query requirements apply after shared credentials and per-call
+            # query values are merged. Path parameters always stay local.
+            optional = (
+                "" if parameter["required"] and parameter["in"] == "path" else "?"
+            )
             lines.append(_doc(_schema_doc(parameter.get("schema")), "  ").rstrip("\n"))
             value = models.type(parameter.get("schema"), "  ")
             lines.append(f"  readonly {key}{optional}: {value};")

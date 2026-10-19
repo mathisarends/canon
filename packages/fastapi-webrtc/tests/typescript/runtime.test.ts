@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 
 import {
   type Feedback,
+  type ConnectOptions,
   type QueryParams,
   PracticeRtcClient,
   type PracticeSession,
@@ -11,6 +12,8 @@ import {
   decodeMessage,
   encodeMessage,
   sessionUrl,
+  sessionApi,
+  type SessionDescriptor,
 } from "../../examples/practice/client/index.js";
 import { FakeDataChannel, FakePeerConnection, FakeTrack, FakeWebSocket, flush, hello, reset } from "./fakes.js";
 
@@ -79,7 +82,47 @@ describe("helpers", () => {
       { token: "t" },
       { token: "override" },
     );
-    assert.equal(url, "ws://localhost:8000/base/rtc/lessons/a%20b%2Fc/x/y%20z?tags=one&tags=two&token=override");
+    assert.equal(url, "ws://localhost:8000/base/rtc/lessons/a%20b%2Fc/x/y%20z?token=override&tags=one&tags=two");
+  });
+
+  test("required query parameters use final merged credentials", () => {
+    const descriptor = {
+      path: "/s", parameters: [{ name: "access_token", key: "accessToken", in: "query", required: true }],
+    } as const;
+    assert.equal(sessionUrl("https://x.test", descriptor, {}, { access_token: "global" }), "wss://x.test/s?access_token=global");
+    assert.equal(sessionUrl("https://x.test", descriptor, {}, { access_token: "old" }, { access_token: "query" }), "wss://x.test/s?access_token=query");
+    assert.equal(sessionUrl("https://x.test", descriptor, { accessToken: "named" }, { access_token: "old" }, { access_token: "query" }), "wss://x.test/s?access_token=named");
+    assert.throws(() => sessionUrl("https://x.test", descriptor, {}), /Missing query parameter accessToken/);
+    assert.throws(() => sessionUrl("https://x.test", descriptor, { accessToken: null }, { access_token: "global" }), /Missing query parameter accessToken/);
+  });
+
+  test("required credentials support shared tokens, refresh and explicit overrides", async () => {
+    const descriptor: SessionDescriptor = {
+      name: "secured", path: "/s", role: "answerer",
+      media: { audio: null, video: null }, channels: [],
+      parameters: [{ name: "token", key: "token", in: "query", required: true }],
+    };
+    let token = "first";
+    let calls = 0;
+    const config = { ...client().config, query: async () => { calls += 1; return { token }; } };
+    type SecuredOptions = ConnectOptions<Record<never, never>> & { readonly token?: string };
+    const api = sessionApi<Record<never, never>, SecuredOptions>(config, descriptor);
+    for (const [options, expected] of [
+      [{}, "first"],
+      [{ query: { token: "local-query" } }, "local-query"],
+      [{ token: "named", query: { token: "local-query" } }, "named"],
+      [{}, "refreshed"],
+    ] as const) {
+      if (expected === "refreshed") token = expected;
+      const connecting = api.connect(options);
+      await flush();
+      const socket = FakeWebSocket.last();
+      assert.equal(new URL(socket.url).searchParams.get("token"), expected);
+      socket.open();
+      socket.serverClose(1001);
+      await assert.rejects(connecting, { code: "shutdown" });
+    }
+    assert.equal(calls, 4);
   });
 
   test("session URLs reject missing parameters and unsupported origins", () => {
@@ -551,7 +594,7 @@ describe("session API", () => {
       RTCPeerConnection: FakePeerConnection as unknown as typeof RTCPeerConnection,
     }).practice;
     assert.equal(practice.descriptor.name, "practice");
-    const connecting = practice.connect({ lessonId: "x", token: null });
+    const connecting = practice.connect({ lessonId: "x" });
     await flush();
     const socket = FakeWebSocket.last();
     assert.equal(socket.url, "ws://localhost/rtc/lessons/x?token=dynamic");
