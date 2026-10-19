@@ -29,7 +29,14 @@ from fastapi_webrtc import (
     WebRtcRouter,
 )
 from fastapi_webrtc.engine import PeerConfig, PeerObserver
-from tests.fake_engine import FakeEngine, FakePeer, FakeTrack, NativeTrack, sdp
+from tests.fake_engine import (
+    FakeEngine,
+    FakePeer,
+    FakeSender,
+    FakeTrack,
+    NativeTrack,
+    sdp,
+)
 from tests.server import serve
 from tests.signaling import Signal, until
 
@@ -245,6 +252,7 @@ async def test_blocked_startup_is_cancelled_and_releases_resources(
     entered = asyncio.Event()
     cancelled = asyncio.Event()
     teardown: list[str] = []
+    track = NativeTrack()
 
     async def block() -> None:
         entered.set()
@@ -282,9 +290,9 @@ async def test_blocked_startup_is_cancelled_and_releases_resources(
         limits=SessionLimits(negotiation_timeout_seconds=0.2),
     )
 
-    @rtc.session("/blocked", dependencies=[Depends(resource)])
+    @rtc.session("/blocked", media=AUDIO, dependencies=[Depends(resource)])
     def session() -> Session:
-        return Session()
+        return Session(tracks=[track])
 
     async with serve(application(rtc)) as base:
         signal = await Signal.open(f"{base}/blocked")
@@ -295,6 +303,7 @@ async def test_blocked_startup_is_cancelled_and_releases_resources(
         assert await signal.closed(timeout=1) == expected
         await until(lambda: teardown == ["closed"])
         assert cancelled.is_set()
+        assert track.stopped
         assert rtc.active_sessions == 0
         if stage == "engine" and suppress_cancel:
             assert len(engine_of(rtc).peers) == 1
@@ -304,6 +313,42 @@ async def test_blocked_startup_is_cancelled_and_releases_resources(
 
 
 # ---------------------------------------------------------------- signaling
+
+
+@pytest.mark.parametrize("reason", ["disconnect", "timeout", "attachment"])
+async def test_initial_tracks_are_owned_before_attachment(
+    reason: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tracks = [NativeTrack(), NativeTrack(), NativeTrack()]
+    rtc = router(limits=SessionLimits(negotiation_timeout_seconds=0.2))
+    original = FakePeer.add_track
+
+    def add_track(peer: FakePeer, native: Any) -> FakeSender:
+        if native is tracks[1]:
+            raise RuntimeError("second attachment failed")
+        return original(peer, native)
+
+    if reason == "attachment":
+        monkeypatch.setattr(FakePeer, "add_track", add_track)
+
+    @rtc.session("/s", media=AUDIO)
+    def session() -> Session:
+        return Session(tracks=tracks)
+
+    async with serve(application(rtc)) as base:
+        signal = await Signal.start(f"{base}/s")
+        if reason == "disconnect":
+            await signal.close()
+        else:
+            if reason == "attachment":
+                await signal.describe("offer", sdp("audio recvonly"))
+            expected = (
+                "engine_failure" if reason == "attachment" else "negotiation_timeout"
+            )
+            assert (await signal.closed())[1] == expected
+        await until(lambda: rtc.active_sessions == 0)
+        assert all(track.stopped for track in tracks)
+        assert engine_of(rtc).peer.closed
 
 
 async def test_browser_offer_is_answered_and_candidates_are_buffered() -> None:

@@ -136,6 +136,8 @@ class SessionRuntime:
         self._queued_tracks: list[IncomingTrack] = []
         self._incoming_counts: dict[str, int] = {"audio": 0, "video": 0}
         self._outgoing: list[OutgoingTrack] = []
+        # Session.tracks transfer ownership before negotiation can attach them.
+        self._owned_tracks = {id(track): track for track in session.tracks}
         self._channels = {
             spec.name: _Channel(
                 spec=spec,
@@ -271,6 +273,8 @@ class SessionRuntime:
         async with self._negotiation:
             self._ensure_active()
             peer = self._require_peer()
+            if owned:
+                self._owned_tracks[id(native)] = native
             handle._sender = self._engine_call(lambda: peer.add_track(native))
             self._outgoing.append(handle)
         if self._remote_applied or self.declaration.role is Role.OFFERER:
@@ -290,10 +294,14 @@ class SessionRuntime:
                 except Exception as error:
                     raise WebRtcError(ErrorCode.ENGINE_FAILURE) from error
             if handle.owned:
-                _stop_native(handle.native)
+                self._release_track(handle.native)
             await self._renegotiate(wait=True)
         elif handle.owned:
-            _stop_native(handle.native)
+            self._release_track(handle.native)
+
+    def _release_track(self, native: Any) -> None:
+        if self._owned_tracks.pop(id(native), None) is not None:
+            _stop_native(native)
 
     async def stats(self) -> ConnectionStats:
         peer = self._require_peer()
@@ -1108,9 +1116,9 @@ class SessionRuntime:
             with contextlib.suppress(Exception):
                 track._stop()
         for handle in self._outgoing:
-            if handle.owned and not handle.removed:
-                handle.removed = True
-                _stop_native(handle.native)
+            handle.removed = True
+        for native in list(self._owned_tracks.values()):
+            self._release_track(native)
         for channel in self._channels.values():
             channel.closed.set()
             channel.drained.set()
