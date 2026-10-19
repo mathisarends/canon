@@ -64,8 +64,6 @@ class SocketBinding:
     source: str
     open: str
     session: str
-    requirements: tuple[str, ...] = ()
-    """Packages the generated client needs at runtime once the binding is used."""
 
 
 @runtime_checkable

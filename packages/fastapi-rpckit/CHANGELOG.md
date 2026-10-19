@@ -92,6 +92,15 @@ Migration:
 - Add the `socket_protocol` example: a small CDP-shaped protocol with Python and
   TypeScript bindings, tested against a live server.
 
+### Fixed
+
+- Close an opened TypeScript socket when a protocol binding fails to initialize,
+  including asynchronous failures. Preserve the initialization error if closing
+  the transport also fails.
+- Keep bindings with identical exported factory or session names separate in
+  generated Python and TypeScript clients by importing their modules under
+  distinct aliases.
+
 ## 0.2.0 - 2026-10-18
 
 ### Breaking changes

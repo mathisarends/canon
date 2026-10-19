@@ -817,7 +817,17 @@ export class RpcClientCore {
         "No socket opener configured; pass socketOpener",
       );
     }
-    return connect(await this.socketOpener(endpoint), endpoint);
+    const transport = await this.socketOpener(endpoint);
+    try {
+      return await connect(transport, endpoint);
+    } catch (error) {
+      try {
+        await transport.close();
+      } catch {
+        // Preserve the binding's initialization error if cleanup also fails.
+      }
+      throw error;
+    }
   }
 
   async request<Route extends RpcRouteInfo>(

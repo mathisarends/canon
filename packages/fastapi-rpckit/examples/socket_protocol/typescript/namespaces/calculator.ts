@@ -4,7 +4,7 @@
 
 import type { RpcClientCore, RpcRequestOptions } from "../core";
 import { Socket, sockets, resolveSocketEndpoint } from "../sockets";
-import { openCalc, type CalcSession } from "../bindings/calc";
+import * as socketBinding_calc from "../bindings/calc";
 import { routes } from "../routes";
 
 export class Calculator {
@@ -16,10 +16,11 @@ export class Calculator {
   }
 
   /** Evaluate calc commands. */
-  session(): Promise<CalcSession> {
+  session(): Promise<socketBinding_calc.CalcSession> {
     return this.rpc.openSocket(
       resolveSocketEndpoint(sockets.calculatorSession, this.rpc.variables),
-      (transport, endpoint) => openCalc(new Socket(transport, endpoint)),
+      (transport, endpoint) =>
+        socketBinding_calc.openCalc(new Socket(transport, endpoint)),
     );
   }
 }

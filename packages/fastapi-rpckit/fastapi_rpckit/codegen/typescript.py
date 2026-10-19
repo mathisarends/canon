@@ -306,16 +306,18 @@ class _Renderer:
             if binding is not None:
                 modules.setdefault(binding.module, binding)
         return [
-            _value_import(
-                [binding.open, f"type {binding.session}"],
-                f"{root}bindings/{binding.module}",
-            )
+            f"import * as socketBinding_{binding.module} "
+            f'from "{root}bindings/{binding.module}";'
             for binding in modules.values()
         ]
 
     def _socket_handle_signature(self, socket: SocketDecl) -> str:
         binding = self._socket_binding(socket)
-        session = "Socket" if binding is None else binding.session
+        session = (
+            "Socket"
+            if binding is None
+            else f"socketBinding_{binding.module}.{binding.session}"
+        )
         return _socket_signature(socket, f"Promise<{session}>")
 
     def _socket_handle_connect(self, socket: SocketDecl) -> str:
@@ -324,10 +326,11 @@ class _Renderer:
         create = "new Socket(transport, endpoint)"
         if binding is None:
             return f"      (transport, endpoint) => {create},"
-        inline = f"      (transport, endpoint) => {binding.open}({create}),"
+        open_binding = f"socketBinding_{binding.module}.{binding.open}"
+        inline = f"      (transport, endpoint) => {open_binding}({create}),"
         if len(inline) <= _TS_WIDTH:
             return inline
-        return f"      (transport, endpoint) =>\n        {binding.open}({create}),"
+        return f"      (transport, endpoint) =>\n        {open_binding}({create}),"
 
     def client(self) -> str:
         core_imports = [

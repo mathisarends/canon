@@ -58,14 +58,14 @@
         )
 {% endmacro %}
 
-{% macro socket_method(item) %}{% set binding = item | socket_binding %}{% set returns = binding.session if binding else "Socket" %}{% set inline_signature = "    def " ~ (item.operation_name | identifier) ~ "(self) -> AbstractAsyncContextManager[" ~ returns ~ "]:" %}{% if not item.call_variables and inline_signature | length <= 88 %}{{ inline_signature }}
+{% macro socket_method(item) %}{% set binding = item | socket_binding %}{% set binding_module = "_socket_binding_" ~ binding.module if binding else "" %}{% set returns = binding_module ~ "." ~ binding.session if binding else "Socket" %}{% set inline_signature = "    def " ~ (item.operation_name | identifier) ~ "(self) -> AbstractAsyncContextManager[" ~ returns ~ "]:" %}{% if not item.call_variables and inline_signature | length <= 88 %}{{ inline_signature }}
 {% else %}    def {{ item.operation_name | identifier }}(
         self,
 {% if item.call_variables %}        *,
 {% for variable in item.call_variables %}        {{ variable.name | identifier }}: {{ variable | variable_annotation }} | None = None,
 {% endfor %}{% endif %}    ) -> AbstractAsyncContextManager[{{ returns }}]:
 {% endif %}{% if item.summary %}        """{{ item.summary | docstring }}"""
-{% endif %}{% if binding %}        return {{ binding.open }}(
+{% endif %}{% if binding %}        return {{ binding_module }}.{{ binding.open }}(
             open_socket(
                 resolve_socket_endpoint(
                     SOCKETS[SocketName.{{ item.name | constant }}],

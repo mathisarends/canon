@@ -261,6 +261,48 @@ def _result(module: str = "m", open: str = "open_m", session: str = "M") -> Any:
     return SocketBinding(module, "", open, session)
 
 
+@pytest.mark.parametrize("api_root", [None, "echo"])
+async def test_python_bindings_can_export_identical_names(
+    document: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    api_root: str | None,
+) -> None:
+    deployed = json.loads(json.dumps(document))
+    deployed["x-rpckit-sockets"][1]["x-rpckit-protocol"] = {"name": "other"}
+    package_name = "collision_client"
+    generate_python_client(
+        deployed,
+        tmp_path / package_name,
+        PythonClientOptions(
+            package=package_name,
+            client_name="EchoClient",
+            api_root=api_root,
+            bindings=(
+                EchoBinding(),
+                StaticBinding(
+                    "other",
+                    SocketBinding("other", PYTHON_SESSION, "open_echo", "EchoSession"),
+                ),
+            ),
+        ),
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    try:
+        package = importlib.import_module(package_name)
+        client = _client(package)
+        namespace = client.echo if api_root is None else client
+        async with namespace.session() as first, namespace.raw() as second:
+            assert type(first).__module__ == f"{package_name}.bindings.echo"
+            assert type(second).__module__ == f"{package_name}.bindings.other"
+            assert await first.call("hi") == "echo:hi"
+            assert await second.call("hi") == "hi"
+    finally:
+        for name in list(sys.modules):
+            if name == package_name or name.startswith(f"{package_name}."):
+                del sys.modules[name]
+
+
 @pytest.mark.parametrize(
     ("bindings", "message"),
     [
@@ -352,7 +394,7 @@ def test_the_cli_loads_bindings_next_to_the_config(
     finally:
         sys.modules.pop("local_echo_binding", None)
     namespace = (tmp_path / "echo_client" / "namespaces" / "echo.py").read_text()
-    assert "AbstractAsyncContextManager[EchoSession]" in namespace
+    assert "AbstractAsyncContextManager[_socket_binding_echo.EchoSession]" in namespace
     assert (tmp_path / "echo_client" / "bindings" / "echo.py").exists()
     assert str(tmp_path) not in sys.path
 
@@ -383,6 +425,8 @@ def test_the_cli_reports_unknown_bindings(
 _RUNNER = """
 import { EchoClient, Socket } from "./generated";
 import { EchoSession } from "./generated/bindings/echo";
+import { EchoSession as OtherSession } from "./generated/bindings/other";
+import { RpcClientCore } from "./generated/core";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -425,6 +469,49 @@ async function main(): Promise<void> {
   const generic = await client.echo.raw();
   assert(generic instanceof Socket, "unbound sockets stay generic");
   await generic.close();
+
+  await using other = await client.echo.other();
+  assert(other instanceof OtherSession, "bindings may export the same names");
+  assert(!(other instanceof EchoSession), "each socket keeps its own binding");
+
+  for (const asynchronous of [false, true]) {
+    for (const closeFails of [false, true]) {
+      const failure = new Error("binding initialization failed");
+      let closes = 0;
+      const rpc = new RpcClientCore(
+        {
+          request: async () => undefined,
+          notifications: async function* () {},
+          close: async () => undefined,
+        },
+        {
+          socketOpener: async () => ({
+            ...transport("/session"),
+            async close() {
+              closes++;
+              if (closeFails) throw new Error("cleanup failed");
+            },
+          }),
+        },
+      );
+      const endpoint = {
+        name: "echo.session" as const,
+        url: "ws://localhost/session",
+        messageTypes: ["text"] as const,
+      };
+      const initialize = asynchronous
+        ? async () => { throw failure; }
+        : () => { throw failure; };
+      let caught: unknown;
+      try {
+        await rpc.openSocket(endpoint, initialize);
+      } catch (error) {
+        caught = error;
+      }
+      assert(caught === failure, "preserve the binding initialization error");
+      assert(closes === 1, "close a transport whose binding failed to initialize");
+    }
+  }
 }
 
 void main();
@@ -446,6 +533,15 @@ def test_bound_typescript_sockets_return_the_binding_session(
     output = tmp_path / "generated"
     deployed = {
         **document,
+        "x-rpckit-sockets": [
+            *document["x-rpckit-sockets"],
+            {
+                "name": "echo.other",
+                "url": "ws://localhost/other",
+                "messageTypes": ["text"],
+                "x-rpckit-protocol": {"name": "other"},
+            },
+        ],
         "servers": [
             {
                 "name": "primary",
@@ -460,7 +556,15 @@ def test_bound_typescript_sockets_return_the_binding_session(
         TypeScriptClientOptions(
             client_name="EchoClient",
             with_transport="websocket",
-            bindings=(EchoBinding(),),
+            bindings=(
+                EchoBinding(),
+                StaticBinding(
+                    "other",
+                    SocketBinding(
+                        "other", TYPESCRIPT_SESSION, "openEcho", "EchoSession"
+                    ),
+                ),
+            ),
         ),
     )
     formatting = subprocess.run(
@@ -471,8 +575,8 @@ def test_bound_typescript_sockets_return_the_binding_session(
     )
     assert formatting.returncode == 0, formatting.stdout + formatting.stderr
     namespace = (output / "namespaces" / "echo.ts").read_text("utf-8")
-    assert 'import { openEcho, type EchoSession } from "../bindings/echo";' in namespace
-    assert "session(): Promise<EchoSession>" in namespace
+    assert 'import * as socketBinding_echo from "../bindings/echo";' in namespace
+    assert "session(): Promise<socketBinding_echo.EchoSession>" in namespace
 
     runner = tmp_path / "bound.test.ts"
     runner.write_text(dedent(_RUNNER), encoding="utf-8", newline="\n")

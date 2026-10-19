@@ -3,7 +3,7 @@
 
 from contextlib import AbstractAsyncContextManager
 
-from calc_client.bindings.calc import CalcSession, open_calc
+from calc_client.bindings import calc as _socket_binding_calc
 from calc_client.internal import RpcClientCore
 from calc_client.routes import CALCULATOR_OPERATIONS
 from calc_client.sockets import (
@@ -24,9 +24,9 @@ class Calculator:
             CALCULATOR_OPERATIONS,
         )
 
-    def session(self) -> AbstractAsyncContextManager[CalcSession]:
+    def session(self) -> AbstractAsyncContextManager[_socket_binding_calc.CalcSession]:
         """Evaluate calc commands."""
-        return open_calc(
+        return _socket_binding_calc.open_calc(
             open_socket(
                 resolve_socket_endpoint(
                     SOCKETS[SocketName.CALCULATOR_SESSION],

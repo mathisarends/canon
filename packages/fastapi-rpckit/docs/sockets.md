@@ -315,7 +315,8 @@ The generator writes `source` to `bindings/<module>` of the client and imports
 `BindingContext` carries the language, the declarations of the protocol in the
 contract, and `schemas()`, which resolves relative schema references against
 the contract file. A binding can read those schemas to generate typed commands.
-`SocketBinding.requirements` names the runtime packages its source imports.
+Install any packages imported by the binding's emitted source in the consuming
+application. The generator does not manage the application's dependencies.
 
 Select bindings per client in the generator config, or with `--binding`:
 

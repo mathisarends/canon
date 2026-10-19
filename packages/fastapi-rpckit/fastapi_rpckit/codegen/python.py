@@ -417,9 +417,8 @@ def _add_socket_imports(
             imports.add(f"{options.package}.sockets", "Socket")
         else:
             imports.add(
-                f"{options.package}.bindings.{binding.module}",
-                binding.open,
-                binding.session,
+                f"{options.package}.bindings",
+                f"{binding.module} as _socket_binding_{binding.module}",
             )
 
 
