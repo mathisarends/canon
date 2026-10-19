@@ -133,26 +133,33 @@ def generate_typescript(
         raise ContractError(f"--client-name {client_name!r} is not a TS identifier")
     runtime = runtime_source()
     sessions: list[Mapping[str, Any]] = list(contract["sessions"])
-    client_names = {client_name}
+    names_in_use = {name: "the runtime" for name in _EXPORTED.findall(runtime)}
+    names_in_use["models"] = "the models import"
+
+    def claim(registry: dict[str, str], name: str, owner: str) -> None:
+        previous = registry.get(name)
+        if previous is not None:
+            raise ContractError(
+                f"Generated name {name!r} for {owner} clashes with {previous}; "
+                "rename the session or pass another --client-name"
+            )
+        registry[name] = owner
+
+    claim(names_in_use, client_name, "the client class")
+    members = {"config": "the client configuration member"}
     for session in sessions:
         pascal = _pascal(session["name"])
-        client_names.update(
-            {
-                f"{pascal}Channels",
-                f"{pascal}Parameters",
-                f"{pascal}ConnectOptions",
-                f"{pascal}Session",
-                f"{_camel(session['name'])}Descriptor",
-            }
-        )
-    taken = set(_EXPORTED.findall(runtime)) | client_names
-    clash = client_names & set(_EXPORTED.findall(runtime))
-    if clash:
-        raise ContractError(
-            f"Generated names {sorted(clash)} clash with the runtime; rename the "
-            "sessions or pass another --client-name"
-        )
-    names = _definition_names(contract.get("definitions", {}), taken)
+        owner = f"session {session['name']!r}"
+        claim(members, _camel(session["name"]), owner)
+        for name in (
+            f"{pascal}Channels",
+            f"{pascal}Parameters",
+            f"{pascal}ConnectOptions",
+            f"{pascal}Session",
+            f"{_camel(session['name'])}Descriptor",
+        ):
+            claim(names_in_use, name, owner)
+    names = _definition_names(contract.get("definitions", {}), set(names_in_use))
     emitter = _Emitter(names)
     banner = _banner(header)
     return {

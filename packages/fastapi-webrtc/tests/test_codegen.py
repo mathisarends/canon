@@ -292,6 +292,79 @@ def test_definition_names_avoid_collisions() -> None:
 
 
 @pytest.mark.parametrize(
+    ("names", "client_name", "collision", "corrected", "corrected_client"),
+    [
+        (
+            ["foo_bar", "fooBar"],
+            "RtcClient",
+            "fooBar",
+            ["foo_bar", "fooBaz"],
+            "RtcClient",
+        ),
+        (["config"], "RtcClient", "config", ["settings"], "RtcClient"),
+        (["foo"], "FooSession", "FooSession", ["foo"], "FooClient"),
+    ],
+)
+def test_generated_names_reject_collisions_before_writing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    names: list[str],
+    client_name: str,
+    collision: str,
+    corrected: list[str],
+    corrected_client: str,
+) -> None:
+    source = tmp_path / "contract.json"
+    source.write_text(json.dumps(minimal(*(session(name=name) for name in names))))
+    output = tmp_path / "client"
+    assert (
+        main(
+            [
+                "generate",
+                "--contract",
+                str(source),
+                "--output",
+                str(output),
+                "--client-name",
+                client_name,
+            ]
+        )
+        == 2
+    )
+    assert collision in capsys.readouterr().err
+    assert not output.exists()
+    # Each reported resolution produces a real, compilable TypeScript SDK.
+    write_files(
+        output,
+        generate_typescript(
+            minimal(*(session(name=name) for name in corrected)),
+            client_name=corrected_client,
+        ),
+    )
+    node = shutil.which("node")
+    tsc = PACKAGE / "node_modules/typescript/bin/tsc"
+    assert node is not None and tsc.is_file()
+    result = subprocess.run(
+        [
+            node,
+            str(tsc),
+            "--strict",
+            "--target",
+            "ES2022",
+            "--module",
+            "ES2022",
+            "--noEmit",
+            "--skipLibCheck",
+            str(output / "index.ts"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
     ("value", "message"),
     [
         ({"contract_version": 2}, "contract version"),
