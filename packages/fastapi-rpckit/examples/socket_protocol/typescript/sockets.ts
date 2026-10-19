@@ -11,7 +11,7 @@ export type SocketMessageType = "text" | "binary";
 /** A text message arrives as a string, a binary message as an ArrayBuffer. */
 export type SocketMessage = string | ArrayBuffer;
 
-/** The application protocol a socket declared; its messages pass through as-is. */
+/** Declared protocol metadata; this alone does not enable message validation. */
 export type SocketProtocol = {
   readonly name: string;
   readonly encoding: string;
@@ -38,21 +38,38 @@ export type SocketOpener = (
   endpoint: SocketEndpoint,
 ) => Promise<SocketTransport>;
 
-/** Sends and receives text and binary messages as-is. */
-export class Socket implements AsyncIterable<SocketMessage> {
+/** Sends and receives messages, optionally decoded as typed JSON. */
+export class Socket<
+  Incoming = SocketMessage,
+  Outgoing = string | ArrayBuffer | ArrayBufferView,
+> implements AsyncIterable<Incoming> {
   readonly endpoint: SocketEndpoint;
   readonly #transport: SocketTransport;
+  readonly #json: boolean;
 
-  constructor(transport: SocketTransport, endpoint: SocketEndpoint) {
+  constructor(
+    transport: SocketTransport,
+    endpoint: SocketEndpoint,
+    json = false,
+  ) {
     this.#transport = transport;
     this.endpoint = endpoint;
+    this.#json = json;
   }
 
-  receive(): Promise<SocketMessage> {
-    return this.#transport.receive();
+  async receive(): Promise<Incoming> {
+    const message = await this.#transport.receive();
+    if (!this.#json) return message as Incoming;
+    try {
+      if (typeof message !== "string") throw new Error("Expected JSON text");
+      return JSON.parse(message) as Incoming;
+    } catch {
+      await this.close();
+      throw new TypeError("Invalid incoming socket JSON");
+    }
   }
 
-  async *[Symbol.asyncIterator](): AsyncIterator<SocketMessage> {
+  async *[Symbol.asyncIterator](): AsyncIterator<Incoming> {
     try {
       while (true) yield await this.receive();
     } catch (error) {
@@ -60,10 +77,14 @@ export class Socket implements AsyncIterable<SocketMessage> {
     }
   }
 
-  /** Send one message; a string is sent as text, bytes as binary. */
-  send(message: string | ArrayBuffer | ArrayBufferView): Promise<void> {
+  /** Send one message, encoding typed payloads as JSON text. */
+  async send(message: Outgoing): Promise<void> {
+    const frame = this.#json ? JSON.stringify(message) : message;
+    if (this.#json && typeof frame !== "string") {
+      throw new TypeError("Invalid outgoing socket JSON");
+    }
     const messageType: SocketMessageType =
-      typeof message === "string" ? "text" : "binary";
+      typeof frame === "string" ? "text" : "binary";
     if (!this.endpoint.messageTypes.includes(messageType)) {
       return Promise.reject(
         new TypeError(
@@ -71,7 +92,7 @@ export class Socket implements AsyncIterable<SocketMessage> {
         ),
       );
     }
-    return this.#transport.send(message);
+    await this.#transport.send(frame as string | ArrayBuffer | ArrayBufferView);
   }
 
   close(): Promise<void> {

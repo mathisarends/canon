@@ -1,6 +1,10 @@
 # Sockets
 
-A socket is a WebSocket endpoint that carries its messages unchanged.
+A socket is a WebSocket endpoint. Annotate a message handler's parameter and
+return value to receive validated JSON and send typed responses, or inject
+`RpcSocket` to carry text and binary unchanged. See [typed JSON messages](#typed-json-messages).
+
+For an untyped socket,
 fastapi_rpckit owns acceptance, dependencies, limits, cancellation, and closure, and
 passes every text and binary message through without JSON parsing, JSON-RPC
 envelopes, or framing. Use it to proxy a native protocol such as the Chrome
@@ -11,7 +15,117 @@ Use a [binary stream](streams.md) when you control the protocol and only move
 bytes. Use a socket when the messages belong to someone else's protocol,
 or when text and binary messages must keep their type.
 
-## Declare and mount a socket
+## Typed JSON messages
+
+Declare the incoming message as a parameter and the outgoing response as the
+return type. The library owns the receive loop and sends one response for each
+message, in order:
+
+```python
+from pydantic import BaseModel, ConfigDict
+
+from fastapi_rpckit import RpcChannel, RpcService
+
+
+class Ping(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    value: int
+
+
+class Pong(BaseModel):
+    value: int
+
+
+channel = RpcChannel("messages")
+
+
+@channel.socket("ping")
+async def ping(message: Ping) -> Pong:
+    return Pong(value=message.value + 1)
+
+
+service = RpcService()
+service.socket("/messages/ping", ping)
+```
+
+The first parameter without `Inject[...]` is the incoming message; its name is
+not significant. Further non-injected parameters are path variables. Message
+and return annotations are required. Injected dependencies are resolved in a
+fresh invocation scope per message, within the existing connection scope. The
+scope stays open through response validation and sending, and is released on
+completion, failure, or disconnect. Calls are sequential on each connection.
+A `None` return annotation sends JSON `null`; it does not suppress the response.
+
+Incoming text is parsed and validated once with a cached Pydantic adapter in
+strict mode, before calling the handler. Set `extra="forbid"` on models
+to reject unknown fields. Pydantic constraints, unions, discriminators, aliases,
+and validators apply, including annotated type aliases. Message handlers always
+use JSON text frames; binary-only framing or a
+declared encoding other than JSON is rejected when the handler is declared.
+
+Invalid incoming messages close with 1002, `Invalid incoming socket message`.
+Invalid outgoing values close with 1011, `Invalid outgoing socket message`.
+Validation failures do not expose payloads, Pydantic error details, or validator
+exception messages to the peer. Closure cancels the handler and releases its
+dependencies as for untyped sockets. Normal disconnect, message-size limits,
+backpressure, and shutdown still apply.
+
+Outgoing values are revalidated, including existing or mutated model instances,
+then serialized once. Serialization aliases and custom serializers apply.
+Adapters are built at declaration time, not for each message. This validates
+message structure; it does not correlate request IDs or track protocol sessions.
+For unsolicited messages, multiple responses per input, or an independent
+receive/send loop, inject `RpcSocket` and manage the protocol in that connection
+handler. An endpoint selects one of these handler styles; an injected socket
+handler continues to return `None` and owns all of its messages.
+
+The contract exports `messages.client` and `messages.server` as component schema
+references on the socket entry. Input schemas use Pydantic's validation mode and
+output schemas use serialization mode. These direction names are independent of
+whether the contract is being read by the server or a client.
+
+Generated clients keep the same socket lifecycle and reverse the message roles:
+
+```python
+async with client.messages.ping() as socket:
+    await socket.send(Ping(value=41))
+    response = await socket.receive()  # Pong
+```
+
+```typescript
+await using socket = await client.messages.ping();
+await socket.send({ value: 41 });
+const response = await socket.receive(); // Pong
+```
+
+The returned type is `Socket[Pong, Ping]` in Python and `Socket<Pong, Ping>` in
+TypeScript: received first, sent second in both languages. Python validates with
+the generated Pydantic models, subject to the existing generator's schema support;
+application-only custom validators are not copied into the SDK. TypeScript emits
+static payload types and handles JSON encoding/decoding; it does not provide full
+runtime schema validation. Server validation remains authoritative in both cases.
+
+`protocol=RpcSocketProtocol(...)` remains optional metadata. Schema URLs alone
+do not enable validation or generate models from foreign specifications. To type
+CDP, generate or import suitable Pydantic command/response/event types first.
+External protocol bindings continue to wrap untyped sockets; selecting one for a
+typed JSON socket fails generation rather than wrapping already-decoded messages.
+
+The [typed socket example](../examples/typed_socket/README.md) includes both
+generated clients and tests against a real WebSocket server.
+
+Measure codec CPU cost locally with:
+
+```console
+uv run --locked --directory packages/fastapi-rpckit python scripts/bench_socket_messages.py
+```
+
+The benchmark reports cached input validation and output validation/serialization
+for small and 64 KiB messages, plus adapter construction and standard-library JSON
+comparisons. It excludes connection handling, queues, dependency scopes, network,
+and application code; it is not an end-to-end latency measurement.
+
+## Declare and mount an untyped socket
 
 ```python
 import asyncio

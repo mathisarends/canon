@@ -29,8 +29,9 @@ _TOKEN = re.compile(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*")
 class RpcSocketProtocol:
     """The application protocol a socket carries, declared for its contract.
 
-    fastapi_rpckit never decodes, validates, or dispatches these messages. The
-    declaration identifies the protocol so generators can select a client binding.
+    This declaration alone does not decode, validate, or dispatch messages. It
+    identifies the protocol so generators can select a client binding. Annotated
+    message handlers independently enable JSON message validation.
     ``schemas`` lists URI references to the protocol's specification files;
     relative references resolve against the contract document's location.
     """

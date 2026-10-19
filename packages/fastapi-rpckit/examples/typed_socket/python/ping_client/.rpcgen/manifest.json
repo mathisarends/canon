@@ -1,0 +1,27 @@
+{
+  "generator": "fastapi_rpckit",
+  "generatorVersion": "0.2.0",
+  "layoutVersion": 10,
+  "language": "python",
+  "contractSha256": "cd01dfc28893666a1eb615fafb21576abbe408f4cecdbde254f438e1dbadd3ba",
+  "files": [
+    ".rpcgen/manifest.json",
+    "__init__.py",
+    "client.py",
+    "endpoints.py",
+    "errors.py",
+    "internal/__init__.py",
+    "internal/connection.py",
+    "internal/core.py",
+    "internal/errors.py",
+    "internal/metadata.py",
+    "internal/transport.py",
+    "internal/unset.py",
+    "models.py",
+    "namespaces/__init__.py",
+    "namespaces/messages.py",
+    "routes.py",
+    "sockets.py",
+    "transport.py"
+  ]
+}

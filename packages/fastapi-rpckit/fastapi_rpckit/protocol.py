@@ -20,6 +20,7 @@ from pydantic import (
     create_model,
 )
 
+from fastapi_rpckit._socket_messages import SocketMessages
 from fastapi_rpckit.dependencies import (
     RpcInjectedParameter,
     RpcResolverScope,
@@ -125,6 +126,8 @@ class RpcSocketDefinition:
     path_parameters: tuple[str, ...] = ()
     path_model: type[BaseModel] | None = None
     protocol: RpcSocketProtocol | None = None
+    message_contract: SocketMessages | None = None
+    message_parameter: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -529,13 +532,48 @@ def socket_definition(
             f"RPC socket {qualname} must be an async function"
         )
     hints, injected, path_parameters = _split_parameters(function)
-    sockets = sum(parameter.dependency is RpcSocket for parameter in injected)
-    if sockets != 1:
+    socket_parameters = [p for p in injected if p.dependency is RpcSocket]
+    if len(socket_parameters) > 1 or (not socket_parameters and not path_parameters):
         raise ProtocolDefinitionError(
-            f"RPC socket {qualname} must inject RpcSocket exactly once"
+            f"RPC socket {qualname} must inject RpcSocket exactly once "
+            "or accept a typed message parameter"
         )
+    message_contract = None
+    message_parameter = None
     result = hints.get("return")
-    if result is not None and result is not type(None):
+    if not socket_parameters:
+        parameter, *path_parameters = path_parameters
+        if (
+            parameter.kind
+            not in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            )
+            or parameter.default is not inspect.Parameter.empty
+        ):
+            raise ProtocolDefinitionError(
+                "Socket message parameters must be required and passable by name"
+            )
+        incoming = hints[parameter.name]
+        if incoming is Any or result is Any or result is None:
+            raise ProtocolDefinitionError(
+                "Socket message handlers need concrete message and return annotations"
+            )
+        if RpcMessageType.TEXT not in messages:
+            raise ProtocolDefinitionError("Typed sockets require text messages")
+        if protocol is not None and protocol.encoding != "json":
+            raise ProtocolDefinitionError("Typed sockets require JSON encoding")
+        try:
+            message_contract = SocketMessages.create(incoming, result)
+            message_contract.client.json_schema()
+            message_contract.server.json_schema()
+        except (PydanticSchemaGenerationError, TypeError, ValueError) as error:
+            raise ProtocolDefinitionError(
+                "Invalid typed socket message types"
+            ) from error
+        messages = (RpcMessageType.TEXT,)
+        message_parameter = parameter.name
+    elif result is not None and result is not type(None):
         raise ProtocolDefinitionError(
             f"RPC socket {qualname} must return None; send messages through RpcSocket"
         )
@@ -550,6 +588,8 @@ def socket_definition(
         path_parameters=tuple(parameter.name for parameter in path_parameters),
         path_model=_path_model(function, hints, path_parameters, kind="socket"),
         protocol=protocol,
+        message_contract=message_contract,
+        message_parameter=message_parameter,
     )
 
 

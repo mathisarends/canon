@@ -22,13 +22,27 @@ def components(protocol: RpcProtocol) -> dict[str, Any]:
     """Build the JSON Schema components referenced by the OpenRPC document."""
     annotations = _annotations(protocol)
     _assert_unique_wire_names(annotations.values())
-    _, root = TypeAdapter.json_schemas(
-        (
-            (name, "serialization", TypeAdapter(annotation))
-            for name, annotation in annotations.items()
-        ),
-        by_alias=True,
-    )
+    adapters = [
+        (name, "serialization", TypeAdapter(annotation))
+        for name, annotation in annotations.items()
+    ]
+    for socket in protocol.sockets:
+        if socket.message_contract is not None:
+            adapters.extend(
+                [
+                    (
+                        socket_message_schema_name(socket.name, "client"),
+                        "validation",
+                        socket.message_contract.client,
+                    ),
+                    (
+                        socket_message_schema_name(socket.name, "server"),
+                        "serialization",
+                        socket.message_contract.server,
+                    ),
+                ]
+            )
+    roots, root = TypeAdapter.json_schemas(adapters, by_alias=True)
     definitions = root.get("$defs", {})
     for method in protocol.methods:
         definitions[method.request_name] = _request_schema(
@@ -37,7 +51,24 @@ def components(protocol: RpcProtocol) -> dict[str, Any]:
     for notification in protocol.notifications:
         name = notification_schema_name(notification.name)
         definitions[name] = _notification_schema(notification, name)
+    for socket in protocol.sockets:
+        if socket.message_contract is not None:
+            for direction, mode in (
+                ("client", "validation"),
+                ("server", "serialization"),
+            ):
+                name = socket_message_schema_name(socket.name, direction)
+                if name in definitions:
+                    raise ProtocolDefinitionError(
+                        f"Duplicate socket schema name: {name}"
+                    )
+                definitions[name] = roots[(name, mode)]
     return definitions
+
+
+def socket_message_schema_name(name: str, direction: str) -> str:
+    parts = (part for part in re.split(r"[^a-zA-Z0-9]+", name) if part)
+    return "".join(part.capitalize() for part in parts) + direction.title() + "Message"
 
 
 def described(entry: dict[str, Any], summary: str | None) -> dict[str, Any]:

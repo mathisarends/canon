@@ -72,6 +72,17 @@ Migration:
 
 ### Added
 
+- Declare JSON socket message handlers as `async def ping(message: Ping) -> Pong`.
+  The library validates each input, calls the handler sequentially in a fresh
+  invocation scope, and validates and serializes its response. Invalid input
+  closes with 1002 and invalid output with 1011, without exposing message contents.
+  Injecting `RpcSocket` keeps the existing connection-handler text/binary behavior.
+  Protocol metadata alone still does not enable validation.
+- Export directional socket message schemas and generate Python and TypeScript
+  `Socket[Received, Sent]` clients. Add a checked, live `typed_socket` example.
+  Python SDK validation uses generated models; TypeScript supplies static payload
+  types and JSON framing, with authoritative validation on the server.
+
 - Declare the application protocol of a socket with
   `@channel.socket(..., protocol=RpcSocketProtocol(...))`. The declaration
   holds a protocol name, version, encoding, and specification URI references.

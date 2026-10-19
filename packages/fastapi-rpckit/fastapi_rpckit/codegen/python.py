@@ -387,10 +387,21 @@ def _render_sockets(ir: ClientIr, options: PythonClientOptions) -> str:
     )
     if options.with_transport == "websocket":
         imports.add(_runtime_module(options), "RpcStreamFailed", "RpcStreamRefused")
+    typed = any(socket.client_message is not None for socket in ir.sockets)
+    if typed:
+        imports.add("typing", "Any", "Generic")
+        imports.add("typing_extensions", "TypeVar")
+        imports.add("pydantic", "TypeAdapter", "ValidationError")
+        imports.add("pydantic_core", "PydanticSerializationError")
+        for socket in ir.sockets:
+            for message in (socket.client_message, socket.server_message):
+                if message is not None:
+                    imports.add(f"{options.package}.models", *_model_names(message))
     body = render_template(
         "python/sockets.py.j2",
         filters=_template_filters(imports, options),
         sockets=ir.sockets,
+        typed=typed,
         with_websocket=options.with_transport == "websocket",
     )
     body = _collapse_blank_lines(body)
@@ -412,6 +423,9 @@ def _add_socket_imports(
         "resolve_socket_endpoint",
     )
     for socket in sockets:
+        for message in (socket.client_message, socket.server_message):
+            if message is not None:
+                imports.add(f"{options.package}.models", *_model_names(message))
         binding = _socket_binding(socket, bound)
         if binding is None:
             imports.add(f"{options.package}.sockets", "Socket")
@@ -941,6 +955,12 @@ def _template_filters(
 ) -> dict[str, Any]:
     return {
         "socket_binding": lambda socket: _socket_binding(socket, bound or {}),
+        "socket_return_type": lambda socket: (
+            f"Socket[{_annotation(socket.server_message, imports)}, "
+            f"{_annotation(socket.client_message, imports)}]"
+            if socket.client_message is not None
+            else "Socket"
+        ),
         "annotation": lambda expression: _annotation(expression, imports),
         "api_class": _api_class,
         "constant": _constant,
@@ -1427,7 +1447,7 @@ def _import_group(module: str) -> int:
         "uuid",
     }:
         return 0
-    if root in {"pydantic", "fastapi_rpckit"}:
+    if root in {"pydantic", "pydantic_core", "typing_extensions", "fastapi_rpckit"}:
         return 1
     return 2
 
