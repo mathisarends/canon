@@ -19,6 +19,8 @@ Initial release.
   session event hooks.
 - A pluggable `Engine` protocol, with an `aiortc` reference engine behind the
   `aiortc` extra.
+- Tested Canon/Dishka composition with explicit async-factory injection,
+  session services, per-message request scopes and ordered cleanup.
 - `fastapi-webrtc contract` and `fastapi-webrtc generate` export a session
   contract and generate a dependency-free TypeScript browser client with typed
   parameters, channels and errors. Both commands support `--check` drift

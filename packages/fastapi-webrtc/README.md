@@ -171,6 +171,16 @@ give the server-side engine internal relay URLs.
 ## Documentation
 
 - [Signaling protocol](docs/protocol.md)
+- [Canon composition and Dishka session/message scopes](docs/canon-dishka.md)
 - [Changelog](CHANGELOG.md)
 - Runnable example: [`examples/practice`](examples/practice). Its generated
   client is in `examples/practice/client`.
+
+The engine interface abstracts signaling and lifecycle. Native outgoing tracks
+and received frames remain engine-specific: aiortc uses `MediaStreamTrack` and
+PyAV frames. Its statistics return `jitter_seconds=None` because the public
+report does not identify the per-stream codec clock rate needed for conversion.
+
+Generated TypeScript models provide compile-time message types; the browser
+runtime checks formats and sizes but does not enforce every JSON Schema rule.
+Server-side Pydantic adapters validate incoming and outgoing typed messages.

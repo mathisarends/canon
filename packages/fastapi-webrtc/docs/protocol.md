@@ -81,9 +81,10 @@ admission) and `aborted` (the caller's `AbortSignal`).
 
 ## Teardown
 
-Every ending runs the same sequence. Timers and tasks stop, `on_close` runs
-with the code, the peer closes and owned tracks stop, and then the WebSocket
-closes. A signaling loss shorter than `signaling_loss_grace_seconds` and a
+Every accepted session closes signaling, cancels its tasks, runs `on_close`
+with the code, stops owned tracks and closes the engine peer, then releases
+its slot and dependency scopes. A signaling loss shorter than
+`signaling_loss_grace_seconds` and a
 transport interruption shorter than `transport_loss_grace_seconds` do not end
 the session. `WebRtcRouter.aclose()` runs at application shutdown and closes
 every session with `shutdown`.
