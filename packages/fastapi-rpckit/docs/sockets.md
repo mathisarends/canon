@@ -135,8 +135,8 @@ the location of the exported contract document, like OpenAPI `$ref` values, so
 files move together.
 
 fastapi_rpckit ships no protocol-specific declarations; the protocol belongs
-to the application. The [CDP example](../examples/cdp/README.md) declares the
-Chrome DevTools Protocol and binds it to typed Python and TypeScript clients.
+to the application. [Typed protocol clients](#typed-protocol-clients) shows how
+generated clients can speak it.
 
 ## Send and receive
 
@@ -280,5 +280,62 @@ with `with_transports()` take a `socket_opener` / `socketOpener`;
 without one, opening a socket raises `RpcStreamsUnavailableError`.
 Request correlation, sessions, reconnection, and replay stay with the
 protocol's own client library, such as an existing CDP client.
+
+## Typed protocol clients
+
+A protocol binding replaces the generic socket with a typed session for every
+socket that declares its protocol. fastapi_rpckit ships no bindings; the
+generators only provide the extension point in
+`fastapi_rpckit.codegen.bindings`:
+
+```python
+from fastapi_rpckit.codegen.bindings import BindingContext, SocketBinding
+
+
+class CalcBinding:
+    protocol = "calc"
+
+    def bind(self, context: BindingContext) -> SocketBinding:
+        if context.language == "python":
+            return SocketBinding("calc", PYTHON_SOURCE, "open_calc", "CalcSession")
+        return SocketBinding("calc", TYPESCRIPT_SOURCE, "openCalc", "CalcSession")
+
+
+BINDING = CalcBinding()
+```
+
+The generator writes `source` to `bindings/<module>` of the client and imports
+`open` and `session` from it. The socket method then returns the session:
+
+| Language | `open` receives | The socket method returns |
+|---|---|---|
+| Python | `AbstractAsyncContextManager[Socket]` | `AbstractAsyncContextManager[session]` from `open` |
+| TypeScript | the opened `Socket` | `Promise<session>`; `open` may return the session or a promise of it |
+
+`BindingContext` carries the language, the declarations of the protocol in the
+contract, and `schemas()`, which resolves relative schema references against
+the contract file. A binding can read those schemas to generate typed commands.
+`SocketBinding.requirements` names the runtime packages its source imports.
+
+Select bindings per client in the generator config, or with `--binding`:
+
+```toml
+[[clients]]
+language = "python"
+output = "python/calc_client"
+bindings = ["calc_binding:BINDING"]
+```
+
+A `module:attr` reference resolves next to the config file. A bare name looks
+up the `fastapi_rpckit.socket_bindings` entry point group, so a binding package
+can register itself and be selected as `bindings = ["cdp"]`. A binding whose
+protocol no socket declares, or two bindings for one protocol, fail generation.
+Sockets whose protocol has no binding keep the generic `Socket`.
+
+The [socket protocol example](../examples/socket_protocol/README.md) binds a
+small CDP-shaped protocol in both languages and runs both clients against a
+live server. A CDP binding has the same shape: in Python it wraps an existing
+CDP client such as cdpify around the socket, and in TypeScript it types
+commands and events with the `devtools-protocol` package.
 
 [Back to documentation](README.md)

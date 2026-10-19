@@ -82,6 +82,15 @@ Migration:
   `resolve_schemas()` resolves relative schema references against the contract
   location. Generated Python and TypeScript clients expose them as
   `SocketProtocol` on socket endpoints.
+- Plug typed protocol clients into code generation with
+  `fastapi_rpckit.codegen.bindings`. A `ProtocolBinding` selected by protocol
+  name emits a module into the generated client, and matching socket methods
+  return its session instead of a generic `Socket`. Select bindings with
+  `bindings = [...]` in the generator config, `--binding`, or the
+  `fastapi_rpckit.socket_bindings` entry point group. Sockets without a
+  binding keep the generic `Socket`.
+- Add the `socket_protocol` example: a small CDP-shaped protocol with Python and
+  TypeScript bindings, tested against a live server.
 
 ## 0.2.0 - 2026-10-18
 
