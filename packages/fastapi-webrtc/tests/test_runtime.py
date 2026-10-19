@@ -225,6 +225,55 @@ async def test_invalid_factories_are_refused() -> None:
     assert engine_of(rtc).peers == []
 
 
+@pytest.mark.parametrize(
+    "rejection", ["router_limit", "endpoint_limit", "shutdown", "handlers"]
+)
+async def test_refused_sessions_release_tracks_before_dependencies(
+    rejection: str,
+) -> None:
+    rtc = router(max_sessions=1 if rejection == "router_limit" else None)
+    tracks: list[NativeTrack] = []
+    released: list[bool] = []
+    closes: list[ErrorCode] = []
+
+    async def resource() -> AsyncIterator[NativeTrack]:
+        track = NativeTrack()
+        tracks.append(track)
+        try:
+            yield track
+        finally:
+            released.append(track.stopped)
+
+    @rtc.session("/s", max_sessions=1 if rejection == "endpoint_limit" else None)
+    async def factory(track: Annotated[NativeTrack, Depends(resource)]) -> Session:
+        async def on_close(peer: Peer, code: ErrorCode) -> None:
+            closes.append(code)
+
+        handlers = {"undeclared": on_close} if rejection == "handlers" else {}
+        return Session(tracks=[track, track], on_message=handlers, on_close=on_close)
+
+    async with serve(application(rtc)) as base:
+        if rejection.endswith("limit"):
+            accepted = await Signal.start(f"{base}/s")
+            expected = (1013, "session_limit")
+        elif rejection == "shutdown":
+            await rtc.aclose()
+            expected = (1001, "shutdown")
+        else:
+            expected = (1011, "handler_failure")
+        for _ in range(2):
+            refused = await Signal.open(f"{base}/s")
+            assert await refused.closed() == expected
+            await until(lambda: len(released) > 0 and tracks[-1].stopped)
+        assert closes == []
+        if rejection.endswith("limit"):
+            assert not tracks[0].stopped
+            await accepted.close()
+    assert all(track.stopped for track in tracks)
+    assert all(released)
+    assert len(engine_of(rtc).peers) == (1 if rejection.endswith("limit") else 0)
+
+
 async def test_engine_failure_closes_with_engine_failure() -> None:
     events: list[SessionEvent] = []
     rtc = router(FakeEngine(fail_create=True), events=events)

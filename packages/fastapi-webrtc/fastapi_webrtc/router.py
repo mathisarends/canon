@@ -27,7 +27,7 @@ from fastapi_webrtc.engine import Engine
 from fastapi_webrtc.errors import ErrorCode, close_code
 from fastapi_webrtc.events import EventHook, SessionEvent
 from fastapi_webrtc.ice import IceServerSource
-from fastapi_webrtc.runtime import RuntimeOptions, SessionRuntime
+from fastapi_webrtc.runtime import RuntimeOptions, SessionRuntime, _stop_native
 
 logger = logging.getLogger("fastapi_webrtc")
 
@@ -140,7 +140,6 @@ class WebRtcRouter(APIRouter):
             )
             if any(d.name == declaration.name for d in self.declarations):
                 raise ValueError(f"Session {declaration.name!r} is already declared")
-            channel_names = {spec.name for spec in declaration.channels}
             self.declarations.append(declaration)
             counter = _Counter(max_sessions)
 
@@ -153,15 +152,6 @@ class WebRtcRouter(APIRouter):
                         "Session factory %s returned %s instead of Session",
                         declaration.name,
                         type(session).__name__,
-                    )
-                    await _refuse(websocket, ErrorCode.HANDLER_FAILURE)
-                    return
-                unknown = set(session.on_message) - channel_names
-                if unknown:
-                    logger.error(
-                        "Session %s has handlers for undeclared channels: %s",
-                        declaration.name,
-                        ", ".join(sorted(unknown)),
                     )
                     await _refuse(websocket, ErrorCode.HANDLER_FAILURE)
                     return
@@ -187,10 +177,42 @@ class WebRtcRouter(APIRouter):
         websocket: WebSocket,
         session: Session,
     ) -> None:
+        runtime: SessionRuntime | None = None
+        try:
+            unknown = set(session.on_message) - {s.name for s in declaration.channels}
+            if unknown:
+                logger.error(
+                    "Session %s has handlers for undeclared channels: %s",
+                    declaration.name,
+                    ", ".join(sorted(unknown)),
+                )
+                await _refuse(websocket, ErrorCode.HANDLER_FAILURE)
+                return
+            runtime = self._admit(declaration, counter, websocket, session)
+            if runtime is None:
+                code = ErrorCode.SHUTDOWN if self._closing else ErrorCode.SESSION_LIMIT
+                await _refuse(websocket, code)
+                return
+            self._runtimes.add(runtime)
+            await runtime.serve()
+        finally:
+            if runtime is None:
+                # A returned Session transfers its tracks even if admission fails.
+                for track in {id(t): t for t in session.tracks}.values():
+                    _stop_native(track)
+            else:
+                self._runtimes.discard(runtime)
+
+    def _admit(
+        self,
+        declaration: SessionDeclaration,
+        counter: _Counter,
+        websocket: WebSocket,
+        session: Session,
+    ) -> SessionRuntime | None:
         session_id = uuid.uuid4().hex
         if self._closing:
-            await _refuse(websocket, ErrorCode.SHUTDOWN)
-            return
+            return None
         if self._counter.full or counter.full:
             self._emit(
                 SessionEvent(
@@ -201,9 +223,8 @@ class WebRtcRouter(APIRouter):
                     code=ErrorCode.SESSION_LIMIT,
                 )
             )
-            await _refuse(websocket, ErrorCode.SESSION_LIMIT)
-            return
-        runtime = SessionRuntime(
+            return None
+        return SessionRuntime(
             declaration=declaration,
             options=RuntimeOptions(
                 engine=self.engine,
@@ -215,11 +236,6 @@ class WebRtcRouter(APIRouter):
             session_id=session_id,
             slots=_Slots(self._counter, counter),
         )
-        self._runtimes.add(runtime)
-        try:
-            await runtime.serve()
-        finally:
-            self._runtimes.discard(runtime)
 
     def _emit(self, event: SessionEvent) -> None:
         if self.event_hook is None:

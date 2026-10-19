@@ -46,6 +46,8 @@ adopting the reviewed 0.1.0 source; no published WebRTC release is superseded.
 
 ### Fixes
 
+- Release tracks returned by session factories on router/endpoint capacity,
+  shutdown and invalid-handler rejection, before dependency teardown.
 - Protect borrowed aiortc sources with sender-local forwarding tracks. Closing
   the RTP sender releases its wrapper while session ownership controls the source.
 - Cancel blocked ICE and engine startup on negotiation timeout or shutdown,
