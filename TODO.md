@@ -7,8 +7,9 @@ Completed migration steps are recorded in [docs/migration.md](docs/migration.md)
 
 PRs #4 and #5 are merged. The next follow-up shares optional codecs between
 typed connection handlers and annotated message handlers. Their annotations
-define incoming/outgoing types once, with inferred JSON or explicit codec
-factories for custom wire mappings.
+define incoming/outgoing types by default; optional `incoming=`/`outgoing=`
+decorator models override each direction's contract. JSON is inferred, with
+explicit codec factories for custom wire mappings.
 Connection handlers retain free receive/send loops, including unsolicited events.
 Directional schemas and codec metadata drive built-in JSON clients or explicit
 protocol bindings. Protocol metadata alone still does not enable validation or
@@ -16,6 +17,7 @@ import external CDP schemas.
 
 - [x] Share codecs between connection/message handlers and test custom binary framing.
 - [x] Export codec metadata, support client bindings, and extend the live example.
+- [x] Support decorator models, normal dictionary responses, and per-direction inference.
 - [x] Pass workspace checks, current/minimum installed-wheel matrices, and record
       codec CPU cost with `packages/fastapi-rpckit/scripts/bench_socket_messages.py`.
 - [ ] Review and merge the follow-up PR before independent release preparation.

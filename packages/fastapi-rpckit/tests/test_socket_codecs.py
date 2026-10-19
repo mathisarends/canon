@@ -217,16 +217,16 @@ def test_custom_codec_contract_keeps_its_wire_encoding_and_schemas() -> None:
     assert schemas["Byte"] == {"type": "integer", "minimum": 0, "maximum": 255}
 
 
-def test_codec_factories_cannot_override_annotation_types() -> None:
+def test_codec_factories_cannot_override_resolved_types() -> None:
     def swapped(*, incoming, outgoing):
         return RpcJsonCodec(incoming=outgoing, outgoing=incoming)
 
-    with pytest.raises(ProtocolDefinitionError, match="preserve the handler"):
+    with pytest.raises(ProtocolDefinitionError, match="preserve the resolved"):
 
         @RpcChannel("mismatch").socket(codec=swapped)
         async def wrong(message: Ping) -> Pong: ...
 
-    with pytest.raises(ProtocolDefinitionError, match="preserve the handler"):
+    with pytest.raises(ProtocolDefinitionError, match="preserve the resolved"):
 
         @RpcChannel("swapped").socket(codec=swapped)
         async def wrong_socket(socket: Inject[RpcSocket[Ping, Pong]]) -> None: ...

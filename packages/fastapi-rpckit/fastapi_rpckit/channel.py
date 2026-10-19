@@ -8,6 +8,9 @@ from math import isfinite
 from types import FunctionType
 from typing import Any, overload
 
+from pydantic_core import PydanticUndefined, PydanticUndefinedType
+from typing_extensions import TypeForm
+
 from fastapi_rpckit.connection import RpcLimits
 from fastapi_rpckit.dependencies import (
     RpcResolverLike,
@@ -409,6 +412,8 @@ class RpcChannel:
         *,
         protocol: RpcSocketProtocol | None = None,
         codec: RpcSocketCodecFactory | None = None,
+        incoming: TypeForm[Any] | PydanticUndefinedType = PydanticUndefined,
+        outgoing: TypeForm[Any] | PydanticUndefinedType = PydanticUndefined,
         messages: Iterable[RpcMessageType] = (
             RpcMessageType.TEXT,
             RpcMessageType.BINARY,
@@ -424,6 +429,8 @@ class RpcChannel:
         *,
         protocol: RpcSocketProtocol | None = None,
         codec: RpcSocketCodecFactory | None = None,
+        incoming: TypeForm[Any] | PydanticUndefinedType = PydanticUndefined,
+        outgoing: TypeForm[Any] | PydanticUndefinedType = PydanticUndefined,
         messages: Iterable[RpcMessageType] = (
             RpcMessageType.TEXT,
             RpcMessageType.BINARY,
@@ -436,9 +443,11 @@ class RpcChannel:
         A message handler receives its first non-injected parameter as validated
         JSON and returns one response per message. Inject ``RpcSocket`` instead
         to manage the connection. Typed socket and message-handler annotations
-        infer JSON validation. ``codec`` selects a codec class or factory, which
-        receives message types from those annotations. Bare ``RpcSocket`` keeps
-        unchanged text/binary behavior when no codec is selected.
+        infer JSON validation. Explicit ``incoming`` and ``outgoing`` models
+        override each direction's inferred contract; message handlers can return
+        dictionaries validated against ``outgoing``. Concrete received types
+        must match the input model. ``codec`` selects a class or factory receiving
+        the resolved contract. Bare ``RpcSocket`` keeps text/binary behavior.
 
         ``protocol`` declares the application protocol the messages follow, for
         the contract and generated client bindings; it never changes how messages
@@ -462,7 +471,7 @@ class RpcChannel:
         ):
             raise ProtocolDefinitionError(
                 "RPC socket codec must be a class or factory, not an instance; "
-                "message types come from handler annotations"
+                "message types come from annotations or incoming/outgoing"
             )
         try:
             declared = frozenset(RpcMessageType(item) for item in messages)
@@ -484,6 +493,8 @@ class RpcChannel:
                 messages=message_types,
                 protocol=protocol,
                 codec_factory=codec,
+                incoming=incoming,
+                outgoing=outgoing,
                 closes=rejecting_contracts(closes, f"RPC socket {wire_name}"),
                 summary=summary or _docstring_summary(function),
                 resolver_scope=channel.resolver_scope,

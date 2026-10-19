@@ -19,6 +19,7 @@ from pydantic import (
     TypeAdapter,
     create_model,
 )
+from pydantic_core import PydanticUndefined, PydanticUndefinedType
 
 from fastapi_rpckit.dependencies import (
     RpcInjectedParameter,
@@ -285,6 +286,8 @@ def _router_params_model(
 
 def _split_parameters(
     function: Any,
+    *,
+    allow_unannotated: bool = False,
 ) -> tuple[
     dict[str, Any],
     tuple[RpcInjectedParameter, ...],
@@ -297,6 +300,9 @@ def _split_parameters(
     for parameter in parameters:
         annotation = hints.get(parameter.name)
         if annotation is None:
+            if allow_unannotated:
+                wire_parameters.append(parameter)
+                continue
             raise ProtocolDefinitionError(
                 f"RPC handler {function.__qualname__} parameter "
                 f"{parameter.name!r} needs an annotation"
@@ -527,6 +533,8 @@ def socket_definition(
     messages: tuple[RpcMessageType, ...],
     protocol: RpcSocketProtocol | None,
     codec_factory: RpcSocketCodecFactory | None,
+    incoming: Any | PydanticUndefinedType,
+    outgoing: Any | PydanticUndefinedType,
     closes: tuple[RpcErrorBinding[Any], ...],
     summary: str | None,
     resolver_scope: RpcResolverScope,
@@ -536,7 +544,9 @@ def socket_definition(
         raise ProtocolDefinitionError(
             f"RPC socket {qualname} must be an async function"
         )
-    hints, injected, path_parameters = _split_parameters(function)
+    hints, injected, path_parameters = _split_parameters(
+        function, allow_unannotated=incoming is not PydanticUndefined
+    )
     socket_parameters = [
         (p, _resolve_alias(p.dependency))
         for p in injected
@@ -564,12 +574,20 @@ def socket_definition(
             raise ProtocolDefinitionError(
                 "Socket message parameters must be required and passable by name"
             )
-        incoming = hints[parameter.name]
-        if incoming is Any or result is Any or result is None:
+        annotation = hints.get(parameter.name, Any)
+        model_in = annotation if incoming is PydanticUndefined else incoming
+        model_out = result if outgoing is PydanticUndefined else outgoing
+        if (
+            model_in is Any
+            or model_out is Any
+            or (outgoing is PydanticUndefined and result is None)
+        ):
             raise ProtocolDefinitionError(
-                "Socket message handlers need concrete message and return annotations"
+                "Socket message handlers need concrete message and return annotations "
+                "or incoming/outgoing models"
             )
-        codec = _make_socket_codec(codec_factory, incoming, result)
+        _check_received_annotation(annotation, model_in)
+        codec = _make_socket_codec(codec_factory, model_in, model_out)
         message_parameter = parameter.name
     else:
         parameter, annotation = socket_parameters[0]
@@ -580,8 +598,21 @@ def socket_definition(
                     "Codec sockets must inject RpcSocket[Received, Sent] "
                     "for static typing"
                 )
-            codec = _make_socket_codec(codec_factory, *arguments)
-        elif codec_factory is not None:
+            received, sent = arguments
+            model_in = received if incoming is PydanticUndefined else incoming
+            model_out = sent if outgoing is PydanticUndefined else outgoing
+            _check_received_annotation(received, model_in)
+            if sent is not Any and _resolve_alias(sent) != _resolve_alias(model_out):
+                raise ProtocolDefinitionError(
+                    "Socket outgoing model must match its sent annotation; "
+                    "use Any for decorator-defined payloads"
+                )
+            codec = _make_socket_codec(codec_factory, model_in, model_out)
+        elif (
+            codec_factory is not None
+            or incoming is not PydanticUndefined
+            or outgoing is not PydanticUndefined
+        ):
             raise ProtocolDefinitionError(
                 "Codec sockets must inject RpcSocket[Received, Sent] for static typing"
             )
@@ -623,7 +654,15 @@ def socket_definition(
 def _resolve_alias(annotation: Any) -> Any:
     while isinstance(annotation, TypeAliasType):
         annotation = annotation.__value__
-    return annotation
+    return type(None) if annotation is None else annotation
+
+
+def _check_received_annotation(annotation: Any, model: Any) -> None:
+    if annotation is not Any and _resolve_alias(annotation) != _resolve_alias(model):
+        raise ProtocolDefinitionError(
+            "Socket incoming model must match its received annotation; "
+            "use Any or omit the message annotation for decorator-defined payloads"
+        )
 
 
 def _make_socket_codec(
@@ -644,7 +683,7 @@ def _make_socket_codec(
         codec.incoming_type
     ) or _resolve_alias(outgoing) != _resolve_alias(codec.outgoing_type):
         raise ProtocolDefinitionError(
-            "Socket codec factories must preserve the handler's incoming/outgoing types"
+            "Socket codec factories must preserve the resolved incoming/outgoing types"
         )
     return codec
 
@@ -666,6 +705,11 @@ def _path_model(
         ):
             raise ProtocolDefinitionError(
                 f"RPC {kind} path parameter {parameter.name!r} must be passable by name"
+            )
+        if parameter.name not in hints:
+            raise ProtocolDefinitionError(
+                f"RPC handler {function.__qualname__} parameter "
+                f"{parameter.name!r} needs an annotation"
             )
         annotation = hints[parameter.name]
         if _is_model(annotation):

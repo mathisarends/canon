@@ -75,10 +75,15 @@ Migration:
    regenerate clients as described above.
 6. Re-export message socket contracts and regenerate clients to include codec
    metadata. For a free JSON connection, inject `RpcSocket[In, Out]`; its
-   annotation is the sole message-type declaration and infers JSON validation.
+   annotation infers the message contract and JSON validation. Optional
+   `incoming=`/`outgoing=` decorator models override each direction. With explicit
+   incoming models, concrete received annotations must agree; use `Any` (or omit
+   the message parameter annotation) for decorator-only input declarations. With
+   explicit outgoing models, message handlers may return dictionaries; connection
+   handlers use `Any` for the sent type when sending dictionary payloads.
    Bare `RpcSocket` retains unchanged text/binary behavior. For another format,
    pass a codec class or factory as `codec=SomeCodec`, accepting the library's
-   annotation-derived `incoming=` and `outgoing=` arguments. Replace constructed
+   resolved `incoming=` and `outgoing=` arguments. Replace constructed
    decorator codec instances with their class/factory; instances are rejected.
    Register a matching protocol binding
    when generating a client for a custom codec. Custom code referencing the
@@ -86,10 +91,12 @@ Migration:
 
 ### Added
 
-- Derive codecs from handler annotations as the single source for runtime
-  validation, contract schemas, SDK types, and IDE checking. Typed socket and
+- Resolve one directional contract from optional `incoming=`/`outgoing=` decorator
+  models and otherwise handler annotations, driving runtime validation, contract
+  schemas, and SDK types. Explicit output models validate normal dictionary
+  responses independently of implementation return annotations. Typed socket and
   message-handler annotations infer JSON; custom codec classes or configured
-  factories receive those types once at declaration. Typed connections retain their own
+  factories receive the resolved types once at declaration. Typed connections retain their own
   receive/send loop, unsolicited messages, multiple replies and connection scope.
   Message handlers use the same codec runtime path; factories returning different
   message types are rejected. Untyped connections do no JSON parsing.

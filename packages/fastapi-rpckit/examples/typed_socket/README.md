@@ -1,7 +1,10 @@
 # Typed JSON socket
 
-`ping.py` declares `async def ping(message: Ping) -> Pong`. The handler receives
-one validated `Ping` and returns a `Pong`; the library owns the connection loop.
+`ping.py` declares `@messages.socket("ping", outgoing=Pong)` on a handler with
+`message: Ping` and a normal dictionary return. The library infers input validation
+from `Ping`, validates and serializes that dictionary as `Pong`, and owns the
+connection loop. The explicit outgoing model also determines the SDK's response
+type; the implementation's `dict[str, int]` return annotation stays accurate.
 Malformed messages never reach the handler;
 the transport adds no JSON-RPC envelope to these messages.
 

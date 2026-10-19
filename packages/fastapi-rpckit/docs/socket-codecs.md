@@ -1,9 +1,10 @@
 # Socket codec extension contract
 
 `RpcSocketCodec[Incoming, Outgoing]` separates wire messages from handler
-lifecycle. Handler annotations are the sole message-type declaration. The
-library passes them as `incoming=` and `outgoing=` to the codec constructor or
-factory, which builds cached Pydantic adapters and output validation. The codec
+lifecycle. Each direction's message type comes from an explicit decorator
+`incoming=`/`outgoing=` model, or otherwise from its handler annotation. The
+library passes that resolved contract as `incoming=` and `outgoing=` to the codec
+constructor or factory, which builds cached Pydantic adapters and output validation. The codec
 declares its name, payload encoding, and allowed text/binary frame types. The
 resulting instance is cached per endpoint and shared across its connections.
 
@@ -81,7 +82,8 @@ and control when and how often it reads or sends.
 
 For codec-specific settings, pass a callable implementing `RpcSocketCodecFactory`,
 for example `codec=partial(FramedCodec, prefix=b"v1:")`. Its remaining keyword
-arguments are the annotation-derived `incoming` and `outgoing` type forms. It
+arguments are the resolved `incoming` and `outgoing` type forms, including any
+explicit decorator overrides. It
 runs once when the endpoint is declared. Passing a constructed codec instance is
 rejected; a factory that ignores or changes the supplied types is also rejected.
 Direct codec construction remains useful outside endpoint declarations, such as

@@ -119,8 +119,9 @@ class RpcJsonCodec[IncomingT, OutgoingT](RpcSocketCodec[IncomingT, OutgoingT]):
 
 
 class RpcSocketCodecFactory(Protocol):
-    """Create an endpoint codec from the handler's sole message-type declaration.
+    """Create an endpoint codec from its resolved incoming/outgoing contract.
 
+    Explicit decorator models override the corresponding handler annotations.
     A codec class with this constructor signature can be passed directly.
     Factories run once per endpoint declaration, never per message.
     """
