@@ -28,6 +28,7 @@ from fastapi_webrtc import (
     WebRtcError,
     WebRtcRouter,
 )
+from fastapi_webrtc.contract import build_contract
 from fastapi_webrtc.engine import PeerConfig, PeerObserver
 from tests.fake_engine import (
     FakeEngine,
@@ -313,6 +314,54 @@ async def test_blocked_startup_is_cancelled_and_releases_resources(
 
 
 # ---------------------------------------------------------------- signaling
+
+
+@pytest.mark.parametrize("serialization_only", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+async def test_outgoing_aliases_match_contract(
+    serialization_only: bool, nested: bool
+) -> None:
+    class Count(BaseModel):
+        word_count: int = (
+            Field(serialization_alias="wordCount")
+            if serialization_only
+            else Field(alias="wordCount")
+        )
+
+    class Envelope(BaseModel):
+        result: Count
+
+    value = Count.model_validate(
+        {"word_count" if serialization_only else "wordCount": 3}
+    )
+    message = Envelope(result=value) if nested else value
+    rtc = router()
+
+    @rtc.session(
+        "/s", data_channels=(DataChannelSpec(name="counts", send_model=type(message)),)
+    )
+    def session() -> Session:
+        async def on_start(peer: Peer) -> None:
+            await peer.send_message("counts", message)
+
+        return Session(on_start=on_start)
+
+    app = application(rtc)
+    contract = build_contract(app)
+    schema = contract["sessions"][0]["channels"][0]["send_schema"]
+    definition = contract["definitions"][schema["$ref"].split("/")[-1]]
+    if nested:
+        child = definition["properties"]["result"]
+        definition = contract["definitions"][child["$ref"].split("/")[-1]]
+    assert list(definition["properties"]) == ["wordCount"]
+    async with serve(app) as base:
+        signal = await Signal.start(f"{base}/s")
+        peer = await establish(signal, rtc)
+        channel = peer.channels["counts"]
+        await until(lambda: channel.sent)
+        payload = json.loads(channel.sent[0])
+        assert payload == ({"result": {"wordCount": 3}} if nested else {"wordCount": 3})
+        await signal.close()
 
 
 @pytest.mark.parametrize("reason", ["disconnect", "timeout", "attachment"])

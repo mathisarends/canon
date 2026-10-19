@@ -1210,7 +1210,7 @@ def _encode(spec: DataChannelSpec, message: Any) -> str | bytes:
     assert adapter is not None
     try:
         value = adapter.validate_python(message)
-        return adapter.dump_json(value).decode()
+        return adapter.dump_json(value, by_alias=True).decode()
     except ValidationError as error:
         raise WebRtcError(ErrorCode.INVALID_MESSAGE) from error
 
