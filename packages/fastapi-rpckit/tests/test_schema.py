@@ -4,7 +4,7 @@ from fastapi_rpckit import RpcChannel, RpcService
 from fastapi_rpckit.protocol import RpcProtocol
 from fastapi_rpckit.schema import render_openrpc
 
-from .conftest import GreetingNotificationMethod, GreetingRpcMethod, room_channel
+from .conftest import GreetingNotificationMethod, GreetingRpcMethod
 
 
 def test_contract_exports_cancellation_and_only_explicit_method_deadlines():
@@ -189,43 +189,3 @@ def test_openrpc_still_names_the_request_schema_of_a_method_without_params(
 def _method(document: dict[str, object], name: str) -> dict[str, object]:
     methods: list[dict[str, object]] = document["methods"]
     return next(method for method in methods if method["name"] == name)
-
-
-def test_client_methods_are_described_like_methods_under_an_extension() -> None:
-    service = RpcService()
-    service.socket("/rooms", channels=(room_channel,), name="rooms")
-
-    document = service.contract(
-        title="Rooms", base_url="wss://example.com"
-    ).to_openrpc()
-
-    ping, play = document["x-rpc-client-methods"]
-    assert play["name"] == "room.media.play"
-    assert play["summary"] == "Play a media URI on the room's speaker."
-    assert [(item["name"], item["required"]) for item in play["params"]] == [
-        ("mediaUri", True)
-    ]
-    assert play["result"]["schema"] == {"$ref": "#/components/schemas/MediaPlayResult"}
-    assert play["x-rpc-params-schema"] == {
-        "$ref": "#/components/schemas/MediaPlayParams"
-    }
-    assert play["errors"] == [
-        {
-            "code": -32010,
-            "message": "Media unavailable",
-            "x-rpckit-code": "media_unavailable",
-            "x-rpckit-details-schema": {"$ref": "#/components/schemas/SpeakerDetails"},
-        }
-    ]
-    assert play["servers"][0]["name"] == "rooms"
-    assert ping["params"] == []
-    assert ping["result"]["schema"] == {"type": "null"}
-    request = document["components"]["schemas"]["RoomMediaPlayClientMethod"]
-    assert request["properties"]["method"]["const"] == "room.media.play"
-    assert "room.media.play" not in [method["name"] for method in document["methods"]]
-
-
-def test_documents_without_client_methods_omit_the_extension(
-    protocol: RpcProtocol,
-) -> None:
-    assert "x-rpc-client-methods" not in render_openrpc(protocol, title="Greeting")

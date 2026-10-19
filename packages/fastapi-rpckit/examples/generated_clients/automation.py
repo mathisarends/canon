@@ -6,8 +6,6 @@ from fastapi_rpckit import (
     RpcBinaryInput,
     RpcBinaryOutput,
     RpcChannel,
-    RpcConnectedClient,
-    RpcError,
     RpcErrorBinding,
     RpcModel,
     RpcRawSocket,
@@ -39,20 +37,6 @@ class TaskUpdated(RpcModel):
     task: Task
 
 
-class ApprovalRequest(RpcModel):
-    task_id: str
-    action: str
-
-
-class ApprovalDecision(RpcModel):
-    approved: bool
-    comment: str | None = None
-
-
-class ApprovalUnavailableError(RpcError):
-    rpc_code = -32030
-
-
 class Tab(RpcModel):
     id: str
     url: str
@@ -60,15 +44,6 @@ class Tab(RpcModel):
 
 class OpenTabParams(RpcModel):
     url: str
-
-
-class DialogRequest(RpcModel):
-    tab_id: str
-    message: str
-
-
-class DialogAnswer(RpcModel):
-    accepted: bool
 
 
 class StartScreencastParams(RpcModel):
@@ -90,19 +65,18 @@ BROWSER_NOT_FOUND = RpcErrorBinding(
 tasks = RpcChannel("tasks")
 browser = RpcChannel("browser")
 tabs = browser.child("tabs")
-dialogs = browser.child("dialogs")
 screencast = browser.child("screencast")
 
 _tasks: dict[str, Task] = {}
 _updates: asyncio.Queue[Task] = asyncio.Queue()
 
 
-@tasks.server.method("list", summary="List all tasks.")
+@tasks.method("list", summary="List all tasks.")
 async def list_tasks() -> TaskList:
     return TaskList(tasks=list(_tasks.values()))
 
 
-@tasks.server.method(summary="Create a task.")
+@tasks.method(summary="Create a task.")
 async def create(params: CreateTaskParams) -> Task:
     task = Task(id=str(len(_tasks) + 1), title=params.title)
     _tasks[task.id] = task
@@ -110,52 +84,28 @@ async def create(params: CreateTaskParams) -> Task:
     return task
 
 
-@tasks.server.method(summary="Delete a task once the operator approves it.")
-async def delete(params: DeleteTaskParams, client: Inject[RpcConnectedClient]) -> bool:
-    decision = await client.call(
-        approve,
-        ApprovalRequest(task_id=params.task_id, action="delete"),
-        timeout=30.0,
-    )
-    if decision.approved:
-        _tasks.pop(params.task_id, None)
-    return decision.approved
+@tasks.method(summary="Delete a task.")
+async def delete(params: DeleteTaskParams) -> bool:
+    return _tasks.pop(params.task_id, None) is not None
 
 
-@tasks.server.event(summary="Stream task updates.")
+@tasks.event(summary="Stream task updates.")
 async def updated() -> AsyncIterator[TaskUpdated]:
     while True:
         yield TaskUpdated(task=await _updates.get())
 
 
-approve = tasks.client.method(
-    "approve",
-    params=ApprovalRequest,
-    result=ApprovalDecision,
-    raises=(ApprovalUnavailableError,),
-    summary="Ask the operator to approve a task action.",
-)
-
-
-@tabs.server.method(summary="Open a browser tab.")
+@tabs.method(summary="Open a browser tab.")
 async def open(params: OpenTabParams) -> Tab:
     return Tab(id="tab-1", url=params.url)
 
 
-confirm = dialogs.client.method(
-    "confirm",
-    params=DialogRequest,
-    result=DialogAnswer,
-    summary="Let the operator answer a confirm() dialog of a tab.",
-)
-
-
-@screencast.server.method(summary="Start the browser screencast.")
+@screencast.method(summary="Start the browser screencast.")
 async def start(params: StartScreencastParams) -> None:
     return None
 
 
-@screencast.server.stream(
+@screencast.stream(
     content_type="image/jpeg",
     summary="Raw screencast frames as binary WebSocket messages.",
 )
@@ -163,7 +113,7 @@ async def frames() -> AsyncIterator[bytes]:
     yield b"\xff\xd8\xff\xd9"
 
 
-@screencast.server.stream(
+@screencast.stream(
     input_content_type="video/webm",
     summary="Upload a recorded screencast as binary WebSocket messages.",
 )
@@ -172,7 +122,7 @@ async def upload(recording: Inject[RpcBinaryInput]) -> None:
         pass
 
 
-@screencast.server.stream(
+@screencast.stream(
     content_type="image/jpeg",
     input_content_type="application/x-input-event",
     summary="Receive frames while sending input events back.",
@@ -185,7 +135,7 @@ async def control(
         await output.send(b"\xff\xd8\xff\xd9")
 
 
-@browser.server.raw_socket(
+@browser.raw_socket(
     closes=(BROWSER_NOT_FOUND,),
     summary="Proxy the Chrome DevTools Protocol with native text and binary messages.",
 )
@@ -196,7 +146,7 @@ async def cdp(socket: Inject[RpcRawSocket]) -> None:
 
 service = RpcService()
 service.socket("/automation/rpc", channels=(tasks,), name="production")
-service.socket("/browser/rpc", channels=(tabs, dialogs), name="browser")
+service.socket("/browser/rpc", channels=(tabs,), name="browser")
 service.socket(
     "/browser/stream",
     channels=(screencast,),

@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import json
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -8,9 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
-from pydantic import TypeAdapter, ValidationError
-
-from fastapi_rpckit.codec import RpcCodec
 from fastapi_rpckit.connection import (
     RpcConnectionClose,
     RpcDisconnect,
@@ -20,17 +16,8 @@ from fastapi_rpckit.connection import (
     RpcRejections,
 )
 from fastapi_rpckit.dependencies import RpcResolverLike
-from fastapi_rpckit.envelopes import RpcFailure, RpcSuccess
-from fastapi_rpckit.errors import (
-    RpcError,
-    RpcInternalError,
-    RpcInvalidParamsError,
-    RpcMethodNotFoundError,
-)
-from fastapi_rpckit.protocol import RpcClientMethod
 from fastapi_rpckit.server import RpcErrorMapper
 from fastapi_rpckit.service import (
-    RpcEndpoint,
     RpcRawSocketEndpoint,
     RpcService,
     RpcStreamEndpoint,
@@ -51,8 +38,6 @@ __all__ = [
     "RpcTestHandshakeRejected",
     "SocketFaults",
 ]
-
-type RpcClientMethodHandler = Callable[..., Any]
 
 
 class SocketFaults:
@@ -442,8 +427,6 @@ class RpcTestClient:
         error_mapper: RpcErrorMapper | None = None,
         limits: RpcLimits | None = None,
         rejections: RpcRejections | None = None,
-        client_methods: Mapping[str | RpcClientMethod[Any, Any], RpcClientMethodHandler]
-        | None = None,
     ) -> None:
         self.service = service
         self.socket = InMemorySocket(path, headers=headers, subprotocols=subprotocols)
@@ -457,7 +440,6 @@ class RpcTestClient:
         self._id = 0
         self._notifications: asyncio.Queue[object] = asyncio.Queue()
         self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
-        self._answers: set[asyncio.Task] = set()
         matched = service.match(path)
         endpoint = None if matched is None else matched[0]
         self._raw = isinstance(endpoint, RpcRawSocketEndpoint)
@@ -465,33 +447,6 @@ class RpcTestClient:
         self._input = isinstance(endpoint, RpcStreamEndpoint) and (
             endpoint.stream.has_input
         )
-        declared = (
-            {
-                client_method.name: client_method
-                for client_method in endpoint.protocol.client_methods
-            }
-            if isinstance(endpoint, RpcEndpoint)
-            else {}
-        )
-        self._client_methods: dict[
-            str, tuple[RpcClientMethod[Any, Any], RpcClientMethodHandler]
-        ] = {}
-        self._declared_client_methods = declared
-        for key, handler in (client_methods or {}).items():
-            self.handle(key, handler)
-
-    def handle(
-        self,
-        method: str | RpcClientMethod[Any, Any],
-        handler: RpcClientMethodHandler,
-    ) -> None:
-        name = method.name if isinstance(method, RpcClientMethod) else method
-        if name not in self._declared_client_methods:
-            raise ValueError(
-                f"RPC client method {name!r} is not declared on "
-                f"{self.socket.handshake.path!r}"
-            )
-        self._client_methods[name] = (self._declared_client_methods[name], handler)
 
     async def __aenter__(self):
         self._task = asyncio.create_task(
@@ -514,10 +469,9 @@ class RpcTestClient:
         if self._task is not None:
             with suppress(asyncio.CancelledError):
                 await self._task
-        tasks = (*self._answers, *((self._reader,) if self._reader else ()))
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        if self._reader is not None:
+            self._reader.cancel()
+            await asyncio.gather(self._reader, return_exceptions=True)
 
     async def request(
         self, method: str, params: Mapping[str, Any] | None = None
@@ -580,11 +534,7 @@ class RpcTestClient:
                 value = json.loads(await self.socket.client_receive())
                 if not isinstance(value, dict):
                     continue
-                if "method" in value and "id" in value:
-                    task = asyncio.create_task(self._answer(value))
-                    self._answers.add(task)
-                    task.add_done_callback(self._answers.discard)
-                elif "method" in value:
+                if "method" in value:
                     await self._notifications.put((value["method"], value["params"]))
                 else:
                     response = self._pending.get(value.get("id"))
@@ -596,43 +546,6 @@ class RpcTestClient:
                 if not response.done():
                     response.set_exception(error)
             await self._notifications.put(_CLOSED)
-
-    async def _answer(self, message: dict[str, Any]) -> None:
-        response = await self._client_method_response(message)
-        await self.socket.client_send(RpcCodec().encode(response))
-
-    async def _client_method_response(
-        self, message: dict[str, Any]
-    ) -> RpcSuccess | RpcFailure:
-        request_id = message["id"]
-        registered = self._client_methods.get(message["method"])
-        if registered is None:
-            return RpcFailure.from_error(
-                request_id, RpcMethodNotFoundError(message["method"])
-            )
-        client_method, handler = registered
-        arguments: tuple[Any, ...] = ()
-        if client_method.params is not None:
-            try:
-                params = TypeAdapter(client_method.params).validate_python(
-                    message.get("params", {})
-                )
-            except ValidationError as error:
-                return RpcFailure.from_error(
-                    request_id, RpcInvalidParamsError.from_validation_error(error)
-                )
-            arguments = (params,)
-        try:
-            result = handler(*arguments)
-            if inspect.isawaitable(result):
-                result = await result
-        except RpcError as error:
-            return RpcFailure.from_error(request_id, error)
-        except Exception:
-            return RpcFailure.from_error(request_id, RpcInternalError())
-        return RpcSuccess._with_result_annotation(
-            request_id, result, client_method.result
-        )
 
     def _connection_closed(self) -> "RpcTestConnectionClosed":
         return RpcTestConnectionClosed(self.socket.rejection or self.socket.closed)

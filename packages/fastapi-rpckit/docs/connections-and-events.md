@@ -225,8 +225,8 @@ closes with `POLICY_VIOLATION` and its message; an unmapped failure closes with
 `INTERNAL_ERROR` and is logged. The default `on_error="continue"` logs unexpected
 source failures and keeps the connection open.
 
-Events expect no answer. When the server needs the client's result, declare a
-[client method](client-methods.md) instead.
+Events expect no answer. The server cannot call methods on the client; when it
+needs input from the client, let the client call a server method instead.
 
 ### Finite event sockets
 
@@ -379,8 +379,7 @@ cancel the shared drain. `draining` and `connection_count` expose its state.
 
 New connections are unavailable (WebSocket 1013; adapters may deny the handshake
 with HTTP 503). New ordinary calls on accepted sockets receive the built-in
-`server_shutting_down` error. Pings, cancellation controls, and reverse-call
-responses remain usable while admitted requests finish. Passive event sources
+`server_shutting_down` error. Pings and cancellation controls remain usable while admitted requests finish. Passive event sources
 stop immediately. Active subscriptions and dedicated binary/raw sockets may
 finish naturally until the grace deadline; unfinished work is cancelled.
 

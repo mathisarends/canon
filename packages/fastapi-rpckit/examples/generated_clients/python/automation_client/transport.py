@@ -33,10 +33,6 @@ class WebSocket(Protocol):
     async def close(self) -> None: ...
 
 
-class RequestHandler(Protocol):
-    async def respond(self, message: JsonObject) -> JsonObject: ...
-
-
 class WebSocketFactory(Protocol):
     def __call__(
         self,
@@ -55,7 +51,6 @@ class WebSocketTransport:
         request_timeout: float | None = 30.0,
         notification_queue_size: int = 100,
         notification_overflow: str = "drop_oldest",
-        request_handler: RequestHandler | None = None,
         on_overflow: RpcNotificationOverflowHandler | None = None,
     ) -> None:
         if notification_queue_size <= 0:
@@ -80,7 +75,6 @@ class WebSocketTransport:
         self.closed: asyncio.Future[BaseException | None] = (
             asyncio.get_running_loop().create_future()
         )
-        self._request_handler = request_handler
         self._answers: set[asyncio.Task[None]] = set()
         self._cancellations: set[asyncio.Task[None]] = set()
         self._reader = asyncio.create_task(self._receive())
@@ -96,7 +90,6 @@ class WebSocketTransport:
         notification_overflow: str = "drop_oldest",
         headers: Mapping[str, str] | None = None,
         socket_factory: WebSocketFactory | None = None,
-        request_handler: RequestHandler | None = None,
         on_overflow: RpcNotificationOverflowHandler | None = None,
     ) -> Self:
         if socket_factory is None:
@@ -123,7 +116,6 @@ class WebSocketTransport:
             request_timeout=request_timeout,
             notification_queue_size=notification_queue_size,
             notification_overflow=notification_overflow,
-            request_handler=request_handler,
             on_overflow=on_overflow,
         )
 
@@ -384,7 +376,7 @@ class WebSocketTransport:
                     "data": {"code": "invalid_request", "details": None},
                 },
             }
-        elif self._request_handler is None:
+        else:
             response = {
                 "jsonrpc": "2.0",
                 "id": message["id"],
@@ -397,8 +389,6 @@ class WebSocketTransport:
                     },
                 },
             }
-        else:
-            response = await self._request_handler.respond(message)
         if not self._closed:
             await self._socket.send(json.dumps(response, separators=(",", ":")))
 

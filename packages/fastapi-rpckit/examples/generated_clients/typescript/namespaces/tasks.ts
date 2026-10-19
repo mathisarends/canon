@@ -25,7 +25,7 @@ export class Tasks {
     return this.rpc.request(routes.tasksCreate, params, options);
   }
 
-  /** Delete a task once the operator approves it. */
+  /** Delete a task. */
   delete_(
     params: DeleteTaskParams,
     options?: RpcRequestOptions,

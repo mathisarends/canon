@@ -112,7 +112,7 @@ def test_foreign_model_params_keep_declared_class_and_wire_aliases() -> None:
 
     channel = RpcChannel("foreign")
 
-    @channel.server.method()
+    @channel.method()
     async def accept(params: ForeignParams) -> None: ...
 
     invocation = RpcDispatcher(channel.protocol).parse_request(

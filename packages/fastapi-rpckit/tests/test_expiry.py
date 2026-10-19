@@ -48,12 +48,12 @@ def expiring_service(timestamp, *, middleware=()):
     async def ping() -> str:
         return "pong"
 
-    @channel.server.stream()
+    @channel.stream()
     async def frames() -> AsyncIterator[bytes]:
         await asyncio.Future()
         yield b"frame"
 
-    @channel.server.raw_socket()
+    @channel.raw_socket()
     async def raw(socket: Inject[RpcRawSocket]) -> None:
         await asyncio.Future()
 

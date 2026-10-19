@@ -105,7 +105,7 @@ def test_dishka_router_reads_the_app_container_at_connection_time() -> None:
 
     channel = RpcChannel("demo")
 
-    @channel.server.method()
+    @channel.method()
     async def resolve(service: Inject[Service]) -> bool:
         return service is expected
 
@@ -146,7 +146,7 @@ def test_dishka_exposes_the_context_to_dishka_providers() -> None:
 
     channel = RpcChannel("demo")
 
-    @channel.server.method()
+    @channel.method()
     async def owner(streamer: Inject[Streamer]) -> int:
         return streamer.owner.id
 
@@ -185,7 +185,7 @@ def test_dishka_injects_the_context_function(transport_parameter: str) -> None:
 
     channel = RpcChannel("demo")
 
-    @channel.server.method()
+    @channel.method()
     async def owner(owner: Inject[Owner]) -> str:
         return owner.name
 

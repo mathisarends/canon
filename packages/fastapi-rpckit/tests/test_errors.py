@@ -151,13 +151,13 @@ task_locked = RpcErrorBinding(
 def _task_service(*, strict_errors: bool = False) -> RpcService:
     tasks = RpcChannel("tasks", raises=[task_not_found])
 
-    @tasks.server.method(raises=[task_locked])
+    @tasks.method(raises=[task_locked])
     async def update(params: TaskRef) -> None:
         if params.task_id == 1:
             raise TaskLocked("ada")
         raise ArchivedTaskNotFound(params.task_id)
 
-    @tasks.server.method()
+    @tasks.method()
     async def lock(params: TaskRef) -> None:
         raise TaskLocked("grace")
 
@@ -216,7 +216,7 @@ async def test_a_failing_contract_becomes_an_internal_error(caplog) -> None:
     broken = RpcErrorBinding(TaskLocked, details=broken_details)
     tasks = RpcChannel("tasks")
 
-    @tasks.server.method(raises=[broken])
+    @tasks.method(raises=[broken])
     async def update(params: TaskRef) -> None:
         raise TaskLocked("ada")
 
@@ -257,11 +257,11 @@ def test_contracts_are_described_like_rpc_errors() -> None:
 async def test_an_exception_can_have_different_bindings_per_method() -> None:
     tasks = RpcChannel("tasks")
 
-    @tasks.server.method(raises=[task_not_found])
+    @tasks.method(raises=[task_not_found])
     async def read() -> None:
         raise TaskNotFound(1)
 
-    @tasks.server.method(raises=[RpcErrorBinding(TaskNotFound, code="gone")])
+    @tasks.method(raises=[RpcErrorBinding(TaskNotFound, code="gone")])
     async def delete() -> None:
         raise TaskNotFound(1)
 
@@ -280,11 +280,11 @@ async def test_method_binding_overrides_channel_default() -> None:
     channel = RpcChannel("tasks", raises=[task_not_found])
     gone = RpcErrorBinding(TaskNotFound, code="gone")
 
-    @channel.server.method(raises=[gone])
+    @channel.method(raises=[gone])
     async def read() -> None:
         raise TaskNotFound(1)
 
-    @channel.server.method()
+    @channel.method()
     async def lookup() -> None:
         raise TaskNotFound(1)
 
@@ -317,7 +317,7 @@ def test_ambiguous_bindings_are_rejected_during_registration(kind) -> None:
         yield TaskRef(task_id=1)
 
     function = read if kind == "method" else events
-    decorate = getattr(channel.server, kind)
+    decorate = getattr(channel, kind)
     with pytest.raises(
         ProtocolDefinitionError,
         match=rf"RPC {kind} tasks.custom.read: TaskNotFound.*task_not_found.*gone",
@@ -353,19 +353,19 @@ async def test_child_channel_overrides_defaults_without_changing_parent() -> Non
     root = RpcChannel("tasks", raises=[task_not_found, archived, HTTPTimeoutError])
     child = root.child("admin", raises=[child_binding])
 
-    @root.server.method()
+    @root.method()
     async def read() -> None:
         raise TaskNotFound(1)
 
-    @child.server.method()
+    @child.method()
     async def read_child() -> None:
         raise TaskNotFound(1)
 
-    @child.server.method(raises=[local_binding])
+    @child.method(raises=[local_binding])
     async def read_local() -> None:
         raise TaskNotFound(1)
 
-    @child.server.method(raises=[local_binding])
+    @child.method(raises=[local_binding])
     async def read_archived() -> None:
         raise ArchivedTaskNotFound(1)
 
@@ -454,7 +454,7 @@ async def test_strict_errors_accept_subclasses_of_declared_rpc_errors() -> None:
 
     channel = RpcChannel("tasks")
 
-    @channel.server.method(raises=[MissingError])
+    @channel.method(raises=[MissingError])
     async def read() -> None:
         raise MissingChildError()
 
@@ -470,7 +470,7 @@ async def test_failing_error_mapper_is_logged_and_contained(
 ) -> None:
     channel = RpcChannel("tasks")
 
-    @channel.server.method()
+    @channel.method()
     async def read() -> None:
         raise ValueError("private failure")
 
@@ -495,7 +495,7 @@ async def test_channels_can_bind_permission_error_differently() -> None:
     for name, code in [("tasks", "task_denied"), ("users", "user_denied")]:
         channel = RpcChannel(name, raises=[RpcErrorBinding(PermissionError, code=code)])
 
-        @channel.server.method()
+        @channel.method()
         async def read() -> None:
             raise PermissionError("private")
 
@@ -549,11 +549,6 @@ def test_invalid_contracts_are_rejected(arguments) -> None:
     exception = arguments.pop("exception")
     with pytest.raises(ProtocolDefinitionError):
         RpcErrorBinding(exception, **arguments)
-
-
-def test_client_methods_declare_rpc_errors_only() -> None:
-    with pytest.raises(ProtocolDefinitionError, match="Client methods"):
-        RpcChannel("room").client.method("ping", raises=[task_not_found])
 
 
 def test_legacy_errors_mapping_is_removed() -> None:

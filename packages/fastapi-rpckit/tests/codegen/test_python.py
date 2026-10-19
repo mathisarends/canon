@@ -531,7 +531,7 @@ def test_long_event_models_and_route_annotations_are_ruff_clean(
 def _methods_only() -> RpcChannel:
     channel = RpcChannel("demo")
 
-    @channel.server.method
+    @channel.method
     async def echo(params: _Params) -> _Result: ...
 
     return channel
@@ -540,7 +540,7 @@ def _methods_only() -> RpcChannel:
 def _events_only() -> RpcChannel:
     channel = RpcChannel("demo")
 
-    @channel.server.event
+    @channel.event
     async def ticks() -> AsyncIterator[_Tick]:
         yield _Tick(n=1)
 
@@ -550,10 +550,10 @@ def _events_only() -> RpcChannel:
 def _methods_and_events() -> RpcChannel:
     channel = RpcChannel("demo", raises=(_MissingError,))
 
-    @channel.server.method
+    @channel.method
     async def echo(params: _Params) -> _Result: ...
 
-    @channel.server.event
+    @channel.event
     async def ticks() -> AsyncIterator[_Tick]:
         yield _Tick(n=1)
 
@@ -563,18 +563,18 @@ def _methods_and_events() -> RpcChannel:
 def _all_stream_directions() -> RpcChannel:
     channel = RpcChannel("media")
 
-    @channel.server.method
+    @channel.method
     async def echo(params: _Params) -> _Result: ...
 
-    @channel.server.stream
+    @channel.stream
     async def preview() -> AsyncIterator[bytes]:
         yield b""
 
-    @channel.server.stream(input_content_type="audio/pcm")
+    @channel.stream(input_content_type="audio/pcm")
     async def upload(session_id: str, frames: Inject[RpcBinaryInput]) -> None:
         pass
 
-    @channel.server.stream(content_type="audio/opus")
+    @channel.stream(content_type="audio/opus")
     async def talk(
         session_id: str,
         frames: Inject[RpcBinaryInput],
@@ -641,42 +641,3 @@ def _assert_ruff_clean(
 
     assert lint.returncode == 0, lint.stdout + lint.stderr
     assert formatting.returncode == 0, formatting.stdout + formatting.stderr
-
-
-class ExtraordinarilyLongMediaPlaybackRequestParams(RpcModel):
-    uri: str
-
-
-class ExtraordinarilyLongMediaPlaybackResultPayload(RpcModel):
-    started: bool
-
-
-class SpeakerOfflineError(RpcError):
-    rpc_code = -32010
-
-
-@pytest.mark.parametrize("transport", [None, "websocket"])
-def test_generated_python_with_client_methods_is_ruff_clean(
-    transport: str | None,
-    tmp_path: Path,
-) -> None:
-    channel = RpcChannel("room")
-    channel.client.method("ping")
-    for segment in ("kitchen_speaker_group", "living_room_speaker_group"):
-        nested = channel.child(segment).child("media_playback_controls")
-        nested.client.method(
-            "play_extraordinarily_long_media",
-            params=ExtraordinarilyLongMediaPlaybackRequestParams,
-            result=ExtraordinarilyLongMediaPlaybackResultPayload,
-            raises=(SpeakerOfflineError,),
-            summary="Play a media URI.",
-        )
-    service = RpcService()
-    service.socket("/v1/rooms", channels=[channel])
-    contract = service.contract(title="Rooms", base_url="http://localhost")
-
-    _assert_ruff_clean(
-        contract.to_openrpc(),
-        PythonClientOptions(package=PACKAGE, with_transport=transport),
-        tmp_path,
-    )

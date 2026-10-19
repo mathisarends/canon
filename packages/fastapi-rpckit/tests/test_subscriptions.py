@@ -101,7 +101,7 @@ async def test_deadline_bounds_subscription_handshake_but_does_not_limit_stream(
         entered.set()
         await asyncio.Future()
 
-    @channel.server.subscription()
+    @channel.subscription()
     async def events() -> AsyncIterator[str]:
         stream_started.set()
         try:
@@ -190,12 +190,12 @@ async def test_subscription_failures_use_scoped_bindings(declared, caplog) -> No
     binding = RpcErrorBinding(SessionMissing, details=SessionParams)
     channel = RpcChannel("session")
 
-    @channel.server.subscription(raises=[binding] if declared else [])
+    @channel.subscription(raises=[binding] if declared else [])
     async def events(params: SessionParams) -> AsyncIterator[SessionEvent]:
         yield SessionEvent(value="first")
         raise SessionMissing(params.session_id)
 
-    @channel.server.method(raises=[binding])
+    @channel.method(raises=[binding])
     async def lookup() -> None: ...
 
     service = RpcService()
@@ -233,7 +233,7 @@ async def test_subscription_params_notifications_and_cleanup() -> None:
     channel = RpcChannel("session")
     stopped = asyncio.Event()
 
-    @channel.server.subscription()
+    @channel.subscription()
     async def events(params: SessionParams) -> AsyncIterator[SessionEvent]:
         try:
             yield SessionEvent(value=params.session_id)
@@ -302,7 +302,7 @@ async def test_subscription_params_notifications_and_cleanup() -> None:
 async def test_subscription_limit_and_contract() -> None:
     channel = RpcChannel("session")
 
-    @channel.server.subscription()
+    @channel.subscription()
     async def events(params: SessionParams) -> AsyncIterator[SessionEvent]:
         await asyncio.Future()
         yield SessionEvent(value=params.session_id)

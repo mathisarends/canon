@@ -195,10 +195,9 @@ the socket cannot safely be reused. Socket shutdown waits for the adapter's
 close operation; configure its close timeout to bound that cleanup. This follows
 the [websockets send cancellation guidance](https://websockets.readthedocs.io/en/stable/reference/asyncio/connection.html#websockets.asyncio.connection.Connection.send).
 
-TypeScript clients answer server-to-client method requests with
-`method_not_found` and keep the connection open. Typed TypeScript client-method
-handlers are not available yet. Regenerate existing clients to receive these
-transport fixes. Existing calls still work, and the default 30-second timeout
+Generated clients answer unexpected requests from the server with
+`method_not_found` and keep the connection open. Regenerate existing clients to
+receive these transport fixes. Existing calls still work, and the default 30-second timeout
 is unchanged. TypeScript methods also accept trailing request options.
 
 ## Cancel a request
@@ -463,9 +462,6 @@ on `connect()` and the custom-transport constructor. Socket factories are also
 injectable, which keeps the generated runtime independent of a particular
 WebSocket package and makes connection behavior testable without a network.
 
-Contracts with [client methods](client-methods.md) also generate abstract Python
-handler classes that `connect(handlers=...)` registers.
-
 ## Errors on the client
 
 Generated Python and TypeScript packages export the same client error hierarchy:
@@ -573,7 +569,7 @@ When delivery may have occurred (`sent=True`), or an attempt times out, only a
 route with contract-declared idempotency permits retry. Remote/domain errors,
 response validation failures, permanent connect errors, caller cancellation,
 and explicit client close never trigger retry. Unknown delivery is conservatively
-sent. Streams, subscriptions, and reverse client methods do not enter this loop.
+sent. Streams and subscriptions do not enter this loop.
 
 One request timeout bounds connection acquisition, wire work, and retry backoff.
 The deadline is never restarted. An optional `retry_attempt_timeout` (seconds) /
@@ -674,4 +670,4 @@ separate from business params. For compatible contracts, the SDK validates and
 sends it as the top-level `meta` extension. Older contracts reject nonempty
 carriers locally. TypeScript also accepts `RpcRequestOptions.metadata`.
 See [Per-request trace context](observability.md#per-request-trace-context) for
-Python/TypeScript OTel recipes, bounds, custom adapter changes, and reverse calls.
+Python/TypeScript OTel recipes, bounds, and custom adapter changes.

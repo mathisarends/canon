@@ -22,7 +22,7 @@ class Navigation:
         self.params: NavigateParams | None = None
 
 
-@navigation_channel.server.method("navigate")
+@navigation_channel.method("navigate")
 async def navigate(
     params: NavigateParams,
     navigation: Inject[Navigation],
@@ -94,7 +94,7 @@ def test_contract_rejects_colliding_wire_field_names() -> None:
 
     router = RpcChannel("collision")
 
-    @router.server.method("test")
+    @router.method("test")
     async def test(params: CollidingParams) -> None: ...
 
     with pytest.raises(ProtocolDefinitionError, match="wire field 'fooBar'"):

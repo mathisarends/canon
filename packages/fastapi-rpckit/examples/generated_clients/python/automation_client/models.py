@@ -12,18 +12,6 @@ class RpcModel(BaseModel):
     model_config = ConfigDict(validate_by_name=True)
 
 
-class ApprovalDecision(RpcModel):
-    model_config = ConfigDict(extra="forbid")
-    approved: bool
-    comment: str | None = None
-
-
-class ApprovalRequest(RpcModel):
-    model_config = ConfigDict(extra="forbid")
-    task_id: str = Field(alias="taskId")
-    action: str
-
-
 class CreateTaskParams(RpcModel):
     model_config = ConfigDict(extra="forbid")
     title: str
@@ -32,17 +20,6 @@ class CreateTaskParams(RpcModel):
 class DeleteTaskParams(RpcModel):
     model_config = ConfigDict(extra="forbid")
     task_id: str = Field(alias="taskId")
-
-
-class DialogAnswer(RpcModel):
-    model_config = ConfigDict(extra="forbid")
-    accepted: bool
-
-
-class DialogRequest(RpcModel):
-    model_config = ConfigDict(extra="forbid")
-    tab_id: str = Field(alias="tabId")
-    message: str
 
 
 class OpenTabParams(RpcModel):
@@ -85,12 +62,8 @@ class TasksUpdatedNotification(RpcModel):
     params: TaskUpdated
 
 
-ApprovalDecision.model_rebuild()
-ApprovalRequest.model_rebuild()
 CreateTaskParams.model_rebuild()
 DeleteTaskParams.model_rebuild()
-DialogAnswer.model_rebuild()
-DialogRequest.model_rebuild()
 OpenTabParams.model_rebuild()
 StartScreencastParams.model_rebuild()
 Tab.model_rebuild()
