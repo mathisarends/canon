@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 
 import {
   type Feedback,
+  type QueryParams,
   PracticeRtcClient,
   type PracticeSession,
   RtcError,
@@ -20,6 +21,17 @@ function client(query?: Record<string, string>): PracticeRtcClient {
     RTCPeerConnection: FakePeerConnection as unknown as typeof RTCPeerConnection,
     ...(query === undefined ? {} : { query }),
   });
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((accept, fail) => { resolve = accept; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 /** Drive the server side of a practice session until the client is open. */
@@ -326,6 +338,53 @@ describe("connection failures", () => {
     const connecting = client().practice.connect({ lessonId: "x", timeoutMs: 5 });
     FakeWebSocket.last().open();
     await assert.rejects(connecting, { code: "negotiation_timeout" });
+  });
+
+  for (const reason of ["abort", "timeout"] as const) {
+    for (const settle of ["resolve", "reject"] as const) {
+      test(`${reason} cancels pending credentials before their late ${settle}`, async () => {
+        const credentials = deferred<QueryParams>();
+        const controller = new AbortController();
+        const configured = new PracticeRtcClient({
+          baseUrl: "https://example.test",
+          query: () => credentials.promise,
+          WebSocket: FakeWebSocket as unknown as typeof WebSocket,
+          RTCPeerConnection: FakePeerConnection as unknown as typeof RTCPeerConnection,
+        });
+        const connecting = configured.practice.connect({
+          lessonId: "x", signal: controller.signal,
+          timeoutMs: reason === "timeout" ? 5 : 1000,
+        });
+        const rejected = assert.rejects(connecting, {
+          code: reason === "abort" ? "aborted" : "negotiation_timeout",
+        });
+        if (reason === "abort") controller.abort("cancelled");
+        await rejected;
+        assert.equal(FakeWebSocket.instances.length, 0);
+        if (settle === "resolve") credentials.resolve({ token: "late" });
+        else credentials.reject(new Error("late credentials failure"));
+        await flush();
+        assert.equal(FakeWebSocket.instances.length, 0);
+        assert.equal(FakePeerConnection.instances.length, 0);
+      });
+    }
+  }
+
+  test("credential resolution consumes the connection deadline", async (context) => {
+    context.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+    const credentials = deferred<QueryParams>();
+    const configured = new PracticeRtcClient({
+      ...client().config, query: () => credentials.promise,
+    });
+    const connecting = configured.practice.connect({ lessonId: "x", timeoutMs: 100 });
+    const rejected = assert.rejects(connecting, { code: "negotiation_timeout" });
+    context.mock.timers.tick(60);
+    credentials.resolve({ token: "t" });
+    await Promise.resolve();
+    assert.equal(FakeWebSocket.instances.length, 1);
+    context.mock.timers.tick(40);
+    await rejected;
+    assert.equal(FakeWebSocket.last().closedWith?.reason, "negotiation_timeout");
   });
 
   test("a mismatched server contract is a protocol error", async () => {

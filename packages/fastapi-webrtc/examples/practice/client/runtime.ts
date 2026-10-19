@@ -470,10 +470,8 @@ export async function connectSession<C extends ChannelMap>(
   for (const [key, value] of Object.entries(options as object)) {
     if (!RESERVED_KEYS.has(key)) values[key] = value;
   }
-  const shared = typeof config.query === "function" ? await config.query() : config.query;
-  const url = sessionUrl(config.baseUrl, descriptor, values, shared, options.query);
   const connection = new Connection<C>(config, descriptor, options, local);
-  return connection.start(url);
+  return connection.start(values);
 }
 
 type Channel = {
@@ -509,6 +507,7 @@ class Connection<C extends ChannelMap> {
   private settledWaiters: (() => void)[] = [];
   private initialTracksAttached = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private connectDeadline = Infinity;
   private abortListener: (() => void) | null = null;
   private readonly session: RtcSession<C>;
 
@@ -533,7 +532,7 @@ class Connection<C extends ChannelMap> {
     this.session = this.createSession();
   }
 
-  start(url: string): Promise<RtcSession<C>> {
+  start(values: Readonly<Record<string, unknown>>): Promise<RtcSession<C>> {
     const promise = new Promise<RtcSession<C>>((resolve, reject) => {
       this.resolveConnect = resolve;
       this.rejectConnect = reject;
@@ -545,11 +544,41 @@ class Connection<C extends ChannelMap> {
         else this.finish(new RtcError("aborted", "The connection was aborted.", { cause: signal.reason }));
       };
       signal.addEventListener("abort", this.abortListener, { once: true });
+      if (signal.aborted) {
+        this.abortListener();
+        return promise;
+      }
     }
+    const timeout = this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.connectDeadline = Date.now() + timeout;
     this.timer = setTimeout(() => {
       this.finish(new RtcError("negotiation_timeout", "The session did not connect in time."));
-    }, this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    }, timeout);
     try {
+      if (typeof this.config.query === "function") {
+        const shared = this.config.query();
+        void Promise.resolve(shared).then(
+          (query) => this.openSocket(values, query),
+          (cause: unknown) => this.finish(new RtcError("connection_failed", "Query credentials could not be resolved.", { cause })),
+        );
+      } else {
+        this.openSocket(values, this.config.query);
+      }
+    } catch (cause) {
+      this.finish(new RtcError("connection_failed", "Query credentials could not be resolved.", { cause }));
+    }
+    return promise;
+  }
+
+  private openSocket(values: Readonly<Record<string, unknown>>, shared: QueryParams | undefined): void {
+    if (this.finished !== null) return;
+    if (Date.now() >= this.connectDeadline) {
+      this.finish(new RtcError("negotiation_timeout", "The session did not connect in time."));
+      return;
+    }
+    try {
+      const url = sessionUrl(this.config.baseUrl, this.descriptor, values, shared, this.options.query);
+      if (this.finished !== null) return;
       const socket = new this.ws(url, [SUBPROTOCOL]);
       this.socket = socket;
       socket.binaryType = "arraybuffer";
@@ -565,7 +594,6 @@ class Connection<C extends ChannelMap> {
     } catch (cause) {
       this.finish(new RtcError("connection_failed", "The WebSocket could not be opened.", { cause }));
     }
-    return promise;
   }
 
   // ------------------------------------------------------------- signaling
