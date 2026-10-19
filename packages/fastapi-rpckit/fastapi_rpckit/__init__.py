@@ -1,13 +1,5 @@
 from .channel import RpcChannel
 from .codec import RpcCodec
-from .connected_client import (
-    RpcClientClosedError,
-    RpcClientMethodError,
-    RpcClientMethodFailedError,
-    RpcClientMethodResultError,
-    RpcClientMethodTimeoutError,
-    RpcConnectedClient,
-)
 from .connection import (
     RpcBeforeAccept,
     RpcConnection,
@@ -70,11 +62,10 @@ from .middleware import (
     RpcStreamScope,
 )
 from .models import RpcModel
-from .protocol import RpcClientMethod, RpcProtocol
+from .protocol import RpcProtocol
 from .server import RpcErrorMapper, RpcResponseMessage, RpcServer
 from .service import RpcEndpoint, RpcService, RpcSocketEndpoint, RpcStreamEndpoint
 from .sockets import (
-    CDP_PROTOCOL,
     RpcMessageType,
     RpcSocket,
     RpcSocketMessage,
@@ -92,7 +83,6 @@ from .streams import (
 __version__ = "0.2.0"
 
 __all__ = [
-    "CDP_PROTOCOL",
     "FastApiSocket",
     "RpcRoutes",
     "create_router",
@@ -116,15 +106,8 @@ __all__ = [
     "RpcBinaryInput",
     "RpcBinaryOutput",
     "RpcBeforeAccept",
-    "RpcClientClosedError",
-    "RpcClientMethod",
-    "RpcClientMethodError",
-    "RpcClientMethodFailedError",
-    "RpcClientMethodResultError",
-    "RpcClientMethodTimeoutError",
     "RpcChannel",
     "RpcCodec",
-    "RpcConnectedClient",
     "RpcConnection",
     "RpcConnectionClose",
     "RpcContract",

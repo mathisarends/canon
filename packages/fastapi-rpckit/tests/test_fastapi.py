@@ -47,7 +47,7 @@ def create_service(
 ) -> RpcService:
     channel = RpcChannel("demo")
 
-    @channel.server.method()
+    @channel.method()
     async def echo(params: EchoParams, connection: Inject[RpcConnection]) -> EchoParams:
         if connections is not None:
             connections.append(connection)
@@ -126,7 +126,7 @@ def test_repeated_test_client_disconnects_do_not_leak_cancellation() -> None:
 def test_router_serves_binary_stream() -> None:
     channel = RpcChannel("media")
 
-    @channel.server.stream()
+    @channel.stream()
     async def frames() -> AsyncIterator[bytes]:
         yield b"frame"
 
@@ -177,7 +177,7 @@ async def test_send_preserves_unexpected_runtime_errors() -> None:
 def test_router_serves_bidirectional_streams_without_cancellation_leaks() -> None:
     channel = RpcChannel("voice")
 
-    @channel.server.stream()
+    @channel.stream()
     async def media(
         session_id: int,
         frames: Inject[RpcBinaryInput],
@@ -203,7 +203,7 @@ def test_router_serves_bidirectional_streams_without_cancellation_leaks() -> Non
 def test_router_rejects_invalid_stream_path_variables_as_not_found() -> None:
     channel = RpcChannel("voice")
 
-    @channel.server.stream()
+    @channel.stream()
     async def media(session_id: int, output: Inject[RpcBinaryOutput]) -> None: ...
 
     service = RpcService()
@@ -255,7 +255,7 @@ def test_before_accept_supplies_injected_context() -> None:
 
     channel = RpcChannel("auth")
 
-    @channel.server.method()
+    @channel.method()
     async def who(principal: Inject[Principal]) -> str:
         return principal.name
 
@@ -365,13 +365,13 @@ def create_job_service(
 ) -> RpcService:
     events = RpcChannel("jobs")
 
-    @events.server.method()
+    @events.method()
     async def describe(session: Inject[JobSession]) -> str:
         return f"{session.actor.name}:{session.job.id}"
 
     output = RpcChannel("output")
 
-    @output.server.stream()
+    @output.stream()
     async def frames(
         session: Inject[JobSession], source: Inject[JobOutput]
     ) -> AsyncIterator[bytes]:
@@ -385,7 +385,7 @@ def create_job_service(
 
     failing = RpcChannel("failing")
 
-    @failing.server.stream()
+    @failing.stream()
     async def broken(session: Inject[JobSession]) -> AsyncIterator[bytes]:
         yield b"first"
         raise JobNotFound("Job was deleted")
@@ -1065,7 +1065,7 @@ class JobDeleted(Exception):
 def create_socket_app(released: list[bool]) -> FastAPI:
     shell = RpcChannel("jobs")
 
-    @shell.server.socket(
+    @shell.socket(
         closes=(
             RpcErrorBinding(
                 JobDeleted, rejection=RpcRejection.NOT_FOUND, message="Job deleted"

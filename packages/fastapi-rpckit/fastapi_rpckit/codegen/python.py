@@ -1,7 +1,7 @@
 import json
 import keyword
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any
 
 from fastapi_rpckit.codegen.bindings import SocketBinding, bind_sockets
@@ -127,8 +127,6 @@ def render_files(ir: ClientIr, options: PythonClientOptions) -> dict[str, str]:
             files[f"bindings/{binding.module}.py"] = _module(
                 options, _Imports(), binding.source
             )
-    if ir.client_methods:
-        files["handlers.py"] = _render_handlers(ir, options)
     if options.with_transport == "websocket":
         files["transport.py"] = _render_websocket_transport(options)
     if view.nodes:
@@ -160,10 +158,6 @@ def _render_runtime(ir: ClientIr, options: PythonClientOptions) -> dict[str, str
             options,
             "connection",
         )
-    if ir.client_methods:
-        files["internal/client_methods.py"] = _render_runtime_module(
-            options, "client_methods"
-        )
     return files
 
 
@@ -176,20 +170,6 @@ def _render_runtime_init(ir: ClientIr, options: PythonClientOptions) -> str:
         "RpcTransportSource",
         "UnsetType",
     ]
-    if ir.client_methods:
-        imports.add(
-            ".client_methods",
-            "RpcClientMethodDispatcher",
-            "RpcClientMethodInfo",
-            "current_client_method_metadata",
-        )
-        exported.extend(
-            [
-                "RpcClientMethodDispatcher",
-                "RpcClientMethodInfo",
-                "current_client_method_metadata",
-            ]
-        )
     if options.with_transport == "websocket":
         imports.add(".connection", "ClientConnection", "RpcTransportPool")
         exported.extend(["ClientConnection", "RpcTransportPool"])
@@ -449,75 +429,6 @@ def _socket_binding(
     return None if socket.protocol is None else bound.get(socket.protocol.name)
 
 
-@dataclass(frozen=True, slots=True)
-class _HandlerGroup:
-    class_name: str
-    namespace: str
-    client_methods: tuple[RouteDecl, ...]
-
-
-def _handler_groups(ir: ClientIr) -> tuple[_HandlerGroup, ...]:
-    grouped: dict[tuple[str, ...], list[RouteDecl]] = {}
-    for route in ir.client_methods:
-        grouped.setdefault(route.path, []).append(route)
-    return tuple(
-        _HandlerGroup(_handler_class(path), ".".join(path), tuple(routes))
-        for path, routes in grouped.items()
-    )
-
-
-def _handler_class(path: tuple[str, ...]) -> str:
-    return f"{_api_class(path) or 'Root'}Handler"
-
-
-def _render_handlers(ir: ClientIr, options: PythonClientOptions) -> str:
-    imports = _Imports()
-    imports.add("abc", "ABC", "abstractmethod")
-    imports.add("collections.abc", "Iterable")
-    imports.add("pydantic", "TypeAdapter")
-    imports.add(
-        _runtime_module(options), "RpcClientMethodDispatcher", "RpcClientMethodInfo"
-    )
-    for route in ir.client_methods:
-        if route.params_model is not None:
-            imports.add(f"{options.package}.models", _schema_name(route.params_model))
-        imports.add(f"{options.package}.models", *_model_names(route.result))
-    filters = _template_filters(imports, options)
-    filters["client_method_signature"] = lambda route: _client_method_signature(
-        route, imports
-    )
-    body = render_template(
-        "python/handlers.py.j2",
-        filters=filters,
-        groups=_handler_groups(ir),
-        handler_alias=_handler_alias(ir),
-    )
-    body = _collapse_blank_lines(body)
-    return _module(options, imports, body)
-
-
-def _handler_alias(ir: ClientIr) -> str:
-    names = [group.class_name for group in _handler_groups(ir)]
-    inline = f"type Handler = {' | '.join(names)}"
-    if len(inline) <= 88:
-        return inline
-    members = "\n    | ".join(names)
-    return f"type Handler = (\n    {members}\n)"
-
-
-def _client_method_signature(route: RouteDecl, imports: _Imports) -> str:
-    name = _identifier(route.operation_name)
-    result = _annotation(route.result, imports)
-    parameters = ["self"]
-    if route.params_model is not None:
-        parameters.append(f"params: {_schema_name(route.params_model)}")
-    inline = f"    async def {name}({', '.join(parameters)}) -> {result}:"
-    if len(inline) <= 88:
-        return inline
-    lines = "".join(f"        {parameter},\n" for parameter in parameters)
-    return f"    async def {name}(\n{lines}    ) -> {result}:"
-
-
 def _server_subprotocols(server: ServerDecl) -> str:
     if server.transport is None:
         return "()"
@@ -531,12 +442,7 @@ def _render_errors(ir: ClientIr, options: PythonClientOptions) -> str:
     imports.add(_runtime_module(options), "RpcRemoteError")
     errors = []
     seen: set[str] = set()
-    client_method_codes = {
-        error.code for route in ir.client_methods for error in route.errors
-    }
-    if client_method_codes:
-        imports.add("typing", "Self")
-    for route in (*ir.operations, *ir.client_methods, *ir.notifications):
+    for route in (*ir.operations, *ir.notifications):
         for error in route.errors:
             if error.name is None or error.name in seen:
                 continue
@@ -550,7 +456,6 @@ def _render_errors(ir: ClientIr, options: PythonClientOptions) -> str:
         "python/errors.py.j2",
         filters=_template_filters(imports, options),
         errors=errors,
-        client_method_codes=client_method_codes,
     )
     body = _collapse_blank_lines(body.lstrip("\n"))
     return _module(options, imports, body)
@@ -682,12 +587,6 @@ def _render_client(
             )
     if ir.servers:
         imports.add(f"{options.package}.endpoints", "ServerName")
-    if options.with_transport == "websocket" and ir.client_methods:
-        imports.add(
-            f"{options.package}.handlers",
-            "Handler",
-            "handler_dispatcher",
-        )
     if options.with_transport == "websocket":
         imports.add("collections.abc", "Awaitable", "Callable")
         imports.add(_runtime_module(options), "ClientConnection", "RpcTransportPool")
@@ -720,7 +619,6 @@ def _render_client(
         binary_streams=ir.binary_streams,
         root_sockets=root_sockets,
         sockets=ir.sockets,
-        client_methods=ir.client_methods,
         request_metadata=ir.request_metadata,
         with_websocket=options.with_transport == "websocket",
     )
@@ -807,17 +705,6 @@ def _render_package_init(
     if options.with_transport == "websocket":
         imports.add(f"{options.package}.transport", "WebSocketTransport")
         exported.append("WebSocketTransport")
-    if ir.client_methods:
-        imports.add(_runtime_module(options), "current_client_method_metadata")
-        exported.append("current_client_method_metadata")
-        handler_exports = [
-            *(group.class_name for group in _handler_groups(ir)),
-            "Handler",
-            "handler_dispatcher",
-        ]
-        imports.add(options.package, "handlers")
-        imports.add(f"{options.package}.handlers", *handler_exports)
-        exported.extend([*handler_exports, "handlers"])
     if ir.binary_streams:
         imports.add(options.package, "streams")
         imports.add(
@@ -1235,20 +1122,10 @@ def _validate(
             connect_options.append(
                 ("<connect.socket_connection_factory>", "socket_connection_factory")
             )
-        if ir.client_methods:
-            connect_options.append(("<connect.handlers>", "handlers"))
         assert_unique_names("connect options", connect_options)
     assert_unique_names("root client", client_members)
     _assert_unique_package_exports(ir, options, nodes, client_name)
     _validate_nodes(nodes)
-    for group in _handler_groups(ir):
-        assert_unique_names(
-            f"handlers {group.namespace or '<root>'}",
-            (
-                (route.rpc_name, _identifier(route.operation_name))
-                for route in group.client_methods
-            ),
-        )
     for node in nodes:
         assert_unique_names(
             f"Python namespace module {_identifier(node.segment)!r}",
@@ -1292,20 +1169,6 @@ def _assert_unique_package_exports(
         exports.append(("<endpoints>", "endpoints"))
     if options.with_transport == "websocket":
         exports.append(("<transport>", "WebSocketTransport"))
-    if ir.client_methods:
-        exports.append(("<runtime>", "current_client_method_metadata"))
-        exports.extend(
-            (group.namespace or "<root handlers>", group.class_name)
-            for group in _handler_groups(ir)
-        )
-        exports.extend(
-            ("<handlers>", name)
-            for name in (
-                "Handler",
-                "handler_dispatcher",
-                "handlers",
-            )
-        )
     if ir.binary_streams:
         exports.extend(("<streams>", name) for name in _STREAM_EXPORTS)
         exports.append(("<streams>", "streams"))
@@ -1430,7 +1293,7 @@ def _named_errors(ir: ClientIr) -> bool:
 
 def _named_error_codes(ir: ClientIr) -> tuple[str, ...]:
     codes: dict[str, None] = {}
-    for route in (*ir.operations, *ir.client_methods, *ir.notifications):
+    for route in (*ir.operations, *ir.notifications):
         for error in route.errors:
             if error.name is not None:
                 codes.setdefault(error.code, None)

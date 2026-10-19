@@ -48,7 +48,7 @@ _REGULAR_CLOSES = (
 
 
 def trace_metadata(*, include_baggage: bool = False) -> dict[str, str]:
-    """Inject the current W3C context for an explicit server-to-client call."""
+    """Return the current W3C context as an RPC request metadata carrier."""
     carrier: dict[str, str] = {}
     TraceContextTextMapPropagator().inject(carrier)
     if include_baggage:

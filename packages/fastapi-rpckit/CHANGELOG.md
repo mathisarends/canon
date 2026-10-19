@@ -4,10 +4,30 @@
 
 ### Breaking changes
 
+- Remove server-to-client RPC. Every RPC method is now implemented by the
+  server and called by the client. `channel.client.method()`, `RpcClientMethod`,
+  `RpcConnectedClient`, the `RpcClientMethod*Error` exceptions,
+  `RpcClientClosedError`, `RpcProtocol.client_methods`,
+  `RpcLimits.client_method_timeout` and `RpcTestClient(client_methods=...)` /
+  `RpcTestClient.handle()` are gone.
+- Remove `channel.server`. Declare operations directly on the channel with
+  `@channel.method()`, `@channel.event()`, `@channel.subscription()`,
+  `@channel.stream()` and `@channel.socket()`. These were already the
+  default spelling; `channel.server.X` was an alias.
+- OpenRPC documents no longer contain `x-rpc-client-methods` or
+  `*ClientMethod` request schemas, and the generators reject documents that
+  still declare `x-rpc-client-methods`.
+- Generated Python clients no longer contain `handlers.py`,
+  `internal/client_methods.py`, `current_client_method_metadata()`, the
+  `connect(handlers=...)` option, the transport's `request_handler=` option
+  or the `create()` class methods on client-method errors. Like TypeScript
+  clients, they answer any request the server sends with `method_not_found`.
+- The server no longer accepts JSON-RPC response frames from the client. They
+  are answered with `invalid_request` like any other malformed request.
 - Raw sockets are now sockets. A socket is a transport endpoint; the messages
   it carries belong to the handler. Migrate as follows:
-  - `@channel.raw_socket(...)` / `@channel.server.raw_socket(...)` becomes
-    `@channel.socket(...)` / `@channel.server.socket(...)` with the same options.
+  - `@channel.raw_socket(...)` becomes `@channel.socket(...)` with the same
+    options.
   - `service.raw_socket(path, handler, ...)` becomes
     `service.socket(path, handler, ...)`. `service.socket(path, channels=...)`
     still mounts JSON-RPC endpoints; passing both a handler and `channels=`, or
@@ -35,13 +55,28 @@
 - Server log messages and close reasons say "socket" instead of "raw socket".
   Socket wire behavior, close codes, and message framing are unchanged.
 
+Migration:
+
+1. Replace `@channel.server.method(...)` and the other `channel.server.*`
+   decorators with `@channel.method(...)` and the matching channel decorator.
+2. Replace each server-to-client call with a server method the client calls,
+   an event or a subscription. Remove `Inject[RpcConnectedClient]` parameters.
+3. Drop `client_method_timeout=` from `RpcLimits(...)` and `client_methods=`
+   from `RpcTestClient(...)`.
+4. Regenerate clients and remove handler classes and `handlers=` arguments
+   from `Client.connect(...)` calls.
+5. Rename `@channel.raw_socket` to `@channel.socket`, `service.raw_socket(...)` to
+   `service.socket(...)`, `RpcRawSocket` to `RpcSocket`, and the adapter
+   protocol `RpcSocket` to `RpcWebSocket`, then re-export contracts and
+   regenerate clients as described above.
+
 ### Added
 
 - Declare the application protocol of a socket with
   `@channel.socket(..., protocol=RpcSocketProtocol(...))`. The declaration
   holds a protocol name, version, encoding, and specification URI references.
   It is metadata only: messages still pass through unchanged. Handlers read it
-  as `RpcSocket.protocol`. `CDP_PROTOCOL` declares the Chrome DevTools Protocol.
+  as `RpcSocket.protocol`.
 - Contracts export declared protocols as `x-rpckit-protocol` on socket entries.
   The generator IR keeps them as `SocketProtocolDecl`, whose
   `resolve_schemas()` resolves relative schema references against the contract

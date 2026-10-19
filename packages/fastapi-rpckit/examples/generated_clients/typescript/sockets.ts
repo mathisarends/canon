@@ -109,10 +109,6 @@ export const sockets = {
       name: "cdp",
       encoding: "json",
       version: "1.3",
-      schemas: [
-        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json",
-        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/js_protocol.json",
-      ],
     },
     variables: {
       host: {

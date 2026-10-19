@@ -153,9 +153,8 @@ Recursive parameter models continue to report Pydantic validation failures as
 `invalid_params`; arbitrary nested values accepted by `Any` are not rejected
 solely for their depth.
 
-Pending-limit rejections and dropped unknown client-method responses each log
-at most one warning per connection. On connection cleanup, a debug message
-reports the total for each category. This remains bounded with debug logging
+Pending-limit rejections log at most one warning per connection. On connection
+cleanup, a debug message reports their total. This remains bounded with debug logging
 enabled; request middleware still receives each rejection.
 
 ## Request deadlines
@@ -225,8 +224,8 @@ before reserving work; `$/cancelRequest` uses the same location and does not nee
 a handler slot. Invalid requests, parse failures, and admission rejections run
 in bounded response collectors so a blocked outgoing queue cannot block the
 reader. Once collector capacity is exhausted, additional ordinary messages close
-the connection with `POLICY_VIOLATION`; cancellation and reverse responses still
-bypass that check.
+the connection with `POLICY_VIOLATION`; cancellation controls still bypass that
+check.
 
 The default pending limit remains 1024. This fixes the former batch multiplier,
 so workloads depending on that accidental extra capacity may now receive

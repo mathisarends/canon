@@ -113,8 +113,7 @@ After a sent call is abandoned, the SDK sends best-effort `$/cancelRequest` on i
 original socket. Server deadlines/cancellation include admission and queued work,
 but handlers must cooperate with cancellation. Remote errors, validation errors,
 middleware failures, explicit close, and caller cancellation never cause ordinary
-automatic retry. Subscription controls, reverse calls, and binary/raw streams do
-not enter ordinary method retry. See [Client cancellation and retry](clients.md)
+automatic retry. Subscription controls and binary/raw streams do not enter ordinary method retry. See [Client cancellation and retry](clients.md)
 and [Protocol controls](protocol.md).
 
 ## Connection recovery and notification gaps
@@ -163,8 +162,7 @@ path, and success outcomes contain the validated result. See [Client middleware]
 accepts only W3C `traceparent`, `tracestate`, and optional `baggage` strings within
 4096 compact UTF-8 bytes. Explicit remote context parents a request span and links
 to an optional connection span; absent metadata retains handshake behavior. Older
-contracts reject nonempty client carriers locally. Python reverse handlers expose
-`current_client_method_metadata()`; TS reverse handlers remain unsupported.
+contracts reject nonempty client carriers locally.
 OTel is an application opt-in, with no new generated runtime dependency. Follow
 the [Python/TypeScript tracing recipes](observability.md#per-request-trace-context)
 and keep remote baggage out of authorization and automatic logging.

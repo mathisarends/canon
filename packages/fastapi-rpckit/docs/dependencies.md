@@ -63,9 +63,8 @@ Pass it as `resolver=` to `RpcService.serve()`, an endpoint, `create_router()`,
 or `create_server()`. A synchronous or asynchronous callable taking the
 requested type is accepted as a lightweight alternative.
 
-Context values take precedence over the resolver. `RpcConnection` and, on
-socket endpoints, `RpcConnectedClient` are also made available by type for the lifetime of
-that connection.
+Context values take precedence over the resolver. `RpcConnection` is also made
+available by type for the lifetime of that connection.
 
 ## Resource scopes
 
@@ -110,7 +109,7 @@ web.include_router(dishka_router(app))
 The integration reads `web.state.dishka_container`; pass the APP container to
 `DishkaResolver` when constructing one manually. A SESSION container from
 `websocket.state` is rejected because fastapi_rpckit opens that scope itself and adds
-`RpcConnection` and `RpcConnectedClient` to its context.
+`RpcConnection` to its context.
 
 To mount endpoints with FastAPI dependencies, pass `Dishka()` as the resolver
 of [`RpcRoutes`](transports.md#mount-endpoints-with-fastapi-dependencies). The

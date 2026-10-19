@@ -87,10 +87,19 @@ protocol. Declare that protocol with `protocol=` so the contract and generated
 clients know what the endpoint speaks:
 
 ```python
-from fastapi_rpckit import CDP_PROTOCOL, RpcMessageType
+from fastapi_rpckit import RpcMessageType, RpcSocketProtocol
+
+CDP = RpcSocketProtocol(
+    name="cdp",
+    version="1.3",
+    schemas=(
+        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json",
+        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/js_protocol.json",
+    ),
+)
 
 
-@browser.socket("cdp", protocol=CDP_PROTOCOL, messages=(RpcMessageType.TEXT,))
+@browser.socket("cdp", protocol=CDP, messages=(RpcMessageType.TEXT,))
 async def cdp(socket: Inject[RpcSocket], browsers: Inject[BrowserService]) -> None: ...
 ```
 
@@ -125,11 +134,9 @@ the location of the exported contract document, like OpenAPI `$ref` values, so
 `schemas/graphql-ws.json` next to `contract.openrpc.json` stays valid when both
 files move together.
 
-`CDP_PROTOCOL` declares the Chrome DevTools Protocol version 1.3 and references
-the `browser_protocol.json` and `js_protocol.json` files of the official
-[devtools-protocol](https://github.com/ChromeDevTools/devtools-protocol)
-repository. Use `dataclasses.replace(CDP_PROTOCOL, schemas=...)` to pin
-other files or revisions.
+fastapi_rpckit ships no protocol-specific declarations; the protocol belongs
+to the application. The [CDP example](../examples/cdp/README.md) declares the
+Chrome DevTools Protocol and binds it to typed Python and TypeScript clients.
 
 ## Send and receive
 

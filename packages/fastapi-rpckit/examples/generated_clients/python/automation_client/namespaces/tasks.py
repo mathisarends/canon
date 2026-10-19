@@ -48,7 +48,7 @@ class Tasks:
         *,
         task_id: str,
     ) -> bool:
-        """Delete a task once the operator approves it."""
+        """Delete a task."""
         params = DeleteTaskParams(
             task_id=task_id,
         )

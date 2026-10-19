@@ -23,7 +23,7 @@ from fastapi_rpckit.protocol import RpcMethodDefinition, RpcStreamDefinition
 if TYPE_CHECKING:
     from fastapi_rpckit.service import RpcAnyEndpoint
 
-logger = logging.getLogger(LOGGER_NAME)
+logger: logging.Logger = logging.getLogger(LOGGER_NAME)
 
 
 class RpcEndpointInfo(Protocol):

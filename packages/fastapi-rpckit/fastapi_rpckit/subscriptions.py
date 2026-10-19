@@ -21,7 +21,7 @@ from fastapi_rpckit.middleware import RpcRequestOutcome, RpcRequestScope
 from fastapi_rpckit.protocol import RpcSubscriptionDefinition
 from fastapi_rpckit.server import RpcResponse, RpcServer
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class RpcSubscriptionLimitError(RpcError):

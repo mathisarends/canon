@@ -417,7 +417,7 @@ async def test_a_validation_error_in_handler_is_internal(caplog) -> None:
 
     router = RpcChannel("greeting")
 
-    @router.server.method("broken")
+    @router.method("broken")
     async def broken(params: SayParams) -> None:
         NestedParams.model_validate({"params": 1})
 
@@ -439,7 +439,7 @@ async def test_a_validation_error_in_handler_is_internal(caplog) -> None:
 async def test_invalid_handler_result_is_internal(caplog) -> None:
     channel = RpcChannel("result")
 
-    @channel.server.method()
+    @channel.method()
     async def broken() -> int:
         return "abc"  # type: ignore[return-value]
 
@@ -459,7 +459,7 @@ async def test_matching_dict_handler_result_is_accepted() -> None:
 
     channel = RpcChannel("result")
 
-    @channel.server.method()
+    @channel.method()
     async def valid() -> Result:
         return {"value": 3}  # type: ignore[return-value]
 
@@ -478,7 +478,7 @@ async def test_batch_runs_concurrently_with_shared_limit() -> None:
     peak = 0
     channel = RpcChannel("batch")
 
-    @channel.server.method()
+    @channel.method()
     async def wait() -> None:
         nonlocal running, peak
         running += 1
@@ -518,11 +518,11 @@ async def test_custom_error_mapper_and_strict_errors() -> None:
 
     channel = RpcChannel("mapped")
 
-    @channel.server.method(raises=(MissingError,))
+    @channel.method(raises=(MissingError,))
     async def declared() -> None:
         raise DomainMissing("gone")
 
-    @channel.server.method()
+    @channel.method()
     async def undeclared() -> None:
         raise DomainMissing("gone")
 
@@ -560,7 +560,7 @@ class BrokenParams(BaseModel):
 broken_channel = RpcChannel("greeting")
 
 
-@broken_channel.server.method("break")
+@broken_channel.method("break")
 async def fail(params: BrokenParams) -> None:
     raise BreakageError("boom")
 

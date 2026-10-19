@@ -148,9 +148,7 @@ async def delete(params: TaskRef) -> None:
 different bindings for the same exception on the same level are an error.
 
 OpenRPC documents and generated clients describe a binding exactly like an
-`RpcError` subclass with the same settings. Client methods keep declaring `RpcError`
-subclasses, because the server receives these errors and cannot rebuild a
-domain exception from them.
+`RpcError` subclass with the same settings.
 
 `RpcService(errors=...)`, `RpcChannel.create_server(errors=...)`, and
 `RpcService.errors` have been removed. Declare bindings on the operations that

@@ -8,8 +8,6 @@ from math import isfinite
 from types import FunctionType
 from typing import Any, overload
 
-from pydantic import BaseModel
-
 from fastapi_rpckit.connection import RpcLimits
 from fastapi_rpckit.dependencies import (
     RpcResolverLike,
@@ -28,13 +26,11 @@ from fastapi_rpckit.errors import (
 )
 from fastapi_rpckit.middleware import RpcMiddlewareLike
 from fastapi_rpckit.protocol import (
-    RpcClientMethod,
     RpcNotificationDefinition,
     RpcProtocol,
     RpcSocketDefinition,
     RpcStreamDefinition,
     RpcSubscriptionDefinition,
-    client_method_definition,
     method_definition,
     notification_definition,
     notification_type_definitions,
@@ -68,12 +64,87 @@ class RpcRoute:
     idempotent: bool = False
 
 
-class RpcServerDeclarations:
-    """Server-side decorators shared by a channel and its ``server`` side."""
+class RpcChannel:
+    """Methods, events, subscriptions and sockets the server implements."""
+
+    def __init__(
+        self,
+        name: str | None = None,
+        /,
+        *,
+        namespace: str | None = None,
+        raises: Iterable[RpcErrorDeclaration] = (),
+        resolver_scope: RpcResolverScope = call_scope,
+    ) -> None:
+        if name is None and namespace is None:
+            raise ProtocolDefinitionError("RpcChannel needs a name or namespace")
+        resolved_namespace = (
+            normalize_namespace(name)
+            if namespace is None
+            else normalize_namespace(namespace)
+        )
+        self._name = (
+            normalize_namespace(name) if name is not None else resolved_namespace
+        )
+        if not self._name:
+            raise ProtocolDefinitionError("RPC channel name cannot be empty")
+        self._namespace = resolved_namespace
+        self._raises = error_declarations(raises, owner=f"RPC channel {self.name}")
+        if not callable(resolver_scope):
+            raise ProtocolDefinitionError("RPC resolver scope must be callable")
+        self._resolver_scope = resolver_scope
+        self._routes: list[RpcRoute] = []
+        self._events: list[RpcNotificationDefinition] = []
+        self._subscriptions: list[RpcSubscriptionDefinition] = []
+        self._streams: list[RpcStreamDefinition] = []
+        self._sockets: list[RpcSocketDefinition] = []
+        self._children: list[RpcChannel] = []
+        self._names: set[str] = set()
+        self._protocol: RpcProtocol | None = None
 
     @property
-    def _channel(self) -> "RpcChannel":
-        raise NotImplementedError
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def namespace(self) -> str:
+        return self._namespace
+
+    @property
+    def raises(self) -> tuple[type[RpcError], ...]:
+        return self._raises
+
+    @property
+    def resolver_scope(self) -> RpcResolverScope:
+        return self._resolver_scope
+
+    @property
+    def routes(self) -> tuple[RpcRoute, ...]:
+        return tuple(self._routes)
+
+    @property
+    def events(self) -> tuple[RpcNotificationDefinition, ...]:
+        return tuple(self._events)
+
+    @property
+    def subscriptions(self) -> tuple[RpcSubscriptionDefinition, ...]:
+        return tuple(self._subscriptions)
+
+    @property
+    def streams(self) -> tuple[RpcStreamDefinition, ...]:
+        return tuple(self._streams)
+
+    @property
+    def sockets(self) -> tuple[RpcSocketDefinition, ...]:
+        return tuple(self._sockets)
+
+    @property
+    def children(self) -> tuple["RpcChannel", ...]:
+        return tuple(self._children)
+
+    @property
+    def protocol(self) -> RpcProtocol:
+        return self.freeze()
 
     @overload
     def method(self, function: FunctionType, /) -> FunctionType: ...
@@ -100,7 +171,7 @@ class RpcServerDeclarations:
         timeout: float | None | _TimeoutDefault = _INHERIT_TIMEOUT,
         idempotent: bool = False,
     ) -> Any:
-        channel = self._channel
+        channel = self
         channel._ensure_mutable()
         if type(idempotent) is not bool:
             raise ProtocolDefinitionError("Method idempotent must be a bool")
@@ -177,7 +248,7 @@ class RpcServerDeclarations:
         on_error: str = "continue",
         raises: Iterable[RpcErrorDeclaration] = (),
     ) -> Any:
-        channel = self._channel
+        channel = self
         channel._ensure_mutable()
         if isinstance(name, FunctionType):
             return self.event()(name)
@@ -235,7 +306,7 @@ class RpcServerDeclarations:
         summary: str | None = None,
         raises: Iterable[RpcErrorDeclaration] = (),
     ) -> Any:
-        channel = self._channel
+        channel = self
         channel._ensure_mutable()
         if isinstance(name, FunctionType):
             return self.subscription()(name)
@@ -290,7 +361,7 @@ class RpcServerDeclarations:
         input_content_type: str | None = None,
         summary: str | None = None,
     ) -> Any:
-        channel = self._channel
+        channel = self
         channel._ensure_mutable()
         if isinstance(name, FunctionType):
             return self.stream()(name)
@@ -364,7 +435,7 @@ class RpcServerDeclarations:
         are handled. ``closes`` binds the exceptions the handler may raise to the
         close code and reason the client receives.
         """
-        channel = self._channel
+        channel = self
         channel._ensure_mutable()
         if isinstance(name, FunctionType):
             return self.socket()(name)
@@ -405,110 +476,6 @@ class RpcServerDeclarations:
             return function
 
         return decorate
-
-
-class RpcChannel(RpcServerDeclarations):
-    """``@channel.method()`` is shorthand for ``@channel.server.method()``."""
-
-    def __init__(
-        self,
-        name: str | None = None,
-        /,
-        *,
-        namespace: str | None = None,
-        raises: Iterable[RpcErrorDeclaration] = (),
-        resolver_scope: RpcResolverScope = call_scope,
-    ) -> None:
-        if name is None and namespace is None:
-            raise ProtocolDefinitionError("RpcChannel needs a name or namespace")
-        resolved_namespace = (
-            normalize_namespace(name)
-            if namespace is None
-            else normalize_namespace(namespace)
-        )
-        self._name = (
-            normalize_namespace(name) if name is not None else resolved_namespace
-        )
-        if not self._name:
-            raise ProtocolDefinitionError("RPC channel name cannot be empty")
-        self._namespace = resolved_namespace
-        self._raises = error_declarations(raises, owner=f"RPC channel {self.name}")
-        if not callable(resolver_scope):
-            raise ProtocolDefinitionError("RPC resolver scope must be callable")
-        self._resolver_scope = resolver_scope
-        self._routes: list[RpcRoute] = []
-        self._events: list[RpcNotificationDefinition] = []
-        self._subscriptions: list[RpcSubscriptionDefinition] = []
-        self._streams: list[RpcStreamDefinition] = []
-        self._sockets: list[RpcSocketDefinition] = []
-        self._client_methods: list[RpcClientMethod[Any, Any]] = []
-        self._children: list[RpcChannel] = []
-        self._names: set[str] = set()
-        self._protocol: RpcProtocol | None = None
-        self._server = RpcServerSide(self)
-        self._client = RpcClientSide(self)
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def namespace(self) -> str:
-        return self._namespace
-
-    @property
-    def raises(self) -> tuple[type[RpcError], ...]:
-        return self._raises
-
-    @property
-    def resolver_scope(self) -> RpcResolverScope:
-        return self._resolver_scope
-
-    @property
-    def routes(self) -> tuple[RpcRoute, ...]:
-        return tuple(self._routes)
-
-    @property
-    def events(self) -> tuple[RpcNotificationDefinition, ...]:
-        return tuple(self._events)
-
-    @property
-    def subscriptions(self) -> tuple[RpcSubscriptionDefinition, ...]:
-        return tuple(self._subscriptions)
-
-    @property
-    def streams(self) -> tuple[RpcStreamDefinition, ...]:
-        return tuple(self._streams)
-
-    @property
-    def sockets(self) -> tuple[RpcSocketDefinition, ...]:
-        return tuple(self._sockets)
-
-    @property
-    def client_methods(self) -> tuple[RpcClientMethod[Any, Any], ...]:
-        return tuple(self._client_methods)
-
-    @property
-    def children(self) -> tuple["RpcChannel", ...]:
-        return tuple(self._children)
-
-    @property
-    def protocol(self) -> RpcProtocol:
-        return self.freeze()
-
-    @property
-    def _channel(self) -> "RpcChannel":
-        return self
-
-    @property
-    def server(self) -> "RpcServerSide":
-        """What the server implements."""
-        return self._server
-
-    @property
-    def client(self) -> "RpcClientSide":
-        """What the connected client implements."""
-        return self._client
 
     def child(
         self,
@@ -559,7 +526,6 @@ class RpcChannel(RpcServerDeclarations):
             ]
             streams = list(self.streams)
             sockets = list(self.sockets)
-            client_methods = list(self.client_methods)
             for child in self.children:
                 protocol = child.freeze()
                 definitions.extend(protocol.methods)
@@ -568,7 +534,6 @@ class RpcChannel(RpcServerDeclarations):
                 notification_types.extend(protocol.notification_types)
                 streams.extend(protocol.streams)
                 sockets.extend(protocol.sockets)
-                client_methods.extend(protocol.client_methods)
             duplicate_requests = {
                 name
                 for name, count in Counter(d.request_name for d in definitions).items()
@@ -589,7 +554,6 @@ class RpcChannel(RpcServerDeclarations):
                 subscriptions=subscriptions,
                 notification_types=notification_types,
                 streams=streams,
-                client_methods=client_methods,
                 sockets=sockets,
             )
         return self._protocol
@@ -634,55 +598,6 @@ class RpcChannel(RpcServerDeclarations):
                 f"RpcChannel {self.name!r} is frozen because its protocol was "
                 "already materialized (directly or by RpcService)"
             )
-
-
-class RpcServerSide(RpcServerDeclarations):
-    """``channel.server``: methods, events and streams the server implements."""
-
-    def __init__(self, channel: "RpcChannel") -> None:
-        self._owner = channel
-
-    @property
-    def _channel(self) -> "RpcChannel":
-        return self._owner
-
-
-class RpcClientSide:
-    """``channel.client``: methods the connected client implements."""
-
-    def __init__(self, channel: RpcChannel) -> None:
-        self._channel = channel
-
-    def method[ParamsT: BaseModel, ResultT](
-        self,
-        name: str,
-        /,
-        *,
-        params: type[ParamsT] | None = None,
-        result: type[ResultT] | None = None,
-        raises: Iterable[type[RpcError]] = (),
-        summary: str | None = None,
-    ) -> RpcClientMethod[ParamsT, ResultT]:
-        """Declare a request the server sends and the connected client answers."""
-        channel = self._channel
-        channel._ensure_mutable()
-        wire_name = join_rpc_name(channel.namespace, _name(name, "client method name"))
-        raises = tuple(raises)
-        if any(isinstance(error, RpcErrorBinding) for error in raises):
-            raise ProtocolDefinitionError(
-                "Client methods declare RpcError subclasses: the server receives "
-                "these errors and cannot rebuild a domain exception from them"
-            )
-        definition = client_method_definition(
-            name=wire_name,
-            params=params,
-            result=result,
-            summary=summary,
-            raises=error_declarations(raises, owner=f"RPC client method {wire_name}"),
-        )
-        channel._reserve(wire_name)
-        channel._client_methods.append(definition)
-        return definition
 
 
 def join_rpc_name(*parts: str) -> str:

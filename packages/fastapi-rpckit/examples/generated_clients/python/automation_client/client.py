@@ -6,7 +6,6 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from typing import Self
 
 from automation_client.endpoints import Endpoint, ServerName, resolve_endpoints
-from automation_client.handlers import Handler, handler_dispatcher
 from automation_client.internal import (
     ClientConnection,
     RpcClientCore,
@@ -131,7 +130,6 @@ class AutomationClient:
         socket_factory: WebSocketFactory | None = None,
         stream_socket_factory: BinaryWebSocketFactory | None = None,
         socket_connection_factory: SocketConnectionFactory | None = None,
-        handlers: Handler | Iterable[Handler] = (),
         middleware: Iterable[RpcClientMiddleware] = (),
         lazy: bool = False,
         reconnect: bool = False,
@@ -145,12 +143,11 @@ class AutomationClient:
             | None
         ) = None,
     ) -> ClientConnection[Self, ServerName]:
-        """Connect to servers and register handlers for their requests."""
+        """Open every declared server unless ``lazy=True`` is set."""
 
         variables: dict[str, str | None] = {
             "host": host,
         }
-        dispatcher = handler_dispatcher(handlers)
 
         async def resolve_headers() -> Mapping[str, str] | None:
             return await headers() if callable(headers) else headers
@@ -172,7 +169,6 @@ class AutomationClient:
                 headers=await resolve_headers(),
                 socket_factory=socket_factory,
                 on_overflow=on_overflow,
-                request_handler=dispatcher,
             )
 
         async def open_stream(endpoint: BinaryStreamEndpoint) -> BinaryStreamTransport:

@@ -259,10 +259,6 @@ SOCKETS: Mapping[SocketName, SocketInfo] = {
         protocol=SocketProtocol(
             name="cdp",
             version="1.3",
-            schemas=(
-                "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json",
-                "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/js_protocol.json",
-            ),
         ),
     ),
 }

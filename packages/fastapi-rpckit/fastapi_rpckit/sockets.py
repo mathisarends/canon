@@ -72,18 +72,6 @@ class RpcSocketProtocol:
         object.__setattr__(self, "schemas", values)
 
 
-CDP_PROTOCOL = RpcSocketProtocol(
-    name="cdp",
-    version="1.3",
-    encoding="json",
-    schemas=(
-        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json",
-        "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/js_protocol.json",
-    ),
-)
-"""The Chrome DevTools Protocol, as spoken by Chromium's remote debugging socket."""
-
-
 class RpcSocket:
     """An accepted WebSocket that passes text and binary messages through as-is.
 

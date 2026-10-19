@@ -52,7 +52,7 @@ async def test_unregistered_middleware_allocates_no_operation_scopes(monkeypatch
         assert middleware_module._current_serving() is None
         return "pong"
 
-    @channel.server.subscription()
+    @channel.subscription()
     async def events() -> AsyncIterator[str]:
         yield "event"
 

@@ -95,7 +95,6 @@
         socket_factory: WebSocketFactory | None = None,
 {% if binary_streams %}        stream_socket_factory: BinaryWebSocketFactory | None = None,
 {% endif %}{% if sockets %}        socket_connection_factory: SocketConnectionFactory | None = None,
-{% endif %}{% if client_methods %}        handlers: Handler | Iterable[Handler] = (),
 {% endif %}        middleware: Iterable[RpcClientMiddleware] = (),
         lazy: bool = False,
         reconnect: bool = False,
@@ -109,9 +108,8 @@
             | None
         ) = None,
     ) -> ClientConnection[Self, ServerName]:
-{% if client_methods %}        """Connect to servers and register handlers for their requests."""
-{% else %}        """Open every declared server unless ``lazy=True`` is set."""
-{% endif %}
+        """Open every declared server unless ``lazy=True`` is set."""
+
 {% if variables %}        variables: dict[str, str | None] = {
 {% for variable in variables %}            {{ variable.name | literal }}: {{ variable.name | identifier }},
 {% endfor %}        }
@@ -119,7 +117,6 @@
 {% endif %}{% if servers | length == 1 %}        overrides = dict(servers or {})
         if url is not None:
             overrides.setdefault(ServerName.{{ servers[0].name | constant }}, url)
-{% endif %}{% if client_methods %}        dispatcher = handler_dispatcher(handlers)
 {% endif %}
         async def resolve_headers() -> Mapping[str, str] | None:
             return await headers() if callable(headers) else headers
@@ -141,8 +138,7 @@
                 headers=await resolve_headers(),
                 socket_factory=socket_factory,
                 on_overflow=on_overflow,
-{% if client_methods %}                request_handler=dispatcher,
-{% endif %}            )
+            )
 {% if binary_streams %}
         async def open_stream(endpoint: BinaryStreamEndpoint) -> BinaryStreamTransport:
             return await BinaryWebSocketStream.open(
