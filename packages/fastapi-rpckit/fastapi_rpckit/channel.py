@@ -428,7 +428,11 @@ class RpcChannel:
         closes: Iterable[RpcErrorBinding[Any]] = (),
         summary: str | None = None,
     ) -> Any:
-        """Declare a WebSocket endpoint that passes its messages through as-is.
+        """Declare a WebSocket endpoint with a message or connection handler.
+
+        A message handler receives its first non-injected parameter as validated
+        JSON and returns one response per message. Inject ``RpcSocket`` instead
+        to manage the connection and forward text and binary frames unchanged.
 
         ``protocol`` declares the application protocol the messages follow, for
         the contract and generated client bindings; it never changes how messages

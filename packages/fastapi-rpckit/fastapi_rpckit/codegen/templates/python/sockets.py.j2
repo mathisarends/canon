@@ -9,7 +9,7 @@ type SocketMessage = str | bytes
 
 @dataclass(frozen=True, slots=True)
 class SocketProtocol:
-    """The application protocol a socket declared; its messages pass through as-is."""
+    """Declared protocol metadata; this alone does not enable message validation."""
 
     name: str
     encoding: str = "json"
@@ -82,32 +82,59 @@ class SocketTransport(Protocol):
 type SocketOpener = Callable[[SocketEndpoint], Awaitable[SocketTransport]]
 
 
-class Socket:
-    """Sends and receives text (``str``) and binary (``bytes``) messages as-is."""
+{% if typed %}_IncomingT = TypeVar("_IncomingT", default=SocketMessage)
+_OutgoingT = TypeVar("_OutgoingT", default=str | bytes | bytearray | memoryview)
+
+
+class Socket(Generic[_IncomingT, _OutgoingT]):
+{% else %}class Socket:
+{% endif %}    """Sends and receives messages, optionally decoded as typed JSON."""
 
     def __init__(self, transport: SocketTransport, endpoint: SocketEndpoint) -> None:
         self._transport = transport
         self.endpoint = endpoint
 
-    async def receive(self) -> SocketMessage:
+{% if typed %}    async def receive(self) -> _IncomingT:
+        message = await self._transport.receive()
+        adapter = _RECEIVE_ADAPTERS.get(self.endpoint.name)
+        if adapter is None:
+            return message  # type: ignore[return-value]
+        try:
+            if not isinstance(message, str):
+                raise ValueError("Typed sockets require text messages")
+            return adapter.validate_json(message, strict=True)
+        except (ValidationError, ValueError):
+            await self.close()
+            raise ValueError("Invalid incoming socket message") from None
+{% else %}    async def receive(self) -> SocketMessage:
         return await self._transport.receive()
-
+{% endif %}
     def __aiter__(self) -> Self:
         return self
 
-    async def __anext__(self) -> SocketMessage:
+    async def __anext__(self) -> {{ "_IncomingT" if typed else "SocketMessage" }}:
         try:
             return await self.receive()
         except RpcStreamClosed:
             raise StopAsyncIteration from None
 
-    async def send(self, message: str | bytes | bytearray | memoryview) -> None:
-        """Send one message; ``str`` is sent as text, bytes as binary."""
-        if isinstance(message, str):
+    async def send(self, message: {{ "_OutgoingT" if typed else "str | bytes | bytearray | memoryview" }}) -> None:
+        """Send one message, encoding typed payloads as JSON text."""
+{% if typed %}        adapter = _SEND_ADAPTERS.get(self.endpoint.name)
+        if adapter is not None:
+            try:
+                encoded = adapter.dump_json(message, by_alias=True, warnings="error")
+                adapter.validate_json(encoded, strict=True)
+            except (ValidationError, PydanticSerializationError):
+                raise ValueError("Invalid outgoing socket message") from None
+            await self._transport.send(encoded.decode())
+            return
+{% endif %}{% if typed %}        frame: Any = message
+{% endif %}{% set frame = "frame" if typed else "message" %}        if isinstance({{ frame }}, str):
             message_type: SocketMessageType = "text"
-        elif isinstance(message, bytes | bytearray | memoryview):
+        elif isinstance({{ frame }}, bytes | bytearray | memoryview):
             message_type = "binary"
-            message = bytes(message)
+            {{ frame }} = bytes({{ frame }})
         else:
             raise TypeError("Socket.send() expects str or bytes")
         if message_type not in self.endpoint.message_types:
@@ -115,7 +142,7 @@ class Socket:
                 f"The socket {self.endpoint.name.value!r} does not accept "
                 f"{message_type} messages"
             )
-        await self._transport.send(message)
+        await self._transport.send({{ frame }})
 
     async def close(self) -> None:
         await self._transport.close()
@@ -130,7 +157,7 @@ class Socket:
 @asynccontextmanager
 async def open_socket(
     endpoint: SocketEndpoint, opener: SocketOpener | None
-) -> AsyncGenerator[Socket, None]:
+) -> AsyncGenerator[{{ "Socket[Any, Any]" if typed else "Socket" }}, None]:
     """Open a socket for one ``async with`` block and close it when it ends."""
     if opener is None:
         raise RpcStreamsUnavailableError(
@@ -252,3 +279,13 @@ SOCKETS: Mapping[SocketName, SocketInfo] = {
 {% endif %}        ),
 {% endif %}    ),
 {% endfor %}}
+{% if typed %}
+
+
+_RECEIVE_ADAPTERS: Mapping[SocketName, TypeAdapter[Any]] = {
+{% for socket in sockets %}{% if socket.server_message is not none %}    SocketName.{{ socket.name | constant }}: TypeAdapter({{ socket.server_message | annotation }}),
+{% endif %}{% endfor %}}
+_SEND_ADAPTERS: Mapping[SocketName, TypeAdapter[Any]] = {
+{% for socket in sockets %}{% if socket.client_message is not none %}    SocketName.{{ socket.name | constant }}: TypeAdapter({{ socket.client_message | annotation }}),
+{% endif %}{% endfor %}}
+{% endif %}

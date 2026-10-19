@@ -1,0 +1,21 @@
+{
+  "generator": "fastapi_rpckit",
+  "generatorVersion": "0.2.0",
+  "layoutVersion": 10,
+  "language": "typescript",
+  "contractSha256": "cd01dfc28893666a1eb615fafb21576abbe408f4cecdbde254f438e1dbadd3ba",
+  "files": [
+    ".rpcgen/manifest.json",
+    "client.ts",
+    "core.ts",
+    "endpoints.ts",
+    "errors.ts",
+    "index.ts",
+    "models.ts",
+    "namespaces/index.ts",
+    "namespaces/messages.ts",
+    "routes.ts",
+    "sockets.ts",
+    "transport.ts"
+  ]
+}

@@ -511,6 +511,10 @@ class RpcService:
             )
         channel, _ = marker
         definition = next(item for item in channel.sockets if item.function is handler)
+        if definition.message_parameter in variables:
+            raise ProtocolDefinitionError(
+                "The socket message parameter cannot also be a path variable"
+            )
         missing = [p for p in definition.path_parameters if p not in variables]
         if missing:
             raise ProtocolDefinitionError(

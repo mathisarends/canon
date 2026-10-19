@@ -248,6 +248,8 @@ class SocketDecl:
     call_variables: tuple[ServerVariableDecl, ...] = ()
     """The variables each call fills; the rest come from ``connect``."""
     protocol: SocketProtocolDecl | None = None
+    client_message: TypeExpr | None = None
+    server_message: TypeExpr | None = None
 
     @property
     def name(self) -> str:
@@ -359,7 +361,14 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         servers=servers,
         declarations=_reachable(
             declarations,
-            _roots(routes, notifications),
+            _roots(routes, notifications)
+            | {
+                name
+                for socket in sockets
+                for message in (socket.client_message, socket.server_message)
+                if message is not None
+                for name in named_types(message)
+            },
         ),
         root_operations=root_operations,
         api=api,
@@ -819,6 +828,17 @@ def _sockets(
                 + ", ".join(_MESSAGE_TYPES)
             )
         declared = _url_variables(value, f"Socket {name!r}")
+        messages = value.get("messages")
+        if messages is not None and (
+            not isinstance(messages, dict)
+            or set(messages) != {"client", "server"}
+            or any(not isinstance(schema, dict) for schema in messages.values())
+            or tuple(message_types) != ("text",)
+        ):
+            raise UnsupportedSchemaError(
+                f"Socket {name!r} messages require client/server JSON schemas "
+                "and text frames"
+            )
         *path, operation_name = name.split(".")
         sockets.append(
             SocketDecl(
@@ -832,6 +852,12 @@ def _sockets(
                 variables=declared,
                 subprotocols=_subprotocols(value, f"Socket {name!r}"),
                 protocol=_socket_protocol(value, f"Socket {name!r}"),
+                client_message=_socket_message_type(messages["client"], document)
+                if messages
+                else None,
+                server_message=_socket_message_type(messages["server"], document)
+                if messages
+                else None,
                 call_variables=tuple(
                     variable
                     for variable in declared
@@ -840,6 +866,28 @@ def _sockets(
             )
         )
     return tuple(sockets)
+
+
+def _socket_message_type(schema: dict[str, Any], document: dict[str, Any]) -> TypeExpr:
+    seen = set()
+    schemas = document.get("components", {}).get("schemas", {})
+    while "$ref" in schema:
+        name = ref_name(schema)
+        if (
+            not schema["$ref"].startswith("#/components/schemas/")
+            or name not in schemas
+        ):
+            raise UnsupportedSchemaError(
+                "Socket messages need local component references"
+            )
+        if name in seen:
+            raise UnsupportedSchemaError("Cyclic socket message schema aliases")
+        seen.add(name)
+        target = schemas.get(name, {})
+        if set(target) != {"$ref"}:
+            break
+        schema = target
+    return type_expression(schema)
 
 
 def _base_uri(base: str | Path) -> str:

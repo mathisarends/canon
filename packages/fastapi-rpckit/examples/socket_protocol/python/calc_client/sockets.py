@@ -28,7 +28,7 @@ type SocketMessage = str | bytes
 
 @dataclass(frozen=True, slots=True)
 class SocketProtocol:
-    """The application protocol a socket declared; its messages pass through as-is."""
+    """Declared protocol metadata; this alone does not enable message validation."""
 
     name: str
     encoding: str = "json"
@@ -102,7 +102,7 @@ type SocketOpener = Callable[[SocketEndpoint], Awaitable[SocketTransport]]
 
 
 class Socket:
-    """Sends and receives text (``str``) and binary (``bytes``) messages as-is."""
+    """Sends and receives messages, optionally decoded as typed JSON."""
 
     def __init__(self, transport: SocketTransport, endpoint: SocketEndpoint) -> None:
         self._transport = transport
@@ -121,7 +121,7 @@ class Socket:
             raise StopAsyncIteration from None
 
     async def send(self, message: str | bytes | bytearray | memoryview) -> None:
-        """Send one message; ``str`` is sent as text, bytes as binary."""
+        """Send one message, encoding typed payloads as JSON text."""
         if isinstance(message, str):
             message_type: SocketMessageType = "text"
         elif isinstance(message, bytes | bytearray | memoryview):

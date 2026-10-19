@@ -9,6 +9,8 @@ authors = [{ name = "Mathis Arends", email = "mathisarends27@gmail.com" }]
 dependencies = [
     "fastapi>=0.115,<1",
     "pydantic>=2.11,<3",
+    "pydantic-core>=2.33",
+    "typing-extensions>=4.12.2",
 ]
 
 [project.optional-dependencies]

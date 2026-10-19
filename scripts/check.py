@@ -77,6 +77,7 @@ def main() -> None:
             for config in (
                 "examples/generated_clients/rpcgen.toml",
                 "examples/socket_protocol/rpcgen.toml",
+                "examples/typed_socket/rpcgen.toml",
             ):
                 _run(
                     MEMBERS[2],

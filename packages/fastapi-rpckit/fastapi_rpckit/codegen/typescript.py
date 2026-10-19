@@ -137,6 +137,7 @@ class _Renderer:
             "comment": _comment,
             "compact_notification": self._compact_notification,
             "enum_decl": lambda declaration: isinstance(declaration, EnumDecl),
+            "enum_type_alias": _enum_type_alias,
             "identifier": _identifier,
             "literal": _ts_literal,
             "model_decl": lambda declaration: isinstance(declaration, ModelDecl),
@@ -274,6 +275,10 @@ class _Renderer:
             imports.append(_value_import(route_imports, f"{root}routes"))
         model_names: set[str] = set()
         for node in nodes:
+            for socket in node.sockets:
+                for message in (socket.client_message, socket.server_message):
+                    if message is not None:
+                        model_names.update(_model_names(message))
             model_names.update(_route_model_names(node.operations))
             model_names.update(
                 name
@@ -318,14 +323,33 @@ class _Renderer:
             if binding is None
             else f"socketBinding_{binding.module}.{binding.session}"
         )
+        if binding is None and socket.client_message is not None:
+            session = (
+                f"Socket<{self._type(socket.server_message)}, "
+                f"{self._type(socket.client_message)}>"
+            )
         return _socket_signature(socket, f"Promise<{session}>")
 
     def _socket_handle_connect(self, socket: SocketDecl) -> str:
         """The ``openSocket`` connect callback, laid out as Prettier would."""
         binding = self._socket_binding(socket)
         create = "new Socket(transport, endpoint)"
+        if socket.client_message is not None:
+            create = (
+                f"new Socket<{self._type(socket.server_message)}, "
+                f"{self._type(socket.client_message)}>(transport, endpoint, true)"
+            )
         if binding is None:
-            return f"      (transport, endpoint) => {create},"
+            inline = f"      (transport, endpoint) => {create},"
+            if len(inline) <= _TS_WIDTH:
+                return inline
+            if len(f"        {create},") <= _TS_WIDTH:
+                return f"      (transport, endpoint) =>\n        {create},"
+            constructor = create.removesuffix("(transport, endpoint, true)")
+            return (
+                f"      (transport, endpoint) =>\n        {constructor}(\n"
+                "          transport,\n          endpoint,\n          true,\n        ),"
+            )
         open_binding = f"socketBinding_{binding.module}.{binding.open}"
         inline = f"      (transport, endpoint) => {open_binding}({create}),"
         if len(inline) <= _TS_WIDTH:
@@ -387,6 +411,10 @@ class _Renderer:
         if route_imports:
             imports.append(_value_import(route_imports, "./routes"))
         models = _route_model_names(self.root_operations)
+        for socket in self.root_sockets:
+            for message in (socket.client_message, socket.server_message):
+                if message is not None:
+                    models.update(_model_names(message))
         models.update(
             name for event in self.root_events for name in _model_names(event.payload)
         )
@@ -857,7 +885,7 @@ def _stream_signature(stream: BinaryStreamDecl) -> str:
 def _socket_signature(stream: BinaryStreamDecl | SocketDecl, returns: str) -> str:
     name = _identifier(stream.operation_name)
     if not stream.call_variables:
-        return f"  {name}(): {returns} {{"
+        return _socket_return_signature(f"  {name}()", returns)
     fields = [
         f"readonly {_property(variable.name)}?: {_server_variable_type(variable)}"
         for variable in stream.call_variables
@@ -866,7 +894,23 @@ def _socket_signature(stream: BinaryStreamDecl | SocketDecl, returns: str) -> st
     if len(inline) <= _TS_WIDTH:
         return inline
     body = "".join(f"    {field};\n" for field in fields)
-    return f"  {name}(options?: {{\n{body}  }}): {returns} {{"
+    return _socket_return_signature(f"  {name}(options?: {{\n{body}  }})", returns)
+
+
+def _socket_return_signature(prefix: str, returns: str) -> str:
+    inline = f"{prefix}: {returns} {{"
+    if len(inline.rsplit("\n", 1)[-1]) <= _TS_WIDTH:
+        return inline
+    inner = returns.removeprefix("Promise<").removesuffix(">")
+    return f"{prefix}: Promise<\n    {inner}\n  > {{"
+
+
+def _enum_type_alias(name: str) -> str:
+    name = _schema_name(name)
+    prefix = f"export type {name} ="
+    target = f"(typeof {name})[keyof typeof {name}];"
+    inline = f"{prefix} {target}"
+    return inline if len(inline) <= _TS_WIDTH else f"{prefix}\n  {target}"
 
 
 def _stream_endpoint(stream: BinaryStreamDecl, rpc: str) -> str:

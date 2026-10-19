@@ -11,6 +11,7 @@ from fastapi_rpckit.schema.components import (
     components,
     described,
     notification_schema_name,
+    socket_message_schema_name,
     type_name,
 )
 
@@ -114,6 +115,14 @@ def render_openrpc(
     if streams:
         document["x-rpckit-binary-streams"] = streams
     sockets = [dict(socket) for socket in sockets]
+    definitions = {socket.name: socket for socket in protocol.sockets}
+    for socket in sockets:
+        definition = definitions.get(socket["name"])
+        if definition is not None and definition.message_contract is not None:
+            socket["messages"] = {
+                direction: _ref(socket_message_schema_name(definition.name, direction))
+                for direction in ("client", "server")
+            }
     if sockets:
         document["x-rpckit-sockets"] = sockets
     return document

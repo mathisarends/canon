@@ -30,6 +30,9 @@ client, or application structure. Each file is standalone and executable.
 - [`socket_protocol`](socket_protocol/README.md) declares a small CDP-shaped
   protocol on a socket and plugs typed Python and TypeScript clients for it
   into the generators.
+- [`typed_socket`](typed_socket/README.md) declares an annotated message handler,
+  validates incoming and outgoing JSON with Pydantic, and includes generated
+  Python and TypeScript clients exercised against a live FastAPI server.
 
 Run an example from the repository root:
 

@@ -13,7 +13,8 @@ from typing import Literal
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from starlette.websockets import WebSocketDisconnect
 
 MODULES = {
     "fastapi-canon": "fastapi_canon",
@@ -25,6 +26,15 @@ MODULES = {
 class Event(BaseModel):
     type: Literal["ready"] = "ready"
     value: int = 1
+
+
+class SocketInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    value: int
+
+
+class SocketOutput(BaseModel):
+    value: int
 
 
 def main() -> None:
@@ -68,7 +78,11 @@ def main() -> None:
         routers.append(streams)
         _cli("fastapi-streams")
     if "fastapi-rpckit" in selected:
-        from fastapi_rpckit import RpcChannel, RpcService, create_router
+        from fastapi_rpckit import (
+            RpcChannel,
+            RpcService,
+            create_router,
+        )
 
         channel = RpcChannel("health")
 
@@ -78,6 +92,12 @@ def main() -> None:
 
         rpc = RpcService()
         rpc.socket("/rpc", channels=(channel,))
+
+        @channel.socket("messages")
+        async def messages(message: SocketInput) -> SocketOutput:
+            return SocketOutput(value=message.value + 1)
+
+        rpc.socket("/messages", messages)
         routers.append(create_router(rpc))
         _cli("fastapi-rpckit")
     if "fastapi-canon" in selected:
@@ -98,6 +118,17 @@ def main() -> None:
                     {"jsonrpc": "2.0", "id": 1, "method": "health.ping"}
                 )
                 assert websocket.receive_json()["result"] == "pong"
+            with client.websocket_connect("/messages") as websocket:
+                websocket.send_json({"value": 41})
+                assert websocket.receive_json() == {"value": 42}
+                websocket.send_json({"value": "secret"})
+                try:
+                    websocket.receive_json()
+                except WebSocketDisconnect as error:
+                    assert error.code == 1002
+                    assert "secret" not in error.reason
+                else:
+                    raise AssertionError("Typed socket accepted an invalid message")
     assert app.openapi()["openapi"]
     if "fastapi-rpckit" in selected and importlib.util.find_spec("jinja2"):
         _rpc_codegen(rpc)
@@ -165,9 +196,16 @@ def _rpc_codegen(rpc) -> None:
             async def consume() -> None:
                 async with (
                     InMemorySocketFactory(rpc) as factory,
-                    generated.HealthClient.connect(socket_factory=factory) as client,
+                    generated.HealthClient.connect(
+                        socket_factory=factory, socket_connection_factory=factory
+                    ) as client,
                 ):
                     assert await client.health.ping() == "pong"
+                    async with client.health.messages() as socket:
+                        await socket.send(generated.SocketInput(value=41))
+                        result = await socket.receive()
+                        assert isinstance(result, generated.SocketOutput)
+                        assert result.value == 42
 
             asyncio.run(consume())
         finally:

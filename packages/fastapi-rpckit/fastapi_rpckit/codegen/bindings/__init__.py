@@ -106,6 +106,7 @@ def bind_sockets(
     contract: str | Path | None = None,
 ) -> dict[str, SocketBinding]:
     """Bind each configured protocol once; the result is keyed by protocol name."""
+    sockets = tuple(sockets)
     declared: dict[str, list[SocketProtocolDecl]] = {}
     for socket in sockets:
         if socket.protocol is not None:
@@ -121,6 +122,16 @@ def bind_sockets(
         if name not in declared:
             raise UnsupportedSchemaError(
                 f"Socket binding {name!r} matches no socket protocol in the contract"
+            )
+        if any(
+            socket.protocol is not None
+            and socket.protocol.name == name
+            and socket.client_message is not None
+            for socket in sockets
+        ):
+            raise UnsupportedSchemaError(
+                f"Socket binding {name!r} cannot wrap typed JSON sockets; "
+                "use their generated message API or an untyped external socket"
             )
         result = binding.bind(BindingContext(language, tuple(declared[name]), contract))
         _validate(name, result)
