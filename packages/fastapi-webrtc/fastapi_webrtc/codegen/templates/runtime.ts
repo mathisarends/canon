@@ -979,6 +979,15 @@ class Connection<C extends ChannelMap> {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
     if (this.abortListener !== null) this.options.signal?.removeEventListener("abort", this.abortListener);
+    // Close signaling first so the server records the reason, not a transport loss.
+    const socket = this.socket;
+    if (socket !== null && (socket.readyState === 0 || socket.readyState === 1)) {
+      try {
+        socket.close(closeCode, reason.code === "closed" ? undefined : reason.code);
+      } catch {
+        socket.close();
+      }
+    }
     for (const channel of this.channels.values()) {
       for (const waiter of [...channel.waiters]) waiter();
       try {
@@ -992,14 +1001,6 @@ class Connection<C extends ChannelMap> {
       this.pc?.close();
     } catch {
       // already closed
-    }
-    const socket = this.socket;
-    if (socket !== null && (socket.readyState === 0 || socket.readyState === 1)) {
-      try {
-        socket.close(closeCode, reason.code === "closed" ? undefined : reason.code);
-      } catch {
-        socket.close();
-      }
     }
     this.settle();
     const reject = this.rejectConnect;

@@ -17,7 +17,7 @@ classifiers = [
     "Topic :: Multimedia :: Video",
     "Typing :: Typed",
 ]
-dependencies = ["fastapi>=0.115,<1", "pydantic>=2.9,<3"]
+dependencies = ["fastapi>=0.115,<1", "pydantic>=2.9,<3", "starlette>=0.41"]
 
 [project.optional-dependencies]
 aiortc = ["aiortc>=1.14,<2"]
@@ -48,6 +48,7 @@ dev = [
     "mypy>=1.15",
     "pytest>=8.4",
     "pytest-asyncio>=1",
+    "pytest-cov>=6",
     "ruff>=0.12",
     "twine>=7,<8",
     "uvicorn>=0.35",
@@ -83,3 +84,11 @@ markers = ["engine: tests that need a real WebRTC engine (aiortc)"]
 filterwarnings = [
     "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning:starlette.testclient",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["fastapi_webrtc"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 85

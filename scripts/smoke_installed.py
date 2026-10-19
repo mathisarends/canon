@@ -20,7 +20,9 @@ MODULES = {
     "fastapi-canon": "fastapi_canon",
     "fastapi-streams": "fastapi_streams",
     "fastapi-rpckit": "fastapi_rpckit",
+    "fastapi-webrtc": "fastapi_webrtc",
 }
+STACK = {"fastapi-canon", "fastapi-streams", "fastapi-rpckit"}
 
 
 class Event(BaseModel):
@@ -110,6 +112,10 @@ def main() -> None:
         rpc.socket("/session", session)
         routers.append(create_router(rpc))
         _cli("fastapi-rpckit")
+    if "fastapi-webrtc" in selected:
+        engine = _RecordingEngine()
+        routers.append(_webrtc_router(engine))
+        _cli("fastapi-webrtc")
     if "fastapi-canon" in selected:
         from fastapi_canon import Composition, Feature
 
@@ -143,10 +149,14 @@ def main() -> None:
                 assert websocket.receive_json() == {"value": 0}
                 websocket.send_json({"value": 41})
                 assert websocket.receive_json() == {"value": 42}
+        if "fastapi-webrtc" in selected:
+            _webrtc_sessions(client, engine)
     assert app.openapi()["openapi"]
+    if "fastapi-webrtc" in selected:
+        _webrtc_codegen(app)
     if "fastapi-rpckit" in selected and importlib.util.find_spec("jinja2"):
         _rpc_codegen(rpc)
-    if selected == set(MODULES):
+    if selected == STACK:
         # Run the same composition/lifecycle regression against installed wheels.
 
         example = runpy.run_path(
@@ -175,6 +185,91 @@ def _cli(name: str) -> None:
     subprocess.run(
         [str(executable), "--help"], check=True, capture_output=True, timeout=30
     )
+
+
+class _RecordingEngine:
+    """Counts peers; admission must reject sessions before reaching it."""
+
+    def __init__(self) -> None:
+        from fastapi_webrtc import EngineCapabilities
+
+        self.capabilities = EngineCapabilities(
+            trickle_ice=True, ice_restart=False, renegotiation=False
+        )
+        self.created = 0
+
+    def track_kind(self, track):
+        raise TypeError("No local tracks in the installed-artifact check")
+
+    async def create_peer(self, config, observer):
+        self.created += 1
+        raise RuntimeError("The smoke engine allocates no peers")
+
+
+def _webrtc_router(engine):
+    from fastapi import HTTPException, Query
+    from fastapi_webrtc import DataChannelSpec, Session, WebRtcRouter
+
+    rtc = WebRtcRouter(engine=engine, prefix="/rtc")
+
+    @rtc.session(
+        "/rooms/{room}",
+        data_channels=(DataChannelSpec(name="events", send_model=SocketOutput),),
+    )
+    def room(room: str, token: str = Query()) -> Session:
+        if token != "ok":
+            raise HTTPException(status_code=403)
+        return Session()
+
+    return rtc
+
+
+def _webrtc_sessions(client, engine) -> None:
+    from fastapi_webrtc import SUBPROTOCOL
+    from starlette.testclient import WebSocketDenialResponse
+
+    try:
+        with client.websocket_connect("/rtc/rooms/a?token=no", [SUBPROTOCOL]):
+            raise AssertionError("A denied session was accepted")
+    except WebSocketDenialResponse as error:
+        assert error.status_code == 403
+    assert engine.created == 0
+    with client.websocket_connect("/rtc/rooms/a?token=ok", [SUBPROTOCOL]) as socket:
+        try:
+            socket.receive_text()
+        except WebSocketDisconnect as error:
+            assert (error.code, error.reason) == (1011, "engine_failure")
+        else:
+            raise AssertionError("Expected an engine_failure close")
+    assert engine.created == 1
+    if importlib.util.find_spec("aiortc") is None:
+        try:
+            importlib.import_module("fastapi_webrtc.engines.aiortc")
+        except ImportError as error:
+            assert "fastapi-webrtc[aiortc]" in str(error)
+        else:
+            raise AssertionError("The aiortc engine imported without aiortc")
+    else:
+        from fastapi_webrtc.engines.aiortc import AiortcEngine
+
+        assert AiortcEngine().capabilities.renegotiation
+
+
+def _webrtc_codegen(app) -> None:
+    from fastapi_webrtc.codegen.typescript import generate_typescript
+    from fastapi_webrtc.codegen.writer import write_files
+    from fastapi_webrtc.contract import build_contract
+
+    contract = build_contract(app)
+    (session,) = contract["sessions"]
+    assert session["path"] == "/rtc/rooms/{room}"
+    files = generate_typescript(contract)
+    assert "export class RtcClient {" in files["client.ts"]
+    assert "readonly room: SessionApi<" in files["client.ts"]
+    with tempfile.TemporaryDirectory(prefix="canon-webrtc-client-") as temporary:
+        output = Path(temporary) / "client"
+        assert write_files(output, files)
+        assert not write_files(output, files, check=True)
 
 
 def _rpc_codegen(rpc) -> None:

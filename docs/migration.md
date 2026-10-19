@@ -35,6 +35,8 @@
       PyPI Trusted Publishers for this repository.
 - [x] Publish all three packages with separate tags and GitHub releases; verify
       PyPI files, fresh installs and generated SDKs.
+- [x] Add `fastapi-webrtc` as an independent extension (issue #2); see
+      [decision 0005](design-decisions/0005-webrtc-extension.md). Unreleased.
 - [ ] Complete external application migrations. Archive the predecessor only
       after a separate explicit decision.
 

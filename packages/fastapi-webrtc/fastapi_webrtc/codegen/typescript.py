@@ -22,12 +22,68 @@ DEFAULT_CLIENT_NAME = "RtcClient"
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 _RESERVED_WORDS = frozenset(
-    """break case catch class const continue debugger default delete do else enum
-    export extends false finally for function if import in instanceof new null
-    return super switch this throw true try typeof var void while with as
-    implements interface let package private protected public static yield any
-    boolean number string symbol type unknown never object bigint undefined
-    await async constructor""".split()
+    [
+        "break",
+        "case",
+        "catch",
+        "class",
+        "const",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "else",
+        "enum",
+        "export",
+        "extends",
+        "false",
+        "finally",
+        "for",
+        "function",
+        "if",
+        "import",
+        "in",
+        "instanceof",
+        "new",
+        "null",
+        "return",
+        "super",
+        "switch",
+        "this",
+        "throw",
+        "true",
+        "try",
+        "typeof",
+        "var",
+        "void",
+        "while",
+        "with",
+        "as",
+        "implements",
+        "interface",
+        "let",
+        "package",
+        "private",
+        "protected",
+        "public",
+        "static",
+        "yield",
+        "any",
+        "boolean",
+        "number",
+        "string",
+        "symbol",
+        "type",
+        "unknown",
+        "never",
+        "object",
+        "bigint",
+        "undefined",
+        "await",
+        "async",
+        "constructor",
+    ]
 )
 # Option names consumed by the runtime; parameters cannot reuse them.
 RESERVED_OPTIONS = frozenset(
@@ -140,7 +196,9 @@ def _banner(header: str) -> str:
 # ------------------------------------------------------------------ models
 
 
-def _definition_names(definitions: Mapping[str, Any], taken: set[str]) -> dict[str, str]:
+def _definition_names(
+    definitions: Mapping[str, Any], taken: set[str]
+) -> dict[str, str]:
     names: dict[str, str] = {}
     used = set(taken)
     for name in sorted(definitions):
@@ -346,18 +404,14 @@ def _client(
         "SessionDescriptor",
     ]
     out = [
-        'import type * as models from "./models.js";\n'
-        if emitter.names
-        else "",
+        'import type * as models from "./models.js";\n' if emitter.names else "",
         "import {\n"
         + "".join(f"  type {name},\n" for name in runtime_types)
         + "  sessionApi,\n"
         + '} from "./runtime.js";\n',
     ]
-    members: list[str] = []
     for session in sessions:
         out.append("\n" + _session_types(session, models))
-        members.append(session["name"])
     out.append(_client_class(sessions, client_name))
     return "".join(out)
 
@@ -377,10 +431,16 @@ def _session_types(session: Mapping[str, Any], models: _Emitter) -> str:
         lines = [f"export type {pascal}Channels = {{"]
         for channel in channels:
             send = _message_type(
-                channel["receive_format"], channel.get("receive_schema"), _SEND_TYPES, models
+                channel["receive_format"],
+                channel.get("receive_schema"),
+                _SEND_TYPES,
+                models,
             )
             receive = _message_type(
-                channel["send_format"], channel.get("send_schema"), _RECEIVE_TYPES, models
+                channel["send_format"],
+                channel.get("send_schema"),
+                _RECEIVE_TYPES,
+                models,
             )
             lines.append(
                 f"  readonly {_property(channel['name'])}: {{\n"
@@ -402,12 +462,9 @@ def _session_types(session: Mapping[str, Any], models: _Emitter) -> str:
         ]
         for key, parameter in parameters:
             optional = "" if parameter["required"] else "?"
-            lines.append(
-                _doc(_schema_doc(parameter.get("schema")), "  ").rstrip("\n")
-            )
-            lines.append(
-                f"  readonly {key}{optional}: {models.type(parameter.get('schema'), '  ')};"
-            )
+            lines.append(_doc(_schema_doc(parameter.get("schema")), "  ").rstrip("\n"))
+            value = models.type(parameter.get("schema"), "  ")
+            lines.append(f"  readonly {key}{optional}: {value};")
         lines.append("};\n")
         parts.append("\n".join(line for line in lines if line))
         options = f"{options} & {pascal}Parameters"
@@ -520,7 +577,9 @@ def _ts_value(value: Any, indent: str) -> str:
     if isinstance(value, Mapping):
         if not value:
             return "{}"
-        items = [f"{inner}{_property(k)}: {_ts_value(v, inner)}," for k, v in value.items()]
+        items = [
+            f"{inner}{_property(k)}: {_ts_value(v, inner)}," for k, v in value.items()
+        ]
         return "{\n" + "\n".join(items) + f"\n{indent}}}"
     if isinstance(value, list):
         if not value:

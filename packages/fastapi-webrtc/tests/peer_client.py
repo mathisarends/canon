@@ -20,6 +20,7 @@ from aiortc import (
     RTCSessionDescription,
 )
 from websockets.asyncio.client import ClientConnection
+from websockets.typing import Subprotocol
 
 from fastapi_webrtc import SUBPROTOCOL
 
@@ -49,7 +50,7 @@ class PeerClient:
     async def connect(self, *, timeout: float = 15) -> PeerClient:
         async with asyncio.timeout(timeout):
             self._ws = await websockets.connect(
-                self.url, subprotocols=[SUBPROTOCOL], max_size=2**22
+                self.url, subprotocols=[Subprotocol(SUBPROTOCOL)], max_size=2**22
             )
             first = await self._ws.recv()
             self.hello = json.loads(first)

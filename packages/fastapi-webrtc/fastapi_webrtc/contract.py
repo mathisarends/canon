@@ -24,6 +24,9 @@ from fastapi_webrtc.declarations import DataChannelSpec, SessionDeclaration
 from fastapi_webrtc.protocol import PROTOCOL_VERSION, SUBPROTOCOL
 from fastapi_webrtc.router import DECLARATION_ATTRIBUTE
 
+# Builds Annotated types from runtime values, which type checkers cannot follow.
+_ANNOTATED: Any = Annotated
+
 CONTRACT_VERSION = 1
 REF_TEMPLATE = "#/definitions/{model}"
 
@@ -205,7 +208,7 @@ def _parameters(
         if previous is not None:
             required = required or previous[3]
         # Keep constraints and descriptions of Query()/Path() declarations.
-        annotation = Annotated[field.field_info.annotation, field.field_info]
+        annotation = _ANNOTATED[field.field_info.annotation, field.field_info]
         found[key] = (location, field.alias, annotation, required)
     path_order = [v for (loc, _), v in found.items() if loc == "path"]
     query_order = [v for (loc, _), v in found.items() if loc == "query"]

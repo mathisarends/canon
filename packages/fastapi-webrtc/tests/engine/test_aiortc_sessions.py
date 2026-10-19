@@ -6,6 +6,7 @@ from typing import Annotated, Any
 
 import pytest
 from aiortc import AudioStreamTrack, VideoStreamTrack
+from av import AudioFrame, VideoFrame
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket
 from pydantic import BaseModel
 from websockets.exceptions import InvalidStatus
@@ -102,7 +103,9 @@ def build_app(
 
         return Session(run=run, tracks=[VideoStreamTrack()])
 
-    @rtc.session("/finite", data_channels=(DataChannelSpec(name="text", send_model=str),))
+    @rtc.session(
+        "/finite", data_channels=(DataChannelSpec(name="text", send_model=str),)
+    )
     def finite(websocket: WebSocket) -> Session:
         async def run(peer: Peer) -> None:
             await peer.send_message("text", "bye")
@@ -127,6 +130,7 @@ async def test_answerer_session_exchanges_media_and_messages() -> None:
             remote = await asyncio.wait_for(client.remote_tracks.get(), 10)
             assert remote.kind == "audio"
             frame = await asyncio.wait_for(remote.recv(), 10)
+            assert isinstance(frame, AudioFrame)
             assert frame.sample_rate > 0
             await asyncio.sleep(0.5)
             client.send_json("messages", {"text": "hi"})
@@ -157,14 +161,14 @@ async def test_dependency_denial_is_an_http_rejection() -> None:
 
 async def test_offerer_session_sends_video_and_messages() -> None:
     app = build_app()
-    async with serve(app) as base:
-        async with PeerClient(f"{base}/rtc/broadcast") as client:
-            assert client.hello["role"] == "offerer"
-            ticks = [await client.receive_json("ticks") for _ in range(3)]
-            assert ticks == [0, 1, 2]
-            video = await asyncio.wait_for(client.remote_tracks.get(), 10)
-            frame = await asyncio.wait_for(video.recv(), 10)
-            assert frame.width > 0
+    async with serve(app) as base, PeerClient(f"{base}/rtc/broadcast") as client:
+        assert client.hello["role"] == "offerer"
+        ticks = [await client.receive_json("ticks") for _ in range(3)]
+        assert ticks == [0, 1, 2]
+        video = await asyncio.wait_for(client.remote_tracks.get(), 10)
+        frame = await asyncio.wait_for(video.recv(), 10)
+        assert isinstance(frame, VideoFrame)
+        assert frame.width > 0
 
 
 async def test_returning_run_closes_normally() -> None:

@@ -7,7 +7,7 @@ import contextlib
 import functools
 import logging
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -222,7 +222,9 @@ class SessionRuntime:
                     raise WebRtcError(ErrorCode.CHANNEL_CLOSED) from error
                 raise WebRtcError(ErrorCode.ENGINE_FAILURE) from error
 
-    async def receive_messages(self, channel: _Channel) -> AsyncIterator[Any]:
+    async def next_message(self, channel: _Channel) -> Any:
+        """Return the next received message; raise ``StopAsyncIteration`` once the
+        session or channel closed and every queued message was consumed."""
         if channel.spec.name in self._session.on_message:
             raise RuntimeError(
                 f"Channel {channel.spec.name!r} is consumed by its on_message handler"
@@ -233,10 +235,9 @@ class SessionRuntime:
         try:
             while True:
                 if not channel.queue.empty():
-                    yield channel.queue.get_nowait()
-                    continue
+                    return channel.queue.get_nowait()
                 if self.code is not None or channel.closed.is_set():
-                    return
+                    raise StopAsyncIteration
                 getter = asyncio.ensure_future(channel.queue.get())
                 stop = asyncio.ensure_future(self._first(self._done, channel.closed))
                 try:
@@ -248,7 +249,7 @@ class SessionRuntime:
                     if not getter.done():
                         getter.cancel()
                 if getter.done() and not getter.cancelled():
-                    yield getter.result()
+                    return getter.result()
         finally:
             channel.consumer = False
 

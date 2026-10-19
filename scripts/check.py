@@ -12,12 +12,17 @@ MEMBERS = (
     ROOT / "packages/fastapi-streams",
     ROOT / "packages/fastapi-rpckit",
     ROOT / "examples/reference-service",
+    ROOT / "packages/fastapi-webrtc",
 )
+WEBRTC = MEMBERS[4]
+WEBRTC_CLIENT = ("--output", "examples/practice/client", "--check")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Canon workspace quality gates")
-    parser.add_argument("gate", choices=("all", "lint", "types", "test", "clients"))
+    parser.add_argument(
+        "gate", choices=("all", "lint", "types", "test", "clients", "browser")
+    )
     args = parser.parse_args()
     gates = ("lint", "types", "test", "clients") if args.gate == "all" else (args.gate,)
     for gate in gates:
@@ -70,9 +75,11 @@ def main() -> None:
                 python=False,
             )
             _run(MEMBERS[3], "-m", "mypy", "src", "tests")
+            _run(WEBRTC, "-m", "mypy")
         elif gate == "test":
             for root in (*MEMBERS, ROOT):
-                _run(root, "-m", "pytest", "-q")
+                coverage = ("--cov",) if root == WEBRTC else ()
+                _run(root, "-m", "pytest", "-q", *coverage)
         elif gate == "clients":
             for config in (
                 "examples/generated_clients/rpcgen.toml",
@@ -89,17 +96,53 @@ def main() -> None:
                     "--check",
                 )
             _run(MEMBERS[1], "scripts/codegen.py", "--check")
-            npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
-            if npm is None:
-                raise SystemExit("npm is required for TypeScript client checks")
-            for task in ("typecheck", "test:coverage"):
-                _run(MEMBERS[1], npm, "run", task, python=False)
+            cli = ("-m", "fastapi_webrtc.codegen.cli")
+            contract = "examples/practice/contract.json"
+            _run(
+                WEBRTC,
+                *cli,
+                "contract",
+                "--app",
+                "examples.practice.app:app",
+                "--output",
+                contract,
+                "--check",
+            )
+            _run(
+                WEBRTC,
+                *cli,
+                "generate",
+                "--contract",
+                contract,
+                "--client-name",
+                "PracticeRtcClient",
+                *WEBRTC_CLIENT,
+            )
+            for member in (MEMBERS[1], WEBRTC):
+                for task in ("typecheck", "test:coverage"):
+                    _run(member, _npm(), "run", task, python=False)
+        elif gate == "browser":
+            # Real Chromium sessions against the aiortc engine.
+            environment = {**os.environ, "FASTAPI_WEBRTC_PYTHON": sys.executable}
+            _run(WEBRTC, _npm(), "run", "test:browser", python=False, env=environment)
 
 
-def _run(root: Path, *arguments: str, python: bool = True) -> None:
+def _npm() -> str:
+    npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
+    if npm is None:
+        raise SystemExit("npm is required for TypeScript client checks")
+    return npm
+
+
+def _run(
+    root: Path,
+    *arguments: str,
+    python: bool = True,
+    env: dict[str, str] | None = None,
+) -> None:
     command = [sys.executable, *arguments] if python else list(arguments)
     print(f"[{root.relative_to(ROOT) or '.'}] {' '.join(command)}", flush=True)
-    subprocess.run(command, cwd=root, check=True)
+    subprocess.run(command, cwd=root, check=True, env=env)
 
 
 if __name__ == "__main__":

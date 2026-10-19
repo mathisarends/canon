@@ -127,10 +127,14 @@ class Channel:
         """Validate, encode and send ``message``; see :meth:`Peer.send_message`."""
         await self._runtime.send_message(self.name, message)
 
-    def __aiter__(self) -> AsyncIterator[Any]:
+    def __aiter__(self) -> Channel:
         """Iterate over received messages of a channel without an ``on_message``
-        handler. Iteration ends when the session or channel closes."""
-        return self._runtime.receive_messages(self._state)
+        handler. Iteration ends when the session or channel closes; one task at
+        a time may wait for a message."""
+        return self
+
+    async def __anext__(self) -> Any:
+        return await self._runtime.next_message(self._state)
 
 
 class Peer:

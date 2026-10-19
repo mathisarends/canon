@@ -3,6 +3,23 @@
 Updated: 2026-10-19. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
+## Unreleased: fastapi-webrtc 0.1.0
+
+Issue #2. The new independent `fastapi-webrtc` package has FastAPI-dependency
+admission, protocol `fastapi-webrtc.v1`, an aiortc reference engine, typed data
+channels, limits and deadlines, TURN REST credentials and a generated TypeScript
+client. See [decision 0005](docs/design-decisions/0005-webrtc-extension.md).
+
+- [x] Package, protocol, aiortc engine, contract export and TypeScript generator.
+- [x] Fake-engine protocol tests, aiortc session tests, TypeScript runtime tests
+  and Chromium tests (echo, denied admission, server-offered video, renegotiation).
+- [x] Workspace gates, release metadata, CI browser step and wheel matrices
+  (WebRTC alone, with aiortc and with Canon).
+- [ ] Review and merge the PR. Prepare a release only when asked; Streams and
+  Canon pins are unaffected.
+- [ ] Deferred: RPCKit signaling adapter, Canon/Dishka session scopes, GStreamer
+  or remote-peer engines, ICE restart, forced-TURN CI and media-stall detection.
+
 ## Unreleased: typed JSON connections
 
 PRs #4 and #5 are merged. PR #6 adds typed JSON connection handlers using

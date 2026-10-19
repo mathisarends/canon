@@ -895,6 +895,7 @@ source = { editable = "packages/fastapi-webrtc" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
+    { name = "starlette" },
 ]
 
 [package.optional-dependencies]
@@ -909,6 +910,7 @@ dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
     { name = "ruff" },
     { name = "twine" },
     { name = "uvicorn" },
@@ -920,6 +922,7 @@ requires-dist = [
     { name = "aiortc", marker = "extra == 'aiortc'", specifier = ">=1.14,<2" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "pydantic", specifier = ">=2.9,<3" },
+    { name = "starlette", specifier = ">=0.41" },
 ]
 provides-extras = ["aiortc"]
 
@@ -930,6 +933,7 @@ dev = [
     { name = "mypy", specifier = ">=1.15" },
     { name = "pytest", specifier = ">=8.4" },
     { name = "pytest-asyncio", specifier = ">=1" },
+    { name = "pytest-cov", specifier = ">=6" },
     { name = "ruff", specifier = ">=0.12" },
     { name = "twine", specifier = ">=7,<8" },
     { name = "uvicorn", specifier = ">=0.35" },

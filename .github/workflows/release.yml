@@ -7,7 +7,7 @@ on:
         description: Library distribution to release
         type: choice
         required: true
-        options: [fastapi-canon, fastapi-streams, fastapi-rpckit]
+        options: [fastapi-canon, fastapi-streams, fastapi-rpckit, fastapi-webrtc]
       version:
         description: Exact prepared version, for example 0.1.0
         type: string

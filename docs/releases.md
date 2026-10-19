@@ -5,6 +5,17 @@ published releases from this repository. The root workspace and reference servic
 are not publication targets. The [README](../README.md#current-releases) lists all
 current package versions with PyPI and GitHub release links.
 
+## Prepared: fastapi-webrtc 0.1.0
+
+WebRTC is an independent, unreleased package. `release.toml` reserves the
+`fastapi-webrtc-v` tag prefix, and the root release workflow accepts it as a
+target. This preparation does not publish it or configure its PyPI Trusted
+Publisher.
+Before a separately authorized first publication, confirm the publisher setup,
+merge the reviewed source, pass exact-commit CI and a release dry run, and
+finalize the changelog date. See [decision 0005](design-decisions/0005-webrtc-extension.md)
+and the [compatibility record](compatibility.md) for scope and local evidence.
+
 ## SDK review publications
 
 The user explicitly authorized publication in this chat after preparation,

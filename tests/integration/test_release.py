@@ -150,6 +150,7 @@ def test_breaking_pre_one_releases_require_next_minor(
         ("fastapi-canon", "0.5.4"),
         ("fastapi-streams", "0.4.0"),
         ("fastapi-rpckit", "0.2.0"),
+        ("fastapi-webrtc", "0.1.0"),
     ],
 )
 def test_release_validates_sources_without_importing_business_modules(
@@ -182,7 +183,7 @@ def test_release_rejects_noncanonical_versions(
     "name", ["canon-workspace", "fastapi-canon-reference", "arbitrary"]
 )
 def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> None:
-    with pytest.raises(ValueError, match="Only the three"):
+    with pytest.raises(ValueError, match="Only the workspace library"):
         release.validate_release(name, "0.1.0", root=release_repo)
 
 

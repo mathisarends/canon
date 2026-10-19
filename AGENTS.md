@@ -14,6 +14,10 @@ changelogs, guides, and agent instructions.
 - `packages/fastapi-streams`: typed SSE, OpenAPI, Python/TypeScript client generation.
 - `packages/fastapi-rpckit`: successor `fastapi-rpckit` / `fastapi_rpckit`, with
   FastAPI as a required dependency. Preserve wire behavior and client contracts.
+- `packages/fastapi-webrtc`: WebRTC sessions, signaling protocol `fastapi-webrtc.v1`,
+  engine adapters (aiortc extra) and TypeScript client generation. Browser tests
+  run with `uv run --locked python scripts/check.py browser` after
+  `npx playwright install chromium` in that package.
 - Extensions must not acquire a required dependency on Canon or each other.
 - Keep independent package versions. Do not add a shared core without concrete reuse.
 - Application code follows `guides/architecture.md`: feature slices, inward
@@ -26,11 +30,12 @@ Use the root environment and lockfile:
 ```console
 uv sync --locked --all-packages --all-groups
 npm ci --ignore-scripts --prefix packages/fastapi-streams
+npm ci --ignore-scripts --prefix packages/fastapi-webrtc
 uv run --locked python scripts/check.py all
 uv run --locked python scripts/check_distributions.py
 ```
 
-`check.py` also accepts `lint`, `types`, `test`, and `clients`. It runs each
+`check.py` also accepts `lint`, `types`, `test`, `clients`, and `browser`. It runs each
 package with its own configuration and working directory. Do not combine all
 package suites into one pytest process: their `tests`/`examples` modules collide.
 Use `uv run --locked --directory packages/<member> pytest ...` for focused work.

@@ -33,7 +33,7 @@ def write_files(
         value = json.loads(manifest.read_text(encoding="utf-8"))
         names = value.get("files")
         if not isinstance(names, list) or not all(
-            isinstance(name, str) for name in cast(list[Any], names)
+            isinstance(name, str) for name in names
         ):
             raise ValueError(f"Invalid generated manifest: {manifest}")
         previous = set(cast(list[str], names))

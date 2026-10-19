@@ -1,7 +1,8 @@
 # Canon
 
 One workspace for the FastAPI application stack: architecture conventions,
-feature composition and HTTP contracts, typed SSE, and WebSocket RPC.
+feature composition and HTTP contracts, typed SSE, WebSocket RPC, and WebRTC
+sessions.
 
 Canon is the ecosystem; `fastapi-canon` is its application-composition package.
 The libraries remain independently installable and independently versioned.
@@ -14,7 +15,7 @@ The libraries remain independently installable and independently versioned.
 | `fastapi-streams` | 0.4.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.4.0) | [Install](https://pypi.org/project/fastapi-streams/0.4.0/) |
 | `fastapi-rpckit` | 0.2.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.2.0) | [Install](https://pypi.org/project/fastapi-rpckit/0.2.0/) |
 
-All three packages publish into this repository's [central release list](https://github.com/mathisarends/canon/releases).
+Package releases appear in this repository's [central release list](https://github.com/mathisarends/canon/releases).
 Each has its own version, package-prefixed tag, changelog and distribution files.
 
 ## Workspace
@@ -24,6 +25,7 @@ Each has its own version, package-prefixed tag, changelog and distribution files
 | Composition, Dishka, HTTP contracts | [`packages/fastapi-canon`](packages/fastapi-canon) | `fastapi-canon` / `fastapi_canon` |
 | Typed SSE and generated clients | [`packages/fastapi-streams`](packages/fastapi-streams) | `fastapi-streams` / `fastapi_streams` |
 | WebSocket RPC and generated clients | [`packages/fastapi-rpckit`](packages/fastapi-rpckit) | `fastapi-rpckit` / `fastapi_rpckit` |
+| WebRTC sessions and generated browser clients | [`packages/fastapi-webrtc`](packages/fastapi-webrtc) | `fastapi-webrtc` / `fastapi_webrtc` (unreleased) |
 | Architecture conventions | [`guides`](guides) | feature slices, inward dependencies, Dishka |
 | Runnable architecture example | [`examples/reference-service`](examples/reference-service) | development-only workspace member |
 

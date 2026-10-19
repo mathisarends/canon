@@ -13,6 +13,53 @@ existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All three versions
 are available through PyPI and this repository's independent GitHub releases.
 
+## WebRTC extension preparation, verified 2026-10-19
+
+`fastapi-webrtc` 0.1.0 is prepared and unreleased. It declares FastAPI
+`>=0.115,<1`, Pydantic `>=2.9,<3` and Starlette `>=0.41`. The explicit Starlette
+floor is required for an admission dependency's `HTTPException` to send an HTTP
+response before accepting a WebSocket. These bounds jointly resolve to FastAPI
+0.115.3 or later; FastAPI 0.115.0 cannot satisfy the Starlette requirement.
+
+The nine-combination minimum installed-wheel matrix passes on CPython 3.12.12.
+Its three new WebRTC profiles resolve:
+
+| Profile | FastAPI | Starlette | Pydantic | aiortc | Dishka |
+| --- | --- | --- | --- | --- | --- |
+| WebRTC core alone | 0.115.3 | 0.41.0 | 2.9.0 | absent | absent |
+| WebRTC with aiortc | 0.115.3 | 0.41.0 | 2.9.0 | 1.14.0 | absent |
+| Canon with WebRTC/aiortc | 0.115.3 | 0.41.0 | 2.9.0 | 1.14.0 | 1.10.0 |
+
+These are fresh wheel environments, independent of workspace source overrides.
+The WebRTC smoke asserts HTTP 403 and zero peers for denied admission, checks
+categorized engine failure, CLI availability, contract export and TypeScript
+code generation/drift, and checks the optional engine import with and without
+aiortc. The aiortc profiles resolve PyAV 16.1.0. Inventories are under
+`dist/compatibility-minimum.json`; the log is
+`dist/webrtc-distributions-minimum.log`.
+
+The nine-combination current-dependency wheel matrix also passes on CPython
+3.14.0, including the independently installed reference service's five tests.
+WebRTC resolves FastAPI 0.148.0, Starlette 1.9.0 and Pydantic 2.14.1; the aiortc
+profiles resolve aiortc 1.15.0 and PyAV 17.1.0, with Dishka 1.10.1 in the Canon
+profile. Inventories are `dist/compatibility-latest.json`; the log is
+`dist/webrtc-distributions-latest.log`. Installed Streams core-only CLI checks
+and generated-client checks with HTTPX and HTTPX2 separately also pass; their log
+is `dist/webrtc-streams-artifacts.log`.
+
+The full Windows/CPython 3.14.0 workspace gate passes 1,639 Python tests,
+including WebRTC's 143 tests with 92.22% branch-aware coverage, and 53 TypeScript
+tests (30 WebRTC, 23 Streams). Lint, strict WebRTC mypy, package-specific types,
+contract/client drift and coverage thresholds pass. WebRTC's generated runtime
+has 95.50% line, 85.11% branch and 97.96% function coverage. The log is
+`dist/webrtc-workspace.log`. Workspace and Chromium media checks use the root
+lockfile; the independent wheel matrices use the dependency versions above.
+
+The separate Chromium gate passes four real browser/aiortc scenarios: microphone
+echo and typed messages, denied admission, server-offered video/ticks and track
+renegotiation. Its log is `dist/webrtc-browser.log`. Forced-TURN CI and additional
+engine adapters remain deferred in [decision 0005](design-decisions/0005-webrtc-extension.md).
+
 ## SDK review publications, verified 2026-10-19
 
 The public combination is Canon 0.5.4 / Streams 0.4.0 / RPCkit 0.2.0.
