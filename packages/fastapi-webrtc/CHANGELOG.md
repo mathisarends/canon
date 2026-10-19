@@ -43,6 +43,9 @@ adopting the reviewed 0.1.0 source; no published WebRTC release is superseded.
   after merging. Generated query fields are optional to allow shared credentials;
   required path fields remain mandatory. Omit a named value to retain shared
   credentials; use `null` to remove it explicitly.
+- Data-channel reliability options are mutually exclusive even when zero, and
+  accept only integers from 0 through 65535. Supply at most one option and fix
+  invalid values at declaration time instead of relying on engine errors.
 
 ### Fixes
 

@@ -108,10 +108,19 @@ class DataChannelSpec:
                 f"Data channel name {self.name!r} must be an identifier of at most "
                 "63 characters"
             )
-        if self.max_retransmits is not None and self.max_packet_life_time_ms:
+        if (
+            self.max_retransmits is not None
+            and self.max_packet_life_time_ms is not None
+        ):
             raise ValueError(
                 "max_retransmits and max_packet_life_time_ms are mutually exclusive"
             )
+        for name in ("max_retransmits", "max_packet_life_time_ms"):
+            value = getattr(self, name)
+            if value is not None and (
+                type(value) is not int or not 0 <= value <= 65535
+            ):
+                raise ValueError(f"{name} must be an integer between 0 and 65535")
         if self.max_message_bytes is not None and self.max_message_bytes <= 0:
             raise ValueError("max_message_bytes must be positive")
         if self.id is not None and not 0 <= self.id <= 65534:

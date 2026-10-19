@@ -84,6 +84,35 @@ def test_channel_formats_and_adapters() -> None:
     assert typed.receive_adapter.validate_json("3") == 3
 
 
+@pytest.mark.parametrize("retransmits", [0, 1])
+@pytest.mark.parametrize("lifetime", [0, 1])
+def test_reliability_options_are_exclusive_including_zero(
+    retransmits: int, lifetime: int
+) -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        DataChannelSpec(
+            name="c", max_retransmits=retransmits, max_packet_life_time_ms=lifetime
+        )
+
+
+@pytest.mark.parametrize("option", ["max_retransmits", "max_packet_life_time_ms"])
+@pytest.mark.parametrize("value", [-1, 65536, 0.5, True])
+def test_invalid_reliability_values(option: str, value: object) -> None:
+    with pytest.raises(ValueError, match=f"{option} must be an integer between"):
+        DataChannelSpec(name="c", **{option: value})  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("option", ["max_retransmits", "max_packet_life_time_ms"])
+@pytest.mark.parametrize("value", [0, 65535])
+def test_reliability_boundaries(option: str, value: int) -> None:
+    channel = (
+        DataChannelSpec(name="c", max_retransmits=value)
+        if option == "max_retransmits"
+        else DataChannelSpec(name="c", max_packet_life_time_ms=value)
+    )
+    assert getattr(channel, option) == value
+
+
 def test_declaration_channel_ids() -> None:
     spec = declaration(
         DataChannelSpec(name="a"),
