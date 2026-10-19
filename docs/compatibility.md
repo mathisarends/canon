@@ -1,11 +1,11 @@
 # Compatibility
 
-Published versions, verified on 2026-10-18:
+Published versions, verified on 2026-10-19:
 
 | Distribution | Version | Import |
 | --- | --- | --- |
-| `fastapi-canon` | 0.5.3 | `fastapi_canon` |
-| `fastapi-streams` | 0.3.1 | `fastapi_streams` |
+| `fastapi-canon` | 0.5.4 | `fastapi_canon` |
+| `fastapi-streams` | 0.4.0 | `fastapi_streams` |
 | `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.2.0 | `fastapi_rpckit` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
@@ -13,14 +13,35 @@ existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All three versions
 are available through PyPI and this repository's independent GitHub releases.
 
-## Follow-up verification, 2026-10-18
+## SDK review publications, verified 2026-10-19
 
-### SDK review release preparation
+The public combination is Canon 0.5.4 / Streams 0.4.0 / RPCkit 0.2.0.
+The user explicitly authorized publication after preparation. Both releases
+use approved source [`81f71c4`](https://github.com/mathisarends/canon/commit/81f71c4ffca14d4de5ea3e69c5523e092ea86eec),
+which passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39150170862)
+and the [Streams](https://github.com/mathisarends/canon/actions/runs/39150549837)
+and [Canon](https://github.com/mathisarends/canon/actions/runs/39150582335) dry runs.
+Streams was independently verified before Canon's publication dispatch.
+See the [publication record](releases.md#sdk-review-publications).
 
-Prepared source versions are Canon 0.5.4 / Streams 0.4.0 / RPCkit 0.2.0; the
-published versions above remain current until separate publication approval.
-Streams uses the next minor version because manifest provenance makes drift
-checks stricter. Existing SDK callers and HTTP/SSE contracts stay compatible.
+Both [Streams publication](https://github.com/mathisarends/canon/actions/runs/39151048114)
+and [Canon publication](https://github.com/mathisarends/canon/actions/runs/39208726015)
+passed current/minimum installed-artifact checks, isolated CLI/backends, public
+PyPI installs and matching GitHub Releases. Canon covered core-only and
+`[streams]`. PyPI, GitHub and Actions wheel/sdist bytes match each other and
+the dry runs. Original manifests, tag commits and rendered release notes are
+verified. Receipts are under `dist/publications/39151048114/` and
+`dist/publications/39208726015/`.
+
+Fresh public-index Windows/Python 3.14 environments also pass the Streams HTTPX2
+CLI/SDK smoke and combined HTTP/SSE/RPC/Dishka/generated-client checks using all
+three exact public versions. Inventories are
+`dist/publications/public-sdk-review-streams-inventory.json` and
+`dist/publications/public-sdk-review-stack-inventory.json`. They resolve
+FastAPI 0.146.0 and Pydantic 2.14.1. Streams uses the next minor version because
+manifest provenance makes drift checks stricter; regenerate once with the
+existing target/backend and commit the manifest. Existing SDK callers and
+HTTP/SSE contracts remain compatible.
 
 The complete root workspace gate passes 1,463 Python tests and 23 TypeScript
 tests, lint, package-specific type checks, generator drift and coverage checks.
@@ -42,9 +63,12 @@ Logs are `dist/consumer-review-distributions-current.log`,
 `dist/consumer-review-streams-artifacts.log`. Consumer-reported Maximus adoption
 and remaining Hermes/browser coverage are recorded separately in TODO.md.
 
+## Follow-up verification, 2026-10-18
+
 ### SDK efficiency publications
 
-The current public combination is Canon 0.5.3 / Streams 0.3.1 / RPCkit 0.2.0.
+The SDK efficiency publication combination was Canon 0.5.3 / Streams 0.3.1 /
+RPCkit 0.2.0.
 Final source `c9041d4` passed
 [Linux/Python 3.12–3.14 and Windows/Python 3.14 CI](https://github.com/mathisarends/canon/actions/runs/39145291158).
 Both release dry runs passed on that source: [Streams](https://github.com/mathisarends/canon/actions/runs/39145653393)

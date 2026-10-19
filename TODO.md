@@ -1,13 +1,12 @@
 # Release status and remaining migration work
 
-Updated: 2026-10-18. This is the prioritized checklist for the next work block.
+Updated: 2026-10-19. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
-**Current scope:** The user authorized the initial publications on 2026-10-17
-and the follow-up, SDK hardening and SDK efficiency publications with GitHub Releases on
-2026-10-18. All three
-packages are published on PyPI with matching GitHub releases
-in this repository. The [README](README.md#current-releases) shows every current
+**Current scope:** The user explicitly authorized the SDK review publications
+after their preparation and dry runs. Streams 0.4.0 and Canon 0.5.4 are published
+and independently verified, with matching GitHub Releases in this repository.
+RPCkit remains 0.2.0. The [README](README.md#current-releases) shows every current
 package release. RPC is `fastapi-rpckit` / `fastapi_rpckit` after PyPI rejected the
 initial `fastapi-wsrpc` name. Full external application migration remains open.
 
@@ -15,13 +14,12 @@ initial `fastapi-wsrpc` name. Full external application migration remains open.
 through a documented process that an agent can operate entirely through the CLI
 and GitHub Actions when asked to prepare or publish a release.
 
-## Active preparation: SDK review improvements
+## Completed releases: SDK review improvements
 
-The user authorized preparation of Streams 0.4.0 and Canon 0.5.4 on 2026-10-18
-and requested publication approval in this chat when ready. These are prepared
-source versions, not published releases; RPCkit remains 0.2.0. Changelog dates
-are finalized for review. Current public versions remain Streams 0.3.1 and
-Canon 0.5.3 until separately authorized publication and verification.
+Published and verified: Streams 0.4.0 and Canon 0.5.4; RPCkit remains 0.2.0.
+Preparation and explicit publication approval were given in this chat. Streams
+was published on 2026-10-18 and verified before Canon's publication on 2026-10-19.
+Both tags point to the approved, dated source `81f71c4`.
 
 - [x] Add SDK manifest provenance and checked optional HTTP-error decoder recipes.
 - [x] Resolve release-note links against the release commit; correct the existing
@@ -31,13 +29,19 @@ Canon 0.5.3 until separately authorized publication and verification.
 - [x] Pass current/minimum wheel matrices and installed CLI/backends.
 - [x] Pass final-version workspace checks: 1,463 Python tests, 23 TypeScript
   tests, lint/types and generated-client drift/coverage.
-- [ ] Request explicit approval here before publication. Publish Streams before
-  Canon and verify each PyPI install, tag, GitHub Release and original assets.
+- [x] Pass exact-source four-target CI and both package dry runs; verify the
+  downloaded wheel/sdist hashes, manifests and absolute release-note links.
+- [x] Obtain explicit publication approval, publish Streams before Canon, and
+  verify each public install, tag, GitHub Release and original attached assets.
+- [x] Match PyPI/Actions/GitHub bytes to the dry runs and verify fresh public
+  HTTPX2 SDK/CLI and combined HTTP/SSE/RPC environments; update release records.
 
-Before requesting approval, the final main commit must pass exact-source CI and
-both package dry runs. Verify their downloaded wheel/sdist hashes, manifests and
-absolute release-note links. Actions retains the source-specific results;
-downloaded evidence belongs under `dist/dry-runs/`.
+See the [publication record](docs/releases.md#sdk-review-publications) and
+[compatibility evidence](docs/compatibility.md#sdk-review-publications-verified-2026-10-19).
+Downloaded evidence is under `dist/publications/39151048114/` and
+`dist/publications/39208726015/`; public environment inventories are alongside
+them. Existing SDK callers remain compatible; regenerate once and commit the
+provenance manifest before using Streams 0.4.0 drift checks.
 
 ## Completed releases: SDK efficiency patches
 

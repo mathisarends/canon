@@ -5,12 +5,26 @@ published releases from this repository. The root workspace and reference servic
 are not publication targets. The [README](../README.md#current-releases) lists all
 current package versions with PyPI and GitHub release links.
 
-## SDK review preparation, 2026-10-18
+## SDK review publications
 
-The user authorized preparation and requested publication approval in this chat.
-Prepared source versions are **Streams 0.4.0** and **Canon 0.5.4**; RPCkit stays
-0.2.0. These versions are not published. Changelog dates are finalized for the
-review candidate; current public releases remain 0.3.1 and 0.5.3 respectively.
+The user explicitly authorized publication in this chat after preparation,
+exact-source CI and both dry runs. **Streams 0.4.0** and **Canon 0.5.4** are
+published and independently verified; RPCkit stays 0.2.0. Streams was published
+on 2026-10-18 and verified before Canon's dispatch on 2026-10-19. Verification
+of both publications completed on 2026-10-19.
+
+Both releases use the approved, dated source
+[`81f71c4`](https://github.com/mathisarends/canon/commit/81f71c4ffca14d4de5ea3e69c5523e092ea86eec),
+which passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39150170862)
+and the [Streams dry run](https://github.com/mathisarends/canon/actions/runs/39150549837)
+and [Canon dry run](https://github.com/mathisarends/canon/actions/runs/39150582335).
+The changelog dates were finalized in that source on 2026-10-18; the source and
+tags were not changed when Canon's publication completed the following day.
+
+| Package | Version | Publication workflow | GitHub Release |
+| --- | --- | --- | --- |
+| Streams | [0.4.0](https://pypi.org/project/fastapi-streams/0.4.0/) | [39151048114](https://github.com/mathisarends/canon/actions/runs/39151048114) | [Notes and assets](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.4.0) |
+| Canon | [0.5.4](https://pypi.org/project/fastapi-canon/0.5.4/) | [39208726015](https://github.com/mathisarends/canon/actions/runs/39208726015) | [Notes and assets](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.4) |
 
 Streams records generator/version, canonical source-schema hash, target and HTTP
 backend in each CLI-generated SDK manifest. It is a minor release because drift
@@ -21,40 +35,59 @@ runtime signatures, HTTP/SSE contracts and valid caller behavior are unchanged.
 Consumer decoder recipes reuse the existing optional TypeScript guard and cached
 Python adapters, retaining generic unexpected-response handling.
 
-Canon only updates the optional/development Streams pin; it remains an independent
-patch with unchanged composition APIs. Publish Streams first after explicit
-authorization. The shared release CLI now resolves inline changelog links to the
-verified release commit. The existing Canon 0.5.3 release body was corrected to
+Canon only updates the optional/development Streams pin; it is an independent
+patch with unchanged composition APIs. The shared release CLI now resolves
+inline changelog links to the verified release commit. The existing Canon 0.5.3 release body was corrected to
 link to its original `c9041d4` source; its tag and asset metadata are unchanged.
 
-Acceptance requires workspace checks, independent current/minimum wheel matrices,
-installed Streams CLI/backends, exact-source CI, dry runs for both packages and
-downloaded artifact/hash/notes verification before requesting publication
-approval. Both local six-combination wheel matrices and the isolated installed
-CLI/backends pass; see [local compatibility evidence](compatibility.md#sdk-review-release-preparation).
-The full workspace gate passes 1,463 Python tests, 23 TypeScript tests, lint/types,
-generator drift and coverage. Its log is `dist/consumer-review-workspace.log`.
-Remote CI and dry-run results are attached to the exact source in Actions;
-downloaded manifests and verified notes belong under `dist/dry-runs/`.
+Both publication workflows passed current/minimum wheel matrices and installed
+Streams CLI/backend checks on their actual upload artifacts. They then verified
+PyPI hashes and fresh public-index installs; Canon covered core-only and
+`[streams]`. Both workflows completed on their first attempt.
+
+Independent downloads confirm byte-identical wheel/sdist files across the dry
+runs, publication Actions artifacts, GitHub assets and PyPI. Each public stable
+GitHub Release has exactly the original wheel, sdist and manifest attached;
+its manifest is byte-identical to the Actions original. Both tags resolve to
+`81f71c4`, and notes match the rendered changelog with commit-pinned links.
+Verified receipts and downloads are under `dist/publications/39151048114/` and
+`dist/publications/39208726015/`; dry-run evidence is under `dist/dry-runs/`.
+
+Additional fresh Windows/Python 3.14 public-index environments pass the Streams
+HTTPX2 CLI/generated-SDK smoke, including manifest/report provenance equality,
+and all three exact public versions together, including combined HTTP/SSE/RPC,
+Dishka state/cleanup and generated RPC clients. Inventories are
+`dist/publications/public-sdk-review-streams-inventory.json` and
+`dist/publications/public-sdk-review-stack-inventory.json`. An initial local
+Streams install could not yet resolve 0.4.0; retrying the explicit public index
+with refreshed metadata succeeded. No published files or tags were replaced.
+
+Local preparation also passed 1,463 Python tests, 23 TypeScript tests, lint/types,
+generator drift/coverage and both six-combination wheel matrices. See
+[compatibility evidence](compatibility.md#sdk-review-publications-verified-2026-10-19).
+Logs are `dist/consumer-review-workspace.log`,
+`dist/consumer-review-*-publication.log`, `dist/consumer-review-*-verification.log`
+and `dist/consumer-review-public-*.log`. Full external application migration
+remains separate.
 
 ## Current released versions
 
-Published and verified: **Streams 0.3.1** (generated Python runtime efficiency,
-diagnostic provenance/validation phases and benchmarks) and
-**Canon 0.5.3** (optional Streams pin). RPCkit stays 0.2.0. Streams was published
-first. The user explicitly authorized both publications on 2026-10-18, including
-GitHub Releases and current changelogs. Verification evidence is recorded below.
+Published and verified: **Streams 0.4.0** (SDK manifest provenance and optional
+consumer decoder recipes) and **Canon 0.5.4** (optional Streams pin).
+RPCkit stays 0.2.0. Streams was published and verified first; the user explicitly
+authorized both publications, including GitHub Releases and original artifacts.
 
 | Distribution | Import | Version | Tag |
 | --- | --- | --- | --- |
-| `fastapi-streams` | `fastapi_streams` | 0.3.1 | `fastapi-streams-v0.3.1` |
-| `fastapi-canon` | `fastapi_canon` | 0.5.3 | `fastapi-canon-v0.5.3` |
+| `fastapi-streams` | `fastapi_streams` | 0.4.0 | `fastapi-streams-v0.4.0` |
+| `fastapi-canon` | `fastapi_canon` | 0.5.4 | `fastapi-canon-v0.5.4` |
 | `fastapi-rpckit` | `fastapi_rpckit` | 0.2.0 | `fastapi-rpckit-v0.2.0` |
 
-Published Canon 0.5.3 pins Streams 0.3.1 in its `streams` extra.
-RPC is independent. These Canon/Streams patches replace 0.5.2/0.3.0;
-changed builds require new versions. Regenerate Python stream SDKs to adopt
-runtime improvements. Versions do not need to match.
+Published Canon 0.5.4 pins Streams 0.4.0 in its `streams` extra. These releases
+replace Canon 0.5.3 and Streams 0.3.1; RPC is independent. Regenerate SDKs once
+with the existing language/backend and commit `.fastapi-streams.json` before
+checking drift. Existing callers and reviewed diagnostic allowances are unchanged.
+Versions do not need to match; changed builds require new versions.
 
 `release.toml` maps distributions, directories, modules and tag prefixes. Versions
 come from package metadata; the release check does not import business modules.
