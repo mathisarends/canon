@@ -283,7 +283,9 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
     if lifespans or container is not None:
         app.router.lifespan_context = _compose_lifespan(
             original_lifespan,
-            lifespans,
+            # include_router merged these into the app context after we captured
+            # original_lifespan. Retain them inside the dependency lifetime.
+            (*lifespans, *(router.lifespan_context for router in installed_routers)),
             container,
         )
 
