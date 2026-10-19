@@ -13,6 +13,36 @@ existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All three versions
 are available through PyPI and this repository's independent GitHub releases.
 
+## WebRTC PR #7 corrections, verified 2026-10-19
+
+The review corrections retain the unreleased 0.1.0 source version. Regression
+coverage includes real aiortc source ownership, blocked startup cancellation
+and dependency cleanup, initial-track ownership, nested serialization aliases,
+flat query models, generated-name conflicts, asynchronous credentials and query
+precedence. The [changelog](../packages/fastapi-webrtc/CHANGELOG.md) records
+provisional-client migration steps.
+
+The full workspace gate passes 1,661 Python tests and 60 TypeScript tests,
+including WebRTC's 165 Python tests (92.24% branch-aware coverage) and 37
+TypeScript tests. Lint, package-specific types, generated-client drift and
+coverage thresholds pass. WebRTC's generated runtime has 94.98% line, 84.88%
+branch and 98.02% function coverage.
+
+Both nine-combination installed-wheel matrices pass on the corrected source:
+current compatible dependencies on CPython 3.14.0 and direct dependency minima
+on CPython 3.12.12. The standalone minimum regression additionally checks flat
+aliased query fields, list/default handling and nested serialization aliases
+against FastAPI 0.115.3 / Pydantic 2.9.0. Its query model enables Pydantic
+`populate_by_name` for FastAPI's minimum-version alias handling. Installed
+Streams CLI/backend checks and all four Chromium/aiortc scenarios also pass.
+
+Logs are `dist/pr7-review-workspace.log`,
+`dist/pr7-review-distributions-latest.log`,
+`dist/pr7-review-distributions-minimum.log`,
+`dist/pr7-review-installed-minimum.log`,
+`dist/pr7-review-streams-artifacts.log` and `dist/pr7-review-browser.log`.
+These are local checks, not a publication or an exact-commit remote CI result.
+
 ## WebRTC extension preparation, verified 2026-10-19
 
 `fastapi-webrtc` 0.1.0 is prepared and unreleased. It declares FastAPI

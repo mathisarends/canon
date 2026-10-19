@@ -15,6 +15,8 @@ client. See [decision 0005](docs/design-decisions/0005-webrtc-extension.md).
   and Chromium tests (echo, denied admission, server-offered video, renegotiation).
 - [x] Workspace gates, release metadata, CI browser step and wheel matrices
   (WebRTC alone, with aiortc and with Canon).
+- [x] Correct the nine PR #7 review findings with lifecycle, contract, generated
+  SDK and quickstart regressions; document provisional-client migration steps.
 - [ ] Review and merge the PR. Prepare a release only when asked; Streams and
   Canon pins are unaffected.
 - [ ] Deferred: RPCKit signaling adapter, Canon/Dishka session scopes, GStreamer

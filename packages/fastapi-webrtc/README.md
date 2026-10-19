@@ -117,7 +117,7 @@ const session = await client.practice.connect({
   lessonId: "greetings", // path parameter
   token: "demo", // query parameter
   tracks: microphone, // borrowed: never stopped by the session
-  signal: AbortSignal.timeout(10_000),
+  timeoutMs: 10_000,
   onTrack: ({ track }) => {
     audio.srcObject = new MediaStream([track]);
   },
@@ -127,6 +127,12 @@ const session = await client.practice.connect({
 await session.channels.messages.send({ text: "hello" }); // typed as Prompt
 await session.close(); // idempotent
 ```
+
+`timeoutMs` limits connection setup, including asynchronous credential providers,
+and stops applying once the session is ready. Use `signal` for cancellation of
+the session's entire lifetime: aborting it also closes an already running audio
+or video session. An `AbortSignal.timeout(...)` therefore ends the session when
+its timer expires, even if connection setup already succeeded.
 
 Failures are `RtcError`s with a stable `code`, such as `session_limit`,
 `negotiation_timeout`, `media_rejected` or `transport_lost`. Browsers do not

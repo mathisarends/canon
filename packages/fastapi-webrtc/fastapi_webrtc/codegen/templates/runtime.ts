@@ -164,8 +164,9 @@ export interface ConnectOptions<C extends ChannelMap> {
    * stops them, also not when it closes.
    */
   readonly tracks?: readonly MediaStreamTrack[] | MediaStream;
+  /** Abort connection setup or close an already running session. */
   readonly signal?: AbortSignal;
-  /** Deadline for the whole connection, in milliseconds. Defaults to 30 s. */
+  /** Setup deadline including credential resolution; ends at ready. Defaults to 30 s. */
   readonly timeoutMs?: number;
   readonly query?: QueryParams;
   readonly rtcConfiguration?: RTCConfiguration;
