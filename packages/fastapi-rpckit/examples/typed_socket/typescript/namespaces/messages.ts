@@ -21,4 +21,12 @@ export class Messages {
         new Socket<Pong, Ping>(transport, endpoint, true),
     );
   }
+
+  session(): Promise<Socket<Pong, Ping>> {
+    return this.rpc.openSocket(
+      resolveSocketEndpoint(sockets.messagesSession, this.rpc.variables),
+      (transport, endpoint) =>
+        new Socket<Pong, Ping>(transport, endpoint, true),
+    );
+  }
 }

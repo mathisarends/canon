@@ -63,6 +63,11 @@ async def test_python_typed_socket_round_trip(
             response = await socket.receive()
             assert isinstance(response, ping_client.Pong)
             assert response.value == 42
+        async with client.messages.session() as socket:
+            assert (await socket.receive()).value == 0
+            await socket.send(ping_client.Ping(value=41))
+            assert (await socket.receive()).value == 41
+            assert (await socket.receive()).value == 42
 
 
 RUNNER = """
@@ -76,6 +81,12 @@ async function main(host: string): Promise<void> {
   const response = await socket.receive();
   const value: number = response.value;
   if (response.type !== "pong" || value !== 42) throw new Error("wrong response");
+
+  await using session = await client.messages.session();
+  if ((await session.receive()).value !== 0) throw new Error("missing initial event");
+  await session.send({ type: "ping", value: 41 });
+  if ((await session.receive()).value !== 41) throw new Error("missing first response");
+  if ((await session.receive()).value !== 42) throw new Error("missing response");
 
   if (false) {
     // @ts-expect-error The input is Ping, not Pong.

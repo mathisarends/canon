@@ -25,6 +25,7 @@ from ping_client.models import Ping, Pong
 
 class SocketName(StrEnum):
     MESSAGES_PING = "messages.ping"
+    MESSAGES_SESSION = "messages.session"
 
 
 type SocketMessageType = Literal["text", "binary"]
@@ -286,12 +287,24 @@ SOCKETS: Mapping[SocketName, SocketInfo] = {
             ),
         },
     ),
+    SocketName.MESSAGES_SESSION: SocketInfo(
+        name=SocketName.MESSAGES_SESSION,
+        url="ws://{host}/messages/session",
+        message_types=("text",),
+        variables={
+            "host": RpcServerVariable(
+                default="{host}",
+            ),
+        },
+    ),
 }
 
 
 _RECEIVE_ADAPTERS: Mapping[SocketName, TypeAdapter[Any]] = {
     SocketName.MESSAGES_PING: TypeAdapter(Pong),
+    SocketName.MESSAGES_SESSION: TypeAdapter(Pong),
 }
 _SEND_ADAPTERS: Mapping[SocketName, TypeAdapter[Any]] = {
     SocketName.MESSAGES_PING: TypeAdapter(Ping),
+    SocketName.MESSAGES_SESSION: TypeAdapter(Ping),
 }

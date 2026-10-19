@@ -273,7 +273,7 @@ def test_typed_sockets_reject_incompatible_framing_and_encoding() -> None:
         @RpcChannel("binary").socket(messages=(RpcMessageType.BINARY,))
         async def binary(message: Ping) -> Pong: ...
 
-    with pytest.raises(ProtocolDefinitionError, match="JSON"):
+    with pytest.raises(ProtocolDefinitionError, match="encoding"):
 
         @RpcChannel("encoding").socket(protocol=RpcSocketProtocol("x", encoding="cbor"))
         async def cbor(message: Ping) -> Pong: ...

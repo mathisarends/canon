@@ -79,8 +79,11 @@ def main() -> None:
         _cli("fastapi-streams")
     if "fastapi-rpckit" in selected:
         from fastapi_rpckit import (
+            Inject,
             RpcChannel,
+            RpcJsonCodec,
             RpcService,
+            RpcSocket,
             create_router,
         )
 
@@ -93,11 +96,21 @@ def main() -> None:
         rpc = RpcService()
         rpc.socket("/rpc", channels=(channel,))
 
-        @channel.socket("messages")
+        message_codec = RpcJsonCodec(incoming=SocketInput, outgoing=SocketOutput)
+
+        @channel.socket("messages", codec=message_codec)
         async def messages(message: SocketInput) -> SocketOutput:
             return SocketOutput(value=message.value + 1)
 
         rpc.socket("/messages", messages)
+
+        @channel.socket("session", codec=message_codec)
+        async def session(socket: Inject[RpcSocket[SocketInput, SocketOutput]]) -> None:
+            await socket.send(SocketOutput(value=0))
+            async for message in socket:
+                await socket.send(SocketOutput(value=message.value + 1))
+
+        rpc.socket("/session", session)
         routers.append(create_router(rpc))
         _cli("fastapi-rpckit")
     if "fastapi-canon" in selected:
@@ -129,6 +142,10 @@ def main() -> None:
                     assert "secret" not in error.reason
                 else:
                     raise AssertionError("Typed socket accepted an invalid message")
+            with client.websocket_connect("/session") as websocket:
+                assert websocket.receive_json() == {"value": 0}
+                websocket.send_json({"value": 41})
+                assert websocket.receive_json() == {"value": 42}
     assert app.openapi()["openapi"]
     if "fastapi-rpckit" in selected and importlib.util.find_spec("jinja2"):
         _rpc_codegen(rpc)
@@ -206,6 +223,10 @@ def _rpc_codegen(rpc) -> None:
                         result = await socket.receive()
                         assert isinstance(result, generated.SocketOutput)
                         assert result.value == 42
+                    async with client.health.session() as socket:
+                        assert (await socket.receive()).value == 0
+                        await socket.send(generated.SocketInput(value=41))
+                        assert (await socket.receive()).value == 42
 
             asyncio.run(consume())
         finally:

@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import ValidationError
-from pydantic_core import PydanticSerializationError
 
 from fastapi_rpckit._activity import _Activity, notify_activity
 from fastapi_rpckit._adapter import adapter
@@ -1259,6 +1258,7 @@ async def _run_socket(
         connection,
         definition.messages,
         definition.protocol,
+        definition.codec,
         limits,
         activity,
         request_close,
@@ -1270,7 +1270,7 @@ async def _run_socket(
             connection_scope(resolved, values) as scoped,
             (
                 definition.resolver_scope(scoped)
-                if definition.message_contract is None
+                if definition.message_parameter is None
                 else nullcontext(scoped)
             ) as socket_resolver,
         ):
@@ -1279,21 +1279,12 @@ async def _run_socket(
                     p.name: await socket_resolver.resolve(p.dependency)
                     for p in definition.injected_parameters
                 }
-                if definition.message_contract is None
+                if definition.message_parameter is None
                 else {}
             )
             arguments.update(path_values)
 
-            async def respond(frame):
-                contract = definition.message_contract
-                try:
-                    message = contract.receive(frame)
-                except ValidationError:
-                    request_close(
-                        RpcConnectionClose.PROTOCOL_ERROR,
-                        "Invalid incoming socket message",
-                    )
-                    return False
+            async def respond(message):
                 async with definition.resolver_scope(scoped) as message_resolver:
                     message_arguments = {
                         p.name: await message_resolver.resolve(p.dependency)
@@ -1302,25 +1293,15 @@ async def _run_socket(
                     message_arguments.update(path_values)
                     message_arguments[definition.message_parameter] = message
                     response = await definition.function(**message_arguments)
-                    try:
-                        encoded = contract.send(response)
-                    except (ValidationError, PydanticSerializationError):
-                        request_close(
-                            RpcConnectionClose.INTERNAL_ERROR,
-                            "Invalid outgoing socket message",
-                        )
-                        return False
-                    await socket_handle.send(encoded)
-                return True
+                    await socket_handle.send(response)
 
             async def handle():
                 try:
-                    if definition.message_contract is None:
+                    if definition.message_parameter is None:
                         await definition.function(**arguments)
                     else:
                         async for frame in socket_handle:
-                            if not await respond(frame):
-                                return
+                            await respond(frame)
                     request_close(RpcConnectionClose.NORMAL, "")
                 except asyncio.CancelledError:
                     raise
@@ -1351,7 +1332,8 @@ async def _run_socket(
                                 f"Unsupported {message_type} message",
                             )
                             return
-                        await socket_handle._put(message)
+                        if not await socket_handle._put(message):
+                            return
                         await notify_activity(
                             activity, "stream_frame_received", connection, size
                         )

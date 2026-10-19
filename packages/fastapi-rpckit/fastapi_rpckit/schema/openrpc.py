@@ -118,7 +118,11 @@ def render_openrpc(
     definitions = {socket.name: socket for socket in protocol.sockets}
     for socket in sockets:
         definition = definitions.get(socket["name"])
-        if definition is not None and definition.message_contract is not None:
+        if definition is not None and definition.codec is not None:
+            socket["codec"] = {
+                "name": definition.codec.name,
+                "encoding": definition.codec.encoding,
+            }
             socket["messages"] = {
                 direction: _ref(socket_message_schema_name(definition.name, direction))
                 for direction in ("client", "server")

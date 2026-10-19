@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from fastapi_rpckit._socket_messages import SocketMessages
+from fastapi_rpckit import RpcJsonCodec
 
 
 class Message(BaseModel):
@@ -23,7 +23,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.iterations < 1:
         parser.error("--iterations must be positive")
-    codec = SocketMessages.create(Message, Message)
+    codec = RpcJsonCodec(incoming=Message, outgoing=Message)
 
     def measure(function, number: int) -> float:
         return (
@@ -43,10 +43,10 @@ def main() -> None:
                 "bytes": len(raw.encode()),
                 "iterations": count,
                 "validate_incoming_us": measure(
-                    lambda raw=raw: codec.receive(raw), count
+                    lambda raw=raw: codec.decode(raw), count
                 ),
                 "validate_and_encode_outgoing_us": measure(
-                    lambda message=message: codec.send(message), count
+                    lambda message=message: codec.encode(message), count
                 ),
                 "stdlib_json_loads_us": measure(lambda raw=raw: json.loads(raw), count),
                 "stdlib_json_dumps_us": measure(
@@ -58,7 +58,9 @@ def main() -> None:
         "python": sys.version,
         "platform": platform.platform(),
         "scope": "CPU codec only; excludes sockets, queues, network and application",
-        "codec_build_us": measure(lambda: SocketMessages.create(Message, Message), 100),
+        "codec_build_us": measure(
+            lambda: RpcJsonCodec(incoming=Message, outgoing=Message), 100
+        ),
         "results": results,
     }
     encoded = json.dumps(report, indent=2) + "\n"

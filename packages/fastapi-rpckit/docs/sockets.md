@@ -1,8 +1,10 @@
 # Sockets
 
-A socket is a WebSocket endpoint. Annotate a message handler's parameter and
-return value to receive validated JSON and send typed responses, or inject
-`RpcSocket` to carry text and binary unchanged. See [typed JSON messages](#typed-json-messages).
+A socket is a WebSocket endpoint. Its transport, message codec, application
+protocol, and handler lifecycle are separate choices. Inject `RpcSocket` for a
+connection handler, optionally adding `codec=` for validated messages, or use a
+message handler whose parameter and return annotations infer a JSON codec.
+See [connection codecs](#connection-codecs) and [typed JSON messages](#typed-json-messages).
 
 For an untyped socket,
 fastapi_rpckit owns acceptance, dependencies, limits, cancellation, and closure, and
@@ -55,13 +57,16 @@ fresh invocation scope per message, within the existing connection scope. The
 scope stays open through response validation and sending, and is released on
 completion, failure, or disconnect. Calls are sequential on each connection.
 A `None` return annotation sends JSON `null`; it does not suppress the response.
+An explicit `codec=` can replace the inferred JSON codec, including with a binary
+codec. Its incoming and outgoing types must match the handler annotations.
 
 Incoming text is parsed and validated once with a cached Pydantic adapter in
-strict mode, before calling the handler. Set `extra="forbid"` on models
-to reject unknown fields. Pydantic constraints, unions, discriminators, aliases,
-and validators apply, including annotated type aliases. Message handlers always
-use JSON text frames; binary-only framing or a
-declared encoding other than JSON is rejected when the handler is declared.
+strict mode, before entering the socket queue or calling the handler. Set
+`extra="forbid"` on models to reject unknown fields. Pydantic constraints,
+unions, discriminators, aliases,
+and validators apply, including annotated type aliases. The inferred JSON codec
+uses text frames. Explicit codecs declare their own framing and encoding; these
+must agree with `messages=` and any declared protocol encoding.
 
 Invalid incoming messages close with 1002, `Invalid incoming socket message`.
 Invalid outgoing values close with 1011, `Invalid outgoing socket message`.
@@ -75,14 +80,15 @@ then serialized once. Serialization aliases and custom serializers apply.
 Adapters are built at declaration time, not for each message. This validates
 message structure; it does not correlate request IDs or track protocol sessions.
 For unsolicited messages, multiple responses per input, or an independent
-receive/send loop, inject `RpcSocket` and manage the protocol in that connection
-handler. An endpoint selects one of these handler styles; an injected socket
+receive/send loop, use a [connection codec](#connection-codecs). Both handler
+styles use the same receive validation and send serialization. A connection
 handler continues to return `None` and owns all of its messages.
 
 The contract exports `messages.client` and `messages.server` as component schema
 references on the socket entry. Input schemas use Pydantic's validation mode and
 output schemas use serialization mode. These direction names are independent of
 whether the contract is being read by the server or a client.
+The socket's `codec` object records its codec `name` and payload `encoding`.
 
 Generated clients keep the same socket lifecycle and reverse the message roles:
 
@@ -108,8 +114,12 @@ runtime schema validation. Server validation remains authoritative in both cases
 `protocol=RpcSocketProtocol(...)` remains optional metadata. Schema URLs alone
 do not enable validation or generate models from foreign specifications. To type
 CDP, generate or import suitable Pydantic command/response/event types first.
-External protocol bindings continue to wrap untyped sockets; selecting one for a
-typed JSON socket fails generation rather than wrapping already-decoded messages.
+The built-in JSON codec uses generated typed message sockets by default. A
+selected protocol binding takes precedence and gets the original wire transport,
+including for a JSON codec, so the binding owns client-side decoding and session
+behavior. Other codecs require a binding: generators reject an unknown codec
+without one rather than guessing JSON from its encoding. Bound sockets are never
+also decoded by the generic JSON client.
 
 The [typed socket example](../examples/typed_socket/README.md) includes both
 generated clients and tests against a real WebSocket server.
@@ -124,6 +134,54 @@ The benchmark reports cached input validation and output validation/serializatio
 for small and 64 KiB messages, plus adapter construction and standard-library JSON
 comparisons. It excludes connection handling, queues, dependency scopes, network,
 and application code; it is not an end-to-end latency measurement.
+
+## Connection codecs
+
+A reusable codec names both directions from the server's perspective. It can be
+shared by a message handler and a connection handler:
+
+```python
+from fastapi_rpckit import Inject, RpcJsonCodec, RpcSocket
+
+PING = RpcJsonCodec(incoming=Ping, outgoing=Pong)
+type PingSocket = RpcSocket[Ping, Pong]
+
+
+@channel.socket("session", codec=PING)
+async def session(socket: Inject[PingSocket]) -> None:
+    await socket.send(Pong(value=0))  # An unsolicited initial message.
+    async for message in socket:
+        await socket.send(Pong(value=message.value))
+        await socket.send(Pong(value=message.value + 1))
+
+
+@channel.socket("reply", codec=PING)
+async def reply(message: Ping) -> Pong:
+    return Pong(value=message.value + 1)
+```
+
+The connection handler runs once per connection, with one dependency scope until
+it exits. It controls its own tasks, subscriptions, message timing, and reply
+counts. `receive()` returns `Ping`; `send()` accepts `Pong`. Malformed input is
+rejected before it reaches the queue, and output is validated before writing.
+Limits, backpressure, send locking, cancellation, and cleanup still apply.
+
+`incoming=` and `outgoing=` define the runtime contract. The socket type arguments
+are **received, sent**, from the handler's perspective. They are needed for
+static typing because a Python type checker cannot derive a function parameter's
+type from a decorator argument. Declaration rejects a missing typed socket
+annotation, mismatched message types, or a typed socket without `codec=`.
+Use shared type aliases for complex unions instead of repeating their schemas.
+The handler can inspect `socket.codec` and `socket.protocol` independently.
+
+Without a codec, `Inject[RpcSocket]` retains unchanged text/binary semantics and
+does no JSON parsing. `protocol=...` remains optional metadata in both modes.
+Neither mode adds a JSON-RPC envelope or implements request correlation, CDP
+sessions, event routing, or automatic imports from schema URLs.
+
+See [custom codecs](socket-codecs.md) for the extension contract and a binary
+example. A custom codec can be used with either handler style; there is no
+registry of supported application protocols in the server.
 
 ## Declare and mount an untyped socket
 

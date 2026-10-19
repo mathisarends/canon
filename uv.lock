@@ -680,7 +680,7 @@ requires-dist = [
     { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.30" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pydantic-core", specifier = ">=2.33" },
-    { name = "typing-extensions", specifier = ">=4.12.2" },
+    { name = "typing-extensions", specifier = ">=4.13" },
 ]
 provides-extras = ["codegen", "dishka", "otel"]
 

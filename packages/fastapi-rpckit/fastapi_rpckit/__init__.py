@@ -65,6 +65,7 @@ from .models import RpcModel
 from .protocol import RpcProtocol
 from .server import RpcErrorMapper, RpcResponseMessage, RpcServer
 from .service import RpcEndpoint, RpcService, RpcSocketEndpoint, RpcStreamEndpoint
+from .socket_codecs import RpcJsonCodec, RpcSocketCodec, RpcSocketCodecError
 from .sockets import (
     RpcMessageType,
     RpcSocket,
@@ -126,6 +127,7 @@ __all__ = [
     "RpcInvalidParamsError",
     "RpcInvalidRequestError",
     "RpcLimits",
+    "RpcJsonCodec",
     "RpcMessageType",
     "RpcMethodNotFoundError",
     "RpcModel",
@@ -137,6 +139,8 @@ __all__ = [
     "RpcSocket",
     "RpcSocketEndpoint",
     "RpcSocketProtocol",
+    "RpcSocketCodec",
+    "RpcSocketCodecError",
     "RpcRejection",
     "RpcRejectionMapper",
     "RpcRejections",

@@ -3,7 +3,14 @@ from typing import Literal
 from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict
 
-from fastapi_rpckit import RpcChannel, RpcService, create_router
+from fastapi_rpckit import (
+    Inject,
+    RpcChannel,
+    RpcJsonCodec,
+    RpcService,
+    RpcSocket,
+    create_router,
+)
 
 
 class Ping(BaseModel):
@@ -19,6 +26,8 @@ class Pong(BaseModel):
 
 
 messages = RpcChannel("messages")
+PING = RpcJsonCodec(incoming=Ping, outgoing=Pong)
+type PingSocket = RpcSocket[Ping, Pong]
 
 
 @messages.method()
@@ -26,14 +35,23 @@ async def health() -> bool:
     return True
 
 
-@messages.socket("ping")
+@messages.socket("ping", codec=PING)
 async def ping(message: Ping) -> Pong:
     return Pong(value=message.value + 1)
+
+
+@messages.socket("session", codec=PING)
+async def session(socket: Inject[PingSocket]) -> None:
+    await socket.send(Pong(value=0))
+    async for message in socket:
+        await socket.send(Pong(value=message.value))
+        await socket.send(Pong(value=message.value + 1))
 
 
 service = RpcService()
 service.socket("/rpc", channels=(messages,))
 service.socket("/messages/ping", ping)
+service.socket("/messages/session", session)
 contract = service.contract(title="Typed Socket", base_url="ws://{host}")
 app = FastAPI()
 app.include_router(create_router(service))

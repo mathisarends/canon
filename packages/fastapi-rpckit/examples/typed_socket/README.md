@@ -5,6 +5,14 @@ one validated `Ping` and returns a `Pong`; the library owns the connection loop.
 Malformed messages never reach the handler;
 the transport adds no JSON-RPC envelope to these messages.
 
+The same `PING = RpcJsonCodec(incoming=Ping, outgoing=Pong)` is reused by a
+connection handler, `session(socket: Inject[PingSocket])`. That handler sends an
+initial `Pong(value=0)` before receiving any input and sends two messages per
+`Ping`. Its injected `RpcSocket[Ping, Pong]` preserves precise IDE types while
+`codec=PING` declares runtime validation with named directions. Both Python and
+TypeScript integration tests exercise the free connection flow as well as the
+managed reply loop.
+
 The same app has a small `health()` JSON-RPC method. As in the existing client
 examples, that server supplies the connection configuration used by `connect()`.
 
@@ -41,6 +49,8 @@ The SDK exposes `Socket<Pong, Ping>`: receive `Pong`, send `Ping`. TypeScript's
 payload types are static; runtime Pydantic validation runs on the server. The
 Python SDK also validates against its generated models. See the [socket guide](../../docs/sockets.md#typed-json-messages)
 for validation, close codes, schema support, and protocol-binding boundaries.
+The [codec extension guide](../../docs/socket-codecs.md) shows a binary codec and
+explains why custom wire mappings need a matching client binding.
 
 `tests/test_typed_socket_example.py` compiles the TypeScript caller with negative
 type checks and drives both clients against a live uvicorn server.

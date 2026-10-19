@@ -20,6 +20,7 @@ from fastapi_rpckit.codegen.bindings import bind_sockets
 from fastapi_rpckit.codegen.ir import UnsupportedSchemaError, build_ir
 
 from ..test_typed_sockets import Ping, Pong
+from .test_bindings import EchoBinding
 from .test_socket_roundtrip import LoopbackSocket, UnusedTransport
 
 channel = RpcChannel("messages")
@@ -71,16 +72,12 @@ async def test_python_union_messages_round_trip(
                 del sys.modules[name]
 
 
-def test_foreign_bindings_do_not_wrap_already_decoded_messages() -> None:
-    class Binding:
-        protocol = "example"
-
-        def bind(self, context):
-            raise AssertionError("Typed sockets must not invoke the binding")
-
+def test_protocol_bindings_can_replace_the_builtin_json_client() -> None:
     document = app.contract(title="Union", base_url="ws://h").to_openrpc()
-    with pytest.raises(UnsupportedSchemaError, match="typed JSON"):
-        bind_sockets(iter(build_ir(document).sockets), [Binding()], "python")
+    result = bind_sockets(
+        iter(build_ir(document).sockets), [EchoBinding(protocol="example")], "python"
+    )
+    assert result["example"].session == "EchoSession"
 
 
 @pytest.mark.parametrize("messages", [{}, {"client": {}}, {"client": {}, "server": 1}])

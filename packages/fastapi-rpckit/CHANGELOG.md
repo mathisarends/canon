@@ -54,6 +54,10 @@
   these references in consuming code.
 - Server log messages and close reasons say "socket" instead of "raw socket".
   Socket wire behavior, close codes, and message framing are unchanged.
+- Socket contracts with message schemas now declare a codec name and encoding.
+  Custom codecs require an explicit protocol binding for SDK generation instead
+  of being interpreted as ordinary JSON. Codecs validate input before queueing;
+  an invalid queued message can therefore close an active message invocation.
 
 Migration:
 
@@ -69,9 +73,27 @@ Migration:
    `service.socket(...)`, `RpcRawSocket` to `RpcSocket`, and the adapter
    protocol `RpcSocket` to `RpcWebSocket`, then re-export contracts and
    regenerate clients as described above.
+6. Re-export message socket contracts and regenerate clients to include codec
+   metadata. For a free typed connection, pass `codec=RpcJsonCodec(incoming=In,
+   outgoing=Out)` and inject `RpcSocket[In, Out]`; bare `RpcSocket` without a codec
+   retains unchanged text/binary behavior. Register a matching protocol binding
+   when generating a client for a custom codec. Custom code referencing the
+   internal `RpcSocketDefinition.message_contract` uses `codec` instead.
 
 ### Added
 
+- Share a reusable `RpcJsonCodec(incoming=..., outgoing=...)` between connection
+  handlers and message handlers. Typed connection handlers retain their own
+  receive/send loop, unsolicited messages, multiple replies and connection scope.
+  Inferred message-handler JSON codecs use this same runtime path; annotation
+  mismatches are rejected at declaration. Untyped connections do no JSON parsing.
+- Extend `RpcSocketCodec` for other wire mappings and text/binary frames. Cached
+  directional adapters and output revalidation are available to codecs, with
+  fixed peer-facing failure reasons through `RpcSocketCodecError`. Codec names
+  distinguish custom JSON envelopes from the built-in direct JSON mapping.
+- Select a protocol-specific SDK binding even for a validated JSON connection.
+  Bound client sockets always receive unchanged wire messages, while unbound
+  JSON endpoints retain the generated Pydantic/static-TypeScript message API.
 - Declare JSON socket message handlers as `async def ping(message: Ping) -> Pong`.
   The library validates each input, calls the handler sequentially in a fresh
   invocation scope, and validates and serializes its response. Invalid input

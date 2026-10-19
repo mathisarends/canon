@@ -20,7 +20,6 @@ from pydantic import (
     create_model,
 )
 
-from fastapi_rpckit._socket_messages import SocketMessages
 from fastapi_rpckit.dependencies import (
     RpcInjectedParameter,
     RpcResolverScope,
@@ -34,6 +33,7 @@ from fastapi_rpckit.errors import (
     bind_contracts,
     contract_of,
 )
+from fastapi_rpckit.socket_codecs import RpcJsonCodec, RpcSocketCodec
 from fastapi_rpckit.sockets import RpcMessageType, RpcSocket, RpcSocketProtocol
 from fastapi_rpckit.streams import RpcBinaryInput, RpcBinaryOutput, RpcStreamDirection
 from fastapi_rpckit.wire import wire_annotation
@@ -126,7 +126,7 @@ class RpcSocketDefinition:
     path_parameters: tuple[str, ...] = ()
     path_model: type[BaseModel] | None = None
     protocol: RpcSocketProtocol | None = None
-    message_contract: SocketMessages | None = None
+    codec: RpcSocketCodec[Any, Any] | None = None
     message_parameter: str | None = None
 
 
@@ -522,6 +522,7 @@ def socket_definition(
     function: FunctionType,
     messages: tuple[RpcMessageType, ...],
     protocol: RpcSocketProtocol | None,
+    codec: RpcSocketCodec[Any, Any] | None,
     closes: tuple[RpcErrorBinding[Any], ...],
     summary: str | None,
     resolver_scope: RpcResolverScope,
@@ -532,13 +533,17 @@ def socket_definition(
             f"RPC socket {qualname} must be an async function"
         )
     hints, injected, path_parameters = _split_parameters(function)
-    socket_parameters = [p for p in injected if p.dependency is RpcSocket]
+    socket_parameters = [
+        (p, _resolve_alias(p.dependency))
+        for p in injected
+        if _resolve_alias(p.dependency) is RpcSocket
+        or get_origin(_resolve_alias(p.dependency)) is RpcSocket
+    ]
     if len(socket_parameters) > 1 or (not socket_parameters and not path_parameters):
         raise ProtocolDefinitionError(
             f"RPC socket {qualname} must inject RpcSocket exactly once "
             "or accept a typed message parameter"
         )
-    message_contract = None
     message_parameter = None
     result = hints.get("return")
     if not socket_parameters:
@@ -559,24 +564,45 @@ def socket_definition(
             raise ProtocolDefinitionError(
                 "Socket message handlers need concrete message and return annotations"
             )
-        if RpcMessageType.TEXT not in messages:
-            raise ProtocolDefinitionError("Typed sockets require text messages")
-        if protocol is not None and protocol.encoding != "json":
-            raise ProtocolDefinitionError("Typed sockets require JSON encoding")
         try:
-            message_contract = SocketMessages.create(incoming, result)
-            message_contract.client.json_schema()
-            message_contract.server.json_schema()
+            codec = codec or RpcJsonCodec(incoming=incoming, outgoing=result)
         except (PydanticSchemaGenerationError, TypeError, ValueError) as error:
             raise ProtocolDefinitionError(
                 "Invalid typed socket message types"
             ) from error
-        messages = (RpcMessageType.TEXT,)
+        _check_codec_types(codec, incoming, result)
         message_parameter = parameter.name
-    elif result is not None and result is not type(None):
-        raise ProtocolDefinitionError(
-            f"RPC socket {qualname} must return None; send messages through RpcSocket"
+    else:
+        parameter, annotation = socket_parameters[0]
+        arguments = get_args(annotation)
+        if codec is not None:
+            if len(arguments) != 2:
+                raise ProtocolDefinitionError(
+                    "Codec sockets must inject RpcSocket[Received, Sent] "
+                    "for static typing"
+                )
+            _check_codec_types(codec, *arguments)
+        elif arguments:
+            raise ProtocolDefinitionError("Typed connection handlers require codec=...")
+        injected = tuple(
+            RpcInjectedParameter(p.name, RpcSocket) if p is parameter else p
+            for p in injected
         )
+        if result is not None and result is not type(None):
+            raise ProtocolDefinitionError(
+                f"RPC socket {qualname} must return None; "
+                "send messages through RpcSocket"
+            )
+    if codec is not None:
+        if not set(codec.message_types) <= set(messages):
+            raise ProtocolDefinitionError(
+                "Socket codec requires undeclared text/binary messages"
+            )
+        if protocol is not None and protocol.encoding != codec.encoding:
+            raise ProtocolDefinitionError(
+                "Socket codec encoding conflicts with protocol encoding"
+            )
+        messages = codec.message_types
     return RpcSocketDefinition(
         name=name,
         function=function,
@@ -588,9 +614,26 @@ def socket_definition(
         path_parameters=tuple(parameter.name for parameter in path_parameters),
         path_model=_path_model(function, hints, path_parameters, kind="socket"),
         protocol=protocol,
-        message_contract=message_contract,
+        codec=codec,
         message_parameter=message_parameter,
     )
+
+
+def _resolve_alias(annotation: Any) -> Any:
+    while isinstance(annotation, TypeAliasType):
+        annotation = annotation.__value__
+    return annotation
+
+
+def _check_codec_types(
+    codec: RpcSocketCodec[Any, Any], incoming: Any, outgoing: Any
+) -> None:
+    if _resolve_alias(incoming) != _resolve_alias(
+        codec.incoming_type
+    ) or _resolve_alias(outgoing) != _resolve_alias(codec.outgoing_type):
+        raise ProtocolDefinitionError(
+            "Socket handler incoming/outgoing types must match the declared codec"
+        )
 
 
 def _path_model(

@@ -3,15 +3,18 @@
 Updated: 2026-10-19. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
-## Unreleased: typed JSON socket proposal
+## Unreleased: socket codecs
 
-PR #4 is merged. The separate follow-up implements annotated message handlers
-such as `async def ping(message: Ping) -> Pong`, with a managed message loop,
-Pydantic validation, directional contract schemas, and generated Python/TypeScript
-message sockets. Protocol metadata alone still
-does not enable validation or import external CDP schemas.
+PRs #4 and #5 are merged. The next follow-up shares optional codecs between
+typed connection handlers and annotated message handlers. `RpcJsonCodec` names
+incoming and outgoing types; `RpcSocketCodec` supports custom wire mappings.
+Connection handlers retain free receive/send loops, including unsolicited events.
+Directional schemas and codec metadata drive built-in JSON clients or explicit
+protocol bindings. Protocol metadata alone still does not enable validation or
+import external CDP schemas.
 
-- [x] Add server validation, schema export, generated clients, and a live example.
+- [x] Share codecs between connection/message handlers and test custom binary framing.
+- [x] Export codec metadata, support client bindings, and extend the live example.
 - [x] Pass workspace checks, current/minimum installed-wheel matrices, and record
       codec CPU cost with `packages/fastapi-rpckit/scripts/bench_socket_messages.py`.
 - [ ] Review and merge the follow-up PR before independent release preparation.

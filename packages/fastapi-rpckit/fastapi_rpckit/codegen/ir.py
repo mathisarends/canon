@@ -250,6 +250,16 @@ class SocketDecl:
     protocol: SocketProtocolDecl | None = None
     client_message: TypeExpr | None = None
     server_message: TypeExpr | None = None
+    message_encoding: str | None = None
+    codec_name: str | None = None
+
+    @property
+    def json_messages(self) -> bool:
+        return (
+            self.codec_name == "json"
+            and self.message_encoding == "json"
+            and self.message_types == ("text",)
+        )
 
     @property
     def name(self) -> str:
@@ -833,12 +843,29 @@ def _sockets(
             not isinstance(messages, dict)
             or set(messages) != {"client", "server"}
             or any(not isinstance(schema, dict) for schema in messages.values())
-            or tuple(message_types) != ("text",)
         ):
             raise UnsupportedSchemaError(
                 f"Socket {name!r} messages require client/server JSON schemas "
-                "and text frames"
+                "for both directions"
             )
+        codec = value.get("codec")
+        if messages is not None:
+            if codec is None:
+                codec = {"name": "json", "encoding": "json"}
+            if (
+                not isinstance(codec, dict)
+                or set(codec) != {"name", "encoding"}
+                or any(
+                    not isinstance(item, str)
+                    or re.fullmatch(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*", item) is None
+                    for item in codec.values()
+                )
+            ):
+                raise UnsupportedSchemaError(
+                    f"Socket {name!r} has invalid codec metadata"
+                )
+        elif codec is not None:
+            raise UnsupportedSchemaError(f"Socket {name!r} codec needs message schemas")
         *path, operation_name = name.split(".")
         sockets.append(
             SocketDecl(
@@ -858,6 +885,8 @@ def _sockets(
                 server_message=_socket_message_type(messages["server"], document)
                 if messages
                 else None,
+                message_encoding=codec["encoding"] if codec else None,
+                codec_name=codec["name"] if codec else None,
                 call_variables=tuple(
                     variable
                     for variable in declared

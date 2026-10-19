@@ -2,8 +2,11 @@ import asyncio
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from enum import StrEnum
-from typing import Self
+from typing import Any, Generic, Self, cast
+
+from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
+from typing_extensions import TypeVar
 
 from fastapi_rpckit._activity import _Activity, notify_activity
 from fastapi_rpckit.connection import (
@@ -13,14 +16,15 @@ from fastapi_rpckit.connection import (
     RpcLimits,
     RpcWebSocket,
 )
+from fastapi_rpckit.socket_codecs import (
+    RpcMessageType,
+    RpcSocketCodec,
+    RpcSocketCodecError,
+    RpcSocketMessage,
+)
 
-
-class RpcMessageType(StrEnum):
-    TEXT = "text"
-    BINARY = "binary"
-
-
-type RpcSocketMessage = str | bytes
+_IncomingT = TypeVar("_IncomingT", default=RpcSocketMessage)
+_OutgoingT = TypeVar("_OutgoingT", default=str | bytes | bytearray | memoryview)
 
 _TOKEN = re.compile(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*")
 
@@ -30,8 +34,8 @@ class RpcSocketProtocol:
     """The application protocol a socket carries, declared for its contract.
 
     This declaration alone does not decode, validate, or dispatch messages. It
-    identifies the protocol so generators can select a client binding. Annotated
-    message handlers independently enable JSON message validation.
+    identifies the protocol so generators can select a client binding. Codecs,
+    including the JSON codec inferred by message handlers, enable validation.
     ``schemas`` lists URI references to the protocol's specification files;
     relative references resolve against the contract document's location.
     """
@@ -73,8 +77,8 @@ class RpcSocketProtocol:
         object.__setattr__(self, "schemas", values)
 
 
-class RpcSocket:
-    """An accepted WebSocket that passes text and binary messages through as-is.
+class RpcSocket(Generic[_IncomingT, _OutgoingT]):
+    """An accepted WebSocket, optionally carrying validated codec messages.
 
     Iteration ends when the connection closes. fastapi_rpckit cancels the handler when
     the client disconnects or the connection closes, so ``finally`` blocks and
@@ -86,6 +90,7 @@ class RpcSocket:
         "_disconnected",
         "_lock",
         "_messages",
+        "_codec",
         "_protocol",
         "_activity",
         "_queue",
@@ -93,6 +98,8 @@ class RpcSocket:
         "_send_timeout",
         "_socket",
     )
+
+    _lock: asyncio.Lock
 
     def __init__(self) -> None:
         raise TypeError("RpcSocket instances are created by fastapi_rpckit")
@@ -104,6 +111,7 @@ class RpcSocket:
         connection: RpcConnection,
         messages: tuple[RpcMessageType, ...],
         protocol: RpcSocketProtocol | None,
+        codec: RpcSocketCodec[Any, Any] | None,
         limits: RpcLimits,
         activity: _Activity | None,
         request_close: Callable[[RpcConnectionClose, str], None],
@@ -114,9 +122,10 @@ class RpcSocket:
         self._connection = connection
         self._messages = messages
         self._protocol = protocol
+        self._codec = codec
         self._activity = activity
         self._send_timeout = limits.send_timeout
-        self._queue = asyncio.Queue[RpcSocketMessage](limits.max_queue_size)
+        self._queue = asyncio.Queue[_IncomingT](limits.max_queue_size)
         self._lock = asyncio.Lock()
         self._request_close = request_close
         self._disconnected = disconnected
@@ -133,11 +142,16 @@ class RpcSocket:
         return self._protocol
 
     @property
+    def codec(self) -> RpcSocketCodec[_IncomingT, _OutgoingT] | None:
+        """The endpoint's shared message codec, if validation is configured."""
+        return self._codec
+
+    @property
     def closed(self) -> bool:
         return self._connection.closed or self._connection.close_code is not None
 
-    async def receive(self) -> RpcSocketMessage:
-        """Wait for the next client message; ``str`` is text, ``bytes`` binary."""
+    async def receive(self) -> _IncomingT:
+        """Receive a decoded object, or unchanged text/binary without a codec."""
         if self.closed and self._queue.empty():
             raise RpcDisconnect(
                 self._connection.close_code or RpcConnectionClose.NORMAL,
@@ -148,17 +162,37 @@ class RpcSocket:
     def __aiter__(self) -> Self:
         return self
 
-    async def __anext__(self) -> RpcSocketMessage:
+    async def __anext__(self) -> _IncomingT:
         try:
             return await self.receive()
         except RpcDisconnect:
             raise StopAsyncIteration from None
 
-    async def send(self, message: str | bytes | bytearray | memoryview) -> None:
-        """Send a text (``str``) or binary message; waits on socket backpressure."""
-        if isinstance(message, str):
+    async def send(self, message: _OutgoingT) -> None:
+        """Encode one message if configured, then wait on socket backpressure."""
+        frame: Any = message
+        if self._codec is not None:
+            try:
+                frame = self._codec.encode(message)
+                if not isinstance(frame, str | bytes):
+                    raise RpcSocketCodecError("Codecs must produce text or bytes")
+                kind = (
+                    RpcMessageType.TEXT
+                    if isinstance(frame, str)
+                    else RpcMessageType.BINARY
+                )
+                if kind not in self._messages:
+                    raise RpcSocketCodecError("Codec produced an undeclared frame type")
+            except (ValidationError, PydanticSerializationError, RpcSocketCodecError):
+                self._request_close(
+                    RpcConnectionClose.INTERNAL_ERROR, "Invalid outgoing socket message"
+                )
+                raise RpcDisconnect(
+                    RpcConnectionClose.INTERNAL_ERROR, "Invalid outgoing socket message"
+                ) from None
+        if isinstance(frame, str):
             message_type = RpcMessageType.TEXT
-        elif isinstance(message, bytes | bytearray | memoryview):
+        elif isinstance(frame, bytes | bytearray | memoryview):
             message_type = RpcMessageType.BINARY
         else:
             raise TypeError("RpcSocket.send() expects str or bytes")
@@ -169,11 +203,11 @@ class RpcSocket:
                 raise RpcDisconnect(reason="The socket is closed")
             try:
                 async with asyncio.timeout(self._send_timeout):
-                    if isinstance(message, str):
-                        await self._socket.send(message)
-                        size = len(message.encode())
+                    if isinstance(frame, str):
+                        await self._socket.send(frame)
+                        size = len(frame.encode())
                     else:
-                        data = bytes(message)
+                        data = bytes(frame)
                         await self._socket.send_bytes(data)
                         size = len(data)
             except RpcDisconnect as error:
@@ -202,5 +236,15 @@ class RpcSocket:
         """Close the connection and cancel its handler."""
         await self._connection.close(close, reason=reason)
 
-    async def _put(self, message: RpcSocketMessage) -> None:
-        await self._queue.put(message)
+    async def _put(self, message: RpcSocketMessage) -> bool:
+        value: Any = message
+        if self._codec is not None:
+            try:
+                value = self._codec.decode(message)
+            except (ValidationError, RpcSocketCodecError):
+                self._request_close(
+                    RpcConnectionClose.PROTOCOL_ERROR, "Invalid incoming socket message"
+                )
+                return False
+        await self._queue.put(cast(_IncomingT, value))
+        return True

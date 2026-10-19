@@ -2,7 +2,7 @@ import inspect
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
-from typing import Annotated, Any, Protocol, get_args, get_origin
+from typing import Annotated, Any, Protocol, TypeAliasType, cast, get_args, get_origin
 
 
 class _Inject:
@@ -140,21 +140,31 @@ def injected_parameter(
 ) -> RpcInjectedParameter | None:
     if get_origin(annotation) is Inject:
         dependency = get_args(annotation)[0]
-        if not inspect.isclass(dependency):
+        if not _concrete_dependency(dependency):
             raise TypeError(
                 f"Injected RPC parameter {name!r} must name a concrete dependency type"
             )
-        return RpcInjectedParameter(name=name, dependency=dependency)
+        return RpcInjectedParameter(name=name, dependency=cast(type[Any], dependency))
     if get_origin(annotation) is not Annotated:
         return None
     dependency, *metadata = get_args(annotation)
     if _INJECT not in metadata:
         return None
-    if not inspect.isclass(dependency):
+    if not _concrete_dependency(dependency):
         raise TypeError(
             f"Injected RPC parameter {name!r} must name a concrete dependency type"
         )
-    return RpcInjectedParameter(name=name, dependency=dependency)
+    return RpcInjectedParameter(name=name, dependency=cast(type[Any], dependency))
+
+
+def _concrete_dependency(dependency: Any) -> bool:
+    if inspect.isclass(dependency):
+        return True
+    from fastapi_rpckit.sockets import RpcSocket
+
+    while isinstance(dependency, TypeAliasType):
+        dependency = dependency.__value__
+    return get_origin(dependency) is RpcSocket
 
 
 def context_values(

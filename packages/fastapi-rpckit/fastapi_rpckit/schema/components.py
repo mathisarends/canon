@@ -27,18 +27,18 @@ def components(protocol: RpcProtocol) -> dict[str, Any]:
         for name, annotation in annotations.items()
     ]
     for socket in protocol.sockets:
-        if socket.message_contract is not None:
+        if socket.codec is not None:
             adapters.extend(
                 [
                     (
                         socket_message_schema_name(socket.name, "client"),
                         "validation",
-                        socket.message_contract.client,
+                        socket.codec.incoming,
                     ),
                     (
                         socket_message_schema_name(socket.name, "server"),
                         "serialization",
-                        socket.message_contract.server,
+                        socket.codec.outgoing,
                     ),
                 ]
             )
@@ -52,7 +52,7 @@ def components(protocol: RpcProtocol) -> dict[str, Any]:
         name = notification_schema_name(notification.name)
         definitions[name] = _notification_schema(notification, name)
     for socket in protocol.sockets:
-        if socket.message_contract is not None:
+        if socket.codec is not None:
             for direction, mode in (
                 ("client", "validation"),
                 ("server", "serialization"),
