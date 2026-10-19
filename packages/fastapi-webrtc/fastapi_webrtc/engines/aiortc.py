@@ -30,6 +30,7 @@ try:
         RTCRtpTransceiver,
         RTCSessionDescription,
     )
+    from aiortc.mediastreams import MediaStreamError
     from aiortc.sdp import SessionDescription as SdpDocument
     from aiortc.sdp import candidate_from_sdp
     from aiortc.stats import (
@@ -214,7 +215,9 @@ class AiortcPeer:
         self._dirty = True
 
     def add_track(self, track: Any) -> AiortcSender:
-        sender = self.connection.addTrack(track)
+        # RTP senders stop their track on close. Source ownership belongs to
+        # SessionRuntime, so the engine only owns this forwarding track.
+        sender = self.connection.addTrack(_SenderTrack(track))
         self._dirty = True
         return AiortcSender(sender, cast(MediaKind, track.kind))
 
@@ -222,6 +225,8 @@ class AiortcPeer:
         native = cast(AiortcSender, sender).native
         for transceiver in self.connection.getTransceivers():
             if transceiver.sender is native:
+                if native.track is not None:
+                    native.track.stop()
                 native.replaceTrack(None)
                 transceiver.direction = (
                     "recvonly"
@@ -365,6 +370,19 @@ def _prefer(transceiver: RTCRtpTransceiver, mime_types: Sequence[str]) -> None:
     )
     if codecs:
         transceiver.setCodecPreferences(codecs)
+
+
+class _SenderTrack(MediaStreamTrack):
+    def __init__(self, source: MediaStreamTrack) -> None:
+        super().__init__()
+        self._source = source
+        self.kind = source.kind
+        self._id = source.id
+
+    async def recv(self) -> Any:
+        if self.readyState != "live":
+            raise MediaStreamError
+        return await self._source.recv()
 
 
 class AiortcSender:

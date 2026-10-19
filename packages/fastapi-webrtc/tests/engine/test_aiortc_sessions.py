@@ -159,6 +159,33 @@ async def test_dependency_denial_is_an_http_rejection() -> None:
         assert app.state.rtc.active_sessions == 0
 
 
+@pytest.mark.parametrize("owned", [False, True])
+async def test_source_ownership_survives_real_sender_close(owned: bool) -> None:
+    source = AudioStreamTrack()
+    rtc = WebRtcRouter(engine=AiortcEngine())
+
+    @rtc.session("/source", media=MediaPolicy(audio=Direction.SEND))
+    def session() -> Session:
+        async def on_start(peer: Peer) -> None:
+            await peer.send_track(source, owned=owned)
+
+        return Session(on_start=on_start)
+
+    app = FastAPI()
+    app.include_router(rtc)
+    try:
+        async with serve(app) as base:
+            async with PeerClient(f"{base}/source") as client:
+                remote = await asyncio.wait_for(client.remote_tracks.get(), 10)
+                assert isinstance(await asyncio.wait_for(remote.recv(), 10), AudioFrame)
+            await _until(lambda: rtc.active_sessions == 0)
+            assert source.readyState == ("ended" if owned else "live")
+            if not owned:
+                assert isinstance(await asyncio.wait_for(source.recv(), 1), AudioFrame)
+    finally:
+        source.stop()
+
+
 async def test_offerer_session_sends_video_and_messages() -> None:
     app = build_app()
     async with serve(app) as base, PeerClient(f"{base}/rtc/broadcast") as client:
