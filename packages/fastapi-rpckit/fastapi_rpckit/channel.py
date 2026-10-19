@@ -432,7 +432,9 @@ class RpcChannel:
 
         A message handler receives its first non-injected parameter as validated
         JSON and returns one response per message. Inject ``RpcSocket`` instead
-        to manage the connection and forward text and binary frames unchanged.
+        to manage the connection. ``RpcSocket[Incoming, Outgoing]`` infers JSON
+        validation from its type arguments; bare ``RpcSocket`` forwards text and
+        binary frames unchanged. Message types come only from annotations.
 
         ``protocol`` declares the application protocol the messages follow, for
         the contract and generated client bindings; it never changes how messages

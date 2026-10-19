@@ -19,7 +19,7 @@ class SocketMessages:
         _revalidate_models(schema)
         return cls(client, server, SchemaValidator(schema))
 
-    def receive(self, message: str) -> Any:
+    def receive(self, message: str | bytes) -> Any:
         return self.client.validate_json(message, strict=True)
 
     def send(self, message: Any) -> str:

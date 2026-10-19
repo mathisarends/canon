@@ -54,6 +54,10 @@
   these references in consuming code.
 - Server log messages and close reasons say "socket" instead of "raw socket".
   Socket wire behavior, close codes, and message framing are unchanged.
+- Typed JSON input is now validated before queueing. A malformed later message
+  can therefore cancel an active invocation. Clients must send valid messages
+  throughout a connection rather than depending on an earlier reply before an
+  invalid queued message is rejected.
 
 Migration:
 
@@ -72,6 +76,13 @@ Migration:
 
 ### Added
 
+- Infer typed JSON connections from `Inject[RpcSocket[Incoming, Outgoing]]`,
+  including aliases and unions. These handlers retain their own receive/send loop,
+  unsolicited messages, multiple replies, and one dependency scope per connection.
+  They share cached internal Pydantic validation and serialization with message
+  handlers. Annotations alone define message types, directional contract schemas,
+  and Python/TypeScript SDK types. Bare `RpcSocket` keeps raw text/binary behavior;
+  protocol metadata never enables validation.
 - Declare JSON socket message handlers as `async def ping(message: Ping) -> Pong`.
   The library validates each input, calls the handler sequentially in a fresh
   invocation scope, and validates and serializes its response. Invalid input

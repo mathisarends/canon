@@ -8,6 +8,13 @@ the transport adds no JSON-RPC envelope to these messages.
 The same app has a small `health()` JSON-RPC method. As in the existing client
 examples, that server supplies the connection configuration used by `connect()`.
 
+The connection handler `session(socket: Inject[PingSocket])` infers the same JSON
+validation from `type PingSocket = RpcSocket[Ping, Pong]`, with no second type
+declaration. It sends an initial `Pong(value=0)` before receiving input and sends
+two messages per `Ping`. This handler owns its loop and keeps one dependency scope
+per connection. Both generated clients exercise this flow as well as the managed
+message handler. Bare `RpcSocket` remains transparent text/binary transport.
+
 ```console
 uv run --locked uvicorn examples.typed_socket.ping:app
 uv run --locked python -m fastapi_rpckit.codegen.cli generate --config examples/typed_socket/rpcgen.toml

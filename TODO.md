@@ -3,17 +3,21 @@
 Updated: 2026-10-19. This is the prioritized checklist for the next work block.
 Completed migration steps are recorded in [docs/migration.md](docs/migration.md).
 
-## Unreleased: typed JSON socket proposal
+## Unreleased: typed JSON connections
 
-PR #4 is merged. The separate follow-up implements annotated message handlers
-such as `async def ping(message: Ping) -> Pong`, with a managed message loop,
-Pydantic validation, directional contract schemas, and generated Python/TypeScript
-message sockets. Protocol metadata alone still
-does not enable validation or import external CDP schemas.
+PRs #4 and #5 are merged. PR #6 adds typed JSON connection handlers using
+`Inject[RpcSocket[Incoming, Outgoing]]`. Annotations alone define validation,
+directional schemas, and SDK types. Connection handlers retain their own
+receive/send loops, including unsolicited events and multiple replies, with one
+dependency scope per connection. Cached internal Pydantic adapters are shared
+with message handlers. Bare `RpcSocket` remains transparent text/binary transport.
+Protocol metadata and raw protocol client bindings stay independent; specification
+references do not import schemas or enable CDP validation.
 
-- [x] Add server validation, schema export, generated clients, and a live example.
-- [x] Pass workspace checks, current/minimum installed-wheel matrices, and record
-      codec CPU cost with `packages/fastapi-rpckit/scripts/bench_socket_messages.py`.
+- [x] Share internal JSON validation between connection/message handlers.
+- [x] Remove generic codec APIs, decorator model overrides, and codec-only metadata.
+- [x] Preserve raw protocol bindings and extend the typed live example.
+- [x] Pass workspace checks and current/minimum installed-wheel matrices after simplification.
 - [ ] Review and merge the follow-up PR before independent release preparation.
 
 RPCkit's source still uses 0.2.0 with the combined changes under unreleased

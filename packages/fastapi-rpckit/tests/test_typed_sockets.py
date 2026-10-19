@@ -152,6 +152,40 @@ async def test_message_handler_exceptions_use_declared_close_bindings() -> None:
         assert await client.closed() == (RpcConnectionClose.POLICY_VIOLATION, "Denied")
 
 
+async def test_invalid_queued_input_cancels_an_active_invocation_and_its_scope() -> (
+    None
+):
+    started = asyncio.Event()
+    released = asyncio.Event()
+
+    @asynccontextmanager
+    async def scope(resolver):
+        try:
+            yield resolver
+        finally:
+            released.set()
+
+    channel = RpcChannel("invalid", resolver_scope=scope)
+
+    @channel.socket()
+    async def handle(message: Ping) -> Pong:
+        started.set()
+        await asyncio.Future()
+        return Pong(value=0)
+
+    app = RpcService()
+    app.socket("/invalid", handle)
+    async with RpcTestClient(app, "/invalid") as client:
+        await client.send_message('{"value":1}')
+        await asyncio.wait_for(started.wait(), 1)
+        await client.send_message('{"value":"secret"}')
+        assert await client.closed() == (
+            RpcConnectionClose.PROTOCOL_ERROR,
+            "Invalid incoming socket message",
+        )
+        await asyncio.wait_for(released.wait(), 1)
+
+
 async def test_none_response_is_json_null() -> None:
     channel = RpcChannel("null")
 

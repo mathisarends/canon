@@ -153,6 +153,12 @@
       },
       "MessagesPingServerMessage": {
         "$ref": "#/components/schemas/Pong"
+      },
+      "MessagesSessionClientMessage": {
+        "$ref": "#/components/schemas/Ping"
+      },
+      "MessagesSessionServerMessage": {
+        "$ref": "#/components/schemas/Pong"
       }
     }
   },
@@ -217,6 +223,26 @@
         },
         "server": {
           "$ref": "#/components/schemas/MessagesPingServerMessage"
+        }
+      }
+    },
+    {
+      "name": "messages.session",
+      "url": "ws://{host}/messages/session",
+      "messageTypes": [
+        "text"
+      ],
+      "variables": {
+        "host": {
+          "default": "{host}"
+        }
+      },
+      "messages": {
+        "client": {
+          "$ref": "#/components/schemas/MessagesSessionClientMessage"
+        },
+        "server": {
+          "$ref": "#/components/schemas/MessagesSessionServerMessage"
         }
       }
     }

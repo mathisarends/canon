@@ -32,3 +32,12 @@ class Messages:
             ),
             self._rpc.socket_opener,
         )
+
+    def session(self) -> AbstractAsyncContextManager[Socket[Pong, Ping]]:
+        return open_socket(
+            resolve_socket_endpoint(
+                SOCKETS[SocketName.MESSAGES_SESSION],
+                self._rpc.variables,
+            ),
+            self._rpc.socket_opener,
+        )

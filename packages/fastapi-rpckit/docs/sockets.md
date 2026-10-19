@@ -1,8 +1,10 @@
 # Sockets
 
 A socket is a WebSocket endpoint. Annotate a message handler's parameter and
-return value to receive validated JSON and send typed responses, or inject
-`RpcSocket` to carry text and binary unchanged. See [typed JSON messages](#typed-json-messages).
+return value to receive validated JSON and send typed responses. Inject
+`RpcSocket[Incoming, Outgoing]` for a typed connection loop, or bare `RpcSocket`
+to carry text and binary unchanged. Message types come only from annotations.
+See [typed JSON messages](#typed-json-messages) and [typed connections](#typed-connections).
 
 For an untyped socket,
 fastapi_rpckit owns acceptance, dependencies, limits, cancellation, and closure, and
@@ -57,9 +59,9 @@ completion, failure, or disconnect. Calls are sequential on each connection.
 A `None` return annotation sends JSON `null`; it does not suppress the response.
 
 Incoming text is parsed and validated once with a cached Pydantic adapter in
-strict mode, before calling the handler. Set `extra="forbid"` on models
-to reject unknown fields. Pydantic constraints, unions, discriminators, aliases,
-and validators apply, including annotated type aliases. Message handlers always
+strict mode, before entering the socket queue or calling the handler. Set
+`extra="forbid"` on models to reject unknown fields. Pydantic constraints, unions,
+discriminators, aliases, and validators apply, including annotated type aliases. Message handlers always
 use JSON text frames; binary-only framing or a
 declared encoding other than JSON is rejected when the handler is declared.
 
@@ -75,9 +77,10 @@ then serialized once. Serialization aliases and custom serializers apply.
 Adapters are built at declaration time, not for each message. This validates
 message structure; it does not correlate request IDs or track protocol sessions.
 For unsolicited messages, multiple responses per input, or an independent
-receive/send loop, inject `RpcSocket` and manage the protocol in that connection
-handler. An endpoint selects one of these handler styles; an injected socket
-handler continues to return `None` and owns all of its messages.
+receive/send loop, inject `RpcSocket[Incoming, Outgoing]` as a
+[typed connection](#typed-connections). Both handler styles use the same internal
+JSON validation and serialization. An endpoint selects one handler style; an
+injected socket handler continues to return `None` and owns all of its messages.
 
 The contract exports `messages.client` and `messages.server` as component schema
 references on the socket entry. Input schemas use Pydantic's validation mode and
@@ -114,7 +117,7 @@ typed JSON socket fails generation rather than wrapping already-decoded messages
 The [typed socket example](../examples/typed_socket/README.md) includes both
 generated clients and tests against a real WebSocket server.
 
-Measure codec CPU cost locally with:
+Measure JSON validation and serialization CPU cost locally with:
 
 ```console
 uv run --locked --directory packages/fastapi-rpckit python scripts/bench_socket_messages.py
@@ -124,6 +127,45 @@ The benchmark reports cached input validation and output validation/serializatio
 for small and 64 KiB messages, plus adapter construction and standard-library JSON
 comparisons. It excludes connection handling, queues, dependency scopes, network,
 and application code; it is not an end-to-end latency measurement.
+
+## Typed connections
+
+Declare incoming and outgoing JSON types in the injected socket annotation. The
+handler runs once per connection and owns its receive/send loop:
+
+```python
+from fastapi_rpckit import Inject, RpcSocket
+
+
+type PingSocket = RpcSocket[Ping, Pong]
+
+
+@channel.socket("session")
+async def session(socket: Inject[PingSocket]) -> None:
+    await socket.send(Pong(value=0))  # An unsolicited initial message.
+    async for message in socket:
+        await socket.send(Pong(value=message.value))
+        await socket.send(Pong(value=message.value + 1))
+```
+
+Type arguments are **incoming, outgoing**, from the server handler's perspective.
+`receive()` and iteration return validated `Ping` objects; `send()` accepts `Pong`.
+Unions such as `RpcSocket[Command, Reply | Event]` and reusable type aliases work
+the same way. These annotations drive runtime validation, directional contract
+schemas, generated SDK types, and IDE checking without a second declaration.
+Both directions need concrete types; use bare `RpcSocket` for transparent frames.
+
+Typed connections use JSON text frames and cached Pydantic adapters, with the
+same strict validation, serialization, and fixed failure reasons as message
+handlers. Injected dependencies have one connection scope, released when the
+handler exits or is cancelled. Unsolicited events, multiple replies, independent
+tasks, backpressure, send locking, limits, and cleanup remain under the existing
+socket lifecycle. The handler returns `None`; it sends every message explicitly.
+
+JSON validation checks message structure. It does not correlate IDs, route
+events or sessions, import specifications, or implement an application protocol.
+`protocol=` remains independent metadata. To proxy CDP unchanged and use its
+native client library through a protocol binding, inject bare `RpcSocket`.
 
 ## Declare and mount an untyped socket
 

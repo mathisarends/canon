@@ -431,9 +431,11 @@ async def test_a_declared_protocol_is_exported_and_visible_to_the_handler() -> N
     channel = RpcChannel("browser")
     seen: list[RpcSocketProtocol | None] = []
 
-    @channel.socket("cdp", protocol=CDP, messages=(RpcMessageType.TEXT,))
+    @channel.socket("cdp", protocol=CDP)
     async def cdp(socket: Inject[RpcSocket]) -> None:
         seen.append(socket.protocol)
+        for _ in range(2):
+            await socket.send(await socket.receive())
 
     service = RpcService()
     service.socket("/browser/cdp", cdp)
@@ -446,6 +448,10 @@ async def test_a_declared_protocol_is_exported_and_visible_to_the_handler() -> N
         "schemas": ["browser_protocol.json", "js_protocol.json"],
     }
     async with RpcTestClient(service, "/browser/cdp") as client:
+        await client.send_message("not JSON")
+        await client.send_message(bytes(range(256)))
+        assert await client.next_message() == "not JSON"
+        assert await client.next_message() == bytes(range(256))
         assert await client.closed() == (RpcConnectionClose.NORMAL, "")
     assert seen == [CDP]
 

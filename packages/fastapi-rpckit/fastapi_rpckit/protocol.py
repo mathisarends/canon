@@ -532,7 +532,12 @@ def socket_definition(
             f"RPC socket {qualname} must be an async function"
         )
     hints, injected, path_parameters = _split_parameters(function)
-    socket_parameters = [p for p in injected if p.dependency is RpcSocket]
+    socket_parameters = [
+        (p, _resolve_alias(p.dependency))
+        for p in injected
+        if _resolve_alias(p.dependency) is RpcSocket
+        or get_origin(_resolve_alias(p.dependency)) is RpcSocket
+    ]
     if len(socket_parameters) > 1 or (not socket_parameters and not path_parameters):
         raise ProtocolDefinitionError(
             f"RPC socket {qualname} must inject RpcSocket exactly once "
@@ -540,6 +545,7 @@ def socket_definition(
         )
     message_contract = None
     message_parameter = None
+    payload_types = None
     result = hints.get("return")
     if not socket_parameters:
         parameter, *path_parameters = path_parameters
@@ -559,24 +565,45 @@ def socket_definition(
             raise ProtocolDefinitionError(
                 "Socket message handlers need concrete message and return annotations"
             )
+        payload_types = (incoming, result)
+        message_parameter = parameter.name
+    else:
+        parameter, annotation = socket_parameters[0]
+        arguments = get_args(annotation)
+        if arguments:
+            if len(arguments) != 2:
+                raise ProtocolDefinitionError(
+                    "Typed sockets must inject RpcSocket[Incoming, Outgoing]"
+                )
+            payload_types = arguments
+        injected = tuple(
+            RpcInjectedParameter(p.name, RpcSocket) if p is parameter else p
+            for p in injected
+        )
+        if result is not None and result is not type(None):
+            raise ProtocolDefinitionError(
+                f"RPC socket {qualname} must return None; "
+                "send messages through RpcSocket"
+            )
+    if payload_types is not None:
+        incoming, outgoing = payload_types
+        if _resolve_alias(incoming) is Any or _resolve_alias(outgoing) is Any:
+            raise ProtocolDefinitionError(
+                "Typed sockets need concrete incoming and outgoing annotations"
+            )
         if RpcMessageType.TEXT not in messages:
             raise ProtocolDefinitionError("Typed sockets require text messages")
         if protocol is not None and protocol.encoding != "json":
             raise ProtocolDefinitionError("Typed sockets require JSON encoding")
         try:
-            message_contract = SocketMessages.create(incoming, result)
+            message_contract = SocketMessages.create(incoming, outgoing)
             message_contract.client.json_schema()
-            message_contract.server.json_schema()
+            message_contract.server.json_schema(mode="serialization")
         except (PydanticSchemaGenerationError, TypeError, ValueError) as error:
             raise ProtocolDefinitionError(
                 "Invalid typed socket message types"
             ) from error
         messages = (RpcMessageType.TEXT,)
-        message_parameter = parameter.name
-    elif result is not None and result is not type(None):
-        raise ProtocolDefinitionError(
-            f"RPC socket {qualname} must return None; send messages through RpcSocket"
-        )
     return RpcSocketDefinition(
         name=name,
         function=function,
@@ -591,6 +618,12 @@ def socket_definition(
         message_contract=message_contract,
         message_parameter=message_parameter,
     )
+
+
+def _resolve_alias(annotation: Any) -> Any:
+    while isinstance(annotation, TypeAliasType):
+        annotation = annotation.__value__
+    return annotation
 
 
 def _path_model(

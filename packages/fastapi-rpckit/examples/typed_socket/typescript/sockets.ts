@@ -4,7 +4,7 @@
 
 import { RpcStreamClosed, RpcStreamFailed, RpcStreamRefused } from "./core";
 
-export type SocketName = "messages.ping";
+export type SocketName = "messages.ping" | "messages.session";
 
 export type SocketMessageType = "text" | "binary";
 
@@ -125,6 +125,16 @@ export const sockets = {
   messagesPing: {
     name: "messages.ping",
     url: "ws://{host}/messages/ping",
+    messageTypes: ["text"],
+    variables: {
+      host: {
+        default: "{host}",
+      },
+    },
+  },
+  messagesSession: {
+    name: "messages.session",
+    url: "ws://{host}/messages/session",
     messageTypes: ["text"],
     variables: {
       host: {
