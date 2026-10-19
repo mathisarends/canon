@@ -1,18 +1,22 @@
 # Socket codec extension contract
 
 `RpcSocketCodec[Incoming, Outgoing]` separates wire messages from handler
-lifecycle. Its named constructor arguments define the server's incoming and
-outgoing types, cached Pydantic adapters, codec name, payload encoding, and
-allowed text/binary frame types. These are the same definitions used for
-contract schemas. The instance is reusable across connections and handler styles.
+lifecycle. Handler annotations are the sole message-type declaration. The
+library passes them as `incoming=` and `outgoing=` to the codec constructor or
+factory, which builds cached Pydantic adapters and output validation. The codec
+declares its name, payload encoding, and allowed text/binary frame types. The
+resulting instance is cached per endpoint and shared across its connections.
 
-`RpcJsonCodec(incoming=Command, outgoing=Reply | Event)` implements the normal
-JSON text case. Use it with a typed connection handler to send unsolicited events
-or manage independent producer tasks, or with a message handler for the managed
-one-input/one-output loop. Neither codec nor handler creates a JSON-RPC envelope.
+`RpcJsonCodec` implements direct JSON text and is inferred for typed connection
+and message handlers. A connection handler injects `RpcSocket[Command, Reply |
+Event]` and controls its tasks and reply counts. A message handler annotates its
+message and return type for the managed one-input/one-output loop. Neither adds
+a JSON-RPC envelope. Explicit `codec=RpcJsonCodec` is equivalent to the default.
 
 Implement another codec by subclassing `RpcSocketCodec` and implementing:
 
+- A constructor accepting keyword-only `incoming` and `outgoing` type forms.
+  Forward those types to the base constructor instead of hard-coding them.
 - `decode(frame)`: parse a complete wire message and validate the result with
   `self.incoming`. Return the declared incoming type.
 - `encode(message)`: call `self.validate_outgoing(message)` to revalidate output
@@ -30,6 +34,7 @@ For example, a constrained integer transported as one binary byte:
 from typing import Annotated
 
 from pydantic import Field
+from typing_extensions import TypeForm
 
 from fastapi_rpckit import (
     RpcChannel,
@@ -42,38 +47,45 @@ from fastapi_rpckit import (
 type Byte = Annotated[int, Field(ge=0, le=255)]
 
 
-class ByteCodec(RpcSocketCodec[Byte, Byte]):
-    def __init__(self) -> None:
+class ByteCodec(RpcSocketCodec[int, int]):
+    def __init__(self, *, incoming: TypeForm[int], outgoing: TypeForm[int]) -> None:
         super().__init__(
-            incoming=Byte,
-            outgoing=Byte,
+            incoming=incoming,
+            outgoing=outgoing,
             name="uint8",
             encoding="uint8",
             messages=(RpcMessageType.BINARY,),
         )
 
-    def decode(self, frame: RpcSocketMessage) -> Byte:
+    def decode(self, frame: RpcSocketMessage) -> int:
         if not isinstance(frame, bytes) or len(frame) != 1:
             raise RpcSocketCodecError("Expected one binary byte")
         return self.incoming.validate_python(frame[0], strict=True)
 
-    def encode(self, message: Byte) -> bytes:
+    def encode(self, message: int) -> bytes:
         return bytes([self.validate_outgoing(message)])
 
 
 channel = RpcChannel("counter")
-BYTE = ByteCodec()
 
 
-@channel.socket("increment", codec=BYTE)
+@channel.socket("increment", codec=ByteCodec)
 async def increment(message: Byte) -> Byte:
     return message + 1
 ```
 
 Sending `b"\x29"` produces `b"\x2a"`. Sending `b"\xff"` makes the handler's
 response fail output validation because 256 exceeds the declared range.
-A connection handler can inject `RpcSocket[Byte, Byte]` with the same `codec=BYTE`
+A connection handler can inject `RpcSocket[Byte, Byte]` with `codec=ByteCodec`
 and control when and how often it reads or sends.
+
+For codec-specific settings, pass a callable implementing `RpcSocketCodecFactory`,
+for example `codec=partial(FramedCodec, prefix=b"v1:")`. Its remaining keyword
+arguments are the annotation-derived `incoming` and `outgoing` type forms. It
+runs once when the endpoint is declared. Passing a constructed codec instance is
+rejected; a factory that ignores or changes the supplied types is also rejected.
+Direct codec construction remains useful outside endpoint declarations, such as
+standalone encoding/decoding and benchmarks.
 
 Raise `RpcSocketCodecError` for malformed wire data. Incoming Pydantic validation
 errors and codec rejections close with 1002 and a fixed reason; output validation,

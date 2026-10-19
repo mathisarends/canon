@@ -74,19 +74,25 @@ Migration:
    protocol `RpcSocket` to `RpcWebSocket`, then re-export contracts and
    regenerate clients as described above.
 6. Re-export message socket contracts and regenerate clients to include codec
-   metadata. For a free typed connection, pass `codec=RpcJsonCodec(incoming=In,
-   outgoing=Out)` and inject `RpcSocket[In, Out]`; bare `RpcSocket` without a codec
-   retains unchanged text/binary behavior. Register a matching protocol binding
+   metadata. For a free JSON connection, inject `RpcSocket[In, Out]`; its
+   annotation is the sole message-type declaration and infers JSON validation.
+   Bare `RpcSocket` retains unchanged text/binary behavior. For another format,
+   pass a codec class or factory as `codec=SomeCodec`, accepting the library's
+   annotation-derived `incoming=` and `outgoing=` arguments. Replace constructed
+   decorator codec instances with their class/factory; instances are rejected.
+   Register a matching protocol binding
    when generating a client for a custom codec. Custom code referencing the
    internal `RpcSocketDefinition.message_contract` uses `codec` instead.
 
 ### Added
 
-- Share a reusable `RpcJsonCodec(incoming=..., outgoing=...)` between connection
-  handlers and message handlers. Typed connection handlers retain their own
+- Derive codecs from handler annotations as the single source for runtime
+  validation, contract schemas, SDK types, and IDE checking. Typed socket and
+  message-handler annotations infer JSON; custom codec classes or configured
+  factories receive those types once at declaration. Typed connections retain their own
   receive/send loop, unsolicited messages, multiple replies and connection scope.
-  Inferred message-handler JSON codecs use this same runtime path; annotation
-  mismatches are rejected at declaration. Untyped connections do no JSON parsing.
+  Message handlers use the same codec runtime path; factories returning different
+  message types are rejected. Untyped connections do no JSON parsing.
 - Extend `RpcSocketCodec` for other wire mappings and text/binary frames. Cached
   directional adapters and output revalidation are available to codecs, with
   fixed peer-facing failure reasons through `RpcSocketCodecError`. Codec names

@@ -33,7 +33,11 @@ from fastapi_rpckit.errors import (
     bind_contracts,
     contract_of,
 )
-from fastapi_rpckit.socket_codecs import RpcJsonCodec, RpcSocketCodec
+from fastapi_rpckit.socket_codecs import (
+    RpcJsonCodec,
+    RpcSocketCodec,
+    RpcSocketCodecFactory,
+)
 from fastapi_rpckit.sockets import RpcMessageType, RpcSocket, RpcSocketProtocol
 from fastapi_rpckit.streams import RpcBinaryInput, RpcBinaryOutput, RpcStreamDirection
 from fastapi_rpckit.wire import wire_annotation
@@ -522,7 +526,7 @@ def socket_definition(
     function: FunctionType,
     messages: tuple[RpcMessageType, ...],
     protocol: RpcSocketProtocol | None,
-    codec: RpcSocketCodec[Any, Any] | None,
+    codec_factory: RpcSocketCodecFactory | None,
     closes: tuple[RpcErrorBinding[Any], ...],
     summary: str | None,
     resolver_scope: RpcResolverScope,
@@ -545,6 +549,7 @@ def socket_definition(
             "or accept a typed message parameter"
         )
     message_parameter = None
+    codec = None
     result = hints.get("return")
     if not socket_parameters:
         parameter, *path_parameters = path_parameters
@@ -564,26 +569,22 @@ def socket_definition(
             raise ProtocolDefinitionError(
                 "Socket message handlers need concrete message and return annotations"
             )
-        try:
-            codec = codec or RpcJsonCodec(incoming=incoming, outgoing=result)
-        except (PydanticSchemaGenerationError, TypeError, ValueError) as error:
-            raise ProtocolDefinitionError(
-                "Invalid typed socket message types"
-            ) from error
-        _check_codec_types(codec, incoming, result)
+        codec = _make_socket_codec(codec_factory, incoming, result)
         message_parameter = parameter.name
     else:
         parameter, annotation = socket_parameters[0]
         arguments = get_args(annotation)
-        if codec is not None:
+        if arguments:
             if len(arguments) != 2:
                 raise ProtocolDefinitionError(
                     "Codec sockets must inject RpcSocket[Received, Sent] "
                     "for static typing"
                 )
-            _check_codec_types(codec, *arguments)
-        elif arguments:
-            raise ProtocolDefinitionError("Typed connection handlers require codec=...")
+            codec = _make_socket_codec(codec_factory, *arguments)
+        elif codec_factory is not None:
+            raise ProtocolDefinitionError(
+                "Codec sockets must inject RpcSocket[Received, Sent] for static typing"
+            )
         injected = tuple(
             RpcInjectedParameter(p.name, RpcSocket) if p is parameter else p
             for p in injected
@@ -625,15 +626,27 @@ def _resolve_alias(annotation: Any) -> Any:
     return annotation
 
 
-def _check_codec_types(
-    codec: RpcSocketCodec[Any, Any], incoming: Any, outgoing: Any
-) -> None:
+def _make_socket_codec(
+    factory: RpcSocketCodecFactory | None, incoming: Any, outgoing: Any
+) -> RpcSocketCodec[Any, Any]:
+    try:
+        selected = RpcJsonCodec if factory is None else factory
+        codec = selected(incoming=incoming, outgoing=outgoing)
+    except (PydanticSchemaGenerationError, TypeError, ValueError) as error:
+        raise ProtocolDefinitionError(
+            "Invalid socket codec or message types"
+        ) from error
+    if not isinstance(codec, RpcSocketCodec):
+        raise ProtocolDefinitionError(
+            "Socket codec factories must return RpcSocketCodec"
+        )
     if _resolve_alias(incoming) != _resolve_alias(
         codec.incoming_type
     ) or _resolve_alias(outgoing) != _resolve_alias(codec.outgoing_type):
         raise ProtocolDefinitionError(
-            "Socket handler incoming/outgoing types must match the declared codec"
+            "Socket codec factories must preserve the handler's incoming/outgoing types"
         )
+    return codec
 
 
 def _path_model(

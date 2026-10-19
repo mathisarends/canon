@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import TypeAdapter
 from pydantic_core import SchemaValidator
@@ -116,6 +116,18 @@ class RpcJsonCodec[IncomingT, OutgoingT](RpcSocketCodec[IncomingT, OutgoingT]):
         return self.outgoing.dump_json(
             validated, by_alias=True, warnings="error"
         ).decode()
+
+
+class RpcSocketCodecFactory(Protocol):
+    """Create an endpoint codec from the handler's sole message-type declaration.
+
+    A codec class with this constructor signature can be passed directly.
+    Factories run once per endpoint declaration, never per message.
+    """
+
+    def __call__(
+        self, *, incoming: TypeForm[Any], outgoing: TypeForm[Any]
+    ) -> RpcSocketCodec[Any, Any]: ...
 
 
 def _revalidate_models(value: Any) -> None:

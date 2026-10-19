@@ -81,7 +81,6 @@ def main() -> None:
         from fastapi_rpckit import (
             Inject,
             RpcChannel,
-            RpcJsonCodec,
             RpcService,
             RpcSocket,
             create_router,
@@ -96,15 +95,13 @@ def main() -> None:
         rpc = RpcService()
         rpc.socket("/rpc", channels=(channel,))
 
-        message_codec = RpcJsonCodec(incoming=SocketInput, outgoing=SocketOutput)
-
-        @channel.socket("messages", codec=message_codec)
+        @channel.socket("messages")
         async def messages(message: SocketInput) -> SocketOutput:
             return SocketOutput(value=message.value + 1)
 
         rpc.socket("/messages", messages)
 
-        @channel.socket("session", codec=message_codec)
+        @channel.socket("session")
         async def session(socket: Inject[RpcSocket[SocketInput, SocketOutput]]) -> None:
             await socket.send(SocketOutput(value=0))
             async for message in socket:

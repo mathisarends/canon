@@ -42,7 +42,7 @@ from fastapi_rpckit.server import (
     RpcErrorMapper,
     RpcServer,
 )
-from fastapi_rpckit.socket_codecs import RpcSocketCodec
+from fastapi_rpckit.socket_codecs import RpcSocketCodec, RpcSocketCodecFactory
 from fastapi_rpckit.sockets import RpcMessageType, RpcSocketProtocol
 
 
@@ -408,7 +408,7 @@ class RpcChannel:
         /,
         *,
         protocol: RpcSocketProtocol | None = None,
-        codec: RpcSocketCodec[Any, Any] | None = None,
+        codec: RpcSocketCodecFactory | None = None,
         messages: Iterable[RpcMessageType] = (
             RpcMessageType.TEXT,
             RpcMessageType.BINARY,
@@ -423,7 +423,7 @@ class RpcChannel:
         /,
         *,
         protocol: RpcSocketProtocol | None = None,
-        codec: RpcSocketCodec[Any, Any] | None = None,
+        codec: RpcSocketCodecFactory | None = None,
         messages: Iterable[RpcMessageType] = (
             RpcMessageType.TEXT,
             RpcMessageType.BINARY,
@@ -435,9 +435,10 @@ class RpcChannel:
 
         A message handler receives its first non-injected parameter as validated
         JSON and returns one response per message. Inject ``RpcSocket`` instead
-        to manage the connection. ``codec`` enables validated messages in either
-        handler style; a message handler infers a JSON codec when it is omitted.
-        A connection handler without a codec forwards text and binary unchanged.
+        to manage the connection. Typed socket and message-handler annotations
+        infer JSON validation. ``codec`` selects a codec class or factory, which
+        receives message types from those annotations. Bare ``RpcSocket`` keeps
+        unchanged text/binary behavior when no codec is selected.
 
         ``protocol`` declares the application protocol the messages follow, for
         the contract and generated client bindings; it never changes how messages
@@ -456,8 +457,13 @@ class RpcChannel:
             raise ProtocolDefinitionError(
                 "RPC socket protocol must be an RpcSocketProtocol"
             )
-        if codec is not None and not isinstance(codec, RpcSocketCodec):
-            raise ProtocolDefinitionError("RPC socket codec must be an RpcSocketCodec")
+        if codec is not None and (
+            isinstance(codec, RpcSocketCodec) or not callable(codec)
+        ):
+            raise ProtocolDefinitionError(
+                "RPC socket codec must be a class or factory, not an instance; "
+                "message types come from handler annotations"
+            )
         try:
             declared = frozenset(RpcMessageType(item) for item in messages)
         except ValueError as error:
@@ -477,7 +483,7 @@ class RpcChannel:
                 function=function,
                 messages=message_types,
                 protocol=protocol,
-                codec=codec,
+                codec_factory=codec,
                 closes=rejecting_contracts(closes, f"RPC socket {wire_name}"),
                 summary=summary or _docstring_summary(function),
                 resolver_scope=channel.resolver_scope,

@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict
 from fastapi_rpckit import (
     Inject,
     RpcChannel,
-    RpcJsonCodec,
     RpcService,
     RpcSocket,
     create_router,
@@ -26,7 +25,6 @@ class Pong(BaseModel):
 
 
 messages = RpcChannel("messages")
-PING = RpcJsonCodec(incoming=Ping, outgoing=Pong)
 type PingSocket = RpcSocket[Ping, Pong]
 
 
@@ -35,12 +33,12 @@ async def health() -> bool:
     return True
 
 
-@messages.socket("ping", codec=PING)
+@messages.socket("ping")
 async def ping(message: Ping) -> Pong:
     return Pong(value=message.value + 1)
 
 
-@messages.socket("session", codec=PING)
+@messages.socket("session")
 async def session(socket: Inject[PingSocket]) -> None:
     await socket.send(Pong(value=0))
     async for message in socket:

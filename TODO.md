@@ -6,8 +6,9 @@ Completed migration steps are recorded in [docs/migration.md](docs/migration.md)
 ## Unreleased: socket codecs
 
 PRs #4 and #5 are merged. The next follow-up shares optional codecs between
-typed connection handlers and annotated message handlers. `RpcJsonCodec` names
-incoming and outgoing types; `RpcSocketCodec` supports custom wire mappings.
+typed connection handlers and annotated message handlers. Their annotations
+define incoming/outgoing types once, with inferred JSON or explicit codec
+factories for custom wire mappings.
 Connection handlers retain free receive/send loops, including unsolicited events.
 Directional schemas and codec metadata drive built-in JSON clients or explicit
 protocol bindings. Protocol metadata alone still does not enable validation or

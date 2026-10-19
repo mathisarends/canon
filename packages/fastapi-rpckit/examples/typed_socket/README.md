@@ -5,11 +5,11 @@ one validated `Ping` and returns a `Pong`; the library owns the connection loop.
 Malformed messages never reach the handler;
 the transport adds no JSON-RPC envelope to these messages.
 
-The same `PING = RpcJsonCodec(incoming=Ping, outgoing=Pong)` is reused by a
-connection handler, `session(socket: Inject[PingSocket])`. That handler sends an
+The connection handler `session(socket: Inject[PingSocket])` derives its JSON
+codec from `type PingSocket = RpcSocket[Ping, Pong]`. That handler sends an
 initial `Pong(value=0)` before receiving any input and sends two messages per
-`Ping`. Its injected `RpcSocket[Ping, Pong]` preserves precise IDE types while
-`codec=PING` declares runtime validation with named directions. Both Python and
+`Ping`. The annotation defines runtime validation and precise IDE types once;
+there is no separate codec instance repeating the message types. Both Python and
 TypeScript integration tests exercise the free connection flow as well as the
 managed reply loop.
 

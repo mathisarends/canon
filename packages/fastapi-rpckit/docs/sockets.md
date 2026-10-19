@@ -1,9 +1,10 @@
 # Sockets
 
 A socket is a WebSocket endpoint. Its transport, message codec, application
-protocol, and handler lifecycle are separate choices. Inject `RpcSocket` for a
-connection handler, optionally adding `codec=` for validated messages, or use a
-message handler whose parameter and return annotations infer a JSON codec.
+protocol, and handler lifecycle are separate choices. Inject `RpcSocket` for raw
+text/binary, `RpcSocket[Incoming, Outgoing]` for a validated connection, or use a
+message handler whose parameter and return annotations describe its messages.
+Typed annotations infer JSON; `codec=` selects another codec class or factory.
 See [connection codecs](#connection-codecs) and [typed JSON messages](#typed-json-messages).
 
 For an untyped socket,
@@ -57,8 +58,9 @@ fresh invocation scope per message, within the existing connection scope. The
 scope stays open through response validation and sending, and is released on
 completion, failure, or disconnect. Calls are sequential on each connection.
 A `None` return annotation sends JSON `null`; it does not suppress the response.
-An explicit `codec=` can replace the inferred JSON codec, including with a binary
-codec. Its incoming and outgoing types must match the handler annotations.
+An explicit `codec=SomeCodec` can replace JSON, including with a binary codec.
+The class or factory receives `incoming=` and `outgoing=` from the handler
+annotations. No second message-type declaration is needed or accepted.
 
 Incoming text is parsed and validated once with a cached Pydantic adapter in
 strict mode, before entering the socket queue or calling the handler. Set
@@ -137,17 +139,17 @@ and application code; it is not an end-to-end latency measurement.
 
 ## Connection codecs
 
-A reusable codec names both directions from the server's perspective. It can be
-shared by a message handler and a connection handler:
+The handler annotation is the single source of message types for validation,
+contract schemas, SDK generation, and static checking. JSON needs no separate
+codec declaration:
 
 ```python
-from fastapi_rpckit import Inject, RpcJsonCodec, RpcSocket
+from fastapi_rpckit import Inject, RpcSocket
 
-PING = RpcJsonCodec(incoming=Ping, outgoing=Pong)
 type PingSocket = RpcSocket[Ping, Pong]
 
 
-@channel.socket("session", codec=PING)
+@channel.socket("session")
 async def session(socket: Inject[PingSocket]) -> None:
     await socket.send(Pong(value=0))  # An unsolicited initial message.
     async for message in socket:
@@ -155,7 +157,7 @@ async def session(socket: Inject[PingSocket]) -> None:
         await socket.send(Pong(value=message.value + 1))
 
 
-@channel.socket("reply", codec=PING)
+@channel.socket("reply")
 async def reply(message: Ping) -> Pong:
     return Pong(value=message.value + 1)
 ```
@@ -166,15 +168,16 @@ counts. `receive()` returns `Ping`; `send()` accepts `Pong`. Malformed input is
 rejected before it reaches the queue, and output is validated before writing.
 Limits, backpressure, send locking, cancellation, and cleanup still apply.
 
-`incoming=` and `outgoing=` define the runtime contract. The socket type arguments
-are **received, sent**, from the handler's perspective. They are needed for
-static typing because a Python type checker cannot derive a function parameter's
-type from a decorator argument. Declaration rejects a missing typed socket
-annotation, mismatched message types, or a typed socket without `codec=`.
-Use shared type aliases for complex unions instead of repeating their schemas.
+The socket type arguments are **received, sent**, from the handler's perspective.
+The library derives a JSON codec from this same annotation, including through a
+type alias. Use shared aliases for complex unions instead of repeating schemas.
+For a custom wire mapping, pass its class or a configured factory as `codec=`;
+the factory receives these types once at endpoint declaration. Preconfigured
+codec instances are rejected, and a factory returning different message types
+fails declaration instead of drifting from the static contract.
 The handler can inspect `socket.codec` and `socket.protocol` independently.
 
-Without a codec, `Inject[RpcSocket]` retains unchanged text/binary semantics and
+Bare `Inject[RpcSocket]` retains unchanged text/binary semantics and
 does no JSON parsing. `protocol=...` remains optional metadata in both modes.
 Neither mode adds a JSON-RPC envelope or implements request correlation, CDP
 sessions, event routing, or automatic imports from schema URLs.
