@@ -329,7 +329,7 @@ async def test_long_lived_streams_close_with_restart_at_grace_expiry(kind, monke
     entered, cancelled, expired, timer_started = (asyncio.Event() for _ in range(4))
     channel = RpcChannel("streams")
 
-    @channel.server.stream()
+    @channel.stream()
     async def frames() -> AsyncIterator[bytes]:
         entered.set()
         try:
@@ -338,7 +338,7 @@ async def test_long_lived_streams_close_with_restart_at_grace_expiry(kind, monke
         finally:
             cancelled.set()
 
-    @channel.server.raw_socket()
+    @channel.raw_socket()
     async def raw(socket: Inject[RpcRawSocket]) -> None:
         entered.set()
         try:

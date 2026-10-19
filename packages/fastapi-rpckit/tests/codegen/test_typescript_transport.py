@@ -121,10 +121,10 @@ def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) 
                   code: -32601,
                   message: "Method not found",
                   data: { code: "method_not_found", details: { method: "room.ping" } },
-                }), "wrong client-method error");
+                }), "wrong server-request error");
                 const later = transport.request("later");
                 socket.receive({ id: 3, result: "alive" });
-                assert(await later === "alive", "client method killed transport");
+                assert(await later === "alive", "server request killed transport");
                 await transport.close();
                 assert(await transport.closed === undefined, "normal close failed");
                 assert(timers.size === 0, "timers leaked after close");

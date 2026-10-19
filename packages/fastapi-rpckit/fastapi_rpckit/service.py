@@ -77,17 +77,11 @@ class RpcEndpoint[ContextT]:
             for subscription in service_protocol.subscriptions
             if subscription.server == self.name
         )
-        client_methods = tuple(
-            client_method
-            for client_method in service_protocol.client_methods
-            if client_method.server == self.name
-        )
         protocol = RpcProtocol(
             methods=methods,
             notifications=notifications,
             subscriptions=subscriptions,
             notification_types=service_protocol.notification_types,
-            client_methods=client_methods,
             version=self.service.version,
         )
         object.__setattr__(self, "_protocol", protocol)
@@ -375,7 +369,7 @@ class RpcService:
         marker = getattr(stream, "__rpckit_stream__", None)
         if not isinstance(stream, FunctionType) or marker is None:
             raise ProtocolDefinitionError(
-                "rpc.stream() expects a function decorated by @channel.server.stream"
+                "rpc.stream() expects a function decorated by @channel.stream"
             )
         if stream in self._mounted_streams:
             raise ProtocolDefinitionError("An RPC stream can only be mounted once")
@@ -429,8 +423,7 @@ class RpcService:
         marker = getattr(raw_socket, "__rpckit_raw_socket__", None)
         if not isinstance(raw_socket, FunctionType) or marker is None:
             raise ProtocolDefinitionError(
-                "rpc.raw_socket() expects a function decorated by "
-                "@channel.server.raw_socket"
+                "rpc.raw_socket() expects a function decorated by @channel.raw_socket"
             )
         if raw_socket in self._mounted_raw_sockets:
             raise ProtocolDefinitionError("An RPC raw socket can only be mounted once")
@@ -492,7 +485,6 @@ class RpcService:
         types = []
         streams = []
         raw_sockets = []
-        client_methods = []
         owners: dict[str, str] = {}
         errors: dict[str, type] = {}
         for endpoint in self.endpoints:
@@ -518,20 +510,14 @@ class RpcService:
                         for item in protocol.subscriptions
                     )
                     types.extend(protocol.notification_types)
-                    client_methods.extend(
-                        replace(item, server=endpoint.name)
-                        for item in protocol.client_methods
-                    )
                     for item in (
                         *protocol.methods,
                         *protocol.notifications,
                         *protocol.subscriptions,
-                        *protocol.client_methods,
                     ):
                         _unique_name(owners, item.name, channel.name)
                     for method in (
                         *protocol.methods,
-                        *protocol.client_methods,
                         *protocol.notifications,
                         *protocol.subscriptions,
                     ):
@@ -593,7 +579,6 @@ class RpcService:
             subscriptions=subscriptions,
             notification_types=types,
             streams=streams,
-            client_methods=client_methods,
             raw_sockets=raw_sockets,
             version=self.version,
         )

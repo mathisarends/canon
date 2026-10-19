@@ -35,7 +35,7 @@ browser = RpcChannel("browser")
 tabs = browser.child("tabs")
 
 
-@browser.server.raw_socket(
+@browser.raw_socket(
     "cdp",
     closes=(
         RpcErrorBinding(
@@ -54,7 +54,7 @@ async def cdp(socket: Inject[RpcRawSocket]) -> None:
         await socket.send(message)
 
 
-@tabs.server.raw_socket("cdp", messages=(RpcMessageType.TEXT,))
+@tabs.raw_socket("cdp", messages=(RpcMessageType.TEXT,))
 async def tab_cdp(tab_id: str, socket: Inject[RpcRawSocket]) -> None:
     await socket.send(tab_id)
 

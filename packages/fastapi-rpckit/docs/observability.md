@@ -363,53 +363,11 @@ const client = await TasksClient.connect({ middleware: [tracing] });
 its per-attempt copy and may add or replace values. Custom TS transports receive
 that carrier in their existing third options argument. Keep it out of params.
 
-### Reverse calls and baggage
-
-For Python server-to-client calls, opt into injecting the current server span:
-
-```python
-from fastapi_rpckit.integrations.opentelemetry import trace_metadata
-
-result = await client.call(client_method, params, metadata=trace_metadata())
-```
-
-Generated Python handlers can read the validated immutable carrier from
-`current_client_method_metadata()` while handling the call. The accessor is
-`None` outside the handler, and its task-local value is reset on every exit.
-An application handler can attach the remote parent and create a span like this:
-
-```python
-from opentelemetry import context, trace
-from opentelemetry.trace import SpanKind
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-
-from my_client import DemoHandler, current_client_method_metadata
-
-tracer = trace.get_tracer("my-handler")
-
-
-class Demo(DemoHandler):
-    async def ping(self) -> str:
-        carrier = current_client_method_metadata()
-        parent = TraceContextTextMapPropagator().extract(
-            dict(carrier or {}), context=context.Context()
-        )
-        token = context.attach(parent)
-        try:
-            with tracer.start_as_current_span("demo.ping", kind=SpanKind.SERVER):
-                return "pong"
-        finally:
-            context.detach(token)
-```
-
-Only send reverse-call metadata to peers supporting the extension. TypeScript
-still has no typed reverse-call handlers; supported metadata leaves its existing
-`method_not_found` response intact, while invalid metadata gets `invalid_request`.
+### Baggage
 
 Remote baggage propagation is **off by default**, including handshake baggage.
 Enable `OpenTelemetry(propagate_baggage=True)` only when the application needs it.
-For reverse injection, `trace_metadata(include_baggage=True)` is a separate opt-in;
-client recipes must explicitly add `baggage` to their allowlist. The same size
+Client recipes must explicitly add `baggage` to their allowlist. The same size
 bound applies. Baggage is untrusted remote data: do not use it for authorization
 or automatically copy it into logs or span attributes. Locally established
 application baggage is not stripped. Configure application propagators deliberately

@@ -5,10 +5,9 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from fastapi_rpckit.errors import ProtocolDefinitionError
-from fastapi_rpckit.protocol import RpcClientMethod, RpcMethodDefinition, RpcProtocol
+from fastapi_rpckit.protocol import RpcMethodDefinition, RpcProtocol
 from fastapi_rpckit.request_metadata import REQUEST_METADATA_CAPABILITY
 from fastapi_rpckit.schema.components import (
-    client_method_schema_name,
     components,
     described,
     notification_schema_name,
@@ -111,11 +110,6 @@ def render_openrpc(
             for item in protocol.notification_types
         ],
     }
-    if protocol.client_methods:
-        document["x-rpc-client-methods"] = [
-            _client_method(client_method, schemas, server_lookup)
-            for client_method in protocol.client_methods
-        ]
     streams = [dict(stream) for stream in binary_streams]
     if streams:
         document["x-rpckit-binary-streams"] = streams
@@ -150,30 +144,6 @@ def _method(
     if method.server is not None:
         document["servers"] = [servers[method.server]]
     return document
-
-
-def _client_method(
-    client_method: RpcClientMethod,
-    components: dict[str, Any],
-    servers: Mapping[str, dict[str, Any]],
-) -> dict[str, Any]:
-    document: dict[str, Any] = {"name": client_method.name}
-    if client_method.summary is not None:
-        document["summary"] = client_method.summary
-    document |= {
-        "paramStructure": "by-name",
-        "params": _params(client_method, components),
-        "result": {
-            "name": "result",
-            "schema": _result_schema(client_method, components),
-        },
-        "x-rpc-request-schema": _ref(client_method_schema_name(client_method.name)),
-    }
-    if client_method.params is not None:
-        document["x-rpc-params-schema"] = _ref(type_name(client_method.params))
-    if client_method.raises:
-        document["errors"] = [_error(error) for error in client_method.raises]
-    return _with_server(document, client_method.server, servers)
 
 
 def _error(error: type) -> dict[str, Any]:
@@ -220,11 +190,6 @@ def _validate_server_references(
         for item in protocol.subscriptions
         if item.server is not None
     )
-    references.extend(
-        ("client method", client_method.name, client_method.server)
-        for client_method in protocol.client_methods
-        if client_method.server is not None
-    )
     missing = [reference for reference in references if reference[2] not in servers]
     if missing:
         details = ", ".join(
@@ -246,7 +211,7 @@ def _with_server(
 
 
 def _params(
-    method: RpcMethodDefinition | RpcClientMethod,
+    method: RpcMethodDefinition,
     components: dict[str, Any],
 ) -> list[dict[str, Any]]:
     if method.params is None:
@@ -260,7 +225,7 @@ def _params(
 
 
 def _result_schema(
-    method: RpcMethodDefinition | RpcClientMethod,
+    method: RpcMethodDefinition,
     components: dict[str, Any],
 ) -> dict[str, Any]:
     name = getattr(method.result, "__name__", None)

@@ -6,11 +6,10 @@ from typing import Any
 
 import pytest
 
-from fastapi_rpckit import RpcService
 from fastapi_rpckit.codegen import generate_python_client
 from fastapi_rpckit.codegen.python import PythonClientOptions
 from fastapi_rpckit.schema import render_openrpc
-from tests.conftest import greeting_app, room_channel
+from tests.conftest import greeting_app
 
 PACKAGE = "greeting_client"
 
@@ -18,15 +17,6 @@ PACKAGE = "greeting_client"
 @pytest.fixture(scope="session")
 def document() -> dict[str, Any]:
     return render_openrpc(greeting_app.protocol, title="Greeting")
-
-
-@pytest.fixture(scope="session")
-def room_document() -> dict[str, Any]:
-    service = RpcService()
-    service.socket("/rooms", channels=(room_channel, greeting_app), name="rooms")
-    return service.contract(
-        title="Rooms", base_url="wss://rooms.example.com"
-    ).to_openrpc()
 
 
 @pytest.fixture(scope="session")

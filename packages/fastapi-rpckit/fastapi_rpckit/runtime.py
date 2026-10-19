@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from fastapi_rpckit._activity import _Activity, notify_activity
 from fastapi_rpckit._adapter import adapter
 from fastapi_rpckit.codec import RpcCodec
-from fastapi_rpckit.connected_client import RpcConnectedClient
 from fastapi_rpckit.connection import (
     _STARTUP_EXPIRED,
     REJECTION_CLOSES,
@@ -72,7 +71,7 @@ from fastapi_rpckit.streams import (
 )
 from fastapi_rpckit.subscriptions import SubscriptionSession
 
-logger = logging.getLogger(LOGGER_NAME)
+logger: logging.Logger = logging.getLogger(LOGGER_NAME)
 
 
 def _rejection(error: Exception, rejections: RpcRejections | None) -> RpcReject | None:
@@ -267,10 +266,6 @@ async def _run_rpc_endpoint(
             request_close(RpcConnectionClose.POLICY_VIOLATION, "Client too slow")
             await report_slow_consumer()
 
-    connected_client = RpcConnectedClient._create(
-        connection, endpoint.protocol.client_methods, send_outgoing, limits
-    )
-    values = {**values, RpcConnectedClient: connected_client}
     codec = RpcCodec()
 
     def request_close(code, reason, raw_close_code=None):
@@ -280,7 +275,6 @@ async def _run_rpc_endpoint(
             connection._close_reason = reason
             connection._raw_close_code = raw_close_code
             close_event.set()
-            connected_client._close()
 
     connection._set_close_handler(request_close)
     tasks: set[asyncio.Task] = set()
@@ -505,8 +499,6 @@ async def _run_rpc_endpoint(
                             limits.max_pending_requests + limits.max_queue_size
                         )
                         for item in message if batch else [message]:
-                            if connected_client._resolve(item):
-                                continue
                             if cancel_request(item):
                                 continue
                             if (
@@ -693,7 +685,6 @@ async def _run_rpc_endpoint(
         connection._mark_closed()
         raise
     finally:
-        connected_client._close()
         if pending_rejections:
             logger.debug(
                 "Rejected %d messages exceeding max_pending_requests "

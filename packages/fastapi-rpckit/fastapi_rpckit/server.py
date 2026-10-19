@@ -41,7 +41,7 @@ type RpcErrorMapper = Callable[[Exception], RpcError | None]
 type RpcResponse = RpcSuccess | RpcFailure
 type RpcResponseMessage = RpcResponse | list[RpcResponse] | None
 
-logger = logging.getLogger(LOGGER_NAME)
+logger: logging.Logger = logging.getLogger(LOGGER_NAME)
 _CLIENT_CANCEL = object()
 
 

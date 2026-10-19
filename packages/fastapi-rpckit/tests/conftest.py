@@ -62,7 +62,7 @@ class GreetingState:
         self.greeted: list[str] = []
 
 
-@greeting_channel.server.method("say", summary="Greet someone by name.")
+@greeting_channel.method("say", summary="Greet someone by name.")
 async def say(
     params: SayParams,
     state: Inject[GreetingState],
@@ -71,7 +71,7 @@ async def say(
     return SayResult(text=f"Hello, {params.name}!")
 
 
-@greeting_channel.server.method("forget", raises=(UnknownGreetingError,))
+@greeting_channel.method("forget", raises=(UnknownGreetingError,))
 async def forget(
     params: ForgetParams,
     state: Inject[GreetingState],
@@ -82,7 +82,7 @@ async def forget(
     state.greeted.remove(params.name)
 
 
-@greeting_channel.server.method("greeted")
+@greeting_channel.method("greeted")
 async def greeted_names(
     state: Inject[GreetingState],
 ) -> GreetedResult:
@@ -90,13 +90,13 @@ async def greeted_names(
     return GreetedResult(names=list(state.greeted))
 
 
-@greeting_channel.server.method("clear")
+@greeting_channel.method("clear")
 async def clear(state: Inject[GreetingState]) -> None:
     """Forget everyone."""
     state.greeted.clear()
 
 
-@greeting_channel.server.event(
+@greeting_channel.event(
     "changed",
     payload=GreetingUpdate,
     summary="Publish a greeting change.",
@@ -104,40 +104,6 @@ async def clear(state: Inject[GreetingState]) -> None:
 async def greeting_changed() -> AsyncIterator[GreetingUpdate]:
     if False:
         yield GreetingSaid(text="")
-
-
-class MediaPlayParams(BaseModel):
-    media_uri: str
-
-
-class MediaPlayResult(BaseModel):
-    started: bool
-
-
-class SpeakerDetails(BaseModel):
-    speaker_id: str
-
-
-class MediaUnavailableError(RpcError):
-    rpc_code = -32010
-    details: SpeakerDetails
-
-
-class HelloParams(BaseModel):
-    room_id: str
-
-
-room_channel = RpcChannel("room")
-media_channel = room_channel.child("media")
-
-media_play = media_channel.client.method(
-    "play",
-    params=MediaPlayParams,
-    result=MediaPlayResult,
-    raises=(MediaUnavailableError,),
-    summary="Play a media URI on the room's speaker.",
-)
-room_ping = room_channel.client.method("ping")
 
 
 greeting_protocol = greeting_channel.protocol

@@ -158,11 +158,10 @@ async def test_create() -> None:
 and `Inject[TaskStore]` is resolved on the server — it never appears in the
 public schema.
 
-Operations on a channel are implemented by the server unless you say otherwise:
-`@tasks.method()`, `@tasks.event()`, `@tasks.subscription()`, and
-`@tasks.stream()` cover the usual client-to-server API. Only when the server
-also calls into the client do you name both sides, `tasks.server` and
-`tasks.client` — see [Client methods](docs/client-methods.md).
+Every operation on a channel is implemented by the server: `@tasks.method()`,
+`@tasks.event()`, `@tasks.subscription()`, and `@tasks.stream()` declare the
+whole API. Clients call methods on the server; the server never calls methods
+on the client. Push data to clients with events or subscriptions instead.
 
 ## Documentation
 

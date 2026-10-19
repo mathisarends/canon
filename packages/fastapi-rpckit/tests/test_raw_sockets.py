@@ -87,7 +87,7 @@ async def relay(socket: RpcRawSocket, upstream: Upstream) -> None:
 browser = RpcChannel("browser")
 
 
-@browser.server.raw_socket(
+@browser.raw_socket(
     "cdp",
     closes=(BROWSER_NOT_FOUND, CDP_UNAVAILABLE),
     summary="Proxy the Chrome DevTools Protocol.",
@@ -141,7 +141,7 @@ async def test_failures_close_with_declared_outcomes(
 async def test_a_catch_all_binding_configures_the_internal_error_reason() -> None:
     channel = RpcChannel("browser")
 
-    @channel.server.raw_socket(
+    @channel.raw_socket(
         "cdp",
         closes=(
             RpcErrorBinding(
@@ -201,7 +201,7 @@ async def test_handlers_close_with_explicit_codes() -> None:
     channel = RpcChannel("browser")
     cleaned = asyncio.Event()
 
-    @channel.server.raw_socket("cdp")
+    @channel.raw_socket("cdp")
     async def proxy(socket: Inject[RpcRawSocket]) -> None:
         try:
             await socket.close(RpcConnectionClose.POLICY_VIOLATION, reason="Busy")
@@ -220,7 +220,7 @@ async def test_undeclared_message_types_are_rejected() -> None:
     channel = RpcChannel("browser")
     sent: list[Exception] = []
 
-    @channel.server.raw_socket("cdp", messages=(RpcMessageType.TEXT,))
+    @channel.raw_socket("cdp", messages=(RpcMessageType.TEXT,))
     async def proxy(socket: Inject[RpcRawSocket]) -> None:
         try:
             await socket.send(b"binary")
@@ -275,7 +275,7 @@ async def test_path_variables_are_validated_before_acceptance() -> None:
     channel = RpcChannel("browser")
     seen: list[UUID] = []
 
-    @channel.server.raw_socket("page")
+    @channel.raw_socket("page")
     async def page(browser_id: UUID, socket: Inject[RpcRawSocket]) -> None:
         seen.append(browser_id)
 
@@ -331,7 +331,7 @@ def test_raw_sockets_must_inject_the_socket_once() -> None:
 
     with pytest.raises(ProtocolDefinitionError, match="exactly once"):
 
-        @channel.server.raw_socket()
+        @channel.raw_socket()
         async def missing() -> None: ...
 
 
@@ -340,12 +340,12 @@ def test_raw_sockets_must_be_coroutines_returning_none() -> None:
 
     with pytest.raises(ProtocolDefinitionError, match="async function"):
 
-        @channel.server.raw_socket()
+        @channel.raw_socket()
         def blocking(socket: Inject[RpcRawSocket]) -> None: ...
 
     with pytest.raises(ProtocolDefinitionError, match="return None"):
 
-        @channel.server.raw_socket()
+        @channel.raw_socket()
         async def returning(socket: Inject[RpcRawSocket]) -> bytes:
             return b""
 
@@ -354,21 +354,21 @@ def test_raw_socket_declarations_are_validated() -> None:
     channel = RpcChannel("browser")
 
     with pytest.raises(ProtocolDefinitionError, match="at least one"):
-        channel.server.raw_socket(messages=())
+        channel.raw_socket(messages=())
 
     with pytest.raises(ProtocolDefinitionError, match="RpcMessageType"):
-        channel.server.raw_socket(messages=("json",))
+        channel.raw_socket(messages=("json",))
 
     with pytest.raises(ProtocolDefinitionError, match="with a rejection"):
 
-        @channel.server.raw_socket(closes=(RpcErrorBinding(BrowserNotFound),))
+        @channel.raw_socket(closes=(RpcErrorBinding(BrowserNotFound),))
         async def unbound(socket: Inject[RpcRawSocket]) -> None: ...
 
 
 def test_raw_socket_path_parameters_must_be_path_variables() -> None:
     channel = RpcChannel("browser")
 
-    @channel.server.raw_socket()
+    @channel.raw_socket()
     async def page(browser_id: str, socket: Inject[RpcRawSocket]) -> None: ...
 
     with pytest.raises(ProtocolDefinitionError, match="browser_id"):
@@ -385,10 +385,10 @@ def test_raw_sockets_can_only_be_mounted_once() -> None:
 def test_raw_socket_names_share_the_operation_namespace() -> None:
     channel = RpcChannel("browser")
 
-    @channel.server.method("cdp")
+    @channel.method("cdp")
     async def method() -> None: ...
 
     with pytest.raises(ProtocolDefinitionError, match="Duplicate RPC route"):
 
-        @channel.server.raw_socket("cdp")
+        @channel.raw_socket("cdp")
         async def socket(socket: Inject[RpcRawSocket]) -> None: ...

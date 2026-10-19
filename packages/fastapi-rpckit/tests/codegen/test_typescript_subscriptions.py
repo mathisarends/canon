@@ -32,7 +32,7 @@ def test_generated_typescript_subscription(tmp_path: Path) -> None:
     default = RpcErrorBinding(SessionMissing, code="session_unavailable")
     channel = RpcChannel("session", raises=[default])
 
-    @channel.server.subscription(
+    @channel.subscription(
         raises=[RpcErrorBinding(SessionMissing, details=SessionParams)]
     )
     async def events(params: SessionParams) -> AsyncIterator[SessionEvent]:

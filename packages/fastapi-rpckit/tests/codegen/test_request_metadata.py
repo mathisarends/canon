@@ -12,23 +12,19 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import TypeAdapter
 
-from fastapi_rpckit import Inject, RpcChannel, RpcConnectedClient, RpcService
+from fastapi_rpckit import RpcChannel, RpcService
 from fastapi_rpckit.codegen import generate_python_client
 from fastapi_rpckit.codegen.python import PythonClientOptions
 from fastapi_rpckit.integrations.opentelemetry import (
     OpenTelemetry,
-    _remote_context,
     trace_metadata,
 )
 from fastapi_rpckit.testing import InMemorySocketFactory
 
-from . import test_client_methods
 from .conftest import document as document
 from .test_connect import client_module as client_module
 from .test_reconnect import Transport
 from .test_reconnect import pool_runtime as pool_runtime
-
-reverse_module = test_client_methods.client_module
 
 
 class InjectMetadata:
@@ -36,35 +32,6 @@ class InjectMetadata:
     async def request(self, call):
         call.metadata.update(trace_metadata())
         yield
-
-
-@pytest.mark.parametrize("cancelled", [False, True])
-async def test_reverse_metadata_is_reset_on_failure_and_cancellation(
-    reverse_module, cancelled
-):
-    class Handler(reverse_module.RoomHandler):
-        async def ping(self):
-            assert (
-                reverse_module.current_client_method_metadata()["traceparent"]
-                == "context"
-            )
-            if cancelled:
-                raise asyncio.CancelledError("stop")
-            raise RuntimeError("application failure")
-
-    dispatcher = reverse_module.handler_dispatcher(Handler())
-    message = {
-        "jsonrpc": "2.0",
-        "id": "r",
-        "method": "room.ping",
-        "meta": {"traceparent": "context"},
-    }
-    if cancelled:
-        with pytest.raises(asyncio.CancelledError, match="stop"):
-            await dispatcher.respond(message)
-    else:
-        assert (await dispatcher.respond(message))["error"]["code"] == -32603
-    assert reverse_module.current_client_method_metadata() is None
 
 
 async def test_python_middleware_injects_active_trace_into_real_no_params_call(
@@ -240,73 +207,3 @@ async def test_subscription_controls_each_carry_middleware_metadata(pool_runtime
         ("updates.unsubscribe", {"traceparent": "context"}),
     ]
     await core.close()
-
-
-async def test_reverse_calls_propagate_server_context_and_detach_handler_metadata(
-    tmp_path,
-):
-    provider = TracerProvider()
-    exporter = InMemorySpanExporter()
-    provider.add_span_processor(SimpleSpanProcessor(exporter))
-    tracer = provider.get_tracer("test")
-    channel = RpcChannel("demo")
-
-    ping = channel.client.method("ping", result=str)
-
-    @channel.server.method()
-    async def trigger(client: Inject[RpcConnectedClient]) -> str:
-        return await client.call(ping, metadata=trace_metadata())
-
-    service = RpcService(
-        middleware=[OpenTelemetry(tracer_provider=provider, metrics=False)]
-    )
-    service.socket("/rpc", channels=[channel], name="rpc")
-    package = "traced_reverse_client"
-    generate_python_client(
-        service.contract(title="Trace", base_url="ws://test").to_openrpc(),
-        tmp_path / package,
-        PythonClientOptions(
-            package=package, client_name="Client", with_transport="websocket"
-        ),
-    )
-    sys.path.insert(0, str(tmp_path))
-    try:
-        module = importlib.import_module(package)
-        from opentelemetry import context
-
-        class Handler(module.DemoHandler):
-            async def ping(self):
-                metadata = module.current_client_method_metadata()
-                assert metadata is not None
-                token = context.attach(_remote_context(metadata, False))
-                try:
-                    with tracer.start_as_current_span("reverse handler"):
-                        return "pong"
-                finally:
-                    context.detach(token)
-
-        handler = Handler()
-        async with (
-            InMemorySocketFactory(service) as factory,
-            module.Client.connect(socket_factory=factory, handlers=handler) as client,
-        ):
-            assert await client.demo.trigger() == "pong"
-            assert module.current_client_method_metadata() is None
-        dispatcher = module.handler_dispatcher(handler)
-        bad = await dispatcher.respond(
-            {"jsonrpc": "2.0", "id": "bad", "method": "demo.ping", "meta": None}
-        )
-        assert bad["error"]["code"] == -32600
-        assert module.current_client_method_metadata() is None
-        spans = {span.name: span for span in exporter.get_finished_spans()}
-        assert (
-            spans["reverse handler"].parent.span_id
-            == spans["demo.trigger"].context.span_id
-        )
-        assert spans["reverse handler"].parent.is_remote
-    finally:
-        sys.path.remove(str(tmp_path))
-        for name in list(sys.modules):
-            if name == package or name.startswith(package + "."):
-                del sys.modules[name]
-        provider.shutdown()

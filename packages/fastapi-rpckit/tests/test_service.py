@@ -87,7 +87,7 @@ def test_mounting_a_root_channel_includes_its_children() -> None:
     root = RpcChannel("voice")
     turn = root.child("turn")
 
-    @turn.server.method()
+    @turn.method()
     async def start() -> None: ...
 
     service = RpcService()
@@ -96,29 +96,16 @@ def test_mounting_a_root_channel_includes_its_children() -> None:
     assert service.protocol.methods[0].name == "voice.turn.start"
 
 
-def test_client_methods_belong_to_the_endpoint_that_mounts_their_channel() -> None:
-    room = RpcChannel("room")
-    other = RpcChannel("other")
-    play = room.client.method("play")
-    service = RpcService()
-    service.socket("/rooms", channels=(room,), name="rooms")
-    service.socket("/other", channels=(other,), name="other")
-
-    (client_method,) = service.endpoint("rooms").protocol.client_methods
-
-    assert client_method.name == play.name
-    assert client_method.server == "rooms"
-    assert service.endpoint("other").protocol.client_methods == ()
-
-
-def test_client_method_names_collide_across_channels() -> None:
+def test_method_names_collide_across_channels() -> None:
     first = RpcChannel("first", namespace="room")
     second = RpcChannel("second", namespace="room")
 
-    @first.server.method("play")
+    @first.method("play")
     async def play() -> None: ...
 
-    second.client.method("play")
+    @second.method("play")
+    async def play_again() -> None: ...
+
     service = RpcService()
     service.socket("/rpc", channels=(first, second))
 

@@ -182,7 +182,6 @@ class RpcLimits:
     max_concurrency: int = 32
     max_queue_size: int = 128
     max_message_bytes: int | None = 1_048_576
-    client_method_timeout: float | None = 30.0
     send_timeout: float | None = 10.0
     max_batch_size: int = 32
     max_subscriptions: int = 100
@@ -202,8 +201,6 @@ class RpcLimits:
             raise ValueError("RPC limits must be at least 1")
         if self.max_message_bytes is not None and self.max_message_bytes < 1:
             raise ValueError("max_message_bytes must be at least 1 or None")
-        if self.client_method_timeout is not None and self.client_method_timeout <= 0:
-            raise ValueError("client_method_timeout must be positive or None")
         if self.send_timeout is not None and self.send_timeout <= 0:
             raise ValueError("send_timeout must be positive or None")
         if self.max_batch_size < 0:

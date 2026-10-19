@@ -14,13 +14,10 @@ client, or application structure. Each file is standalone and executable.
 - [`generated_clients`](generated_clients) contains inspectable Python and
   TypeScript clients generated from
   [`automation.py`](generated_clients/automation.py). That module declares
-  server methods, an event, binary streams, and client methods, and exports the
+  server methods, an event, binary streams, and a raw socket, and exports the
   contract that becomes
   [`automation.openrpc.json`](generated_clients/automation.openrpc.json). The
-  client methods `tasks.approve` and `browser.dialogs.confirm` generate the
-  client-side handler classes in
-  [`handlers.py`](generated_clients/python/automation_client/handlers.py).
-  The binary streams generate
+  binary streams generate
   [`streams.py`](generated_clients/python/automation_client/streams.py) and
   [`streams.ts`](generated_clients/typescript/streams.ts). Regenerate the
   contract and both clients from this directory's

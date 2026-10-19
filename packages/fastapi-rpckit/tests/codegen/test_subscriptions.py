@@ -46,7 +46,7 @@ async def test_generated_python_subscription_errors_are_typed(
     channel = RpcChannel("session", raises=[default] if declared else [])
     binding = RpcErrorBinding(SessionMissing, details=FailureDetails)
 
-    @channel.server.subscription(raises=[binding] if declared else [])
+    @channel.subscription(raises=[binding] if declared else [])
     async def events() -> AsyncIterator[SessionEvent]:
         yield SessionEvent(value="first")
         raise SessionMissing(42)
@@ -115,7 +115,7 @@ async def test_generated_python_subscription_roundtrip(tmp_path: Path) -> None:
     channel = RpcChannel("session")
     stopped = asyncio.Event()
 
-    @channel.server.subscription()
+    @channel.subscription()
     async def events(params: SessionParams) -> AsyncIterator[SessionEvent]:
         try:
             yield SessionEvent(value=params.session_id)
@@ -177,7 +177,7 @@ async def test_generated_python_subscription_roundtrip(tmp_path: Path) -> None:
 async def test_subscription_resubscribes_after_reconnect(tmp_path: Path) -> None:
     channel = RpcChannel("session")
 
-    @channel.server.subscription()
+    @channel.subscription()
     async def events(params: SessionParams) -> AsyncIterator[SessionEvent]:
         yield SessionEvent(value=params.session_id)
 

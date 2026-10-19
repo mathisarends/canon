@@ -1,13 +1,5 @@
 from .channel import RpcChannel
 from .codec import RpcCodec
-from .connected_client import (
-    RpcClientClosedError,
-    RpcClientMethodError,
-    RpcClientMethodFailedError,
-    RpcClientMethodResultError,
-    RpcClientMethodTimeoutError,
-    RpcConnectedClient,
-)
 from .connection import (
     RpcBeforeAccept,
     RpcConnection,
@@ -70,7 +62,7 @@ from .middleware import (
     RpcStreamScope,
 )
 from .models import RpcModel
-from .protocol import RpcClientMethod, RpcProtocol
+from .protocol import RpcProtocol
 from .raw_sockets import RpcMessageType, RpcRawMessage, RpcRawSocket
 from .server import RpcErrorMapper, RpcResponseMessage, RpcServer
 from .service import RpcEndpoint, RpcRawSocketEndpoint, RpcService, RpcStreamEndpoint
@@ -109,15 +101,8 @@ __all__ = [
     "RpcBinaryInput",
     "RpcBinaryOutput",
     "RpcBeforeAccept",
-    "RpcClientClosedError",
-    "RpcClientMethod",
-    "RpcClientMethodError",
-    "RpcClientMethodFailedError",
-    "RpcClientMethodResultError",
-    "RpcClientMethodTimeoutError",
     "RpcChannel",
     "RpcCodec",
-    "RpcConnectedClient",
     "RpcConnection",
     "RpcConnectionClose",
     "RpcContract",

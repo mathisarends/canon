@@ -10,7 +10,6 @@ guides cover the individual parts of the API in more detail:
 - [JSON-RPC protocol](protocol.md) — request cancellation and wire conventions
 - [Dependency injection](dependencies.md) — pass application services into handlers
 - [Connections and events](connections-and-events.md) — inspect connections and push updates
-- [Client methods](client-methods.md) — let the server call the connected client
 - [Typed errors](errors.md) — make expected failures part of the contract
 - [Binary streams](streams.md) — stream bytes on dedicated endpoints
 - [Raw sockets](raw-sockets.md) — proxy native WebSocket protocols with text and binary messages

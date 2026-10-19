@@ -267,8 +267,6 @@ class ClientIr:
     api: tuple[ApiNode, ...] = ()
     notifications: tuple[NotificationDecl, ...] = ()
     binary_streams: tuple[BinaryStreamDecl, ...] = ()
-    client_methods: tuple[RouteDecl, ...] = ()
-    """Requests the server sends and the client answers."""
     raw_sockets: tuple[RawSocketDecl, ...] = ()
 
     @property
@@ -314,10 +312,12 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         (socket for socket in raw_sockets if socket.path),
     )
     notifications = _notifications(document, schemas)
-    client_methods = tuple(
-        _route(item) for item in document.get("x-rpc-client-methods", ())
-    )
-    _validate_server_references((*routes, *client_methods), notifications, servers)
+    if "x-rpc-client-methods" in document:
+        raise UnsupportedSchemaError(
+            "x-rpc-client-methods is no longer supported: every RPC method is "
+            "implemented by the server"
+        )
+    _validate_server_references(routes, notifications, servers)
     declarations = (
         *discriminator_enums,
         *_schema_declarations(schemas, discriminator_fields),
@@ -335,13 +335,12 @@ def build_ir(document: dict[str, Any]) -> ClientIr:
         servers=servers,
         declarations=_reachable(
             declarations,
-            _roots((*routes, *client_methods), notifications),
+            _roots(routes, notifications),
         ),
         root_operations=root_operations,
         api=api,
         notifications=notifications,
         binary_streams=binary_streams,
-        client_methods=client_methods,
         raw_sockets=raw_sockets,
     )
 

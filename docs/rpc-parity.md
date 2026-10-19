@@ -38,7 +38,6 @@ The successor suite covers these inherited capabilities:
 | FastAPI mounting, handshake authentication and rejections | FastAPI and expiry tests |
 | Application/session/request dependencies | dependency and Dishka tests; composed stack test |
 | Subscriptions, acknowledgement limits and cleanup | subscription, runtime and drain tests |
-| Server-to-client methods | connected-client tests and both generated SDK suites |
 | Binary upload/download/duplex and raw sockets | stream/raw socket tests and generated roundtrips |
 | Deadlines, cancellation, heartbeats, shutdown and credential refresh | dedicated server and Python/TypeScript SDK tests |
 | OpenRPC, SDKs, tracing and middleware | schema, codegen, metadata, middleware and OTel tests |

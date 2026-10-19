@@ -38,7 +38,7 @@ uploads = RpcChannel("uploads")
 voice = RpcChannel("voice")
 
 
-@uploads.server.stream("audio", input_content_type="audio/pcm")
+@uploads.stream("audio", input_content_type="audio/pcm")
 async def upload_audio(
     frames: Inject[RpcBinaryInput], recording: Inject[Recording]
 ) -> None:
@@ -52,7 +52,7 @@ async def upload_audio(
         recording.finished.set()
 
 
-@voice.server.stream("media", content_type="audio/opus", input_content_type="audio/pcm")
+@voice.stream("media", content_type="audio/opus", input_content_type="audio/pcm")
 async def media(
     voice_session_id: UUID,
     frames: Inject[RpcBinaryInput],

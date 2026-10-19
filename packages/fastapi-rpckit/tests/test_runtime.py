@@ -418,6 +418,25 @@ async def test_boolean_batch_id_cannot_alias_a_valid_request_id():
         assert executions == [True]
 
 
+async def test_response_frames_from_the_client_are_invalid_requests():
+    channel = RpcChannel("deadlines")
+
+    @channel.method()
+    async def work() -> int:
+        return 42
+
+    app = RpcService()
+    app.socket("/rpc", channels=[channel])
+    async with deadline_socket(app) as (socket, _):
+        await socket.client_send(
+            json.dumps({"jsonrpc": "2.0", "id": "server:1", "result": True})
+        )
+        invalid = json.loads(await socket.client_receive())
+        assert invalid["error"]["code"] == -32600
+        await socket.client_send(json.dumps(deadline_request(1)))
+        assert json.loads(await socket.client_receive())["result"] == 42
+
+
 @pytest.mark.parametrize("ending", ["disconnect", "shutdown"])
 async def test_shutdown_cancellation_releases_admission_without_cancelled_responses(
     monkeypatch, ending
@@ -505,7 +524,7 @@ class Instrumentation(RpcMiddleware):
 instrumentation = Instrumentation()
 
 
-@channel.server.method()
+@channel.method()
 async def echo(params: Params, connection: Inject[RpcConnection]) -> Params:
     connections.append(connection)
     return params
@@ -557,7 +576,7 @@ async def test_binary_stream() -> None:
             assert connection.path == "/frames"
             self.sent.append(size)
 
-    @streams.server.stream()
+    @streams.stream()
     async def frames() -> AsyncIterator[bytes]:
         yield b"one"
 
@@ -592,7 +611,7 @@ async def test_socket_path_model_is_validated_and_injected() -> None:
 
     room = RpcChannel("room")
 
-    @room.server.method()
+    @room.method()
     async def get(path: Inject[RoomPath]) -> str:
         return str(path.room_id)
 
@@ -721,7 +740,7 @@ async def test_requests_beyond_the_pending_limit_are_rejected() -> None:
     pending = RpcChannel("pending")
     release = asyncio.Event()
 
-    @pending.server.method()
+    @pending.method()
     async def wait(params: Params) -> Params:
         await release.wait()
         return params
@@ -1097,7 +1116,7 @@ async def test_server_events_are_sent_as_typed_notifications() -> None:
     events = RpcChannel("events")
     ready = asyncio.Event()
 
-    @events.server.event(payload=Params)
+    @events.event(payload=Params)
     async def changed(trigger: Inject[asyncio.Event]) -> AsyncIterator[Params]:
         await trigger.wait()
         yield Params(value="ready")
@@ -1127,11 +1146,11 @@ async def test_invalid_server_event_does_not_close_connection() -> None:
     events = RpcChannel("events")
     ready = asyncio.Event()
 
-    @events.server.event(payload=Params)
+    @events.event(payload=Params)
     async def changed() -> AsyncIterator[Params]:
         yield {}  # type: ignore[misc]
 
-    @events.server.event(payload=Params)
+    @events.event(payload=Params)
     async def healthy() -> AsyncIterator[Params]:
         await ready.wait()
         yield Params(value="still running")
@@ -1148,7 +1167,7 @@ async def test_invalid_server_event_does_not_close_connection() -> None:
 async def test_event_can_opt_in_to_closing_on_error() -> None:
     events = RpcChannel("events")
 
-    @events.server.event(payload=Params, on_error="close")
+    @events.event(payload=Params, on_error="close")
     async def changed() -> AsyncIterator[Params]:
         yield {}  # type: ignore[misc]
 
@@ -1170,7 +1189,7 @@ async def test_mapped_event_source_failure_closes_the_connection() -> None:
 
     events = RpcChannel("events")
 
-    @events.server.event(payload=Params)
+    @events.event(payload=Params)
     async def changed() -> AsyncIterator[Params]:
         raise AccessRevoked("revoked")
         yield Params(value="never")
@@ -1227,7 +1246,7 @@ class DelayedSocket(InMemorySocket):
 async def test_closing_after_the_final_event_delivers_queued_notifications() -> None:
     events = RpcChannel("events")
 
-    @events.server.event(payload=Params)
+    @events.event(payload=Params)
     async def finished(
         connection: Inject[RpcConnection],
     ) -> AsyncIterator[Params]:
@@ -1247,11 +1266,11 @@ async def test_closing_after_the_final_event_delivers_queued_notifications() -> 
 async def test_socket_closes_when_its_events_complete() -> None:
     events = RpcChannel("events")
 
-    @events.server.event(payload=Params)
+    @events.event(payload=Params)
     async def first() -> AsyncIterator[Params]:
         yield Params(value="first")
 
-    @events.server.event(payload=Params)
+    @events.event(payload=Params)
     async def second() -> AsyncIterator[Params]:
         await asyncio.sleep(0.01)
         yield Params(value="second")
@@ -1328,7 +1347,7 @@ async def test_rejections_are_looked_up_from_call_to_endpoint_to_service(
 async def test_stream_endpoints_apply_their_contracts() -> None:
     audio = RpcChannel("audio")
 
-    @audio.server.stream()
+    @audio.stream()
     async def frames() -> AsyncIterator[bytes]:
         raise SessionNotFound("missing")
         yield b""
@@ -1374,12 +1393,12 @@ async def test_event_bindings_are_scoped_and_exported(declared, caplog) -> None:
     )
     channel = RpcChannel("session", raises=[fallback] if declared else [])
 
-    @channel.server.event(raises=[binding] if declared else [], on_error="close")
+    @channel.event(raises=[binding] if declared else [], on_error="close")
     async def updates() -> AsyncIterator[Params]:
         raise SessionNotFound("private lookup text")
         yield Params(value="never")
 
-    @channel.server.method(raises=[binding])
+    @channel.method(raises=[binding])
     async def lookup() -> None: ...
 
     service = RpcService()

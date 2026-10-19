@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.3.0 - Unreleased
+
+### Breaking changes
+
+- Remove server-to-client RPC. Every RPC method is now implemented by the
+  server and called by the client. `channel.client.method()`, `RpcClientMethod`,
+  `RpcConnectedClient`, the `RpcClientMethod*Error` exceptions,
+  `RpcClientClosedError`, `RpcProtocol.client_methods`,
+  `RpcLimits.client_method_timeout` and `RpcTestClient(client_methods=...)` /
+  `RpcTestClient.handle()` are gone.
+- Remove `channel.server`. Declare operations directly on the channel with
+  `@channel.method()`, `@channel.event()`, `@channel.subscription()`,
+  `@channel.stream()` and `@channel.raw_socket()`. These were already the
+  default spelling; `channel.server.X` was an alias.
+- OpenRPC documents no longer contain `x-rpc-client-methods` or
+  `*ClientMethod` request schemas, and the generators reject documents that
+  still declare `x-rpc-client-methods`.
+- Generated Python clients no longer contain `handlers.py`,
+  `internal/client_methods.py`, `current_client_method_metadata()`, the
+  `connect(handlers=...)` option, the transport's `request_handler=` option
+  or the `create()` class methods on client-method errors. Like TypeScript
+  clients, they answer any request the server sends with `method_not_found`.
+- The server no longer accepts JSON-RPC response frames from the client. They
+  are answered with `invalid_request` like any other malformed request.
+
+Migration:
+
+1. Replace `@channel.server.method(...)` and the other `channel.server.*`
+   decorators with `@channel.method(...)` and the matching channel decorator.
+2. Replace each server-to-client call with a server method the client calls,
+   an event or a subscription. Remove `Inject[RpcConnectedClient]` parameters.
+3. Drop `client_method_timeout=` from `RpcLimits(...)` and `client_methods=`
+   from `RpcTestClient(...)`.
+4. Regenerate clients and remove handler classes and `handlers=` arguments
+   from `Client.connect(...)` calls.
+
 ## 0.2.0 - 2026-10-18
 
 ### Breaking changes

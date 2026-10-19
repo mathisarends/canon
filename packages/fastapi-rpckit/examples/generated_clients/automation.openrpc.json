@@ -129,7 +129,7 @@
     },
     {
       "name": "tasks.delete",
-      "summary": "Delete a task once the operator approves it.",
+      "summary": "Delete a task.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -263,51 +263,6 @@
   ],
   "components": {
     "schemas": {
-      "ApprovalDecision": {
-        "additionalProperties": false,
-        "properties": {
-          "approved": {
-            "title": "Approved",
-            "type": "boolean"
-          },
-          "comment": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Comment"
-          }
-        },
-        "required": [
-          "approved"
-        ],
-        "title": "ApprovalDecision",
-        "type": "object"
-      },
-      "ApprovalRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "taskId": {
-            "title": "Taskid",
-            "type": "string"
-          },
-          "action": {
-            "title": "Action",
-            "type": "string"
-          }
-        },
-        "required": [
-          "taskId",
-          "action"
-        ],
-        "title": "ApprovalRequest",
-        "type": "object"
-      },
       "CreateTaskParams": {
         "additionalProperties": false,
         "properties": {
@@ -334,39 +289,6 @@
           "taskId"
         ],
         "title": "DeleteTaskParams",
-        "type": "object"
-      },
-      "DialogAnswer": {
-        "additionalProperties": false,
-        "properties": {
-          "accepted": {
-            "title": "Accepted",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "accepted"
-        ],
-        "title": "DialogAnswer",
-        "type": "object"
-      },
-      "DialogRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "tabId": {
-            "title": "Tabid",
-            "type": "string"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tabId",
-          "message"
-        ],
-        "title": "DialogRequest",
         "type": "object"
       },
       "OpenTabParams": {
@@ -628,7 +550,7 @@
           "method",
           "params"
         ],
-        "description": "Delete a task once the operator approves it."
+        "description": "Delete a task."
       },
       "OpenRequest": {
         "additionalProperties": false,
@@ -737,114 +659,6 @@
         ],
         "description": "Start the browser screencast."
       },
-      "TasksApproveClientMethod": {
-        "additionalProperties": false,
-        "type": "object",
-        "title": "TasksApproveClientMethod",
-        "properties": {
-          "jsonrpc": {
-            "const": "2.0",
-            "type": "string"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null
-          },
-          "method": {
-            "const": "tasks.approve",
-            "type": "string"
-          },
-          "params": {
-            "$ref": "#/components/schemas/ApprovalRequest"
-          },
-          "meta": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string",
-              "maxLength": 4096
-            },
-            "propertyNames": {
-              "enum": [
-                "traceparent",
-                "tracestate",
-                "baggage"
-              ]
-            },
-            "maxProperties": 3,
-            "x-rpc-max-bytes": 4096
-          }
-        },
-        "required": [
-          "jsonrpc",
-          "method",
-          "params"
-        ],
-        "description": "Ask the operator to approve a task action."
-      },
-      "BrowserDialogsConfirmClientMethod": {
-        "additionalProperties": false,
-        "type": "object",
-        "title": "BrowserDialogsConfirmClientMethod",
-        "properties": {
-          "jsonrpc": {
-            "const": "2.0",
-            "type": "string"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null
-          },
-          "method": {
-            "const": "browser.dialogs.confirm",
-            "type": "string"
-          },
-          "params": {
-            "$ref": "#/components/schemas/DialogRequest"
-          },
-          "meta": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string",
-              "maxLength": 4096
-            },
-            "propertyNames": {
-              "enum": [
-                "traceparent",
-                "tracestate",
-                "baggage"
-              ]
-            },
-            "maxProperties": 3,
-            "x-rpc-max-bytes": 4096
-          }
-        },
-        "required": [
-          "jsonrpc",
-          "method",
-          "params"
-        ],
-        "description": "Let the operator answer a confirm() dialog of a tab."
-      },
       "TasksUpdatedNotification": {
         "additionalProperties": false,
         "type": "object",
@@ -941,117 +755,6 @@
   ],
   "x-rpc-subscriptions": [],
   "x-rpc-notification-types": [],
-  "x-rpc-client-methods": [
-    {
-      "name": "tasks.approve",
-      "summary": "Ask the operator to approve a task action.",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "taskId",
-          "required": true,
-          "schema": {
-            "title": "Taskid",
-            "type": "string"
-          }
-        },
-        {
-          "name": "action",
-          "required": true,
-          "schema": {
-            "title": "Action",
-            "type": "string"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "#/components/schemas/ApprovalDecision"
-        }
-      },
-      "x-rpc-request-schema": {
-        "$ref": "#/components/schemas/TasksApproveClientMethod"
-      },
-      "x-rpc-params-schema": {
-        "$ref": "#/components/schemas/ApprovalRequest"
-      },
-      "errors": [
-        {
-          "code": -32030,
-          "message": "Approval unavailable",
-          "x-rpckit-code": "approval_unavailable"
-        }
-      ],
-      "servers": [
-        {
-          "name": "production",
-          "url": "wss://{host}/automation/rpc",
-          "x-rpckit-transport": {
-            "type": "websocket",
-            "messageEncoding": "json",
-            "frameType": "text"
-          },
-          "variables": {
-            "host": {
-              "default": "api.example.com"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "browser.dialogs.confirm",
-      "summary": "Let the operator answer a confirm() dialog of a tab.",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "tabId",
-          "required": true,
-          "schema": {
-            "title": "Tabid",
-            "type": "string"
-          }
-        },
-        {
-          "name": "message",
-          "required": true,
-          "schema": {
-            "title": "Message",
-            "type": "string"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "#/components/schemas/DialogAnswer"
-        }
-      },
-      "x-rpc-request-schema": {
-        "$ref": "#/components/schemas/BrowserDialogsConfirmClientMethod"
-      },
-      "x-rpc-params-schema": {
-        "$ref": "#/components/schemas/DialogRequest"
-      },
-      "servers": [
-        {
-          "name": "browser",
-          "url": "wss://{host}/browser/rpc",
-          "x-rpckit-transport": {
-            "type": "websocket",
-            "messageEncoding": "json",
-            "frameType": "text"
-          },
-          "variables": {
-            "host": {
-              "default": "api.example.com"
-            }
-          }
-        }
-      ]
-    }
-  ],
   "x-rpckit-binary-streams": [
     {
       "name": "browser.screencast.frames",
