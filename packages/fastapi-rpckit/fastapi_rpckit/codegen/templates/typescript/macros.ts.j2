@@ -27,7 +27,7 @@
 {% endif %}{{ item | socket_handle_signature }}
     return {{ rpc }}.openSocket(
 {{ item | socket_handle_endpoint(rpc) }}
-      (transport, endpoint) => new Socket(transport, endpoint),
+{{ item | socket_handle_connect }}
     );
   }
 {% endmacro %}

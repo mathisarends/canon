@@ -7,6 +7,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from fastapi_rpckit.codegen import render_python_client, render_typescript_client
+from fastapi_rpckit.codegen.bindings import load_binding
+from fastapi_rpckit.codegen.ir import UnsupportedSchemaError
 from fastapi_rpckit.codegen.options import PythonClientOptions, TypeScriptClientOptions
 from fastapi_rpckit.codegen.writer import write_files
 from fastapi_rpckit.schema.export import (
@@ -79,7 +81,11 @@ def _generate(arguments: argparse.Namespace) -> int:
 
 def _generate_one(arguments: argparse.Namespace) -> int:
     document = json.loads(arguments.schema.read_text(encoding="utf-8"))
-    files = _render_client(arguments, document)
+    try:
+        files = _render_client(arguments, document)
+    except (UnsupportedSchemaError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
     changed = write_files(arguments.output, files, check=arguments.check)
     return _report_generation(changed, check=arguments.check)
 
@@ -88,6 +94,7 @@ def _render_client(
     arguments: argparse.Namespace,
     document: dict[str, object],
 ) -> dict[str, str]:
+    bindings = tuple(load_binding(name) for name in getattr(arguments, "bindings", ()))
     if arguments.language == "python":
         extra_files, extra_exports = _extra_python_files(
             getattr(arguments, "extra_files", ()),
@@ -102,6 +109,8 @@ def _render_client(
             with_transport=arguments.with_transport,
             extra_files=extra_files,
             extra_exports=extra_exports,
+            bindings=bindings,
+            contract=arguments.schema,
         )
         return dict(render_python_client(document, options))
     else:
@@ -112,6 +121,8 @@ def _render_client(
             api_names=dict(arguments.api_name),
             source=arguments.schema.name,
             with_transport=arguments.with_transport,
+            bindings=bindings,
+            contract=arguments.schema,
         )
         return dict(render_typescript_client(document, options))
 
@@ -209,11 +220,8 @@ def _generate_config(path: Path, *, check: bool) -> int:
         )
         try:
             rendered.append((arguments, _render_client(arguments, document)))
-        except (OSError, SyntaxError, ValueError) as error:
-            print(
-                f"error: Invalid client extra_files or extra_exports: {error}",
-                file=sys.stderr,
-            )
+        except (OSError, SyntaxError, UnsupportedSchemaError, ValueError) as error:
+            print(f"error: Invalid client: {error}", file=sys.stderr)
             return 2
 
     changed_contract: tuple[Path, ...] = ()
@@ -306,6 +314,7 @@ def _config_arguments(
             base / item for item in _config_string_list(client, "extra_files")
         ),
         extra_exports=_config_string_list(client, "extra_exports"),
+        bindings=_config_string_list(client, "bindings"),
     )
 
 
@@ -439,6 +448,17 @@ def _add_generate_command(commands: argparse._SubParsersAction) -> None:
         "--with-transport",
         choices=("websocket",),
         help="Generate a ready-to-use transport implementation.",
+    )
+    generate.add_argument(
+        "--binding",
+        action="append",
+        default=[],
+        dest="bindings",
+        metavar="NAME",
+        help=(
+            "Typed client binding for a socket protocol: an entry point name "
+            "such as 'cdp' or module:attribute; repeatable."
+        ),
     )
     generate.add_argument(
         "--check",

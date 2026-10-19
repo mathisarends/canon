@@ -1,8 +1,9 @@
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
 
+from fastapi_rpckit.codegen.bindings import SocketBinding, bind_sockets
 from fastapi_rpckit.codegen.ir import (
     BinaryStreamDecl,
     ClientIr,
@@ -48,6 +49,7 @@ def render_files(ir: ClientIr, options: TypeScriptClientOptions) -> dict[str, st
         options,
         client_name,
     )
+    bound = bind_sockets(ir.sockets, options.bindings, "typescript", options.contract)
     renderer = _Renderer(
         ir,
         view.root_operations,
@@ -57,6 +59,7 @@ def render_files(ir: ClientIr, options: TypeScriptClientOptions) -> dict[str, st
         options,
         client_name,
         view.root_sockets,
+        bound,
     )
     files = {
         "core.ts": renderer.core(),
@@ -74,6 +77,8 @@ def render_files(ir: ClientIr, options: TypeScriptClientOptions) -> dict[str, st
         files["streams.ts"] = renderer.streams()
     if ir.sockets:
         files["sockets.ts"] = renderer.sockets()
+    for binding in bound.values():
+        files[f"bindings/{binding.module}.ts"] = renderer.module(binding.source.strip())
     if options.with_transport == "websocket":
         files["transport.ts"] = renderer.transport()
     if view.nodes:
@@ -94,6 +99,7 @@ class _Renderer:
         options: TypeScriptClientOptions,
         client_name: str,
         root_sockets: tuple[SocketDecl, ...] = (),
+        bound: Mapping[str, SocketBinding] | None = None,
     ) -> None:
         self.ir = ir
         self.root_operations = root_operations
@@ -101,6 +107,7 @@ class _Renderer:
         self.root_events = root_events
         self.root_streams = root_streams
         self.root_sockets = root_sockets
+        self.bound = bound or {}
         self.options = options
         self.client_name = client_name
 
@@ -142,7 +149,8 @@ class _Renderer:
             "property": _property,
             "socket_handle_endpoint": _socket_handle_endpoint,
             "schema_array": _schema_array,
-            "socket_handle_signature": _socket_handle_signature,
+            "socket_handle_signature": self._socket_handle_signature,
+            "socket_handle_connect": self._socket_handle_connect,
             "route_access": lambda route: f"routes.{_route_key(route)}",
             "route_key": _route_key,
             "route_params": lambda route: (
@@ -252,6 +260,11 @@ class _Renderer:
                     f"{root}sockets",
                 )
             )
+            imports.extend(
+                self._binding_imports(
+                    (socket for node in nodes for socket in node.sockets), root
+                )
+            )
         route_imports = []
         if any(node.operations for node in nodes):
             route_imports.append("routes")
@@ -280,6 +293,41 @@ class _Renderer:
             nodes=tuple(_walk_postorder((root_node,))),
         )
         return self.module(body)
+
+    def _socket_binding(self, socket: SocketDecl) -> SocketBinding | None:
+        if socket.protocol is None:
+            return None
+        return self.bound.get(socket.protocol.name)
+
+    def _binding_imports(self, sockets: Iterable[SocketDecl], root: str) -> list[str]:
+        modules: dict[str, SocketBinding] = {}
+        for socket in sockets:
+            binding = self._socket_binding(socket)
+            if binding is not None:
+                modules.setdefault(binding.module, binding)
+        return [
+            _value_import(
+                [binding.open, f"type {binding.session}"],
+                f"{root}bindings/{binding.module}",
+            )
+            for binding in modules.values()
+        ]
+
+    def _socket_handle_signature(self, socket: SocketDecl) -> str:
+        binding = self._socket_binding(socket)
+        session = "Socket" if binding is None else binding.session
+        return _socket_signature(socket, f"Promise<{session}>")
+
+    def _socket_handle_connect(self, socket: SocketDecl) -> str:
+        """The ``openSocket`` connect callback, laid out as Prettier would."""
+        binding = self._socket_binding(socket)
+        create = "new Socket(transport, endpoint)"
+        if binding is None:
+            return f"      (transport, endpoint) => {create},"
+        inline = f"      (transport, endpoint) => {binding.open}({create}),"
+        if len(inline) <= _TS_WIDTH:
+            return inline
+        return f"      (transport, endpoint) =>\n        {binding.open}({create}),"
 
     def client(self) -> str:
         core_imports = [
@@ -327,6 +375,7 @@ class _Renderer:
                     "type SocketConnectionFactory",
                 ]
             imports.append(_value_import(socket_imports, "./sockets"))
+            imports.extend(self._binding_imports(self.root_sockets, "./"))
         route_imports = []
         if self.root_operations:
             route_imports.append("routes")
@@ -800,10 +849,6 @@ def _schema_array(schemas: Iterable[str]) -> str:
 def _stream_signature(stream: BinaryStreamDecl) -> str:
     """A stream method's opening line, laid out as Prettier would."""
     return _socket_signature(stream, f"Promise<{_stream_connection(stream)}>")
-
-
-def _socket_handle_signature(socket: SocketDecl) -> str:
-    return _socket_signature(socket, "Promise<Socket>")
 
 
 def _socket_signature(stream: BinaryStreamDecl | SocketDecl, returns: str) -> str:

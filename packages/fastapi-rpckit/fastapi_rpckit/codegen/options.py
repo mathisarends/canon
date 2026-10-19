@@ -1,5 +1,8 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from fastapi_rpckit.codegen.bindings import ProtocolBinding
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +16,10 @@ class PythonClientOptions:
     with_transport: str | None = None
     extra_files: Mapping[str, str] = field(default_factory=dict)
     extra_exports: Mapping[str, str] = field(default_factory=dict)
+    bindings: tuple[ProtocolBinding, ...] = ()
+    """Typed clients for sockets that declare the bindings' protocols."""
+    contract: str | Path | None = None
+    """The contract's URL or path; bindings resolve relative schemas against it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,3 +30,7 @@ class TypeScriptClientOptions:
     api_names: Mapping[str, str] = field(default_factory=dict)
     source: str = "the OpenRPC document"
     with_transport: str | None = None
+    bindings: tuple[ProtocolBinding, ...] = ()
+    """Typed clients for sockets that declare the bindings' protocols."""
+    contract: str | Path | None = None
+    """The contract's URL or path; bindings resolve relative schemas against it."""

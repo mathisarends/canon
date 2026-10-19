@@ -58,14 +58,26 @@
         )
 {% endmacro %}
 
-{% macro socket_method(item) %}{% set inline_signature = "    def " ~ (item.operation_name | identifier) ~ "(self) -> AbstractAsyncContextManager[Socket]:" %}{% if not item.call_variables and inline_signature | length <= 88 %}{{ inline_signature }}
+{% macro socket_method(item) %}{% set binding = item | socket_binding %}{% set returns = binding.session if binding else "Socket" %}{% set inline_signature = "    def " ~ (item.operation_name | identifier) ~ "(self) -> AbstractAsyncContextManager[" ~ returns ~ "]:" %}{% if not item.call_variables and inline_signature | length <= 88 %}{{ inline_signature }}
 {% else %}    def {{ item.operation_name | identifier }}(
         self,
 {% if item.call_variables %}        *,
 {% for variable in item.call_variables %}        {{ variable.name | identifier }}: {{ variable | variable_annotation }} | None = None,
-{% endfor %}{% endif %}    ) -> AbstractAsyncContextManager[Socket]:
+{% endfor %}{% endif %}    ) -> AbstractAsyncContextManager[{{ returns }}]:
 {% endif %}{% if item.summary %}        """{{ item.summary | docstring }}"""
-{% endif %}        return open_socket(
+{% endif %}{% if binding %}        return {{ binding.open }}(
+            open_socket(
+                resolve_socket_endpoint(
+                    SOCKETS[SocketName.{{ item.name | constant }}],
+                    self._rpc.variables,
+{% if item.call_variables %}                    {
+{% for variable in item.call_variables %}                        {{ variable.name | literal }}: {{ variable.name | identifier }},
+{% endfor %}                    },
+{% endif %}                ),
+                self._rpc.socket_opener,
+            )
+        )
+{% else %}        return open_socket(
             resolve_socket_endpoint(
                 SOCKETS[SocketName.{{ item.name | constant }}],
                 self._rpc.variables,
@@ -75,4 +87,4 @@
 {% endif %}            ),
             self._rpc.socket_opener,
         )
-{% endmacro %}
+{% endif %}{% endmacro %}
