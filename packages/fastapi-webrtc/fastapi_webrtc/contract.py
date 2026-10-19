@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Iterator, Sequence
+from copy import copy
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI
+from fastapi._compat import get_cached_model_fields
 from fastapi.dependencies.models import Dependant
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 from pydantic_core import core_schema
 from starlette.routing import BaseRoute
@@ -202,14 +204,17 @@ def _parameters(
         return []
     found: dict[tuple[str, str], tuple[ParameterLocation, str, Any, bool]] = {}
     for location, field in _fields(dependant):
-        key = (location, field.alias)
+        alias = getattr(field, "validation_alias", None) or field.alias
+        key = (location, alias)
         required = bool(field.field_info.is_required())
         previous = found.get(key)
         if previous is not None:
             required = required or previous[3]
         # Keep constraints and descriptions of Query()/Path() declarations.
-        annotation = _ANNOTATED[field.field_info.annotation, field.field_info]
-        found[key] = (location, field.alias, annotation, required)
+        info = copy(field.field_info)
+        info.alias = info.validation_alias = info.serialization_alias = None
+        annotation = _ANNOTATED[info.annotation, info]
+        found[key] = (location, alias, annotation, required)
     path_order = [v for (loc, _), v in found.items() if loc == "path"]
     query_order = [v for (loc, _), v in found.items() if loc == "query"]
     return path_order + query_order
@@ -218,7 +223,13 @@ def _parameters(
 def _fields(dependant: Dependant) -> Iterable[tuple[ParameterLocation, Any]]:
     for field in dependant.path_params:
         yield "path", field
-    for field in dependant.query_params:
+    query = dependant.query_params
+    if len(query) == 1:
+        annotation = query[0].field_info.annotation
+        # FastAPI extracts a lone query model separately in each dependency.
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            query = get_cached_model_fields(annotation)
+    for field in query:
         yield "query", field
     for child in dependant.dependencies:
         yield from _fields(child)

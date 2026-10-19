@@ -5,10 +5,13 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
+from fastapi import Depends, FastAPI, Query
+from pydantic import BaseModel, Field
 
+from fastapi_webrtc import Session, WebRtcRouter
 from fastapi_webrtc.codegen.cli import main
 from fastapi_webrtc.codegen.typescript import (
     ContractError,
@@ -18,6 +21,9 @@ from fastapi_webrtc.codegen.typescript import (
 from fastapi_webrtc.codegen.writer import MANIFEST, write_files
 from fastapi_webrtc.contract import build_contract
 from tests import contract_app
+from tests.fake_engine import FakeEngine
+from tests.server import serve
+from tests.signaling import Signal
 
 PACKAGE = Path(__file__).parents[1]
 
@@ -96,6 +102,97 @@ def test_contracts_without_definitions_skip_the_models_import() -> None:
     assert files["models.ts"].endswith("export {};\n")
     assert "import type * as models" not in files["client.ts"]
     assert "export class RtcClient {" in files["client.ts"]
+
+
+@pytest.mark.parametrize("dependency", [False, True])
+async def test_query_models_generate_working_flat_connections(
+    tmp_path: Path, dependency: bool
+) -> None:
+    class Filters(BaseModel):
+        token: str = Field(alias="access_token")
+        limit: int = 10
+        tags: list[str] = Field(default_factory=list)
+
+    received: list[Filters] = []
+    rtc = WebRtcRouter(engine=FakeEngine())
+
+    def filters(value: Annotated[Filters, Query()]) -> Filters:
+        return value
+
+    def session(value: Filters) -> Session:
+        received.append(value)
+        return Session()
+
+    if dependency:
+
+        def endpoint(value: Annotated[Filters, Depends(filters)]) -> Session:
+            return session(value)
+    else:
+
+        def endpoint(value: Annotated[Filters, Query()]) -> Session:
+            return session(value)
+
+    rtc.session("/filters", name="filters")(endpoint)
+    app = FastAPI()
+    app.include_router(rtc)
+    value = build_contract(app)
+    parameters = value["sessions"][0]["parameters"]
+    assert [(p["name"], p["required"]) for p in parameters] == [
+        ("access_token", True),
+        ("limit", False),
+        ("tags", False),
+    ]
+    assert parameters[1]["schema"]["default"] == 10
+    assert parameters[2]["schema"]["items"] == {"type": "string"}
+    write_files(tmp_path, generate_typescript(value))
+    node = shutil.which("node")
+    tsc = PACKAGE / "node_modules/typescript/bin/tsc"
+    assert node is not None and tsc.is_file()
+    subprocess.run(
+        [
+            node,
+            str(tsc),
+            "--target",
+            "ES2022",
+            "--module",
+            "ES2022",
+            "--strict",
+            "--skipLibCheck",
+            "--outDir",
+            str(tmp_path / "js"),
+            str(tmp_path / "index.ts"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (tmp_path / "js/package.json").write_text('{"type":"module"}')
+    async with serve(app) as base:
+        script = (
+            'import { RtcClient } from "./js/index.js";\n'
+            "class Socket { constructor(url) { console.log(url); throw Error(); } }\n"
+            f"const client = new RtcClient({{baseUrl: {json.dumps(base)}, "
+            "WebSocket: Socket, RTCPeerConnection: class {}});\n"
+            'await client.filters.connect({accessToken: "valid", tags: ["a", "b"]})'
+            ".catch(() => {});\n"
+        )
+        (tmp_path / "run.mjs").write_text(script)
+        result = subprocess.run(
+            [node, str(tmp_path / "run.mjs")],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        url = result.stdout.strip()
+        assert url == f"{base}/filters?access_token=valid&tags=a&tags=b"
+        signal = await Signal.start(url)
+        await signal.close()
+    assert len(received) == 1
+    assert received[0].model_dump() == {
+        "token": "valid",
+        "limit": 10,
+        "tags": ["a", "b"],
+    }
 
 
 @pytest.mark.parametrize(
