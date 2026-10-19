@@ -139,6 +139,8 @@ export class FakePeerConnection {
 
   readonly configuration: RTCConfiguration | undefined;
   signalingState: RTCSignalingState = "stable";
+  connectionState: RTCPeerConnectionState = "new";
+  onconnectionstatechange: (() => void) | null = null;
   localDescription: RTCSessionDescriptionInit | null = null;
   remoteDescription: RTCSessionDescriptionInit | null = null;
   readonly channels: FakeDataChannel[] = [];
@@ -253,6 +255,11 @@ export class FakePeerConnection {
   }
 
   // ------------------------------------------------------------ test helpers
+
+  changeConnectionState(state: RTCPeerConnectionState): void {
+    this.connectionState = state;
+    this.onconnectionstatechange?.();
+  }
 
   /** Emit a local ICE candidate, as the browser would after setLocalDescription. */
   emitCandidate(candidate: RTCIceCandidateInit | null): void {

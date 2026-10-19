@@ -347,6 +347,115 @@ describe("answerer sessions", () => {
   });
 });
 
+describe("operation deadlines", () => {
+  test("unanswered renegotiation expires without stale answers extending its deadline", async (t) => {
+    const { session, socket, peer } = await openPractice(client().practice.connect({ lessonId: "x" }));
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const microphone = new FakeTrack("audio");
+    const adding = assert.rejects(session.addTrack(microphone.asTrack()), { code: "negotiation_timeout" });
+    await flush();
+    const removing = assert.rejects(session.removeTrack(microphone.asTrack()), { code: "negotiation_timeout" });
+    t.mock.timers.tick(14_999);
+    socket.receive({ type: "description", description: { type: "answer", sdp: "stale" }, negotiation: 1 });
+    await flush();
+    assert.equal(session.state, "open");
+    t.mock.timers.tick(1);
+    await Promise.all([adding, removing]);
+    assert.equal((await session.closed).code, "negotiation_timeout");
+    assert.equal(socket.closedWith?.reason, "negotiation_timeout");
+    assert.equal(peer.closed, true);
+    assert.equal(microphone.stopped, false);
+  });
+
+  test("a stalled local offer cannot keep a track operation pending", async (t) => {
+    const { session, peer } = await openPractice(client().practice.connect({ lessonId: "x" }));
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    peer.createOffer = () => new Promise(() => {});
+    const rejected = assert.rejects(session.addTrack(new FakeTrack("audio").asTrack()), { code: "negotiation_timeout" });
+    await flush();
+    t.mock.timers.tick(15_000);
+    await rejected;
+  });
+
+  test("server-initiated renegotiation has a deadline too", async (t) => {
+    const { session, socket, peer } = await openPractice(client().practice.connect({ lessonId: "x" }));
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    peer.createAnswer = () => new Promise(() => {});
+    socket.receive({ type: "description", description: { type: "offer", sdp: "offer" }, negotiation: 2 });
+    await flush();
+    t.mock.timers.tick(15_000);
+    assert.equal((await session.closed).code, "negotiation_timeout");
+  });
+
+  for (const failure of ["timeout", "transport"] as const) {
+    test(`a stalled replaceTrack is interrupted by ${failure}`, async (t) => {
+      const { session, peer } = await openPractice(client().practice.connect({ lessonId: "x" }));
+      t.mock.timers.enable({ apis: ["setTimeout"] });
+      peer.getTransceivers()[0]!.sender.replaceTrack = () => new Promise(() => {});
+      const rejected = assert.rejects(session.addTrack(new FakeTrack("audio").asTrack()), {
+        code: failure === "timeout" ? "negotiation_timeout" : "transport_lost",
+      });
+      await flush();
+      if (failure === "timeout") t.mock.timers.tick(15_000);
+      else peer.changeConnectionState("failed");
+      await rejected;
+    });
+  }
+
+  test("a full buffer times out all pending sends even after repeated wakeups", async (t) => {
+    const { session, socket, peer } = await openPractice(client().practice.connect({ lessonId: "x" }));
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const messages = channel(peer, "messages");
+    messages.bufferedAmount = 10 ** 9;
+    const sending = [1, 2].map(() => assert.rejects(session.channels.messages.send({ text: "a" }), { code: "slow_consumer", channel: "messages" }));
+    t.mock.timers.tick(9_999);
+    messages.onbufferedamountlow?.();
+    await flush();
+    assert.equal(session.state, "open");
+    t.mock.timers.tick(1);
+    await Promise.all(sending);
+    assert.equal((await session.closed).code, "slow_consumer");
+    assert.equal(socket.closedWith?.reason, "slow_consumer");
+    assert.deepEqual(messages.sent, []);
+  });
+
+  test("successful sends and negotiations cancel their timers; later sends get a fresh deadline", async (t) => {
+    const { session, socket, peer } = await openPractice(client().practice.connect({ lessonId: "x", sendTimeoutMs: 100 }));
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const adding = session.addTrack(new FakeTrack("audio").asTrack());
+    await flush();
+    socket.receive({ type: "description", description: { type: "answer", sdp: "a2" }, negotiation: 2 });
+    await adding;
+    const messages = channel(peer, "messages");
+    messages.bufferedAmount = 10 ** 9;
+    const sending = session.channels.messages.send({ text: "a" });
+    t.mock.timers.tick(99);
+    messages.drain();
+    await sending;
+    t.mock.timers.tick(30_000);
+    assert.equal(session.state, "open");
+    messages.bufferedAmount = 10 ** 9;
+    const rejected = assert.rejects(session.channels.messages.send({ text: "b" }), { code: "slow_consumer" });
+    t.mock.timers.tick(100);
+    await rejected;
+  });
+
+  for (const state of ["failed", "closed"] as const) {
+    test(`transport ${state} rejects pending sends and renegotiation with signaling still open`, async () => {
+      const { session, peer } = await openPractice(client().practice.connect({ lessonId: "x" }));
+      channel(peer, "messages").bufferedAmount = 10 ** 9;
+      const sending = assert.rejects(session.channels.messages.send({ text: "a" }), { code: "transport_lost" });
+      const adding = assert.rejects(session.addTrack(new FakeTrack("audio").asTrack()), { code: "transport_lost" });
+      await flush();
+      peer.changeConnectionState("disconnected");
+      assert.equal(session.state, "open");
+      peer.changeConnectionState(state);
+      await Promise.all([sending, adding]);
+      assert.equal((await session.closed).code, "transport_lost");
+    });
+  }
+});
+
 describe("connection failures", () => {
   test("an admission denial rejects connect", async () => {
     const closes: string[] = [];

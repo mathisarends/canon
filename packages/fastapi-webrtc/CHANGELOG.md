@@ -46,9 +46,16 @@ adopting the reviewed 0.1.0 source; no published WebRTC release is superseded.
 - Data-channel reliability options are mutually exclusive even when zero, and
   accept only integers from 0 through 65535. Supply at most one option and fix
   invalid values at declaration time instead of relying on engine errors.
+- Browser renegotiation and channel sends now have operation deadlines after
+  connect. Handle `negotiation_timeout`/`slow_consumer` rejections and reconnect
+  after termination. Set `sendTimeoutMs` when the 10-second send default is too
+  short; rename any provisional route parameter with that reserved option name.
 
 ### Fixes
 
+- Bound browser renegotiation by the server's negotiation deadline, including
+  stalled SDP/track operations. Bound sends independently of connect, and reject
+  all pending operations on permanent peer-connection failure.
 - Report unavailable aiortc jitter as `None`: its RTP timestamp units cannot
   be converted to seconds without a reliable per-stream codec clock rate.
 - Count only active incoming tracks against media limits, releasing capacity

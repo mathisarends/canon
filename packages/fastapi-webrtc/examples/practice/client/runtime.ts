@@ -172,6 +172,8 @@ export interface ConnectOptions<C extends ChannelMap> {
   readonly rtcConfiguration?: RTCConfiguration;
   /** Send buffer size above which `send()` waits. Defaults to 1 MiB. */
   readonly sendBufferHighBytes?: number;
+  /** Deadline for channel opening or send-buffer drainage. Defaults to 10 s. */
+  readonly sendTimeoutMs?: number;
   readonly onTrack?: (track: RemoteTrack, session: RtcSession<C>) => void;
   readonly onMessage?: MessageHandlers<C>;
   readonly onStateChange?: (state: SessionState, session: RtcSession<C>) => void;
@@ -188,7 +190,8 @@ export interface RtcChannel<TSend, TReceive> {
   readonly dataChannel: RTCDataChannel;
   /**
    * Encode, size-check and send a message. Waits while the channel is not yet
-   * open or its send buffer is above the high-water mark.
+   * open or its send buffer is above the high-water mark. Exceeding sendTimeoutMs
+   * ends the session with slow_consumer.
    */
   send(message: TSend): Promise<void>;
   /** Receive messages; returns an unsubscribe function. */
@@ -292,6 +295,7 @@ type ServerMessage =
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_SEND_BUFFER_HIGH_BYTES = 1024 * 1024;
+const DEFAULT_SEND_TIMEOUT_MS = 10_000;
 const RESERVED_KEYS = new Set([
   "tracks",
   "signal",
@@ -299,6 +303,7 @@ const RESERVED_KEYS = new Set([
   "query",
   "rtcConfiguration",
   "sendBufferHighBytes",
+  "sendTimeoutMs",
   "onTrack",
   "onMessage",
   "onStateChange",
@@ -512,6 +517,7 @@ class Connection<C extends ChannelMap> {
   private settledWaiters: (() => void)[] = [];
   private initialTracksAttached = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private negotiationTimer: ReturnType<typeof setTimeout> | null = null;
   private connectDeadline = Infinity;
   private abortListener: (() => void) | null = null;
   private readonly session: RtcSession<C>;
@@ -687,6 +693,11 @@ class Connection<C extends ChannelMap> {
     }
     const pc = new this.peerFactory(configuration);
     this.pc = pc;
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+        this.fail(new RtcError("transport_lost"));
+      }
+    };
     pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
       this.send({ type: "candidate", candidate: event.candidate === null ? null : event.candidate.toJSON() });
     };
@@ -753,12 +764,14 @@ class Connection<C extends ChannelMap> {
       if (pc.signalingState !== "have-local-offer" || this.localOffer !== message.negotiation) {
         return; // stale answer
       }
+      this.beginNegotiation();
       await pc.setRemoteDescription(description);
       this.localOffer = null;
       await this.flushCandidates();
       await this.pump();
       return;
     }
+    this.beginNegotiation();
     // The browser is the polite peer: it rolls back its own offer on collision.
     if (pc.signalingState !== "stable") {
       await pc.setLocalDescription({ type: "rollback" });
@@ -834,6 +847,7 @@ class Connection<C extends ChannelMap> {
       return;
     }
     this.wantOffer = false;
+    this.beginNegotiation();
     await pc.setLocalDescription(await pc.createOffer());
     const offer = pc.localDescription;
     if (offer === null) throw new RtcError("negotiation_failed");
@@ -847,12 +861,21 @@ class Connection<C extends ChannelMap> {
   }
 
   private settle(): void {
+    if (this.negotiationTimer !== null) clearTimeout(this.negotiationTimer);
+    this.negotiationTimer = null;
     const waiters = this.settledWaiters;
     this.settledWaiters = [];
     for (const waiter of waiters) waiter();
   }
 
-  private renegotiate(): Promise<void> {
+  private beginNegotiation(): void {
+    if (this.state !== "open" || this.negotiationTimer !== null) return;
+    this.negotiationTimer = setTimeout(() => {
+      this.fail(new RtcError("negotiation_timeout", "The renegotiation did not finish in time."));
+    }, this.hello!.limits.negotiation_timeout_ms);
+  }
+
+  private renegotiate(prepare: () => Promise<void> | void): Promise<void> {
     if (this.finished !== null) return Promise.reject(this.finished);
     if (this.hello !== null && !this.hello.capabilities.renegotiation) {
       return Promise.reject(new RtcError("negotiation_failed", "The server engine cannot renegotiate."));
@@ -860,8 +883,13 @@ class Connection<C extends ChannelMap> {
     const settled = new Promise<void>((resolve, reject) => {
       this.settledWaiters.push(() => (this.finished === null ? resolve() : reject(this.finished)));
     });
-    this.wantOffer = true;
-    this.enqueue(() => this.pump());
+    this.beginNegotiation();
+    this.enqueue(async () => {
+      await prepare();
+      if (this.finished !== null) return;
+      this.wantOffer = true;
+      await this.pump();
+    });
     return settled;
   }
 
@@ -931,23 +959,30 @@ class Connection<C extends ChannelMap> {
       });
     }
     const high = this.options.sendBufferHighBytes ?? DEFAULT_SEND_BUFFER_HIGH_BYTES;
-    for (;;) {
-      if (this.finished !== null) throw this.finished;
-      const dc = channel.data;
-      if (dc !== null && (dc.readyState === "closing" || dc.readyState === "closed")) {
-        throw new RtcError("channel_closed", undefined, { channel: channel.name });
+    const timer = setTimeout(() => {
+      this.fail(new RtcError("slow_consumer", "The data-channel send did not finish in time.", { channel: channel.name }));
+    }, this.options.sendTimeoutMs ?? DEFAULT_SEND_TIMEOUT_MS);
+    try {
+      for (;;) {
+        if (this.finished !== null) throw this.finished;
+        const dc = channel.data;
+        if (dc !== null && (dc.readyState === "closing" || dc.readyState === "closed")) {
+          throw new RtcError("channel_closed", undefined, { channel: channel.name });
+        }
+        if (dc !== null && dc.readyState === "open" && dc.bufferedAmount <= high) {
+          dc.send(data as string);
+          return;
+        }
+        await new Promise<void>((resolve) => {
+          const waiter = () => {
+            channel.waiters.delete(waiter);
+            resolve();
+          };
+          channel.waiters.add(waiter);
+        });
       }
-      if (dc !== null && dc.readyState === "open" && dc.bufferedAmount <= high) {
-        dc.send(data as string);
-        return;
-      }
-      await new Promise<void>((resolve) => {
-        const waiter = () => {
-          channel.waiters.delete(waiter);
-          resolve();
-        };
-        channel.waiters.add(waiter);
-      });
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -1073,24 +1108,25 @@ class Connection<C extends ChannelMap> {
       addTrack: async (track: MediaStreamTrack, ...streams: MediaStream[]) => {
         checkTrack(this.descriptor.media, track);
         const pc = this.requirePeer();
-        const reusable = pc
-          .getTransceivers()
-          .find((t) => t.receiver.track.kind === track.kind && t.sender.track === null && t.currentDirection !== "stopped");
-        if (reusable !== undefined) {
-          await reusable.sender.replaceTrack(track);
-          if (streams.length > 0) reusable.sender.setStreams(...streams);
-          reusable.direction = reusable.direction === "recvonly" || reusable.direction === "sendrecv" ? "sendrecv" : "sendonly";
-        } else {
-          pc.addTrack(track, ...streams);
-        }
-        await this.renegotiate();
+        await this.renegotiate(async () => {
+          const reusable = pc
+            .getTransceivers()
+            .find((t) => t.receiver.track.kind === track.kind && t.sender.track === null && t.currentDirection !== "stopped");
+          if (reusable !== undefined) {
+            await reusable.sender.replaceTrack(track);
+            if (this.finished !== null) return;
+            if (streams.length > 0) reusable.sender.setStreams(...streams);
+            reusable.direction = reusable.direction === "recvonly" || reusable.direction === "sendrecv" ? "sendrecv" : "sendonly";
+          } else {
+            pc.addTrack(track, ...streams);
+          }
+        });
       },
       removeTrack: async (track: MediaStreamTrack) => {
         const pc = this.requirePeer();
         const sender = pc.getSenders().find((s) => s.track === track);
         if (sender === undefined) return;
-        pc.removeTrack(sender);
-        await this.renegotiate();
+        await this.renegotiate(() => pc.removeTrack(sender));
       },
       stats: () => this.requirePeer().getStats(),
       close: async () => {

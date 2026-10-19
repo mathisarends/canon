@@ -134,6 +134,12 @@ the session's entire lifetime: aborting it also closes an already running audio
 or video session. An `AbortSignal.timeout(...)` therefore ends the session when
 its timer expires, even if connection setup already succeeded.
 
+Later renegotiations, including `addTrack()` and `removeTrack()`, use the
+server's `negotiation_timeout_ms` and end the session with `negotiation_timeout`
+if they cannot complete. Channel sends wait at most `sendTimeoutMs` (10 seconds
+by default) for opening or buffer drainage before ending with `slow_consumer`.
+Permanent peer-connection failure rejects pending operations with `transport_lost`.
+
 Failures are `RtcError`s with a stable `code`, such as `session_limit`,
 `negotiation_timeout`, `media_rejected` or `transport_lost`. Browsers do not
 expose the HTTP status of a refused WebSocket handshake. A session denied by a

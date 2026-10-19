@@ -94,6 +94,7 @@ RESERVED_OPTIONS = frozenset(
         "query",
         "rtcConfiguration",
         "sendBufferHighBytes",
+        "sendTimeoutMs",
         "onTrack",
         "onMessage",
         "onStateChange",
