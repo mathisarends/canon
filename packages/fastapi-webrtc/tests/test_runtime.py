@@ -1308,6 +1308,45 @@ async def test_tracks_violating_media_policy(kinds: tuple[Any, ...]) -> None:
     assert tracks[-1].stopped
 
 
+@pytest.mark.parametrize("ready", [False, True])
+async def test_ended_tracks_release_capacity_exactly_once(ready: bool) -> None:
+    rtc = router()
+
+    @rtc.session(
+        "/s",
+        media=MediaPolicy(
+            audio=Direction.RECEIVE, video=Direction.RECEIVE, max_incoming_tracks=1
+        ),
+    )
+    def listener() -> Session:
+        return Session()
+
+    async with serve(application(rtc)) as base:
+        signal = await Signal.start(f"{base}/s")
+        if ready:
+            peer = await establish(signal, rtc, ["audio sendonly", "video sendonly"])
+        else:
+            peer = engine_of(rtc).peer
+        video = FakeTrack("video")
+        peer.observer.track(video)
+        for _ in range(3):
+            audio = FakeTrack("audio")
+            peer.observer.track(audio)
+            assert not audio.stopped
+            audio.end()
+            audio.end()  # Duplicate engine notifications must not free two slots.
+        current = FakeTrack("audio")
+        peer.observer.track(current)
+        assert not current.stopped
+        assert not video.stopped
+        if not ready:
+            await establish(signal, rtc, ["audio sendonly", "video sendonly"])
+        extra = FakeTrack("audio")
+        peer.observer.track(extra)
+        assert await signal.closed() == (1008, "media_rejected")
+        assert extra.stopped
+
+
 async def test_tracks_added_after_negotiation_renegotiate() -> None:
     events: list[SessionEvent] = []
     owned = NativeTrack("audio")

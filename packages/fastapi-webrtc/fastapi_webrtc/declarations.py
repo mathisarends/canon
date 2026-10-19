@@ -52,7 +52,7 @@ class MediaPolicy:
 
     A kind set to ``None`` is rejected: remote descriptions that offer it to the
     server fail with ``media_rejected``. ``max_incoming_tracks`` bounds remote
-    tracks per kind.
+    active tracks per kind; ended tracks release their slot.
     """
 
     audio: Direction | None = None

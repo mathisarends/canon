@@ -789,14 +789,23 @@ class SessionRuntime:
             track.stop()
             self.terminate(ErrorCode.MEDIA_REJECTED)
             return
-        self._incoming_counts[track.kind] += 1
         if (
             self._incoming_counts[track.kind]
-            > self.declaration.media.max_incoming_tracks
+            >= self.declaration.media.max_incoming_tracks
         ):
             track.stop()
             self.terminate(ErrorCode.MEDIA_REJECTED)
             return
+        self._incoming_counts[track.kind] += 1
+        counted = True
+
+        def ended() -> None:
+            nonlocal counted
+            if counted:
+                counted = False
+                self._incoming_counts[track.kind] -= 1
+
+        track.on_ended(ended)
         incoming = IncomingTrack(track)
         self.incoming.append(incoming)
         self._emit("track", media_kind=track.kind)
