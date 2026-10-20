@@ -1,6 +1,6 @@
 [project]
 name = "fastapi-canon"
-version = "0.5.5"
+version = "0.6.0"
 description = "Opinionated FastAPI feature composition with Dishka and Problem Details"
 readme = "README.md"
 authors = [{ name = "mathisarends" }]
@@ -25,6 +25,7 @@ dependencies = [
 streams = [
     "fastapi-streams==0.4.0",
 ]
+webrtc = ["fastapi-webrtc==0.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/mathisarends/canon/tree/main/packages/fastapi-canon"

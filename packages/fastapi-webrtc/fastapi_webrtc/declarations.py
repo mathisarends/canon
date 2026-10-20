@@ -19,7 +19,7 @@ from typing import (
     overload,
 )
 
-from fastapi import WebSocket
+from fastapi import FastAPI, WebSocket
 from pydantic import TypeAdapter
 from typing_extensions import TypeVar
 
@@ -28,6 +28,14 @@ from fastapi_webrtc.errors import ErrorCode
 if TYPE_CHECKING:
     from fastapi_webrtc.ice import IceServerSource
     from fastapi_webrtc.peer import IncomingTrack, Peer
+
+
+AdmissionErrors = Callable[[FastAPI | None], Sequence[Mapping[str, Any]]]
+"""Export HTTP denial contracts before acceptance; never maps runtime failures.
+
+The application is available when exporting ``build_contract(app)``. Exporting
+routes alone passes ``None``, so providers must resolve their own configuration.
+"""
 
 
 class Direction(StrEnum):
@@ -400,8 +408,11 @@ class SessionDeclaration:
     limits: SessionLimits
     max_sessions: int | None = None
     description: str | None = None
+    admission_errors: AdmissionErrors | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
+        if self.admission_errors is not None and not callable(self.admission_errors):
+            raise TypeError("admission_errors must be a contract provider")
         if not _CHANNEL_NAME.fullmatch(self.name):
             raise ValueError(
                 f"Session name {self.name!r} must be an identifier of at most "

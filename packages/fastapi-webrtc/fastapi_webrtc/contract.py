@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Iterator, Sequence
-from copy import copy
+from copy import copy, deepcopy
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from fastapi import FastAPI
@@ -111,7 +111,13 @@ def build_contract(app: FastAPI | Sequence[BaseRoute]) -> dict[str, Any]:
         "protocol": PROTOCOL_VERSION,
         "subprotocol": SUBPROTOCOL,
         "sessions": [
-            _session(path, declaration, dependant, schemas)
+            _session(
+                path,
+                declaration,
+                dependant,
+                schemas,
+                app if isinstance(app, FastAPI) else None,
+            )
             for path, declaration, dependant in sorted(
                 sessions, key=lambda s: s[1].name
             )
@@ -130,9 +136,10 @@ def _session(
     declaration: SessionDeclaration,
     dependant: Dependant | None,
     schemas: dict[tuple[str, str], Any],
+    app: FastAPI | None,
 ) -> dict[str, Any]:
     media = declaration.media
-    return {
+    result = {
         "name": declaration.name,
         "path": path,
         "role": declaration.role.value,
@@ -155,6 +162,11 @@ def _session(
             _channel(declaration, spec, schemas) for spec in declaration.channels
         ],
     }
+    if declaration.admission_errors is not None:
+        result["admission_errors"] = [
+            deepcopy(dict(error)) for error in declaration.admission_errors(app)
+        ]
+    return result
 
 
 def _channel(

@@ -12,8 +12,9 @@ def test_core_import_runtime_and_missing_extra_diagnostic() -> None:
 
         class NoStreams(MetaPathFinder):
             def find_spec(self, fullname, path=None, target=None):
-                if fullname == "fastapi_streams" or fullname.startswith("fastapi_streams."):
-                    raise ModuleNotFoundError("Streams deliberately unavailable", name=fullname)
+                if any(fullname == name or fullname.startswith(name + ".")
+                       for name in ("fastapi_streams", "fastapi_webrtc")):
+                    raise ModuleNotFoundError("Extension deliberately unavailable", name=fullname)
 
         sys.meta_path.insert(0, NoStreams())
         from fastapi import FastAPI
@@ -31,11 +32,19 @@ def test_core_import_runtime_and_missing_extra_diagnostic() -> None:
             assert client.get("/health").json() == {"status": "ok"}
         assert "/health" in app.openapi()["paths"]
         assert not any(name.startswith("fastapi_streams") for name in sys.modules)
+        assert not any(name.startswith("fastapi_webrtc") for name in sys.modules)
         try:
             from fastapi_canon.integrations.streams import CanonStreamRouter
         except ModuleNotFoundError as exc:
             assert exc.name == "fastapi_streams"
             assert "fastapi-canon[streams]" in str(exc)
+        else:
+            raise AssertionError("The integration must require the optional dependency")
+        try:
+            from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
+        except ModuleNotFoundError as exc:
+            assert exc.name == "fastapi_webrtc"
+            assert "fastapi-canon[webrtc]" in str(exc)
         else:
             raise AssertionError("The integration must require the optional dependency")
     """)

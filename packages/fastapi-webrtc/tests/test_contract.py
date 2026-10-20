@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -126,3 +127,35 @@ def test_example_contract_is_current() -> None:
         encoding="utf-8"
     )
     assert dumps(build_contract(app)) == committed
+
+
+def test_admission_provider_receives_app_and_exports_detached_metadata() -> None:
+    errors: list[dict[str, Any]] = [
+        {"status": 403, "code": "denied", "schema": {"type": "object"}}
+    ]
+    seen: list[FastAPI | None] = []
+
+    def admission(app: FastAPI | None) -> list[dict[str, Any]]:
+        seen.append(app)
+        return errors
+
+    router = WebRtcRouter(engine=FakeEngine())
+
+    @router.session("/s", admission_errors=admission)
+    def session() -> Session:
+        return Session()
+
+    app = FastAPI()
+    app.include_router(router)
+    contract = build_contract(app)
+    assert seen == [app]
+    contract["sessions"][0]["admission_errors"][0]["schema"]["type"] = "string"
+    assert errors[0]["schema"] == {"type": "object"}
+    build_contract(router.routes)
+    assert seen == [app, None]
+
+
+def test_admission_provider_must_be_callable() -> None:
+    router = WebRtcRouter(engine=FakeEngine())
+    with pytest.raises(TypeError, match="contract provider"):
+        router.session("/s", admission_errors=42)(lambda: Session())  # type: ignore[arg-type]

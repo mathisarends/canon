@@ -511,6 +511,8 @@ def _session_types(session: Mapping[str, Any], models: _Emitter) -> str:
             for key, parameter in parameters
         ],
     }
+    if "admission_errors" in session:
+        descriptor["admissionErrors"] = session["admission_errors"]
     parts.append(
         f"\nexport const {camel}Descriptor: SessionDescriptor = "
         f"{_ts_value(descriptor, '')};\n"

@@ -6,6 +6,7 @@ engine adapter (see :mod:`fastapi_webrtc.engines`) owns the peer connection.
 """
 
 from fastapi_webrtc.declarations import (
+    AdmissionErrors,
     DataChannelSpec,
     Direction,
     MediaPolicy,
@@ -34,11 +35,12 @@ from fastapi_webrtc.peer import Channel, IncomingTrack, OutgoingTrack, Peer
 from fastapi_webrtc.protocol import PROTOCOL_VERSION, SUBPROTOCOL
 from fastapi_webrtc.router import WebRtcRouter
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "PROTOCOL_VERSION",
     "SUBPROTOCOL",
+    "AdmissionErrors",
     "CandidatePairStats",
     "Channel",
     "ConnectionStats",

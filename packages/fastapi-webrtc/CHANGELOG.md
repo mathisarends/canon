@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 - Unreleased
+
+### Breaking changes
+
+- Extend `WebRtcRouter.session()` and `SessionDeclaration` with the optional
+  `admission_errors` contract-provider hook. Custom router overrides must accept
+  and forward this keyword. Regenerate clients to include declared admission
+  metadata in session descriptors. The signaling protocol remains v1.
+
+### Added
+
+- Canon-independent admission contract export, including optional generated
+  descriptor metadata. HTTP denials remain distinct from accepted-session errors;
+  this metadata does not expose failed WebSocket handshake bodies in browsers.
+
 ## 0.1.0 - 2026-10-20
 
 Initial release.

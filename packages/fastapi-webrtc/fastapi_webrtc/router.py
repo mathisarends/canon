@@ -17,6 +17,7 @@ from fastapi.params import Depends as DependsParam
 from starlette.requests import HTTPConnection
 
 from fastapi_webrtc.declarations import (
+    AdmissionErrors,
     DataChannelSpec,
     MediaPolicy,
     Role,
@@ -135,6 +136,7 @@ class WebRtcRouter(APIRouter):
         limits: SessionLimits | None = None,
         max_sessions: int | None = None,
         dependencies: Sequence[DependsParam] | None = None,
+        admission_errors: AdmissionErrors | None = None,
     ) -> Callable[[Factory], Factory]:
         """Declare a session endpoint whose factory returns a :class:`Session`.
 
@@ -153,6 +155,7 @@ class WebRtcRouter(APIRouter):
                 limits=limits or self.limits,
                 max_sessions=max_sessions,
                 description=inspect.getdoc(factory),
+                admission_errors=admission_errors,
             )
             if any(d.name == declaration.name for d in self.declarations):
                 raise ValueError(f"Session {declaration.name!r} is already declared")

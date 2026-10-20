@@ -4,6 +4,13 @@ Register `WebRtcRouter` directly in `Feature.routers`. Canon installs Dishka's
 middleware and manages the application container. WebRTC does not need a Canon
 adapter or a required dependency on Canon or Dishka.
 
+For declarative admission errors, the optional
+[`CanonWebRtcRouter`](../../fastapi-canon/docs/webrtc.md) adds Canon's registry and
+router/session `raises` declarations. It exports HTTP denial metadata in the
+WebRTC contract while preserving the native session runtime and signaling protocol.
+Register a plain WebRTC feature's registry explicitly with `Feature(errors=...)`
+when using runtime exception mapping without that integration.
+
 The session factory is a FastAPI dependency. Decorate an **async factory** with
 `@inject` below `@rtc.session(...)`; Canon does not automatically inject this
 factory. Session services use `Scope.SESSION`, matching Dishka's

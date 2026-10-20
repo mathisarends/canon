@@ -63,7 +63,7 @@ def main() -> None:
         ),
         ("fastapi-webrtc",),
         ("fastapi-webrtc[aiortc]",),
-        ("fastapi-canon", "fastapi-webrtc[aiortc]"),
+        ("fastapi-canon[webrtc]", "fastapi-webrtc[aiortc]"),
     )
     for requirements in combinations:
         with tempfile.TemporaryDirectory(prefix="canon-artifacts-") as temporary:

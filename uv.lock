@@ -211,7 +211,7 @@ name = "canon-workspace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "fastapi-canon", extra = ["streams"] },
+    { name = "fastapi-canon", extra = ["streams", "webrtc"] },
     { name = "fastapi-canon-reference" },
     { name = "fastapi-rpckit", extra = ["codegen", "dishka", "otel"] },
     { name = "fastapi-streams", extra = ["codegen"] },
@@ -228,7 +228,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi-canon", extras = ["streams"], editable = "packages/fastapi-canon" },
+    { name = "fastapi-canon", extras = ["streams", "webrtc"], editable = "packages/fastapi-canon" },
     { name = "fastapi-canon-reference", editable = "examples/reference-service" },
     { name = "fastapi-rpckit", extras = ["codegen", "dishka", "otel"], editable = "packages/fastapi-rpckit" },
     { name = "fastapi-streams", extras = ["codegen"], editable = "packages/fastapi-streams" },
@@ -635,7 +635,7 @@ wheels = [
 
 [[package]]
 name = "fastapi-canon"
-version = "0.5.5"
+version = "0.6.0"
 source = { editable = "packages/fastapi-canon" }
 dependencies = [
     { name = "dishka" },
@@ -646,6 +646,9 @@ dependencies = [
 [package.optional-dependencies]
 streams = [
     { name = "fastapi-streams" },
+]
+webrtc = [
+    { name = "fastapi-webrtc" },
 ]
 
 [package.dev-dependencies]
@@ -669,9 +672,10 @@ requires-dist = [
     { name = "dishka", specifier = ">=1.10,<2" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "fastapi-streams", marker = "extra == 'streams'", editable = "packages/fastapi-streams" },
+    { name = "fastapi-webrtc", marker = "extra == 'webrtc'", editable = "packages/fastapi-webrtc" },
     { name = "pydantic", specifier = ">=2.9,<3" },
 ]
-provides-extras = ["streams"]
+provides-extras = ["streams", "webrtc"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -890,7 +894,7 @@ test = [
 
 [[package]]
 name = "fastapi-webrtc"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/fastapi-webrtc" }
 dependencies = [
     { name = "anyio" },

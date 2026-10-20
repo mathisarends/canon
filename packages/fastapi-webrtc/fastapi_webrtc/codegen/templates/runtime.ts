@@ -109,6 +109,8 @@ export interface SessionDescriptor {
   readonly media: { readonly audio: Direction | null; readonly video: Direction | null };
   readonly channels: readonly ChannelDescriptor[];
   readonly parameters: readonly ParameterDescriptor[];
+  /** HTTP denials before acceptance. Browser WebSocket errors cannot expose their bodies. */
+  readonly admissionErrors?: readonly Readonly<Record<string, unknown>>[];
 }
 
 export type QueryValue =

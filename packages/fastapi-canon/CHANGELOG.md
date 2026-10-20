@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0 - Unreleased
+
+### Breaking changes
+
+- Add the optional `fastapi-canon[webrtc]` integration against WebRTC 0.2.0.
+  Use `fastapi_canon.integrations.webrtc.CanonWebRtcRouter` with the existing
+  `error_registry` and router/session `raises` declarations. Include failures
+  from dependencies explicitly. Existing plain `WebRtcRouter` use remains valid.
+
+### Added
+
+- Export registered admission Problem Details in the WebRTC contract and generated
+  session descriptor, using the composed registry's type URIs and exact Error
+  objects. `raises` documents failures without restricting runtime mapping.
+
 All notable changes to `fastapi-canon` are documented in this file.
 
 ## 0.5.5 - 2026-10-20

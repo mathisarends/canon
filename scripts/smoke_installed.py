@@ -114,7 +114,7 @@ def main() -> None:
         _cli("fastapi-rpckit")
     if "fastapi-webrtc" in selected:
         engine = _RecordingEngine()
-        routers.append(_webrtc_router(engine))
+        routers.append(_webrtc_router(engine, canon="fastapi-canon" in selected))
         _cli("fastapi-webrtc")
     if "fastapi-canon" in selected:
         from fastapi_canon import Composition, Feature
@@ -206,18 +206,41 @@ class _RecordingEngine:
         raise RuntimeError("The smoke engine allocates no peers")
 
 
-def _webrtc_router(engine):
+def _webrtc_router(engine, *, canon=False):
     from fastapi import HTTPException, Query
     from fastapi_webrtc import DataChannelSpec, Session, WebRtcRouter
 
-    rtc = WebRtcRouter(engine=engine, prefix="/rtc")
+    class AdmissionDenied(Exception):
+        pass
+
+    declarations = {}
+    if canon:
+        from fastapi_canon import Error, ErrorRegistry
+        from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
+
+        denied = Error(
+            AdmissionDenied,
+            status=403,
+            code="admission_denied",
+            title="Denied",
+            type="https://example.test/problems/admission_denied",
+        )
+        rtc = CanonWebRtcRouter(
+            engine=engine, prefix="/rtc", error_registry=ErrorRegistry(errors=[denied])
+        )
+        declarations["raises"] = [denied]
+    else:
+        rtc = WebRtcRouter(engine=engine, prefix="/rtc")
 
     @rtc.session(
         "/rooms/{room}",
         data_channels=(DataChannelSpec(name="events", send_model=SocketOutput),),
+        **declarations,
     )
     def room(room: str, token: str = Query()) -> Session:
         if token != "ok":
+            if canon:
+                raise AdmissionDenied()
             raise HTTPException(status_code=403)
         return Session()
 

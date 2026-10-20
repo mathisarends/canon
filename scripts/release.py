@@ -109,6 +109,11 @@ def validate_release(
     _check_pin(
         canon["dependency-groups"]["streams"], "fastapi-streams", streams_version
     )
+    _check_pin(
+        canon["project"]["optional-dependencies"]["webrtc"],
+        "fastapi-webrtc",
+        projects["fastapi-webrtc"]["version"],
+    )
     reference = _toml(root / "examples/reference-service/pyproject.toml")
     reference_canon = next(
         Requirement(value)
@@ -162,12 +167,12 @@ def validate_release(
             raise ValueError(
                 "Version already exists on PyPI; use original run artifacts to resume"
             )
-        if (
-            publish
-            and name == "fastapi-canon"
-            and _pypi("fastapi-streams", streams_version) is None
-        ):
-            raise ValueError("Publish the pinned Streams version before Canon")
+        if publish and name == "fastapi-canon":
+            for dependency in ("fastapi-streams", "fastapi-webrtc"):
+                if _pypi(dependency, projects[dependency]["version"]) is None:
+                    raise ValueError(
+                        f"Publish the pinned {dependency} version before Canon"
+                    )
         report["workflow_url"] = (
             f"https://github.com/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
         )
