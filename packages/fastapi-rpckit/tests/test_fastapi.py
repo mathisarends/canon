@@ -2,7 +2,7 @@ import asyncio
 import subprocess
 import sys
 from collections.abc import AsyncGenerator, AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from threading import Event
 from typing import Annotated, Any
@@ -284,6 +284,61 @@ def test_serve_websocket_helper_serves_manual_route() -> None:
             {"jsonrpc": "2.0", "id": 1, "method": "demo.echo", "params": {"value": "x"}}
         )
         assert websocket.receive_json()["result"] == {"value": "x"}
+
+
+@pytest.mark.parametrize("previous_cancellations", [0, 1])
+@pytest.mark.parametrize("cancel_source", ["caller", "drain"])
+async def test_serve_websocket_helper_preserves_server_cancellation(
+    previous_cancellations: int,
+    cancel_source: str,
+) -> None:
+    service = create_service()
+    accepted = asyncio.Event()
+    incoming: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    incoming.put_nowait({"type": "websocket.connect"})
+    messages: list[dict[str, Any]] = []
+
+    async def receive():
+        return await incoming.get()
+
+    async def send(message):
+        messages.append(message)
+        if message["type"] == "websocket.accept":
+            accepted.set()
+
+    websocket = WebSocket(
+        {"type": "websocket", "path": "/rpc", "query_string": b"", "headers": []},
+        receive,
+        send,
+    )
+
+    async def serve() -> None:
+        if previous_cancellations:
+            task = asyncio.current_task()
+            assert task is not None
+            task.cancel("previous cancellation")
+            with suppress(asyncio.CancelledError):
+                await asyncio.sleep(0)
+        await serve_websocket(service.endpoint("rpc"), websocket)
+
+    serving = asyncio.create_task(serve())
+    try:
+        await asyncio.wait_for(accepted.wait(), timeout=5)
+    finally:
+        if cancel_source == "caller":
+            serving.cancel("server cancellation")
+            with pytest.raises(asyncio.CancelledError, match="server cancellation"):
+                await asyncio.wait_for(serving, timeout=5)
+        else:
+            await service.drain.drain(timeout=0)
+            await asyncio.wait_for(serving, timeout=5)
+
+    assert serving.cancelling() == previous_cancellations + (cancel_source == "caller")
+    assert [message["type"] for message in messages] == [
+        "websocket.accept",
+        "websocket.close",
+    ]
+    assert service.drain.connection_count == 0
 
 
 def test_import_without_required_fastapi_reports_broken_install() -> None:

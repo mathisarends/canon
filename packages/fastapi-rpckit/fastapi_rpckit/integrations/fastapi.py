@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager, nullcontext, suppress
 from typing import (
     Annotated,
     Any,
@@ -253,7 +253,8 @@ async def serve_websocket(
         if isinstance(active, _ServingState) and active.scope.endpoint is endpoint
         else FastApiSocket(websocket)
     )
-    try:
+
+    async def serve() -> None:
         if isinstance(endpoint, RpcEndpoint):
             await endpoint.serve(
                 socket,
@@ -286,9 +287,24 @@ async def serve_websocket(
                 rejections=rejections,
                 middleware=middleware,
             )
-    except asyncio.CancelledError:
-        # Starlette cancels its WebSocket task after websocket.disconnect.
-        return
+
+    serving = asyncio.create_task(serve())
+    task = asyncio.current_task()
+    cancelling = task.cancelling() if task is not None else 0
+    try:
+        # Preserve the caller's cancellation instead of a child's gather error.
+        await asyncio.shield(serving)
+    except asyncio.CancelledError as cancellation:
+        if task is None or task.cancelling() == cancelling:
+            # Service drain can cancel the endpoint independently of ASGI.
+            return
+        serving.cancel()
+        while not serving.done():
+            with suppress(asyncio.CancelledError):
+                await asyncio.shield(serving)
+        if not serving.cancelled():
+            serving.result()
+        raise cancellation
 
 
 @runtime_checkable

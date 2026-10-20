@@ -10,9 +10,14 @@
   these factories. This matches the existing generated runtime calls and permits
   custom factories with differently named first parameters. Custom factories
   with named first parameters continue to work.
+- `serve_websocket()` propagates caller task cancellation after endpoint cleanup.
+  Direct callers that cancel and await this helper must handle `CancelledError`.
 
 ### Fixed
 
+- Preserve the original ASGI cancellation while awaiting endpoint cleanup. This
+  prevents teardown stalls with minimum AnyIO and Starlette versions and avoids
+  leaking child-task cancellations through current Starlette TestClient sessions.
 - The generated default connectors adapt `websockets`' nominal `Subprotocol` type
   inside their lazy backend boundary. Factory protocols remain independent of
   `websockets`; consumers no longer need generator overrides for this mismatch.
