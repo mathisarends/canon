@@ -1,5 +1,7 @@
 # Changelog
 
+All notable changes to `fastapi-canon` are documented in this file.
+
 ## 0.6.0 - Unreleased
 
 ### Breaking changes
@@ -14,8 +16,6 @@
 - Export registered admission Problem Details in the WebRTC contract and generated
   session descriptor, using the composed registry's type URIs and exact Error
   objects. `raises` documents failures without restricting runtime mapping.
-
-All notable changes to `fastapi-canon` are documented in this file.
 
 ## 0.5.5 - 2026-10-20
 
@@ -54,7 +54,7 @@ All notable changes to `fastapi-canon` are documented in this file.
 ## 0.5.1 - 2026-10-18
 
 - Source preparation passed workspace CI, independent wheel matrices and the
-  package release dry run. See the [release preparation evidence](../../docs/releases.md#verified-follow-up-preparation-2026-10-18).
+  package release dry run. See the [release process](../../docs/releases.md).
 
 - Pin the optional Streams integration and development tooling to 0.2.0.
   Regenerated Python SDKs now enforce supported scalar constraints; follow the

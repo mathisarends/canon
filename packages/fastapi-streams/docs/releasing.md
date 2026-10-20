@@ -1,8 +1,8 @@
 # Releasing fastapi-streams
 
 Use the [workspace release process](../../../docs/releases.md). Only root
-workflows execute in this repository; nested workflows and the predecessor
-package-local release script are historical configuration.
+workflows execute in this repository. Version metadata and release validation
+come from the root `release.toml` and `scripts/release.py`.
 
 Releases use independent `fastapi-streams-vX.Y.Z` tags and the root lockfile.
 Prepare a new version, update the changelog and generated clients, pass the

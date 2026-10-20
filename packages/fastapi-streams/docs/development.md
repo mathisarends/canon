@@ -2,76 +2,36 @@
 
 [Documentation](README.md) · [Project](../README.md)
 
-## Run the checks
+Use the [workspace contributor commands](../../../docs/contributing.md) from the
+repository root. They use one lockfile and run each package in its own process.
+Only the root CI and pre-commit configurations are active.
 
-```sh
-uv sync --all-extras
-npm ci
-uv run ruff check .
-uv run ruff format --check .
-uv run pyright
-uv run pylint fastapi_streams
-uv run pre-commit run --all-files
-npm run typecheck
-npm run test:coverage
-uv run pytest -q --cov --cov-report=term-missing --cov-report=xml:coverage-python.xml
-uv run python scripts/codegen.py --check
-uv build
-uv run --frozen twine check --strict dist/*
-uv run python scripts/check_package.py
+For focused Streams work:
+
+```console
+uv run --locked --directory packages/fastapi-streams python -m pytest -q
+uv run --locked --directory packages/fastapi-streams python scripts/codegen.py --check
+npm run typecheck --prefix packages/fastapi-streams
+npm run test:coverage --prefix packages/fastapi-streams
 ```
 
-Run `uv run python scripts/codegen.py` to regenerate all committed examples and
-test fixtures. The tests cover real FastAPI-to-Node and FastAPI-to-Python HTTP
-requests, strict narrowing, recursive models, authentication, disconnect
-cleanup, fragmented parsing, cancellation and drift detection. Install Node
-dependencies before pytest to enable its TypeScript acceptance test. CI does
-this and checks Python 3.12, 3.13 and 3.14. Generated Python is checked by Pyright
-and behavior tests; its generator owns formatting. Run `uv run pre-commit install`
-once to enable the same checks before local commits. Hooks use tools from `uv.lock`;
-Ruff checks style and formatting, Pyright checks types, and Pylint checks errors and
-warnings. CI also executes the complete hook configuration.
+Drop `--check` to regenerate committed examples and fixtures through their
+generator. Install npm dependencies before pytest to enable TypeScript acceptance
+tests. Coverage includes real FastAPI-to-Node/Python requests, strict narrowing,
+recursive models, authentication, disconnect cleanup, cancellation and drift.
 
-## Dependency compatibility
-
-The locked CI job runs on Python 3.12, 3.13 and 3.14. A separate compatibility matrix
-tests all three interpreters on Linux and Windows, each with `lowest` and `latest`
-dependencies (12 combinations). It runs on pushes, pull requests, manual dispatch
-and every Monday. Each run records resolved versions and JUnit results as artifacts.
-
-Run an individual matrix case locally with:
-
-```sh
-uv run python scripts/test_compat.py --python 3.12 --dependencies lowest
-uv run python scripts/test_compat.py --python 3.14 --dependencies latest
-```
-
-The script creates an isolated environment under `.pytest_cache/compat-env`, resolves
-the published FastAPI, Pydantic, HTTPX, HTTPX2 and codegen bounds independently of `uv.lock`,
-and runs the complete behavioral suite. Test tooling stays current. The lowest
-profile uses the oldest compatible binaries of the direct dependencies; on Python 3.14 this
-currently selects Pydantic 2.12.0. Python 3.12/3.13 test the declared 2.11.2 minimum.
-Pydantic 2.11.0/2.11.1 lose the discriminator in named union schemas, so they are
-excluded by the package metadata.
-
-Integration tests start a real Uvicorn server, export the installed FastAPI version's
-contract and generate both SDKs afresh. They check GET/POST, authentication, request
-validation, query/header values, custom success status, immediate event delivery,
-consumer cancellation and server/dependency cleanup. Node, HTTPX and HTTPX2 consume
-streams that stay open until the client disconnects. Every compatibility case tests
-both Python HTTP libraries, generating a separate SDK for each.
-
-Committed OpenAPI fixtures live in `tests/fixtures/*.openapi.json`. Only the locked
-job checks their exact snapshots; compatibility jobs generate fresh contracts and
-clients instead of comparing version-dependent schema formatting.
+Dependency and installed CLI checks use the root
+`scripts/check_distributions.py` and `scripts/check_streams_artifacts.py`.
+See [compatibility](../../../docs/compatibility.md) for their scope.
 
 ## Coverage and package checks
 
 Python reports include branch coverage for the library and the executed generated
 example transport, with an 85% combined floor. Identical runtime copies in the
 fixtures are checked for drift rather than counted twice. TypeScript's generated
-example transport has floors of 95% lines, 90% branches and 90% functions. CI uploads
-the Python XML and TypeScript LCOV reports for each locked interpreter.
+example transport has floors of 95% lines, 90% branches and 90% functions.
+The root client gate enforces those TypeScript floors. Run pytest with `--cov`
+when checking the separate Python coverage configuration.
 
 The schema matrix validates accepted/rejected payloads and runs strict TypeScript
 and Python type checks on newly generated packages, including both HTTP backends.
@@ -117,7 +77,7 @@ run the same harness with `--source-dir` pointing to the other revision's Stream
 package directory, keeping the interpreter, dependencies and arguments fixed.
 Repeat runs to assess noise; ordinary CI does not enforce timing thresholds.
 
-## Supported scope and roadmap
+## Supported scope
 
 GET/POST JSON SSE data; scalar path and header parameters; scalar/array query parameters;
 JSON bodies; local component references; nested objects, maps, arrays, string
@@ -138,5 +98,4 @@ deepObject/matrix/label styles, multipart bodies,
 tuple schemas and object/array enum values are rejected. No REST SDK replacement,
 WebSockets, JSON-RPC, persistence, automatic reconnect or replay.
 
-Next: NDJSON, then explicit event IDs, Last-Event-ID and opt-in reconnect/replay
-policies. Both shipped generators already share a transport-independent HTTP IR.
+Both shipped generators share a transport-independent HTTP IR.

@@ -116,15 +116,12 @@ of exceptions to events.
 
 ## Regression checks
 
-`.github/workflows/streams.yml` tests Python 3.12 and 3.14 against both the locked
-Streams release and its current `main` branch, on pushes, PRs, and weekly. It
-checks error declarations, HTTP problems from dependencies, GET/POST streams,
-the complete native SSE schema, Dishka request-service lifetime, and both client
-generators. The generated
-Python client is also exercised against the combined ASGI application.
-The package CI installs a clean wheel without Streams and tests the core
-runtime separately. Locally:
+The [root CI workflow](../../../../.github/workflows/ci.yml) checks the locked workspace on Linux with
+Python 3.12–3.14 and Windows with Python 3.14. Regression coverage includes
+dependency problems, typed GET/POST streams, complete SSE schemas, both client
+generators and Dishka lifetime/cleanup. Installed-wheel checks also exercise
+Canon with Streams absent. Run the focused suite from the repository root:
 
 ```console
-uv run --group streams pytest tests/integrations tests/test_optional_streams.py
+uv run --locked --directory packages/fastapi-canon python -m pytest tests/integrations tests/test_optional_streams.py
 ```

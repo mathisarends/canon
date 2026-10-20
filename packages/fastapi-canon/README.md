@@ -594,17 +594,13 @@ Optional WebRTC sessions can declare the same admission errors with
 
 ## Development
 
-Install the development dependencies and run the quality gates:
+Run the shared development commands from the workspace root:
 
 ```console
-uv sync --all-groups
-uv run pre-commit install --config .pre-commit-config.yml
-uv run pre-commit run --config .pre-commit-config.yml --all-files
-uv run ruff format --check .
-uv run ruff check .
-uv run mypy
-uv run pytest
-uv build
+uv sync --locked --all-packages --all-groups
+uv run --locked pre-commit install
+uv run --locked python scripts/check.py all
+uv run --locked python scripts/check_distributions.py
 ```
 
 ## Showcase

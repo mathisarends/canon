@@ -35,22 +35,18 @@ WebSocket engine and protocol retained. See the [RPC migration guide](packages/f
 Its initial release is 0.1.0. The existing source repositories remain available;
 current development and releases for all four packages live here.
 
-Read the [vision](VISION.md), the concrete [workspace decision](docs/design-decisions/0001-workspace.md),
-and the [migration checklist](docs/migration.md). The vision describes the target;
-the checklist distinguishes working capabilities from planned ones.
-Prioritized open work and remaining release setup are listed in [TODO.md](TODO.md).
+[TODO.md](TODO.md) lists prioritized open work. Package READMEs and guides
+describe implemented APIs; [contributing](docs/contributing.md) covers development.
 
 Start with [architecture](guides/architecture.md) when building an application.
 Package READMEs document their current public APIs. Existing Streams integration
 in Canon is retained; the [stack example](examples/stack_service.py) combines HTTP,
 SSE, and RPC using the same Dishka application container.
 
-The migration establishes a `uv` workspace with one root lockfile and separate
+Development uses a `uv` workspace with one root lockfile and separate
 test processes for each member. See [contributing](docs/contributing.md) for
 commands, [compatibility](docs/compatibility.md) for the tested scope, and
 [releases](docs/releases.md) for the independent release policy.
 
-The source repositories are preserved as Git ancestors, with exact imported
-commits recorded in [the workspace decision](docs/design-decisions/0001-workspace.md).
-This repository's current remote is `mathisarends/canon`; consolidating here does
-not rename or archive the existing repositories.
+The imported repositories remain available in Git history. Current development
+and releases use `mathisarends/canon`; predecessor repositories are preserved.

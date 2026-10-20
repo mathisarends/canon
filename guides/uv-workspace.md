@@ -6,9 +6,9 @@ Prefer flat, named members at the repository root, as in `backend/`, `agent/`, `
 
 The Canon library monorepo uses that grouping deliberately: its independently
 published distributions live in `packages/fastapi-canon`,
-`packages/fastapi-streams`, and `packages/fastapi-rpckit`; demonstration applications
-live in `examples/`. The root is a non-published coordination project. See the
-[workspace decision](../docs/design-decisions/0001-workspace.md).
+`packages/fastapi-streams`, `packages/fastapi-rpckit`, and `packages/fastapi-webrtc`;
+demonstration applications live in `examples/`. The root is a non-published
+coordination project. See the [workspace inventory](../README.md#workspace).
 
 The root owns workspace membership and the single shared `uv.lock`. Each member
 owns its runtime dependencies, optional command entry points, and build metadata.

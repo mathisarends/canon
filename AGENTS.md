@@ -1,9 +1,8 @@
 # Canon workspace
 
-Read `docs/design-decisions/0001-workspace.md` for the source inventory and
-`docs/migration.md` for current versus planned capabilities. `VISION.md` describes
-the target; do not treat illustrative APIs as implemented interfaces.
-Use `TODO.md` for the prioritized next work block and release setup still required.
+Use `README.md` for the package inventory, `docs/contributing.md` for development
+commands and `docs/compatibility.md` for the tested dependency scope. Package
+guides document implemented APIs. `TODO.md` lists prioritized open work.
 Write all repository Markdown documentation in English, including TODO lists,
 changelogs, guides, and agent instructions.
 
@@ -44,8 +43,7 @@ Keep one root `uv.lock`. Preserve package-specific type/lint settings. Generated
 clients are changed through generators/templates, then checked for drift.
 Build/install checks must use actual artifacts in fresh environments, independent
 of workspace source overrides. Do not publish or archive repositories as part of
-routine development. The nested imported `.github` directories are historical
-configuration; only root workflows execute for this repository.
+routine development. Only root workflows under `.github/workflows/` define CI and releases.
 
 ## Release preparation
 
