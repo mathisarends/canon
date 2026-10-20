@@ -173,7 +173,9 @@ class SessionLimits:
     transport_loss_grace_seconds: float = 5
     """How long the transport may stay ``disconnected`` before termination."""
     shutdown_timeout_seconds: float = 5
-    """Deadline for ``on_close``, handler cancellation and engine cleanup."""
+    """Deadline for handler cancellation, ``on_close`` and engine cleanup.
+    ``on_close`` and engine cleanup each keep at least one second, so they run
+    even when cancelled handlers used up the deadline."""
     max_pending_candidates: int = 128
     """Remote candidates buffered before the remote description is applied."""
     max_signaling_message_bytes: int = 256 * 1024

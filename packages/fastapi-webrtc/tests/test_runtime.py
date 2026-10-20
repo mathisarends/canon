@@ -1590,6 +1590,35 @@ async def test_cleanup_tolerates_stuck_and_failing_handlers() -> None:
     assert engine_of(rtc).peer.closed
 
 
+async def test_on_close_runs_after_stuck_handlers_used_the_deadline() -> None:
+    closes: list[ErrorCode] = []
+    release = asyncio.Event()
+    rtc = router(limits=SessionLimits(shutdown_timeout_seconds=0.1))
+
+    @rtc.session("/s")
+    def stuck() -> Session:
+        async def run(peer: Peer) -> None:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                await release.wait()
+
+        async def on_close(peer: Peer, code: ErrorCode) -> None:
+            await asyncio.sleep(0.05)
+            closes.append(code)
+
+        return Session(run=run, on_close=on_close)
+
+    async with serve(application(rtc)) as base:
+        signal = await Signal.start(f"{base}/s")
+        await establish(signal, rtc)
+        await signal.close()
+        await until(lambda: rtc.active_sessions == 0, timeout=3)
+        release.set()
+    assert closes == [ErrorCode.CLOSED]
+    assert engine_of(rtc).peer.closed
+
+
 async def test_event_hook_failures_are_ignored() -> None:
     def hook(event: SessionEvent) -> None:
         raise RuntimeError("metrics down")

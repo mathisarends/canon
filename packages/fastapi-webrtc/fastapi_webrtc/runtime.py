@@ -57,6 +57,8 @@ logger = logging.getLogger("fastapi_webrtc")
 _NORMAL_CLOSES = frozenset({1000, 1001})
 _RESTART_CLOSE = 1012
 _MEDIA_POLL_SECONDS = 0.2
+MINIMUM_CLEANUP_STEP_SECONDS = 1.0
+"""Budget ``on_close`` and engine cleanup keep after stuck tasks used the deadline."""
 
 
 @dataclass
@@ -1125,7 +1127,9 @@ class SessionRuntime:
                 )
         if self._session.on_close is not None and self._accepted:
             try:
-                async with asyncio.timeout(remaining()):
+                async with asyncio.timeout(
+                    max(remaining(), MINIMUM_CLEANUP_STEP_SECONDS)
+                ):
                     await self._session.on_close(self._peer_handle, code)
             except TimeoutError:
                 logger.warning("on_close of %s exceeded its deadline", self._label)
@@ -1146,7 +1150,9 @@ class SessionRuntime:
                     channel.engine.close()
         if self._peer is not None:
             try:
-                async with asyncio.timeout(max(remaining(), 1.0)):
+                async with asyncio.timeout(
+                    max(remaining(), MINIMUM_CLEANUP_STEP_SECONDS)
+                ):
                     await self._peer.close()
             except TimeoutError:
                 logger.warning(

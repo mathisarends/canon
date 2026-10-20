@@ -83,7 +83,9 @@ admission) and `aborted` (the caller's `AbortSignal`).
 
 Every accepted session closes signaling, cancels its tasks, runs `on_close`
 with the code, stops owned tracks and closes the engine peer, then releases
-its slot and dependency scopes. A signaling loss shorter than
+its slot and dependency scopes. `on_close` and engine cleanup each keep at
+least one second, even when cancelled handlers used up
+`shutdown_timeout_seconds`. A signaling loss shorter than
 `signaling_loss_grace_seconds` and a
 transport interruption shorter than `transport_loss_grace_seconds` do not end
 the session. `WebRtcRouter.aclose()` runs at application shutdown and closes

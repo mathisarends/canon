@@ -28,7 +28,12 @@ from fastapi_webrtc.engine import Engine
 from fastapi_webrtc.errors import ErrorCode, close_code
 from fastapi_webrtc.events import EventHook, SessionEvent
 from fastapi_webrtc.ice import IceServerSource
-from fastapi_webrtc.runtime import RuntimeOptions, SessionRuntime, _stop_native
+from fastapi_webrtc.runtime import (
+    MINIMUM_CLEANUP_STEP_SECONDS,
+    RuntimeOptions,
+    SessionRuntime,
+    _stop_native,
+)
 
 logger = logging.getLogger("fastapi_webrtc")
 
@@ -270,7 +275,8 @@ class WebRtcRouter(APIRouter):
         """Close every active session with ``shutdown`` and wait for cleanup.
 
         New sessions are refused afterwards. ``timeout`` defaults to the largest
-        configured shutdown deadline plus one second.
+        configured shutdown deadline plus the minimum budgets of ``on_close`` and
+        engine cleanup.
         """
         self._closing = True
         runtimes = list(self._runtimes)
@@ -279,7 +285,7 @@ class WebRtcRouter(APIRouter):
         if not runtimes:
             return
         if timeout is None:
-            timeout = 1 + max(
+            timeout = 2 * MINIMUM_CLEANUP_STEP_SECONDS + max(
                 runtime.declaration.limits.shutdown_timeout_seconds
                 for runtime in runtimes
             )

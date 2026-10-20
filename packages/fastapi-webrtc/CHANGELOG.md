@@ -10,7 +10,9 @@ Initial release.
 - `Session` handlers: `on_start`, `run`, `on_track`, typed `on_message`,
   `on_close` and outgoing tracks. `Peer` sends messages and tracks with
   renegotiation, and exposes stats and close codes. Stats report jitter as
-  `None` when the engine cannot convert it to seconds (aiortc).
+  `None` when the engine cannot convert it to seconds (aiortc). `on_close` runs
+  once per accepted session and keeps at least one second even when cancelled
+  handlers used up `shutdown_timeout_seconds`.
 - Track ownership: session tracks and `send_track(track)` are stopped on removal
   or cleanup, including rejected and partially started sessions;
   `send_track(track, owned=False)` keeps shared sources running behind a
