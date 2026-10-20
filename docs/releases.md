@@ -5,16 +5,82 @@ published releases from this repository. The root workspace and reference servic
 are not publication targets. The [README](../README.md#current-releases) lists all
 current package versions with PyPI and GitHub release links.
 
-## Prepared: fastapi-webrtc 0.1.0
+## Release preparation, 2026-10-20
 
-WebRTC is an independent, unreleased package. `release.toml` reserves the
-`fastapi-webrtc-v` tag prefix, and the root release workflow accepts it as a
-target. This preparation does not publish it or configure its PyPI Trusted
-Publisher.
-Before a separately authorized first publication, confirm the publisher setup,
-merge the reviewed source, pass exact-commit CI and a release dry run, and
-finalize the changelog date. See [decision 0005](design-decisions/0005-webrtc-extension.md)
-and the [compatibility record](compatibility.md) for scope and local evidence.
+WebRTC PR #7 and RPCkit PRs #4, #5 and #6 are merged. Prepare these independent
+releases; none of the following versions is published:
+
+| Distribution | Prepared version | Scope |
+| --- | --- | --- |
+| `fastapi-webrtc` | 0.1.0 | First release: typed sessions/channels, optional aiortc engine and generated browser clients. |
+| `fastapi-rpckit` | 0.3.0 | Breaking removal of client methods, socket API renames and typed JSON sockets; follow its changelog migration steps. |
+| `fastapi-canon` | 0.5.5 | Compatible fix preserving feature-router lifespans and ordered dependency cleanup. |
+
+Streams remains at published 0.4.0; Canon's optional Streams pin is unchanged.
+The three releases are independent and do not require each other to be uploaded
+first. Their changelogs are dated 2026-10-20 for final-source validation; a dated
+heading does not indicate publication. Merge the preparation, pass exact-commit
+CI on `main`, and run each package's dry run before requesting publication.
+
+`release.toml`, the release workflow, installed-wheel checks and public-index
+verification already support WebRTC, including the `fastapi-webrtc-v` tag prefix.
+See [decision 0005](design-decisions/0005-webrtc-extension.md) and the
+[compatibility record](compatibility.md) for its scope and evidence.
+
+### WebRTC first publication setup
+
+The 2026-10-20 audit confirmed GitHub CLI administrator access and the existing
+`pypi` environment, with a deployment policy allowing only `main`. The current
+PyPI JSON endpoint returns 404 for `fastapi-webrtc`, so it has no public project
+yet. This does not establish whether a private Pending Publisher exists. The
+account publishing page returned HTTP 503 in the available browser; its private
+publisher state could not be inspected.
+
+Before first publication, the PyPI account owner must confirm or add a GitHub
+Pending Publisher at [account publishing](https://pypi.org/manage/account/publishing/):
+
+| Field | Exact value |
+| --- | --- |
+| PyPI project name | `fastapi-webrtc` |
+| GitHub owner | `mathisarends` |
+| Repository name | `canon` |
+| Workflow filename | `release.yml` |
+| Environment name | `pypi` |
+
+Use only the workflow filename, without `.github/workflows/`. A separate
+publisher is required for this new distribution; the existing Canon, Streams
+and RPCkit registrations do not automatically authorize it. Pending registration
+does not reserve the project name; the first successful upload creates the
+project and converts the publisher to a normal Trusted Publisher. See
+[PyPI's first-project instructions](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
+No persistent PyPI API token is needed.
+
+After the preparation is merged and its exact-source CI succeeds, run:
+
+```console
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-webrtc -f version=0.1.0 -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-rpckit -f version=0.3.0 -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-canon -f version=0.5.5 -f dry_run=true
+```
+
+Dry runs skip OIDC and cannot verify a Pending Publisher. Real dispatches still
+require explicit publication authorization. Every publication must finish with
+verified PyPI installs, the matching package tag and a central GitHub Release
+containing the original wheel, sdist and release manifest.
+
+### WebRTC baseline dry run
+
+The merged baseline [`69daa8a`](https://github.com/mathisarends/canon/commit/69daa8a27d859fa165ba1b687af1ed2bcc68131e)
+passed [four-target CI](https://github.com/mathisarends/canon/actions/runs/39382457656)
+and [WebRTC dry run 39383005311](https://github.com/mathisarends/canon/actions/runs/39383005311)
+on 2026-10-20. Both current/minimum nine-combination wheel matrices and installed
+Streams/WebRTC CLI and generated-client checks passed. Publication and GitHub
+finalization were skipped. Downloaded wheel/sdist hashes match the original
+manifest under `dist/dry-runs/39383005311/`.
+
+This run predates the dated changelogs and Canon/RPCkit version preparation.
+Repeat all selected dry runs on the final merged source; this baseline does not
+verify the private WebRTC Pending Publisher or authorize publication.
 
 ## SDK review publications
 
@@ -295,15 +361,20 @@ skipped. The earlier RPCkit 0.1.1 result above is superseded preparation evidenc
 not a publication or verification of 0.2.0. At that preparation stage, sources
 remained unreleased.
 
-## Account configuration verified on 2026-10-17
+## Publisher configuration
+
+The first three publishers were verified through successful OIDC publications
+starting on 2026-10-17. WebRTC's private registration remains unverified as of
+the 2026-10-20 audit described above.
 
 | PyPI project | Publisher state |
 | --- | --- |
 | `fastapi-canon` | Trusted Publisher configured and verified |
 | `fastapi-streams` | Trusted Publisher configured and verified |
 | `fastapi-rpckit` | Initial Pending Publisher accepted; first OIDC publication verified |
+| `fastapi-webrtc` | Unverified as of 2026-10-20; confirm or add its own Pending Publisher before the first upload |
 
-All use GitHub owner `mathisarends`, repository `canon`, workflow filename
+All verified publishers use GitHub owner `mathisarends`, repository `canon`, workflow filename
 `release.yml`, and environment `pypi`. No persistent PyPI token is needed. The
 GitHub environment allows only `main`. No additional reviewer or wait timer is
 configured: publication uses manual dispatch and the gates below. Agents still

@@ -66,7 +66,7 @@ def test_release_rejects_stale_installation_docs(release_repo: Path) -> None:
     path = release_repo / "packages/fastapi-canon/docs/streams.md"
     path.write_text("Install fastapi-streams==0.0.1", encoding="utf-8")
     with pytest.raises(ValueError, match="does not match"):
-        release.validate_release("fastapi-canon", "0.5.4", root=release_repo)
+        release.validate_release("fastapi-canon", "0.5.5", root=release_repo)
 
 
 def test_release_notes_resolve_links_against_the_release_commit(
@@ -147,9 +147,9 @@ def test_breaking_pre_one_releases_require_next_minor(
 @pytest.mark.parametrize(
     ("name", "version"),
     [
-        ("fastapi-canon", "0.5.4"),
+        ("fastapi-canon", "0.5.5"),
         ("fastapi-streams", "0.4.0"),
-        ("fastapi-rpckit", "0.2.0"),
+        ("fastapi-rpckit", "0.3.0"),
         ("fastapi-webrtc", "0.1.0"),
     ],
 )
@@ -190,10 +190,10 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
 @pytest.mark.parametrize(
     ("path", "before", "after", "message"),
     [
-        ("uv.lock", 'version = "0.5.4"', 'version = "0.4.0"', "uv.lock"),
+        ("uv.lock", 'version = "0.5.5"', 'version = "0.4.0"', "uv.lock"),
         (
             "packages/fastapi-rpckit/fastapi_rpckit/__init__.py",
-            '__version__ = "0.2.0"',
+            '__version__ = "0.3.0"',
             '__version__ = "9.9.9"',
             "__version__",
         ),
@@ -227,28 +227,23 @@ def test_publication_requires_final_changelog(release_repo: Path) -> None:
     changelog = release_repo / "packages/fastapi-rpckit/CHANGELOG.md"
     lines = changelog.read_text("utf-8").splitlines()
     heading = next(
-        index for index, line in enumerate(lines) if line.startswith("## 0.2.0")
+        index for index, line in enumerate(lines) if line.startswith("## 0.3.0")
     )
-    lines[heading] = "## 0.2.0 (unreleased)"
+    lines[heading] = "## 0.3.0 (unreleased)"
     changelog.write_text("\n".join(lines) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="Finalize the changelog"):
         release.validate_release(
-            "fastapi-rpckit", "0.2.0", root=release_repo, publish=True
+            "fastapi-rpckit", "0.3.0", root=release_repo, publish=True
         )
 
 
 def test_publication_accepts_final_changelog(release_repo: Path) -> None:
     path = release_repo / "packages/fastapi-rpckit/CHANGELOG.md"
-    path.write_text(
-        path.read_text("utf-8").replace(
-            "## 0.2.0 - unreleased", "## 0.2.0 - 2026-10-18"
-        ),
-        encoding="utf-8",
-    )
+    assert "## 0.3.0 - 2026-10-20" in path.read_text("utf-8")
     report = release.validate_release(
-        "fastapi-rpckit", "0.2.0", root=release_repo, publish=True
+        "fastapi-rpckit", "0.3.0", root=release_repo, publish=True
     )
-    assert report["version"] == "0.2.0"
+    assert report["version"] == "0.3.0"
 
 
 def test_github_release_requires_successful_ci_for_exact_commit(
@@ -260,7 +255,7 @@ def test_github_release_requires_successful_ci_for_exact_commit(
     monkeypatch.setattr(release, "_gh", lambda endpoint: {"workflow_runs": []})
     with pytest.raises(ValueError, match="exact release commit"):
         release.validate_release(
-            "fastapi-rpckit", "0.2.0", root=release_repo, github=True
+            "fastapi-rpckit", "0.3.0", root=release_repo, github=True
         )
 
 
@@ -295,7 +290,7 @@ def test_github_release_rejects_existing_pypi_version(
     monkeypatch.setattr(release, "_pypi", lambda name, version: {})
     with pytest.raises(ValueError, match="already exists on PyPI"):
         release.validate_release(
-            "fastapi-rpckit", "0.2.0", root=release_repo, github=True
+            "fastapi-rpckit", "0.3.0", root=release_repo, github=True
         )
 
 

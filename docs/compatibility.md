@@ -13,6 +13,36 @@ existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All three versions
 are available through PyPI and this repository's independent GitHub releases.
 
+## Independent release preparation, verified 2026-10-20
+
+The prepared combination is Canon 0.5.5 / Streams 0.4.0 / RPCkit 0.3.0 /
+WebRTC 0.1.0. Only Streams 0.4.0 is already public in that combination; the
+published-version table above remains unchanged until publication is verified.
+
+Both nine-combination installed-wheel matrices pass: current compatible
+dependencies on CPython 3.14.0 and direct minima on CPython 3.12.12. The current
+matrix also passes the independently installed reference service's five tests.
+The minimum matrix and subsequent CLI checks use copies of the same prepared
+wheel/sdist files under `dist/release-preparation-artifacts/`, independent of
+workspace source overrides. Installed Streams core-only/HTTPX/HTTPX2 CLI checks
+and the installed WebRTC CLI, contract/client drift and TypeScript compilation
+all pass. Local release metadata validation accepts all three dated changelogs,
+package constants, root pins and the shared lockfile.
+
+Inventories are `dist/compatibility-latest.json` and
+`dist/compatibility-minimum.json`. Logs are
+`dist/release-preparation-wheels-current.log`,
+`dist/release-preparation-wheels-minimum.log`,
+`dist/release-preparation-streams-artifacts.log` and
+`dist/release-preparation-webrtc-artifacts.log`.
+
+The earlier merged baseline `69daa8a` also passed four-target CI, Chromium/aiortc
+scenarios and a complete WebRTC release dry run; see the
+[baseline evidence](releases.md#webrtc-baseline-dry-run). The preparation must
+still be merged, pass exact-commit `main` CI and repeat the selected release dry
+runs. A dry run does not check WebRTC's private Pending Publisher and is not a
+publication. See the [publisher setup](releases.md#webrtc-first-publication-setup).
+
 ## WebRTC PR #7 corrections, verified 2026-10-19
 
 The review corrections retain the unreleased 0.1.0 source version. Regression
