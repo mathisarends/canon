@@ -24,7 +24,6 @@ from the templates under `codegen/templates/python/runtime/`.
 - Format: `uv run ruff format .`
 - Tests: `uv run pytest`
 - Install pre-commit only from the workspace root using its root configuration.
-  The imported package hook configuration is historical and assumes the old layout.
 
 ## Conventions
 
@@ -32,7 +31,7 @@ from the templates under `codegen/templates/python/runtime/`.
 - Use relative imports for all public re-exports in `fastapi_rpckit/__init__.py`.
 - No module-level docstrings. Document a class or function only where the name is not enough.
 - During consolidation preserve the existing runtime and adapter behavior. The
-  successor direction is FastAPI-first; see the root VISION.md. Do not remove
+  successor direction is FastAPI-first; see the root README.md. Do not remove
   test seams or redesign the public API as part of a workspace move.
 - Generators read the OpenRPC document, never the `RpcProtocol` object, so a new target
   language only needs an emitter beside `codegen/python.py` on top of `codegen/ir.py`.

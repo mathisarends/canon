@@ -1,39 +1,8 @@
-# Hardening stack: SDK changes and migration
+# SDK resilience and migration
 
-This guide covers all 15 production-readiness tickets. Each ticket has its own
-stacked PR, incremental commits, changelog entry, and SDK impact summary. A final
-cleanup [PR #38](https://github.com/mathisarends/pyrpckit/pull/38) applies the
-current-API-only policy across client/server instrumentation. Start
-here to understand the resulting behavior, then use the linked guides for setup.
-The changes and migration steps are recorded in the **0.11.0** changelog entry.
-
-## Implementation history
-
-The 15 ticket PRs were built in the order below and merged one by one into
-`main`. Each successor was retargeted after its prerequisite merged, and merge
-commits preserve the incremental implementation commits. The final cleanup
-[PR #38](https://github.com/mathisarends/pyrpckit/pull/38) applies the middleware-only
-API and the breaking migrations described below. The table records the original
-implementation chain; the current changelog describes the resulting API.
-
-| Ticket | PR | What it changes |
-|---|---|---|
-| 01 | [#23](https://github.com/mathisarends/pyrpckit/pull/23) | Strict client envelopes, send/close cleanup, valid late replies |
-| 02 | [#24](https://github.com/mathisarends/pyrpckit/pull/24) | Deep/hostile input handling and bounded failure logging |
-| 15 | [#25](https://github.com/mathisarends/pyrpckit/pull/25) | Per-item pending capacity and bounded collectors/frames |
-| 03 | [#26](https://github.com/mathisarends/pyrpckit/pull/26) | Deterministic fault-injecting socket test tools |
-| 04 | [#27](https://github.com/mathisarends/pyrpckit/pull/27) | Matching SDK error taxonomy and original causes |
-| 05 | [#28](https://github.com/mathisarends/pyrpckit/pull/28) | Server deadlines and reserved cancellation control |
-| 06 | [#29](https://github.com/mathisarends/pyrpckit/pull/29) | Automatic cancel controls and TypeScript AbortSignal options |
-| 07 | [#30](https://github.com/mathisarends/pyrpckit/pull/30) | Opt-in reconnect, shared opening attempts, connection states |
-| 08 | [#31](https://github.com/mathisarends/pyrpckit/pull/31) | Iterator recovery, subscription renewal, overflow visibility |
-| 09 | [#32](https://github.com/mathisarends/pyrpckit/pull/32) | TypeScript idle heartbeat and optional timeout breaker |
-| 10 | [#33](https://github.com/mathisarends/pyrpckit/pull/33) | Declared idempotency and opt-in method retry |
-| 11 | [#34](https://github.com/mathisarends/pyrpckit/pull/34) | Coordinated drain before process shutdown |
-| 12 | [#35](https://github.com/mathisarends/pyrpckit/pull/35) | Credential expiry and fresh authentication per connection |
-| 13 | [#36](https://github.com/mathisarends/pyrpckit/pull/36) | Per-attempt middleware with error/validation outcomes |
-| 14 | [#37](https://github.com/mathisarends/pyrpckit/pull/37) | Bounded request metadata and remote trace propagation |
-| Cleanup | [#38](https://github.com/mathisarends/pyrpckit/pull/38) | Middleware-only APIs and documented breaking migrations |
+This guide covers connection lifecycle, capacity limits and SDK resilience.
+Use the linked guides for configuration and the [changelog](../CHANGELOG.md)
+for version-specific breaking changes.
 
 ## What existing applications need to know
 
@@ -62,9 +31,9 @@ traffic: defaults include 32 concurrent handlers, 1024 pending items, 32 batch
 members, 128 queued messages, a 1 MiB message bound, and a 10-second send timeout.
 See [Services and limits](services.md).
 
-The existing integration migration in this release also applies: import FastAPI,
-Dishka, and OTel from `fastapi_rpckit.integrations.*`. The former top-level integration
-modules have been removed; there are no compatibility aliases.
+Import FastAPI APIs from the `fastapi_rpckit` package root. Dishka and OTel
+integrations live under `fastapi_rpckit.integrations.*`; follow the migration
+guide for removed predecessor modules.
 
 ## Defaults and opt-ins
 

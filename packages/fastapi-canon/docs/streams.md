@@ -246,16 +246,12 @@ stream exceptions, or convert them to events. There is no `stream_raises` API.
 
 ## Compatibility regression checks
 
-The [Streams CI workflow](../.github/workflows/streams.yml) runs the full suite
-on Python 3.12 and 3.14 against the locked release and current upstream `main`,
-on pushes, pull requests, and weekly. The upstream leg detects future breaks;
-it does not change the version installed by canon's extra. Regression tests cover
-dependency errors,
-validation, typed GET/POST streams, complete SSE schemas, and both client
-generators, plus Dishka service reuse and cleanup across the HTTP/stream
-boundary. The generated Python client also makes successful and failing
-requests against the combined app. Separate clean-wheel checks exercise canon
-without Streams installed.
+The [root CI workflow](../../../.github/workflows/ci.yml) checks the locked workspace on Linux with
+Python 3.12–3.14 and Windows with Python 3.14. Regression coverage includes
+dependency problems, typed GET/POST streams, complete SSE schemas, both client
+generators and Dishka lifetime/cleanup. Installed-wheel checks also exercise
+Canon with Streams absent. Run the focused suite from the repository root:
 
-See the [runnable example guide](../examples/streams/README.md) for curl commands
-and local regression test commands.
+```console
+uv run --locked --directory packages/fastapi-canon python -m pytest tests/integrations tests/test_optional_streams.py
+```

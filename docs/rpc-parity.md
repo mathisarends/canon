@@ -1,94 +1,58 @@
-# RPC successor parity and consumer checks
+# RPC successor parity and consumer migration
 
-Verified locally on 2026-10-17. This records source and artifact checks for
-`fastapi-rpckit` 0.1.0. The release is published and both SDKs also pass against
-the installed PyPI package. Full application migration remains a separate step.
+`fastapi-rpckit` is the FastAPI-first successor to pyrpckit. Its initial import
+preserved the predecessor's runtime, schemas, templates and tests from commit
+`853579eb08903bd95f8ce03f7608a3703ba40add` (pyrpckit 0.11.0), under the
+`fastapi_rpckit` namespace. FastAPI is required. There is no `rpckit` import shim.
 
-## Source inventory
+Existing `x-rpckit-*` extensions, `.rpcgen` manifests and `rpckit.*` telemetry
+names are intentional compatibility points. Subsequent releases have source and
+generated-client breaking changes, including the 0.3.0 socket API changes and
+removal of server-to-client RPC. Follow the package [migration guide](../packages/fastapi-rpckit/docs/migration.md)
+and [changelog](../packages/fastapi-rpckit/CHANGELOG.md) rather than assuming the
+current API is identical to the imported predecessor.
 
-The local `../pyrpckit` checkout is clean at
-`853579eb08903bd95f8ce03f7608a3703ba40add` (pyrpckit 0.11.0), the same commit
-imported into this workspace. All 79 tracked files under `rpckit/` and all 69
-tracked test files are present in the successor under the new import namespace.
+## Regression scope
 
-Comparing the imported implementation after reversing the namespace rename found
-no missing runtime, schema, template, or test files. Differences consist of:
+The suite covers methods, notifications, validation, typed errors, FastAPI
+mounting and admission, Dishka scopes, subscriptions, binary/typed sockets,
+deadlines, cancellation, recovery, shutdown, tracing and generated clients.
+Installed-wheel checks exercise independent imports, CLI/client generation and
+real routing. The composed stack also covers shared Dishka state and cleanup.
 
-- The successor version, logger/context names, package imports, CLI attribution,
-  installation messages, and formatting needed for the longer import namespace.
-- Required FastAPI, four additional root exports (`FastApiSocket`, `RpcRoutes`,
-  `create_router`, `serve_websocket`), and removal of optional-FastAPI error paths.
-- Tests adjusted for required FastAPI and optional Dishka/OTel isolation. The
-  inherited protocol/runtime regression cases remain intact.
-- The subsequent Python generator fix described below, with a new regression test.
+## Consumer contract checks
 
-The JSON-RPC envelopes and IDs, method/event names, cancellation and subscription
-controls, binary/raw framing, OpenRPC extensions, and generated client contracts
-retain pyrpckit 0.11.0 behavior. Existing `x-rpckit-*` extensions, `.rpcgen`
-manifests, and `rpckit.*` telemetry names remain intentional compatibility points.
-There is no installed `rpckit` namespace shim.
+Cara's recorded contract snapshot came from gateway commit
+`43178b931157caab9da59c1dad33cf8778af1470`, with 15 methods and SHA-256
+`dee9bc02d414d978cfcdaf001b1ee1399c4dd9ed17b72773b3246e905391b004`.
+Contract/SDK checks do not start or migrate the application.
 
-## Functional coverage
-
-The successor suite covers these inherited capabilities:
-
-| Capability | Regression coverage |
-| --- | --- |
-| Methods, notifications, validation and typed errors | channel, dispatch, server, envelopes and error tests |
-| FastAPI mounting, handshake authentication and rejections | FastAPI and expiry tests |
-| Application/session/request dependencies | dependency and Dishka tests; composed stack test |
-| Subscriptions, acknowledgement limits and cleanup | subscription, runtime and drain tests |
-| Binary upload/download/duplex and raw sockets | stream/raw socket tests and generated roundtrips |
-| Deadlines, cancellation, heartbeats, shutdown and credential refresh | dedicated server and Python/TypeScript SDK tests |
-| OpenRPC, SDKs, tracing and middleware | schema, codegen, metadata, middleware and OTel tests |
-
-Wheel checks independently exercise the CLI, JSON-RPC WebSocket roundtrips,
-Python client roundtrips, TypeScript compilation and client drift. The composed
-HTTP/SSE/RPC app also checks shared Dishka state and shutdown cleanup.
-
-## Cara consumer contract
-
-Selected consumer: `../cara/gateway`, observed at commit
-`43178b931157caab9da59c1dad33cf8778af1470`. Its exported
-`gateway/schema/gateway.openrpc.json` contains 15 methods; SHA-256:
-
-```text
-dee9bc02d414d978cfcdaf001b1ee1399c4dd9ed17b72773b3246e905391b004
-```
-
-The new wheel generates both SDKs from this contract. Python compilation,
-package import, Ruff lint/format checks, TypeScript strict compilation and both
-generator drift checks pass. Initially the Python generator produced overlong
-enum defaults, discriminated event unions and route declarations. The generator
-and templates now wrap those constructs; a synthetic contract regression covers
-the same patterns. Names, validation and wire formats are unchanged.
-
-Repeat against any exported consumer contract, after building the wheel and
-installing the Streams member's TypeScript tooling:
+Repeat against an exported consumer contract using an actual installed wheel.
+From the workspace root, install the Streams TypeScript tooling first, build
+RPCKit and replace `VERSION` with the built package version:
 
 ```console
+npm ci --ignore-scripts --prefix packages/fastapi-streams
 uv build --package fastapi-rpckit --out-dir dist/fastapi-rpckit
-uv run --isolated --no-project --no-cache --with "dist/fastapi-rpckit/fastapi_rpckit-0.1.0-py3-none-any.whl[codegen]" --with ruff python -I scripts/check_rpc_consumer.py ../cara/gateway/schema/gateway.openrpc.json
+uv run --isolated --no-project --no-cache --with "dist/fastapi-rpckit/fastapi_rpckit-VERSION-py3-none-any.whl[codegen]" --with ruff python -I scripts/check_rpc_consumer.py PATH_TO_CONSUMER_OPENRPC_JSON
 ```
 
-`--no-cache` ensures a locally rebuilt development wheel with the same filename
-does not reuse an older isolated installation. This is a contract/SDK check;
-it does not start or migrate the Cara service.
+The script generates both SDKs, checks drift, imports/compiles Python, runs its
+Ruff checks and compiles TypeScript strictly. `--no-cache` prevents reuse of an
+older isolated install of a rebuilt development wheel with the same filename.
 
-Cara currently pins pyrpckit 0.8.0 and requires a separate application change:
+## Application migration boundary
 
 1. Replace the dependency and `rpckit` imports with `fastapi-rpckit` and
-   `fastapi_rpckit`. For FastAPI APIs use the root exports; use
-   `fastapi_rpckit.integrations.dishka` for `DishkaResolver`.
-2. In particular, replace `rpckit.fastapi` and `rpckit.dishka`; a mechanical
-   namespace replacement would point to removed module paths.
-3. Apply the predecessor's 0.9–0.11 changelog migrations, including request-ID,
-   middleware and custom-transport changes wherever the application uses them.
-4. Update the separate Canon `<0.5.0` pin if adopting Canon 0.5.0 as well.
-5. Regenerate its committed SDKs, then run its actual authentication, mounting,
-   Dishka, subscription, room/reverse-call and voice-media tests.
+   `fastapi_rpckit`. Use package-root FastAPI APIs and
+   `fastapi_rpckit.integrations.dishka` for Dishka integration. A mechanical
+   namespace replacement can leave references to removed modules.
+2. Apply all intervening changelog migrations for request IDs, middleware,
+   transports, sockets and removed server-to-client RPC. Update separate Canon
+   pins when adopting a newer Canon version.
+3. Regenerate committed SDKs and run the application's mounting, authentication,
+   Dishka, subscription and voice/media tests.
 
-The older browser-provisioner consumer also has historical `pyrpckit` imports and
-composition APIs; it needs its own version-specific migration. Neither external
-repository was changed. Full consumer migration and live application tests remain
-open; successful generation alone does not establish those claims.
+Full Cara application migration remains open. SDK compilation alone cannot prove
+runtime scope, authorization or media compatibility, and this repository does
+not modify external consumers automatically.

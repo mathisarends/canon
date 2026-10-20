@@ -7,8 +7,7 @@ PyPI distributions with independent versions; the RPC successor is a third.
 PyPI Trusted Publishing is configured for `mathisarends/canon`, workflow
 `release.yml`, environment `pypi`. Tags use `fastapi-rpckit-vX.Y.Z`, and the
 [central release list](https://github.com/mathisarends/canon/releases) contains
-each workspace library's independent releases. The imported nested workflows
-are historical references; only the root workflow executes.
+each workspace library's independent releases. Only the root workflow executes.
 
 Update `pyproject.toml`, `fastapi_rpckit.__version__`, and `CHANGELOG.md` together,
 then update the root lockfile. Run the workspace gates, built-distribution tests,
