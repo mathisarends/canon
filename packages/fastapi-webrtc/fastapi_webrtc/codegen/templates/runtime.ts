@@ -245,6 +245,158 @@ export interface SessionApi<C extends ChannelMap, O> {
   connect(options: O): Promise<RtcSession<C>>;
 }
 
+export type VideoHealthState = "waiting" | "healthy" | "stalled" | "stopped";
+export type VideoHealthReason =
+  | "first_frame" | "recovered" | "first_frame_timeout" | "stall_timeout" | "stopped";
+
+export interface VideoHealthEvent {
+  readonly state: VideoHealthState;
+  readonly reason: VideoHealthReason;
+  /** Decoding and submission to the video compositor are different observations. */
+  readonly measurement: "decoded" | "presented";
+}
+
+export interface VideoHealthSource {
+  stats(): Promise<RTCStatsReport>;
+  readonly closed: Promise<unknown>;
+}
+
+export interface VideoHealthOptions {
+  /** Both deadlines are disabled unless explicitly configured. */
+  readonly firstFrameTimeoutMs?: number | null;
+  readonly stallTimeoutMs?: number | null;
+  /** Stats polling interval; defaults to 500 ms. */
+  readonly pollIntervalMs?: number;
+  /** Restrict stats to one inbound trackIdentifier. Missing identifiers are unknown. */
+  readonly trackId?: string;
+  /** Observe compositor submission when supported; otherwise observe decoded stats. */
+  readonly video?: HTMLVideoElement;
+  readonly signal?: AbortSignal;
+  readonly onChange?: (event: VideoHealthEvent) => void;
+  /** Observational failures do not close the session or count as frame progress. */
+  readonly onError?: (error: unknown) => void;
+}
+
+export interface VideoHealthObserver {
+  readonly state: VideoHealthState;
+  /** Idempotent. Stops observation without closing the session or stopping tracks. */
+  stop(): void;
+}
+
+/** Observe one receiving video's progress independently of transport readiness or UI fallback. */
+export function observeVideoHealth(
+  source: VideoHealthSource,
+  options: VideoHealthOptions = {},
+): VideoHealthObserver {
+  const firstTimeout = options.firstFrameTimeoutMs ?? null;
+  const stallTimeout = options.stallTimeoutMs ?? null;
+  const interval = options.pollIntervalMs ?? 500;
+  for (const [name, value] of [
+    ["firstFrameTimeoutMs", firstTimeout], ["stallTimeoutMs", stallTimeout],
+    ["pollIntervalMs", interval],
+  ] as const) {
+    if (value !== null && (!Number.isFinite(value) || value <= 0 || value > 2_147_483_647)) {
+      throw new RangeError(`${name} must be a finite positive timer duration.`);
+    }
+  }
+  const video = options.video;
+  let measurement: "decoded" | "presented" =
+    video !== undefined && typeof video.requestVideoFrameCallback === "function" ? "presented" : "decoded";
+  let state: VideoHealthState = "waiting";
+  let stopped = false;
+  let receivedFrame = false;
+  let deadline: ReturnType<typeof setTimeout> | null = null;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let frameCallback: number | null = null;
+  let counters = new Map<string, number>();
+
+  function reportError(error: unknown): void {
+    if (stopped) return;
+    try { options.onError?.(error); } catch { /* An observer cannot own session teardown. */ }
+  }
+
+  function change(next: VideoHealthState, reason: VideoHealthReason): void {
+    state = next;
+    try { options.onChange?.({ state, reason, measurement }); } catch (error) { reportError(error); }
+  }
+
+  function arm(timeout: number | null, reason: "first_frame_timeout" | "stall_timeout"): void {
+    if (deadline !== null) clearTimeout(deadline);
+    deadline = timeout === null ? null : setTimeout(() => {
+      deadline = null;
+      if (!stopped) change("stalled", reason);
+    }, timeout);
+  }
+
+  function progress(): void {
+    if (stopped) return;
+    const first = !receivedFrame;
+    receivedFrame = true;
+    if (state !== "healthy") change("healthy", first ? "first_frame" : "recovered");
+    if (!stopped) arm(stallTimeout, "stall_timeout");
+  }
+
+  async function poll(): Promise<void> {
+    try {
+      const report = await source.stats();
+      if (stopped) return;
+      const next = new Map<string, number>();
+      let advanced = false;
+      report.forEach((raw: RTCInboundRtpStreamStats) => {
+        if (raw.type !== "inbound-rtp" || raw.kind !== "video") return;
+        if (options.trackId !== undefined && raw.trackIdentifier !== options.trackId) return;
+        const count = raw.framesDecoded;
+        if (typeof count !== "number" || !Number.isFinite(count) || count < 0) return;
+        next.set(raw.id, count);
+        // A replaced SSRC or a reset counter starts a new observation epoch.
+        if (count > 0 && counters.get(raw.id) !== count) advanced = true;
+      });
+      // A missing stats sample is unknown; it must not turn an old count into progress.
+      if (next.size > 0) counters = next;
+      if (advanced) progress();
+    } catch (error) {
+      reportError(error);
+    }
+    if (!stopped) pollTimer = setTimeout(() => { void poll(); }, interval);
+  }
+
+  function requestFrame(): void {
+    if (stopped || video === undefined) return;
+    try {
+      frameCallback = video.requestVideoFrameCallback(() => {
+        frameCallback = null;
+        progress();
+        requestFrame();
+      });
+    } catch (error) {
+      reportError(error);
+      measurement = "decoded";
+      if (!stopped) void poll();
+    }
+  }
+
+  function stop(): void {
+    if (stopped) return;
+    stopped = true;
+    if (deadline !== null) clearTimeout(deadline);
+    if (pollTimer !== null) clearTimeout(pollTimer);
+    if (frameCallback !== null) video?.cancelVideoFrameCallback(frameCallback);
+    options.signal?.removeEventListener("abort", stop);
+    change("stopped", "stopped");
+  }
+
+  const observer: VideoHealthObserver = { get state() { return state; }, stop };
+  options.signal?.addEventListener("abort", stop, { once: true });
+  void source.closed.then(stop, stop);
+  if (options.signal?.aborted) stop();
+  if (!stopped) {
+    arm(firstTimeout, "first_frame_timeout");
+    if (measurement === "presented") requestFrame();
+    else void poll();
+  }
+  return observer;
+}
+
 export function sessionApi<C extends ChannelMap, O extends ConnectOptions<C>>(
   config: ClientConfig,
   descriptor: SessionDescriptor,

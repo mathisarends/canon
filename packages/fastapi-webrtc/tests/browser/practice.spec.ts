@@ -30,6 +30,9 @@ test("server-offered sessions deliver video and typed ticks", async ({ page }) =
   expect(result.ticks).toEqual([0, 1, 2]);
   expect(result.width).toBeGreaterThan(0);
   expect(result.state).toBe("closed");
+  expect(result.measurement).toBe("presented");
+  expect(result.reasons).toEqual(["first_frame", "stall_timeout", "recovered", "stopped"]);
+  expect(result.stalledSessionOpen).toBe(true);
 });
 
 test("adding a track renegotiates an open session", async ({ page }) => {

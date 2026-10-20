@@ -4,6 +4,9 @@
 
 ### Breaking changes
 
+- Generated runtimes export `observeVideoHealth` and its types. Regenerate clients
+  and rename any colliding session/client declarations reported by code generation.
+  Existing `connect()` readiness semantics are unchanged.
 - Add `Session.engine` and allow a router without a default engine when factories
   bind one per session. Custom constructor overrides should accept an optional
   engine. Supply either a router engine or a session engine; missing bindings are
@@ -15,6 +18,10 @@
 
 ### Added
 
+- Optional browser video health observation with separate opt-in first-frame and
+  ongoing-stall deadlines, recovery events, per-track decoded stats and optional
+  compositor frame callbacks. Abort, session close and `stop()` release observers;
+  observation never closes sessions, stops tracks or chooses a fallback UI.
 - A tested remote send-only adapter example with per-viewer async-context-manager
   leases, explicit unsupported operations and partial statistics. Categorized
   `WebRtcError` failures during peer creation retain their stable protocol code.

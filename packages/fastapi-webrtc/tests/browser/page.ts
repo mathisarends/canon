@@ -1,5 +1,5 @@
 // Browser-side scenarios for the Playwright tests; each returns plain JSON.
-import { PracticeRtcClient, isRtcError } from "../../examples/practice/client/index.js";
+import { PracticeRtcClient, isRtcError, observeVideoHealth, type VideoHealthEvent } from "../../examples/practice/client/index.js";
 
 const client = new PracticeRtcClient({ baseUrl: location.origin });
 
@@ -70,8 +70,27 @@ async function clock(): Promise<Record<string, unknown>> {
     },
   });
   await until(() => ticks.length >= 3 && width > 0);
+  const video = document.querySelector("video");
+  if (video === null) throw new Error("No remote video element");
+  const events: VideoHealthEvent[] = [];
+  const presented = observeVideoHealth(session, {
+    video, firstFrameTimeoutMs: 5000, stallTimeoutMs: 500,
+    onChange: (event) => events.push(event),
+  });
+  const decoded = observeVideoHealth(session, { firstFrameTimeoutMs: 5000, pollIntervalMs: 50 });
+  await until(() => presented.state === "healthy" && decoded.state === "healthy");
+  video.pause();
+  await until(() => presented.state === "stalled");
+  const stalledSessionOpen = session.state === "open";
+  await video.play();
+  await until(() => events.some((event) => event.reason === "recovered"));
   await session.close();
-  return { ticks: ticks.slice(0, 3), width, state: session.state };
+  await until(() => presented.state === "stopped" && decoded.state === "stopped");
+  return {
+    ticks: ticks.slice(0, 3), width, state: session.state,
+    measurement: events[0]?.measurement, reasons: events.map((event) => event.reason),
+    stalledSessionOpen,
+  };
 }
 
 async function renegotiate(): Promise<Record<string, unknown>> {
