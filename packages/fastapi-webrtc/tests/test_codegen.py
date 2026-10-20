@@ -112,6 +112,7 @@ async def test_query_models_generate_working_flat_connections(
         token: str = Field(alias="access_token")
         limit: int = 10
         tags: list[str] = Field(default_factory=list)
+        area: str | None = Field(default=None, validation_alias="region")
 
     received: list[Filters] = []
     rtc = WebRtcRouter(engine=FakeEngine())
@@ -141,6 +142,7 @@ async def test_query_models_generate_working_flat_connections(
         ("access_token", True),
         ("limit", False),
         ("tags", False),
+        ("region", False),
     ]
     assert parameters[1]["schema"]["default"] == 10
     assert parameters[2]["schema"]["items"] == {"type": "string"}
@@ -173,7 +175,8 @@ async def test_query_models_generate_working_flat_connections(
             "class Socket { constructor(url) { console.log(url); throw Error(); } }\n"
             f"const client = new RtcClient({{baseUrl: {json.dumps(base)}, "
             "WebSocket: Socket, RTCPeerConnection: class {}});\n"
-            'await client.filters.connect({accessToken: "valid", tags: ["a", "b"]})'
+            'await client.filters.connect({accessToken: "valid", tags: ["a", "b"], '
+            'region: "eu"})'
             ".catch(() => {});\n"
         )
         (tmp_path / "run.mjs").write_text(script)
@@ -184,7 +187,7 @@ async def test_query_models_generate_working_flat_connections(
             text=True,
         )
         url = result.stdout.strip()
-        assert url == f"{base}/filters?access_token=valid&tags=a&tags=b"
+        assert url == f"{base}/filters?access_token=valid&tags=a&tags=b&region=eu"
         signal = await Signal.start(url)
         await signal.close()
     assert len(received) == 1
@@ -192,6 +195,7 @@ async def test_query_models_generate_working_flat_connections(
         "token": "valid",
         "limit": 10,
         "tags": ["a", "b"],
+        "area": "eu",
     }
 
 

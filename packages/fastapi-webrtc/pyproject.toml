@@ -61,7 +61,12 @@ line-length = 88
 extend-exclude = ["node_modules"]
 
 [tool.ruff.lint]
-select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+select = ["B", "E", "F", "I", "RUF", "SIM", "TID251", "UP"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Private framework modules change without notice inside the supported ranges.
+"fastapi._compat".msg = "Use public FastAPI or Pydantic APIs instead."
+"starlette._utils".msg = "Use public Starlette APIs instead."
 
 [tool.mypy]
 python_version = "3.12"

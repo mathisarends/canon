@@ -12,12 +12,11 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Iterator, Sequence
 from copy import copy
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from fastapi import FastAPI
-from fastapi._compat import get_cached_model_fields
-from fastapi.dependencies.models import Dependant
 from pydantic import BaseModel, TypeAdapter
+from pydantic.fields import FieldInfo
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 from pydantic_core import core_schema
 from starlette.routing import BaseRoute
@@ -25,6 +24,11 @@ from starlette.routing import BaseRoute
 from fastapi_webrtc.declarations import DataChannelSpec, SessionDeclaration
 from fastapi_webrtc.protocol import PROTOCOL_VERSION, SUBPROTOCOL
 from fastapi_webrtc.router import DECLARATION_ATTRIBUTE
+
+if TYPE_CHECKING:
+    # Only the documented attributes path_params, query_params and dependencies
+    # of a route's dependant are read; no private FastAPI module is imported.
+    from fastapi.dependencies.models import Dependant
 
 # Builds Annotated types from runtime values, which type checkers cannot follow.
 _ANNOTATED: Any = Annotated
@@ -203,15 +207,14 @@ def _parameters(
     if dependant is None:
         return []
     found: dict[tuple[str, str], tuple[ParameterLocation, str, Any, bool]] = {}
-    for location, field in _fields(dependant):
-        alias = getattr(field, "validation_alias", None) or field.alias
+    for location, alias, field_info in _fields(dependant):
         key = (location, alias)
-        required = bool(field.field_info.is_required())
+        required = bool(field_info.is_required())
         previous = found.get(key)
         if previous is not None:
             required = required or previous[3]
         # Keep constraints and descriptions of Query()/Path() declarations.
-        info = copy(field.field_info)
+        info = copy(field_info)
         info.alias = info.validation_alias = info.serialization_alias = None
         annotation = _ANNOTATED[info.annotation, info]
         found[key] = (location, alias, annotation, required)
@@ -220,16 +223,35 @@ def _parameters(
     return path_order + query_order
 
 
-def _fields(dependant: Dependant) -> Iterable[tuple[ParameterLocation, Any]]:
+def _fields(
+    dependant: Dependant,
+) -> Iterable[tuple[ParameterLocation, str, FieldInfo]]:
+    """Yield ``(location, wire name, field info)`` of every path/query field."""
     for field in dependant.path_params:
-        yield "path", field
+        yield "path", _wire_name(field), field.field_info
     query = dependant.query_params
-    if len(query) == 1:
-        annotation = query[0].field_info.annotation
+    annotation = query[0].field_info.annotation if len(query) == 1 else None
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         # FastAPI extracts a lone query model separately in each dependency.
-        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-            query = get_cached_model_fields(annotation)
-    for field in query:
-        yield "query", field
+        # Read its fields through Pydantic's public API, as FastAPI does.
+        for name, info in annotation.model_fields.items():
+            yield "query", _model_field_name(name, info), info
+    else:
+        for field in query:
+            yield "query", _wire_name(field), field.field_info
     for child in dependant.dependencies:
         yield from _fields(child)
+
+
+def _wire_name(field: Any) -> str:
+    """The request name FastAPI reads for a path/query parameter field."""
+    name: str = getattr(field, "validation_alias", None) or field.alias
+    return name
+
+
+def _model_field_name(name: str, info: FieldInfo) -> str:
+    """The request name of a query model field: its string validation alias,
+    else its alias, else its Python name."""
+    if isinstance(info.validation_alias, str) and info.validation_alias:
+        return info.validation_alias
+    return info.alias or name
