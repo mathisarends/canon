@@ -68,7 +68,10 @@ Run the standalone minimum-dependency smoke matrix with
 `uv run --locked python scripts/check_distributions.py --python 3.12 --dependencies minimum`.
 The default mode checks current compatible dependencies. Both modes create fresh
 wheel environments and write dependency inventories under `dist/`. Check Streams'
-installed CLI/backends with `uv run --locked python scripts/check_streams_artifacts.py`.
+installed CLI/backends with `uv run --locked python scripts/check_streams_artifacts.py`
+and WebRTC's installed CLI and generated TypeScript client with
+`uv run --locked python scripts/check_webrtc_artifacts.py` (after
+`npm ci --ignore-scripts --prefix packages/fastapi-webrtc`).
 For an external RPC contract, follow the installed-wheel command in the parity
 report; SDK compilation alone does not establish a full application migration.
 

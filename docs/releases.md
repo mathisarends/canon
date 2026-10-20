@@ -346,12 +346,14 @@ implementation change is not a reason to choose a patch release.
 ```console
 uv sync --locked --all-packages --all-groups
 npm ci --ignore-scripts --prefix packages/fastapi-streams
+npm ci --ignore-scripts --prefix packages/fastapi-webrtc
 uv run --locked --directory packages/fastapi-streams python scripts/codegen.py
 uv run --locked --directory packages/fastapi-rpckit python -m fastapi_rpckit.codegen.cli generate --config examples/generated_clients/rpcgen.toml
 uv run --locked python scripts/check.py all
 uv run --locked python scripts/check_distributions.py
 uv run --locked python scripts/check_distributions.py --python 3.12 --dependencies minimum
 uv run --locked python scripts/check_streams_artifacts.py
+uv run --locked python scripts/check_webrtc_artifacts.py
 uv run --locked python scripts/release.py validate --package fastapi-streams --version 0.2.0
 ```
 

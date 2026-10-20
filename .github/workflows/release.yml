@@ -73,6 +73,7 @@ jobs:
           uv run --locked python scripts/release.py "${args[@]}"
           echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
       - run: npm ci --ignore-scripts --prefix packages/fastapi-streams
+      - run: npm ci --ignore-scripts --prefix packages/fastapi-webrtc
       - name: Build only the selected upload artifacts
         run: uv build --package "$RELEASE_PACKAGE" --out-dir dist/release
       - name: Verify actual upload wheels with current dependencies
@@ -81,6 +82,8 @@ jobs:
         run: uv run --locked python scripts/check_distributions.py --artifacts dist/release --python 3.12 --dependencies minimum
       - name: Verify installed Streams CLI/backends
         run: uv run --locked python scripts/check_streams_artifacts.py --artifacts dist/release
+      - name: Verify installed WebRTC CLI and compile its generated client
+        run: uv run --locked python scripts/check_webrtc_artifacts.py --artifacts dist/release
       - name: Record verified artifact hashes
         run: uv run --locked python scripts/release.py artifacts --package "$RELEASE_PACKAGE" --version "$RELEASE_VERSION"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

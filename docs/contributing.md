@@ -40,6 +40,10 @@ against an installed Canon wheel in a seventh clean environment without either
 transport extension.
 Then run `uv run --locked python scripts/check_streams_artifacts.py` to check
 the Streams wheel with no codegen extra and each supported Python HTTP client.
+`uv run --locked python scripts/check_webrtc_artifacts.py` installs the WebRTC
+wheel, regenerates the practice contract and browser client with the installed
+CLI, checks them for drift and compiles the client with WebRTC's pinned
+TypeScript (`npm ci --ignore-scripts --prefix packages/fastapi-webrtc` first).
 The artifact scripts also generate and exercise clients from installed contracts.
 
 Run the composed example with:
