@@ -39,7 +39,7 @@ RPCKit 0.3.0:
   Applications retain control of playback and fallback. The optional
   [HTTP ticket recipe](../packages/fastapi-webrtc/docs/admission-tickets.md) provides
   readable admission errors before signaling.
-- [RPCKit factory typing](../packages/fastapi-rpckit/CHANGELOG.md#040---unreleased)
+- [RPCKit factory typing](../packages/fastapi-rpckit/CHANGELOG.md#040---2026-10-20)
   removes the URL-parameter and backend subprotocol mismatches. Regenerate clients
   before removing consumer generator overrides.
 
