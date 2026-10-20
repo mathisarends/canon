@@ -47,10 +47,10 @@ class Services(Provider):
 rtc = WebRtcRouter(engine=AiortcEngine())
 
 
-@rtc.session(
-    "/chat",
-    data_channels=[DataChannelSpec(name="chat", receive_model=str, send_model=str)],
-)
+CHAT = DataChannelSpec("chat", receive_model=str, send_model=str)
+
+
+@rtc.session("/chat", data_channels=[CHAT])
 @inject
 async def chat(
     transcript: FromDishka[Transcript], container: FromDishka[AsyncContainer]
@@ -58,9 +58,9 @@ async def chat(
     async def on_message(peer: Peer, text: str) -> None:
         async with container(scope=Scope.REQUEST) as request:
             work = await request.get(MessageWork)
-            await peer.send_message("chat", work.reply(text, transcript))
+            await peer.send_message(CHAT, work.reply(text, transcript))
 
-    return Session(on_message={"chat": on_message})
+    return Session(on_message={CHAT: on_message})
 
 
 app = Composition(Feature(name="chat", routers=[rtc], providers=[Services])).apply(

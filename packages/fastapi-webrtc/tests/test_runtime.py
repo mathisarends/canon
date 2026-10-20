@@ -3,7 +3,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator, Sequence
-from typing import Annotated, Any
+from typing import Annotated, Any, assert_type
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from websockets.exceptions import InvalidStatus
 
 from fastapi_webrtc import (
+    Channel,
     DataChannelSpec,
     Direction,
     EngineCapabilities,
@@ -960,6 +961,80 @@ async def test_typed_messages_round_trip_and_report_invalid_input() -> None:
         ("invalid_message", "blob"),
         ("message_too_large", "raw"),
     ]
+
+
+async def test_channel_specs_give_typed_handles() -> None:
+    received: list[Prompt] = []
+    rtc = router()
+    events = DataChannelSpec(name="events", send_model=Reply)
+
+    @rtc.session("/s", data_channels=(CHAT, events))
+    def typed() -> Session:
+        async def on_chat(peer: Peer, prompt: Prompt) -> None:
+            received.append(prompt)
+            channel = peer.channel(CHAT)
+            assert_type(channel, Channel[Prompt, Reply])
+            await channel.send(Reply(text=prompt.text.upper()))
+            await peer.send_message(events, Reply(text="sent"))
+
+        async def run(peer: Peer) -> None:
+            foreign = DataChannelSpec(name="events", send_model=Prompt)
+            with pytest.raises(ValueError, match="different DataChannelSpec"):
+                peer.channel(foreign)
+            await peer.wait_closed()
+
+        return Session(run=run, on_message={CHAT: on_chat})
+
+    async with serve(application(rtc)) as base:
+        signal = await Signal.start(f"{base}/s")
+        peer = await establish(signal, rtc)
+        peer.channels["chat"].deliver('{"text": "hi"}')
+        await until(lambda: peer.channels["events"].sent)
+        assert json.loads(peer.channels["chat"].sent[0]) == {"text": "HI"}
+        assert json.loads(peer.channels["events"].sent[0]) == {"text": "sent"}
+        await signal.close()
+    assert received == [Prompt(text="hi")]
+
+
+async def test_typed_channels_can_be_iterated() -> None:
+    received: list[str] = []
+    rtc = router()
+    notes = DataChannelSpec(name="notes", receive_model=str)
+
+    @rtc.session("/s", data_channels=(notes,))
+    def reader() -> Session:
+        async def run(peer: Peer) -> None:
+            async for note in peer.channel(notes):
+                assert_type(note, str)
+                received.append(note)
+
+        return Session(run=run)
+
+    async with serve(application(rtc)) as base:
+        signal = await Signal.start(f"{base}/s")
+        peer = await establish(signal, rtc)
+        peer.channels["notes"].deliver("one")
+        peer.channels["notes"].deliver("two")
+        await until(lambda: len(received) == 2)
+        await signal.close()
+    assert received == ["one", "two"]
+
+
+async def test_handlers_for_foreign_specs_are_refused() -> None:
+    rtc = router()
+    foreign = DataChannelSpec(name="chat", receive_model=Reply)
+
+    @rtc.session("/s", data_channels=(CHAT,))
+    def mismatched() -> Session:
+        async def on_reply(peer: Peer, reply: Reply) -> None:
+            raise AssertionError("unreachable")
+
+        return Session(on_message={foreign: on_reply})
+
+    async with serve(application(rtc)) as base:
+        refused = await Signal.open(f"{base}/s")
+        assert await refused.closed() == (1011, "handler_failure")
+    assert engine_of(rtc).peers == []
 
 
 async def test_send_errors_are_raised_to_the_handler() -> None:

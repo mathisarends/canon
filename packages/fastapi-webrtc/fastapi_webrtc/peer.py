@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
+from fastapi_webrtc.declarations import DataChannelSpec, Receive, Send
 from fastapi_webrtc.engine import ConnectionStats, EngineSender, EngineTrack, MediaKind
 from fastapi_webrtc.errors import ErrorCode
 
 if TYPE_CHECKING:
-    from fastapi_webrtc.declarations import DataChannelSpec
     from fastapi_webrtc.runtime import SessionRuntime, _Channel
+
+_Receive = TypeVar("_Receive")
+_Send = TypeVar("_Send")
 
 
 class IncomingTrack:
@@ -99,8 +102,13 @@ class OutgoingTrack:
         return f"OutgoingTrack(kind={self.kind!r}, owned={self.owned})"
 
 
-class Channel:
-    """A declared data channel of one session."""
+# The type parameters have defaults, which need Python 3.13 syntax.
+class Channel(Generic[Receive, Send]):  # noqa: UP046
+    """A declared data channel of one session.
+
+    ``Peer.channel(spec)`` types ``send`` and iteration with the spec's message
+    types; ``Peer.channel(name)`` returns an untyped handle.
+    """
 
     def __init__(self, runtime: SessionRuntime, state: _Channel) -> None:
         self._runtime = runtime
@@ -111,7 +119,7 @@ class Channel:
         return self._state.spec.name
 
     @property
-    def spec(self) -> DataChannelSpec:
+    def spec(self) -> DataChannelSpec[Receive, Send]:
         return self._state.spec
 
     @property
@@ -123,18 +131,19 @@ class Channel:
         engine = self._state.engine
         return 0 if engine is None else engine.buffered_amount
 
-    async def send(self, message: Any) -> None:
+    async def send(self, message: Send) -> None:
         """Validate, encode and send ``message``; see :meth:`Peer.send_message`."""
         await self._runtime.send_message(self.name, message)
 
-    def __aiter__(self) -> Channel:
+    def __aiter__(self) -> Channel[Receive, Send]:
         """Iterate over received messages of a channel without an ``on_message``
         handler. Iteration ends when the session or channel closes; one task at
         a time may wait for a message."""
         return self
 
-    async def __anext__(self) -> Any:
-        return await self._runtime.next_message(self._state)
+    async def __anext__(self) -> Receive:
+        message: Receive = await self._runtime.next_message(self._state)
+        return message
 
 
 class Peer:
@@ -164,11 +173,26 @@ class Peer:
     def incoming_tracks(self) -> tuple[IncomingTrack, ...]:
         return tuple(self._runtime.incoming)
 
-    def channel(self, name: str) -> Channel:
-        return Channel(self._runtime, self._runtime.channel_state(name))
+    @overload
+    def channel(
+        self, channel: DataChannelSpec[_Receive, _Send]
+    ) -> Channel[_Receive, _Send]: ...
+    @overload
+    def channel(self, channel: str) -> Channel[Any, Any]: ...
+    def channel(self, channel: DataChannelSpec[Any, Any] | str) -> Channel[Any, Any]:
+        """Return the handle of a declared channel, by spec or by name."""
+        return Channel(self._runtime, self._runtime.channel_state(channel))
 
-    async def send_message(self, channel: str, message: Any) -> None:
-        """Send a message on a declared channel.
+    @overload
+    async def send_message(
+        self, channel: DataChannelSpec[Any, _Send], message: _Send
+    ) -> None: ...
+    @overload
+    async def send_message(self, channel: str, message: Any) -> None: ...
+    async def send_message(
+        self, channel: DataChannelSpec[Any, Any] | str, message: Any
+    ) -> None:
+        """Send a message on a declared channel, given by spec or by name.
 
         Waits until the channel is open and its send buffer is below
         ``SessionLimits.send_buffer_high_bytes``. Raises ``WebRtcError`` with

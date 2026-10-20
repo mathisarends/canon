@@ -76,6 +76,11 @@ class Tick(BaseModel):
     lesson_count: int
 
 
+# Specs type the channel handles, e.g. `peer.send_message(MESSAGES, Feedback(...))`.
+MESSAGES = DataChannelSpec("messages", receive_model=Prompt, send_model=Feedback)
+TICKS = DataChannelSpec("ticks", send_model=Tick)
+
+
 def lesson_access(
     lesson_id: str, token: Annotated[str | None, Query()] = None
 ) -> Lesson:
@@ -100,9 +105,7 @@ rtc = WebRtcRouter(
     "/lessons/{lesson_id}",
     name="practice",
     media=MediaPolicy(audio=Direction.SEND_RECEIVE),
-    data_channels=(
-        DataChannelSpec(name="messages", receive_model=Prompt, send_model=Feedback),
-    ),
+    data_channels=(MESSAGES,),
 )
 def practice(lesson: Annotated[Lesson, Depends(lesson_access)]) -> Session:
     """Speak with the tutor: audio is echoed back and prompts receive feedback."""
@@ -123,7 +126,7 @@ def practice(lesson: Annotated[Lesson, Depends(lesson_access)]) -> Session:
 
     async def on_prompt(peer: Peer, prompt: Prompt) -> None:
         await peer.send_message(
-            "messages",
+            MESSAGES,
             Feedback(
                 lesson=lesson.title,
                 text=f"You said: {prompt.text}",
@@ -132,7 +135,7 @@ def practice(lesson: Annotated[Lesson, Depends(lesson_access)]) -> Session:
             ),
         )
 
-    return Session(on_track=on_track, on_message={"messages": on_prompt})
+    return Session(on_track=on_track, on_message={MESSAGES: on_prompt})
 
 
 @rtc.session(
@@ -140,7 +143,7 @@ def practice(lesson: Annotated[Lesson, Depends(lesson_access)]) -> Session:
     name="clock",
     role=Role.OFFERER,
     media=MediaPolicy(video=Direction.SEND),
-    data_channels=(DataChannelSpec(name="ticks", send_model=Tick),),
+    data_channels=(TICKS,),
 )
 def clock(interval_ms: Annotated[int, Query(ge=50, le=5000)] = 250) -> Session:
     """Watch a synthetic video track and receive a tick on every interval."""
@@ -149,7 +152,7 @@ def clock(interval_ms: Annotated[int, Query(ge=50, le=5000)] = 250) -> Session:
         sequence = 0
         while not peer.closed:
             await peer.send_message(
-                "ticks", Tick(sequence=sequence, lesson_count=len(LESSONS))
+                TICKS, Tick(sequence=sequence, lesson_count=len(LESSONS))
             )
             sequence += 1
             await asyncio.sleep(interval_ms / 1000)

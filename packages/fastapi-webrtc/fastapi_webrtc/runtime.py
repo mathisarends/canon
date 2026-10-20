@@ -196,16 +196,24 @@ class SessionRuntime:
     async def wait_finished(self) -> None:
         await self._finished.wait()
 
-    def channel_state(self, name: str) -> _Channel:
-        try:
-            return self._channels[name]
-        except KeyError:
+    def channel_state(self, channel: DataChannelSpec[Any, Any] | str) -> _Channel:
+        name = channel.name if isinstance(channel, DataChannelSpec) else channel
+        state = self._channels.get(name)
+        if state is None:
             raise ValueError(
                 f"Session {self.declaration.name!r} has no channel {name!r}"
-            ) from None
+            )
+        if isinstance(channel, DataChannelSpec) and channel != state.spec:
+            raise ValueError(
+                f"Channel {name!r} of session {self.declaration.name!r} is "
+                "declared with a different DataChannelSpec"
+            )
+        return state
 
-    async def send_message(self, name: str, message: Any) -> None:
-        channel = self.channel_state(name)
+    async def send_message(
+        self, target: DataChannelSpec[Any, Any] | str, message: Any
+    ) -> None:
+        channel = self.channel_state(target)
         data = _encode(channel.spec, message)
         size = len(data.encode()) if isinstance(data, str) else len(data)
         if size > channel.max_bytes:
@@ -239,7 +247,7 @@ class SessionRuntime:
     async def next_message(self, channel: _Channel) -> Any:
         """Return the next received message; raise ``StopAsyncIteration`` once the
         session or channel closed and every queued message was consumed."""
-        if channel.spec.name in self._session.on_message:
+        if channel.spec.name in self._session.message_handlers:
             raise RuntimeError(
                 f"Channel {channel.spec.name!r} is consumed by its on_message handler"
             )
@@ -906,7 +914,7 @@ class SessionRuntime:
         self._started.set()
         self._send(protocol.ReadyMessage())
         self._emit("ready")
-        for name, handler in session.on_message.items():
+        for name, handler in session.message_handlers.items():
             self._spawn_handler(
                 self._consume(self._channels[name], handler), f"message:{name}"
             )

@@ -7,10 +7,11 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypedDict, Unpack, overload
 
 from fastapi import WebSocket
 from pydantic import TypeAdapter
+from typing_extensions import TypeVar
 
 from fastapi_webrtc.errors import ErrorCode
 
@@ -73,17 +74,37 @@ class MediaPolicy:
 
 MessageFormat = Literal["raw", "text", "binary", "json"]
 
+
+class _ChannelOptions(TypedDict, total=False):
+    ordered: bool
+    max_retransmits: int | None
+    max_packet_life_time_ms: int | None
+    max_message_bytes: int | None
+    negotiated: bool
+    id: int | None
+
+
 _CHANNEL_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
 
+Receive = TypeVar("Receive", default=Any)
+Send = TypeVar("Send", default=Any)
+_Receive = TypeVar("_Receive")
+_Send = TypeVar("_Send")
 
-@dataclass(frozen=True)
-class DataChannelSpec:
+
+@dataclass(frozen=True, init=False)
+class DataChannelSpec(Generic[Receive, Send]):
     """A declared data channel and its message models in both directions.
 
     ``receive_model`` validates messages from the browser and ``send_model``
     validates messages to it. A Pydantic model or any type that Pydantic can
     validate is sent as a JSON text message. ``str`` and ``bytes`` select text
     and binary messages without validation; ``None`` accepts both unvalidated.
+
+    The type parameters are the received and sent message types. They are
+    inferred from model classes, so ``peer.channel(spec)`` returns a typed
+    :class:`~fastapi_webrtc.Channel`. Annotate the variable for other models,
+    for example ``DataChannelSpec[int | str, bytes]``.
 
     Channels are pre-negotiated by default: both peers create them with the same
     stream ID before negotiation, so no in-band open handshake is needed and the
@@ -102,7 +123,70 @@ class DataChannelSpec:
     id: int | None = None
     """Explicit SCTP stream ID; defaults to the declaration index."""
 
-    def __post_init__(self) -> None:
+    # Model classes infer both message types. Other models, such as unions,
+    # keep the inferred type of the other direction and fall back to Any.
+    @overload
+    def __init__(
+        self,
+        name: str,
+        receive_model: type[Receive] | None = None,
+        send_model: type[Send] | None = None,
+        **options: Unpack[_ChannelOptions],
+    ) -> None: ...
+    @overload
+    def __init__(
+        self: DataChannelSpec[_Receive, Any],
+        name: str,
+        receive_model: type[_Receive],
+        send_model: Any = None,
+        **options: Unpack[_ChannelOptions],
+    ) -> None: ...
+    @overload
+    def __init__(
+        self: DataChannelSpec[Any, _Send],
+        name: str,
+        receive_model: Any = None,
+        *,
+        send_model: type[_Send],
+        **options: Unpack[_ChannelOptions],
+    ) -> None: ...
+    @overload
+    def __init__(
+        self: DataChannelSpec[Any, Any],
+        name: str,
+        receive_model: Any = None,
+        send_model: Any = None,
+        **options: Unpack[_ChannelOptions],
+    ) -> None: ...
+    def __init__(
+        self,
+        name: str,
+        receive_model: Any = None,
+        send_model: Any = None,
+        *,
+        ordered: bool = True,
+        max_retransmits: int | None = None,
+        max_packet_life_time_ms: int | None = None,
+        max_message_bytes: int | None = None,
+        negotiated: bool = True,
+        id: int | None = None,
+    ) -> None:
+        values = {
+            "name": name,
+            "receive_model": receive_model,
+            "send_model": send_model,
+            "ordered": ordered,
+            "max_retransmits": max_retransmits,
+            "max_packet_life_time_ms": max_packet_life_time_ms,
+            "max_message_bytes": max_message_bytes,
+            "negotiated": negotiated,
+            "id": id,
+        }
+        for key, value in values.items():
+            object.__setattr__(self, key, value)
+        self._validate()
+
+    def _validate(self) -> None:
         if not _CHANNEL_NAME.fullmatch(self.name):
             raise ValueError(
                 f"Data channel name {self.name!r} must be an identifier of at most "
@@ -219,6 +303,9 @@ PeerHandler = Callable[["Peer"], Awaitable[None]]
 TrackHandler = Callable[["Peer", "IncomingTrack"], Awaitable[None]]
 MessageHandler = Callable[["Peer", Any], Awaitable[None]]
 CloseHandler = Callable[["Peer", ErrorCode], Awaitable[None]]
+# Keys are channel names or DataChannelSpecs. Mapping keys are invariant, so a
+# precise key type would reject plain ``dict[str, ...]`` values.
+MessageHandlers = Mapping[Any, MessageHandler]
 
 
 @dataclass(frozen=True)
@@ -233,7 +320,8 @@ class Session:
     peer closes it or a failure occurs.
 
     ``on_track`` runs concurrently, once per incoming track. Message handlers run
-    sequentially per channel, in arrival order. ``on_close`` runs exactly once
+    sequentially per channel, in arrival order; ``on_message`` is keyed by channel
+    name or by the channel's ``DataChannelSpec``. ``on_close`` runs exactly once
     after the session was admitted, with the termination category, while the
     factory's dependencies are still open.
 
@@ -246,11 +334,32 @@ class Session:
     on_start: PeerHandler | None = None
     run: PeerHandler | None = None
     on_track: TrackHandler | None = None
-    on_message: Mapping[str, MessageHandler] = field(default_factory=dict)
+    on_message: MessageHandlers = field(default_factory=dict)
     on_close: CloseHandler | None = None
     tracks: Sequence[Any] = ()
     ice_servers: IceServerSource | None = None
     """Overrides the router's ICE servers for this session."""
+
+    def __post_init__(self) -> None:
+        _ = self.message_handlers
+
+    @cached_property
+    def message_handlers(self) -> Mapping[str, MessageHandler]:
+        """``on_message`` keyed by channel name."""
+        handlers: dict[str, MessageHandler] = {}
+        for key, handler in self.on_message.items():
+            if isinstance(key, DataChannelSpec):
+                name = key.name
+            elif isinstance(key, str):
+                name = key
+            else:
+                raise TypeError(
+                    "on_message keys must be channel names or DataChannelSpecs"
+                )
+            if name in handlers:
+                raise ValueError(f"Channel {name!r} has more than one message handler")
+            handlers[name] = handler
+        return handlers
 
 
 @dataclass(frozen=True)

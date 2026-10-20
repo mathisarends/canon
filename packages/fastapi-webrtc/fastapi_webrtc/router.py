@@ -195,7 +195,7 @@ class WebRtcRouter(APIRouter):
     ) -> None:
         runtime: SessionRuntime | None = None
         try:
-            unknown = set(session.on_message) - {s.name for s in declaration.channels}
+            unknown = _undeclared_handlers(declaration, session)
             if unknown:
                 logger.error(
                     "Session %s has handlers for undeclared channels: %s",
@@ -321,6 +321,16 @@ def _origins(origins: Sequence[str] | None) -> frozenset[str] | None:
             )
         normalized.add(value)
     return frozenset(normalized)
+
+
+def _undeclared_handlers(declaration: SessionDeclaration, session: Session) -> set[str]:
+    """Handler keys that name no channel or use a different spec of the same name."""
+    declared = {spec.name: spec for spec in declaration.channels}
+    unknown = set(session.message_handlers) - declared.keys()
+    for key in session.on_message:
+        if isinstance(key, DataChannelSpec) and declared.get(key.name) != key:
+            unknown.add(key.name)
+    return unknown
 
 
 async def _refuse(websocket: WebSocket, code: ErrorCode) -> None:

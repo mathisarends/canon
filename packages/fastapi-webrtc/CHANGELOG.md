@@ -20,8 +20,10 @@ Initial release.
   incoming tracks count against `MediaPolicy.max_incoming_tracks`.
 - Typed data channels from Pydantic models, `str` or `bytes`. JSON messages use
   the contract's serialization aliases. Channels support negotiated IDs,
-  validated reliability options, size limits, bounded inbound queues and send
-  backpressure.
+  validated keyword-only reliability options, size limits, bounded inbound
+  queues and send backpressure. A `DataChannelSpec` is generic over its message
+  types: `on_message` accepts specs as keys, and `peer.channel(spec)` and
+  `peer.send_message(spec, ...)` are type-checked against its models.
 - Signaling protocol `fastapi-webrtc.v1`. It uses perfect negotiation,
   candidate buffering, ICE username checks, categorized close codes and
   negotiation, media and transport deadlines. Negotiation timeouts and shutdown

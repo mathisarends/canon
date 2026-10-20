@@ -3,8 +3,10 @@
 import base64
 import hashlib
 import hmac
+from typing import Any, assert_type
 
 import pytest
+from pydantic import BaseModel
 
 from fastapi_webrtc import (
     DataChannelSpec,
@@ -13,7 +15,9 @@ from fastapi_webrtc import (
     IceServer,
     IceServers,
     MediaPolicy,
+    Peer,
     Role,
+    Session,
     SessionClosedError,
     SessionDeclaration,
     SessionLimits,
@@ -69,7 +73,7 @@ def test_directions() -> None:
 )
 def test_invalid_channels(kwargs: dict[str, object], message: str) -> None:
     with pytest.raises(ValueError, match=message):
-        DataChannelSpec(**kwargs)  # type: ignore[arg-type]
+        DataChannelSpec(**kwargs)  # type: ignore[call-overload]
 
 
 def test_channel_formats_and_adapters() -> None:
@@ -84,6 +88,35 @@ def test_channel_formats_and_adapters() -> None:
     assert raw.receive_adapter is None and text.send_adapter is None
     assert typed.receive_adapter is not None
     assert typed.receive_adapter.validate_json("3") == 3
+
+
+def test_channel_specs_infer_message_types() -> None:
+    class Prompt(BaseModel):
+        text: str
+
+    typed = DataChannelSpec("typed", receive_model=Prompt, send_model=bytes)
+    one_way = DataChannelSpec("one_way", send_model=str)
+    union: DataChannelSpec[int | str, Any] = DataChannelSpec("u", int | str)
+    assert_type(typed, DataChannelSpec[Prompt, bytes])
+    assert_type(one_way, DataChannelSpec[Any, str])
+    assert_type(DataChannelSpec("raw"), DataChannelSpec[Any, Any])
+    assert union.receive_format == "json"
+    with pytest.raises(TypeError):
+        DataChannelSpec("c", None, None, True)  # type: ignore[call-overload]
+
+
+def test_message_handlers_accept_specs_and_names() -> None:
+    spec = DataChannelSpec("chat", receive_model=str)
+
+    async def handler(peer: Peer, message: str) -> None:
+        return None
+
+    session = Session(on_message={spec: handler, "other": handler})
+    assert session.message_handlers == {"chat": handler, "other": handler}
+    with pytest.raises(ValueError, match="more than one message handler"):
+        Session(on_message={spec: handler, "chat": handler})
+    with pytest.raises(TypeError, match="channel names or DataChannelSpecs"):
+        Session(on_message={1: handler})
 
 
 @pytest.mark.parametrize("retransmits", [0, 1])
@@ -101,7 +134,7 @@ def test_reliability_options_are_exclusive_including_zero(
 @pytest.mark.parametrize("value", [-1, 65536, 0.5, True])
 def test_invalid_reliability_values(option: str, value: object) -> None:
     with pytest.raises(ValueError, match=f"{option} must be an integer between"):
-        DataChannelSpec(name="c", **{option: value})  # type: ignore[arg-type]
+        DataChannelSpec(name="c", **{option: value})  # type: ignore[call-overload]
 
 
 @pytest.mark.parametrize("option", ["max_retransmits", "max_packet_life_time_ms"])

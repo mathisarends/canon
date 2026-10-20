@@ -46,6 +46,11 @@ class Feedback(BaseModel):
     words: int
 
 
+# The spec types the channel handles: `peer.channel(MESSAGES)` receives
+# `Prompt` and sends `Feedback`.
+MESSAGES = DataChannelSpec("messages", receive_model=Prompt, send_model=Feedback)
+
+
 def lesson_access(lesson_id: str, token: Annotated[str, Query()]) -> str:
     if token != "demo":
         raise HTTPException(status_code=403)  # HTTP 403; no peer is created.
@@ -59,9 +64,7 @@ rtc = WebRtcRouter(prefix="/rtc", engine=AiortcEngine(), max_sessions=50)
     "/lessons/{lesson_id}",
     name="practice",
     media=MediaPolicy(audio=Direction.SEND_RECEIVE),
-    data_channels=(
-        DataChannelSpec(name="messages", receive_model=Prompt, send_model=Feedback),
-    ),
+    data_channels=(MESSAGES,),
 )
 def practice(lesson: Annotated[str, Depends(lesson_access)]) -> Session:
     relay = MediaRelay()
@@ -71,10 +74,10 @@ def practice(lesson: Annotated[str, Depends(lesson_access)]) -> Session:
 
     async def on_prompt(peer: Peer, prompt: Prompt) -> None:
         await peer.send_message(
-            "messages", Feedback(text=prompt.text, words=len(prompt.text.split()))
+            MESSAGES, Feedback(text=prompt.text, words=len(prompt.text.split()))
         )
 
-    return Session(on_track=on_track, on_message={"messages": on_prompt})
+    return Session(on_track=on_track, on_message={MESSAGES: on_prompt})
 
 
 app = FastAPI()
@@ -87,13 +90,16 @@ A `Session` is assembled from handlers:
 - `run(peer)`: the session's main task. When it returns, the session closes normally.
 - `on_track(peer, track)`: called for each incoming track. `track.recv()` or
   `async for frame in track` reads frames.
-- `on_message={"channel": handler}`: validated messages per channel. Without a
-  handler, a channel can be consumed with `async for message in peer.channel(name)`.
+- `on_message={spec: handler}`: validated messages per channel, keyed by its
+  `DataChannelSpec` or its name. Without a handler, a channel can be consumed
+  with `async for message in peer.channel(spec)`.
 - `on_close(peer, code)`: runs before the engine releases resources.
 - `tracks=[...]`: outgoing tracks. `ice_servers` overrides the router's ICE servers.
 
 `Peer` sends with `send_message`, `send_track` and `remove_track`, which
-renegotiate. It also provides `stats()`, `close(code)` and `wait_closed()`.
+renegotiate. `peer.channel(spec)` and `peer.send_message(spec, message)` are
+typed by the spec's `receive_model` and `send_model`; a channel name gives an
+untyped handle. Reliability options such as `ordered` are keyword-only. It also provides `stats()`, `close(code)` and `wait_closed()`.
 The session stops tracks it owns when it closes. It never stops tracks passed
 with `owned=False`.
 
