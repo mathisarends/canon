@@ -201,6 +201,7 @@ give the server-side engine internal relay URLs.
 
 - [Signaling protocol](docs/protocol.md)
 - [Canon composition and Dishka session/message scopes](docs/canon-dishka.md)
+- [Remote send-only engines and per-viewer leases](examples/remote_video/README.md)
 - [Changelog](CHANGELOG.md)
 - Runnable example: [`examples/practice`](examples/practice). Its generated
   client is in `examples/practice/client`.

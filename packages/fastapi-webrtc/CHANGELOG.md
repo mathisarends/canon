@@ -4,6 +4,10 @@
 
 ### Breaking changes
 
+- Add `Session.engine` and allow a router without a default engine when factories
+  bind one per session. Custom constructor overrides should accept an optional
+  engine. Supply either a router engine or a session engine; missing bindings are
+  refused with `handler_failure` and returned tracks are cleaned up.
 - Extend `WebRtcRouter.session()` and `SessionDeclaration` with the optional
   `admission_errors` contract-provider hook. Custom router overrides must accept
   and forward this keyword. Regenerate clients to include declared admission
@@ -11,6 +15,9 @@
 
 ### Added
 
+- A tested remote send-only adapter example with per-viewer async-context-manager
+  leases, explicit unsupported operations and partial statistics. Categorized
+  `WebRtcError` failures during peer creation retain their stable protocol code.
 - Canon-independent admission contract export, including optional generated
   descriptor metadata. HTTP denials remain distinct from accepted-session errors;
   this metadata does not expose failed WebSocket handshake bodies in browsers.

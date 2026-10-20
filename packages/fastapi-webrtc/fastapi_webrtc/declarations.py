@@ -26,6 +26,7 @@ from typing_extensions import TypeVar
 from fastapi_webrtc.errors import ErrorCode
 
 if TYPE_CHECKING:
+    from fastapi_webrtc.engine import Engine
     from fastapi_webrtc.ice import IceServerSource
     from fastapi_webrtc.peer import IncomingTrack, Peer
 
@@ -364,6 +365,12 @@ class Session:
     tracks: Sequence[Any] = ()
     ice_servers: IceServerSource | None = None
     """Overrides the router's ICE servers for this session."""
+    engine: Engine | None = None
+    """Bind an engine to this session; defaults to the router's engine.
+
+    The dependency that owns a remote lease must release it even when admission
+    fails before a peer is created. The runtime closes created engine peers.
+    """
 
     def __post_init__(self) -> None:
         _ = self.message_handlers

@@ -96,7 +96,11 @@ class MediaStats:
 
 @dataclass(frozen=True)
 class ConnectionStats:
-    """Engine-neutral connection statistics; unsupported values are ``None``."""
+    """Engine-neutral connection statistics; unsupported values are ``None``.
+
+    Empty inbound/outbound tuples mean no stream observations were supplied,
+    not necessarily zero traffic. ``received()`` sums only supplied observations.
+    """
 
     connection_state: ConnectionState
     selected_candidate_pair: CandidatePairStats | None = None

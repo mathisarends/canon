@@ -386,6 +386,8 @@ class SessionRuntime:
             self._peer = await self._engine.create_peer(
                 PeerConfig(ice_servers=ice.for_engine), _Observer(self)
             )
+        except WebRtcError:
+            raise
         except Exception as error:
             logger.exception("Engine could not create a peer for %s", self._label)
             raise WebRtcError(ErrorCode.ENGINE_FAILURE) from error

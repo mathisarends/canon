@@ -93,7 +93,7 @@ class WebRtcRouter(APIRouter):
     def __init__(
         self,
         *,
-        engine: Engine,
+        engine: Engine | None = None,
         ice_servers: IceServerSource | None = None,
         limits: SessionLimits | None = None,
         max_sessions: int | None = None,
@@ -198,6 +198,10 @@ class WebRtcRouter(APIRouter):
     ) -> None:
         runtime: SessionRuntime | None = None
         try:
+            if session.engine is None and self.engine is None:
+                logger.error("Session %s has no engine binding", declaration.name)
+                await _refuse(websocket, ErrorCode.HANDLER_FAILURE)
+                return
             unknown = _invalid_handlers(declaration, session)
             if unknown:
                 logger.error(
@@ -256,7 +260,10 @@ class WebRtcRouter(APIRouter):
         return SessionRuntime(
             declaration=declaration,
             options=RuntimeOptions(
-                engine=self.engine,
+                engine=cast(
+                    Engine,
+                    session.engine if session.engine is not None else self.engine,
+                ),
                 ice_servers=self.ice_servers,
                 on_event=self.event_hook,
             ),
