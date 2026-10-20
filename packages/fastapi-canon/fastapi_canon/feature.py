@@ -283,7 +283,9 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
     if lifespans or container is not None:
         app.router.lifespan_context = _compose_lifespan(
             original_lifespan,
-            lifespans,
+            # include_router merged these into the app context after we captured
+            # original_lifespan. Retain them inside the dependency lifetime.
+            (*lifespans, *_router_lifespans(original_lifespan, installed_routers)),
             container,
         )
 
@@ -613,6 +615,26 @@ def _validate_error_installation(
         )
     except ErrorConfigurationError as error:
         raise FeatureConfigurationError(str(error)) from error
+
+
+def _router_lifespans(
+    original: FeatureLifespan, routers: tuple[APIRouter, ...]
+) -> tuple[FeatureLifespan, ...]:
+    """Return router lifespans that the composed app lifespan must run.
+
+    A router without ``lifespan=`` gets a default lifespan that runs its
+    ``on_startup``/``on_shutdown`` handlers. ``include_router`` also copies those
+    handlers to the app, whose own default lifespan runs them. Keep the router's
+    default lifespan only when the app's lifespan does not, so each handler runs
+    exactly once.
+    """
+    default = type(APIRouter().lifespan_context)
+    app_runs_handlers = isinstance(original, default)
+    return tuple(
+        router.lifespan_context
+        for router in routers
+        if not (app_runs_handlers and isinstance(router.lifespan_context, default))
+    )
 
 
 def _compose_lifespan(

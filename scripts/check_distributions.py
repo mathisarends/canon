@@ -61,6 +61,9 @@ def main() -> None:
             "fastapi-streams[codegen]",
             "fastapi-rpckit[codegen,dishka,otel]",
         ),
+        ("fastapi-webrtc",),
+        ("fastapi-webrtc[aiortc]",),
+        ("fastapi-canon", "fastapi-webrtc[aiortc]"),
     )
     for requirements in combinations:
         with tempfile.TemporaryDirectory(prefix="canon-artifacts-") as temporary:

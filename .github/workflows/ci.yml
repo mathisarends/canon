@@ -39,15 +39,25 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: packages/fastapi-streams/package-lock.json
+          cache-dependency-path: |
+            packages/fastapi-streams/package-lock.json
+            packages/fastapi-webrtc/package-lock.json
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           version: '0.9.2'
           enable-cache: true
       - run: uv sync --locked --all-packages --all-groups --python ${{ matrix.python }}
       - run: npm ci --ignore-scripts --prefix packages/fastapi-streams
+      - run: npm ci --ignore-scripts --prefix packages/fastapi-webrtc
       - run: uv run --locked python scripts/check.py all
+      - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
+        name: WebRTC sessions in Chromium
+        run: |
+          (cd packages/fastapi-webrtc && npx playwright install --with-deps chromium)
+          uv run --locked python scripts/check.py browser
       - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
         run: uv run --locked python scripts/check_distributions.py
       - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
         run: uv run --locked python scripts/check_streams_artifacts.py
+      - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
+        run: uv run --locked python scripts/check_webrtc_artifacts.py

@@ -2,6 +2,13 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## Unreleased
+
+- Preserve feature-router lifespans when composing application dependencies or
+  feature lifespans. Routers now complete shutdown before feature resources and
+  the Dishka application container are closed. Router `on_startup`/`on_shutdown`
+  handlers still run exactly once, including when the app has its own lifespan.
+
 ## 0.5.4 - 2026-10-18
 
 - Update the optional Streams integration and development pin to 0.4.0 for

@@ -6,6 +6,7 @@ Run these commands at the repository root:
 ```console
 uv sync --locked --all-packages --all-groups
 npm ci --ignore-scripts --prefix packages/fastapi-streams
+npm ci --ignore-scripts --prefix packages/fastapi-webrtc
 uv run --locked python scripts/check.py all
 uv run --locked python scripts/check_distributions.py
 ```
@@ -16,7 +17,10 @@ published stack library. Keep only the root `uv.lock`; `uv lock` updates it.
 Optionally run `uv run --locked pre-commit install` from the root to install the
 shared lint hook. Do not install the imported package-local hook configurations.
 
-Run one gate with `check.py lint`, `types`, `test`, or `clients`. Package suites
+Run one gate with `check.py lint`, `types`, `test`, or `clients`. `check.py browser`
+runs WebRTC sessions in Chromium against the aiortc engine; install the browser
+once with `npx playwright install chromium` in `packages/fastapi-webrtc`. It is
+not part of `all` and runs as its own CI step. Package suites
 run in separate processes to keep their `tests` and `examples` imports isolated.
 Use `uv run --locked --directory packages/fastapi-canon pytest -q` for one suite.
 Run `uv run --locked pytest -q` for the workspace integration suite only.
@@ -36,6 +40,10 @@ against an installed Canon wheel in a seventh clean environment without either
 transport extension.
 Then run `uv run --locked python scripts/check_streams_artifacts.py` to check
 the Streams wheel with no codegen extra and each supported Python HTTP client.
+`uv run --locked python scripts/check_webrtc_artifacts.py` installs the WebRTC
+wheel, regenerates the practice contract and browser client with the installed
+CLI, checks them for drift and compiles the client with WebRTC's pinned
+TypeScript (`npm ci --ignore-scripts --prefix packages/fastapi-webrtc` first).
 The artifact scripts also generate and exercise clients from installed contracts.
 
 Run the composed example with:

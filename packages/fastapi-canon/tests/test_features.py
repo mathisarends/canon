@@ -312,6 +312,83 @@ def test_lifespans_start_in_order_and_stop_in_reverse_order() -> None:
     ]
 
 
+def test_router_lifespans_run_inside_feature_and_dependency_lifetimes() -> None:
+    events: list[str] = []
+
+    @asynccontextmanager
+    async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
+        events.append("app-start")
+        yield
+        events.append("app-stop")
+
+    @asynccontextmanager
+    async def feature_lifespan(app: FastAPI) -> AsyncIterator[None]:
+        events.append("feature-start")
+        yield
+        events.append("feature-stop")
+
+    @asynccontextmanager
+    async def router_lifespan(app: FastAPI) -> AsyncIterator[None]:
+        events.append("router-start")
+        assert await app.state.dishka_container.get(str) == "available"
+        yield
+        assert await app.state.dishka_container.get(str) == "available"
+        events.append("router-stop")
+
+    class Resources(Provider):
+        @provide(scope=Scope.APP)
+        async def resource(self) -> AsyncIterator[str]:
+            events.append("resource-open")
+            yield "available"
+            events.append("resource-close")
+
+    app = Composition(
+        Feature(
+            name="rtc",
+            routers=[APIRouter(lifespan=router_lifespan)],
+            providers=[Resources],
+            lifespan=feature_lifespan,
+        )
+    ).apply(FastAPI(lifespan=app_lifespan))
+    with TestClient(app):
+        pass
+    assert events == [
+        "app-start",
+        "feature-start",
+        "router-start",
+        "resource-open",
+        "router-stop",
+        "feature-stop",
+        "resource-close",
+        "app-stop",
+    ]
+
+
+@pytest.mark.parametrize("app_lifespan", [False, True])
+def test_router_event_handlers_run_once(app_lifespan: bool) -> None:
+    events: list[str] = []
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        yield
+
+    class Resources(Provider):
+        @provide(scope=Scope.APP)
+        def resource(self) -> str:
+            return "available"
+
+    router = APIRouter(
+        on_startup=[lambda: events.append("startup")],
+        on_shutdown=[lambda: events.append("shutdown")],
+    )
+    app = Composition(
+        Feature(name="legacy", routers=[router], providers=[Resources])
+    ).apply(FastAPI(lifespan=lifespan) if app_lifespan else FastAPI())
+    with TestClient(app):
+        pass
+    assert events == ["startup", "shutdown"]
+
+
 def test_lifespan_cleans_up_when_later_startup_fails() -> None:
     events: list[str] = []
 

@@ -24,7 +24,9 @@ from packaging.requirements import Requirement
 from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED = frozenset({"fastapi-canon", "fastapi-streams", "fastapi-rpckit"})
+ALLOWED = frozenset(
+    {"fastapi-canon", "fastapi-streams", "fastapi-rpckit", "fastapi-webrtc"}
+)
 NUMBER = r"(?:0|[1-9][0-9]*)"
 VERSION = re.compile(rf"{NUMBER}\.{NUMBER}\.{NUMBER}(?:(?:a|b|rc){NUMBER})?")
 REPORT = Path("dist/release-report/release.json")
@@ -42,7 +44,9 @@ def packages(root: Path = ROOT) -> dict[str, Package]:
     configuration = _toml(root / "release.toml")
     selected = {entry["name"]: Package(**entry) for entry in configuration["package"]}
     if set(selected) != ALLOWED or len(configuration["package"]) != len(ALLOWED):
-        raise ValueError("Only the three library distributions may be release targets")
+        raise ValueError(
+            "Only the workspace library distributions may be release targets"
+        )
     for name, package in selected.items():
         if package.directory != f"packages/{name}":
             raise ValueError(f"Invalid package directory for {name}")
@@ -363,7 +367,7 @@ def main() -> None:
 
 def _selection(name: str, version: str, root: Path) -> Package:
     if name not in ALLOWED:
-        raise ValueError("Only the three library distributions may be released")
+        raise ValueError("Only the workspace library distributions may be released")
     if VERSION.fullmatch(version) is None:
         raise ValueError("Use X.Y.Z or a canonical prerelease such as X.Y.Zrc1")
     return packages(root)[name]

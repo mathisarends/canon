@@ -19,3 +19,9 @@ name = "fastapi-rpckit"
 directory = "packages/fastapi-rpckit"
 module = "fastapi_rpckit"
 tag_prefix = "fastapi-rpckit-v"
+
+[[package]]
+name = "fastapi-webrtc"
+directory = "packages/fastapi-webrtc"
+module = "fastapi_webrtc"
+tag_prefix = "fastapi-webrtc-v"

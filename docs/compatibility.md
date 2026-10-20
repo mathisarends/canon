@@ -13,6 +13,92 @@ existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All three versions
 are available through PyPI and this repository's independent GitHub releases.
 
+## WebRTC PR #7 corrections, verified 2026-10-19
+
+The review corrections retain the unreleased 0.1.0 source version. Regression
+coverage includes real aiortc source ownership, blocked startup cancellation
+and dependency cleanup, initial-track ownership, nested serialization aliases,
+flat query models, generated-name conflicts, asynchronous credentials and query
+precedence. The [changelog](../packages/fastapi-webrtc/CHANGELOG.md) records
+provisional-client migration steps.
+
+Follow-up regressions cover rejected-session track ownership, active-track
+capacity, browser renegotiation/send deadlines, unavailable jitter units and
+reliability declaration validation. Canon/Dishka tests exercise admission,
+disconnect, shutdown and per-message request scopes using real aiortc messages.
+They also exposed and now cover composition dropping router lifespans and
+ASGI cancellation ending dependency scopes before cleanup.
+
+The full workspace gate passes 1,691 Python tests and 69 TypeScript tests,
+including WebRTC's 190 Python tests (92.91% branch-aware coverage) and 46
+TypeScript tests. Lint, package-specific types, generated-client drift and
+coverage thresholds pass. WebRTC's generated runtime has 95.18% line, 86.13%
+branch and 98.13% function coverage.
+
+Both nine-combination installed-wheel matrices pass on the corrected source:
+current compatible dependencies on CPython 3.14.0 and direct dependency minima
+on CPython 3.12.12. The earlier standalone minimum regression additionally checks flat
+aliased query fields, list/default handling and nested serialization aliases
+against FastAPI 0.115.3 / Pydantic 2.9.0. Its query model enables Pydantic
+`populate_by_name` for FastAPI's minimum-version alias handling. Installed
+Streams CLI/backend checks and all four Chromium/aiortc scenarios also pass.
+
+Logs are `dist/pr7-review-workspace.log`,
+`dist/pr7-review-wheels-current.log`,
+`dist/pr7-review-wheels-minimum.log`,
+`dist/pr7-review-installed-minimum.log`,
+`dist/pr7-review-streams-artifacts.log` and `dist/pr7-review-browser.log`.
+These are local checks, not a publication or an exact-commit remote CI result.
+
+## WebRTC extension preparation, verified 2026-10-19
+
+`fastapi-webrtc` 0.1.0 is prepared and unreleased. It declares FastAPI
+`>=0.115,<1`, Pydantic `>=2.9,<3`, Starlette `>=0.41` and typing-extensions
+`>=4.12` (type-parameter defaults for typed channels). The explicit Starlette
+floor is required for an admission dependency's `HTTPException` to send an HTTP
+response before accepting a WebSocket. These bounds jointly resolve to FastAPI
+0.115.3 or later; FastAPI 0.115.0 cannot satisfy the Starlette requirement.
+
+The nine-combination minimum installed-wheel matrix passes on CPython 3.12.12.
+Its three new WebRTC profiles resolve:
+
+| Profile | FastAPI | Starlette | Pydantic | aiortc | Dishka |
+| --- | --- | --- | --- | --- | --- |
+| WebRTC core alone | 0.115.3 | 0.41.0 | 2.9.0 | absent | absent |
+| WebRTC with aiortc | 0.115.3 | 0.41.0 | 2.9.0 | 1.14.0 | absent |
+| Canon with WebRTC/aiortc | 0.115.3 | 0.41.0 | 2.9.0 | 1.14.0 | 1.10.0 |
+
+These are fresh wheel environments, independent of workspace source overrides.
+The WebRTC smoke asserts HTTP 403 and zero peers for denied admission, checks
+categorized engine failure, CLI availability, contract export and TypeScript
+code generation/drift, and checks the optional engine import with and without
+aiortc. The aiortc profiles resolve PyAV 16.1.0. A rerun on 2026-10-20 after
+typed and one-way channels resolves typing-extensions 4.12.0 and passes. Inventories are under
+`dist/compatibility-minimum.json`; the log is
+`dist/webrtc-distributions-minimum.log`.
+
+The nine-combination current-dependency wheel matrix also passes on CPython
+3.14.0, including the independently installed reference service's five tests.
+WebRTC resolves FastAPI 0.148.0, Starlette 1.9.0 and Pydantic 2.14.1; the aiortc
+profiles resolve aiortc 1.15.0 and PyAV 17.1.0, with Dishka 1.10.1 in the Canon
+profile. Inventories are `dist/compatibility-latest.json`; the log is
+`dist/webrtc-distributions-latest.log`. Installed Streams core-only CLI checks
+and generated-client checks with HTTPX and HTTPX2 separately also pass; their log
+is `dist/webrtc-streams-artifacts.log`.
+
+The full Windows/CPython 3.14.0 workspace gate passes 1,639 Python tests,
+including WebRTC's 143 tests with 92.22% branch-aware coverage, and 53 TypeScript
+tests (30 WebRTC, 23 Streams). Lint, strict WebRTC mypy, package-specific types,
+contract/client drift and coverage thresholds pass. WebRTC's generated runtime
+has 95.50% line, 85.11% branch and 97.96% function coverage. The log is
+`dist/webrtc-workspace.log`. Workspace and Chromium media checks use the root
+lockfile; the independent wheel matrices use the dependency versions above.
+
+The separate Chromium gate passes four real browser/aiortc scenarios: microphone
+echo and typed messages, denied admission, server-offered video/ticks and track
+renegotiation. Its log is `dist/webrtc-browser.log`. Forced-TURN CI and additional
+engine adapters remain deferred in [decision 0005](design-decisions/0005-webrtc-extension.md).
+
 ## SDK review publications, verified 2026-10-19
 
 The public combination is Canon 0.5.4 / Streams 0.4.0 / RPCkit 0.2.0.
@@ -61,7 +147,22 @@ These include manifest/report provenance equality for each target/backend.
 Logs are `dist/consumer-review-distributions-current.log`,
 `dist/consumer-review-distributions-minimum.log` and
 `dist/consumer-review-streams-artifacts.log`. Consumer-reported Maximus adoption
-and remaining Hermes/browser coverage are recorded separately in TODO.md.
+is recorded below; outstanding Hermes/browser work remains in [TODO.md](../TODO.md).
+
+## Maximus consumer-reported adoption
+
+The supplied Maximus report for merge request 125 confirms adoption of Canon
+0.5.3 / Streams 0.3.1 with regenerated SDKs and unchanged callers, HTTP/SSE
+contracts and TypeScript SDK. It reports 317 Python tests passed, 14 native
+Chromium tests skipped, frontend type checking and an SSE unit test passed,
+19 exact reviewed TypeScript allowances, and an empty Python diagnostic report.
+It also reports passing existing request/event/error/pool checks. No independent
+performance benchmark, full Linux Hermes runtime or browser E2E was run there.
+
+This is consumer-reported evidence, not locally verified application/deployment
+coverage. See [the supplied review](https://git.fh-muenster.de/fep_ai_agent/maximus-trading/-/merge_requests/125#note_242680).
+The earlier adoption report covered Canon 0.5.2, Streams 0.3.0 and RPCkit 0.2.0.
+Keep the selected HTTP backend when regenerating clients.
 
 ## Follow-up verification, 2026-10-18
 
