@@ -160,6 +160,22 @@ shared values; `null` explicitly removes a query value. Required query parameter
 are checked after merging. Generated query fields are optional so shared
 credentials can supply them; required path parameters must still be passed.
 
+## Security
+
+Session admission is ordinary FastAPI dependency code, so authorization stays in
+your application. Two WebSocket properties need attention:
+
+- **Origins.** CORS does not apply to WebSocket handshakes, and browsers attach
+  cookies to cross-site handshakes. If admission relies on cookies, pass
+  `WebRtcRouter(allowed_origins=["https://app.example.com"])`. Handshakes from
+  other origins are refused with HTTP 403 before the session factory runs.
+  Requests without an `Origin` header come from non-browser clients and are not
+  restricted by this check.
+- **Query tokens.** Browsers cannot set headers on a WebSocket, so tokens travel
+  in the URL. URLs can appear in proxy and server access logs. Prefer short-lived,
+  single-use session tickets issued by an authenticated HTTP endpoint over
+  long-lived access tokens, and supply them through the client's `query` provider.
+
 ## Limits and ICE
 
 `SessionLimits` bounds negotiation time, pending candidates, signaling and

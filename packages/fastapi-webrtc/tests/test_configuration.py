@@ -19,12 +19,14 @@ from fastapi_webrtc import (
     SessionLimits,
     TurnRestCredentials,
     WebRtcError,
+    WebRtcRouter,
 )
 from fastapi_webrtc.declarations import SessionContext
 from fastapi_webrtc.engine import CandidatePairStats, ConnectionStats, MediaStats
 from fastapi_webrtc.errors import close_code, default_message
 from fastapi_webrtc.ice import resolve_ice_servers
 from fastapi_webrtc.sdp import summarize
+from tests.fake_engine import FakeEngine
 
 
 def declaration(
@@ -297,3 +299,25 @@ def test_stats_helpers() -> None:
     assert stats.selected_candidate_pair is not None
     assert stats.selected_candidate_pair.relayed
     assert not CandidatePairStats(local_type="host", remote_type="srflx").relayed
+
+
+@pytest.mark.parametrize(
+    ("origins", "error"),
+    [
+        ("https://app.example.com", TypeError),
+        (["app.example.com"], ValueError),
+        (["https://app.example.com/path"], ValueError),
+        (["https://"], ValueError),
+    ],
+)
+def test_allowed_origins_are_validated(origins: object, error: type[Exception]) -> None:
+    with pytest.raises(error):
+        WebRtcRouter(engine=FakeEngine(), allowed_origins=origins)  # type: ignore[arg-type]
+
+
+def test_allowed_origins_are_normalized() -> None:
+    rtc = WebRtcRouter(
+        engine=FakeEngine(), allowed_origins=[" HTTPS://App.example.com:8443/ "]
+    )
+    assert rtc.allowed_origins == frozenset({"https://app.example.com:8443"})
+    assert WebRtcRouter(engine=FakeEngine()).allowed_origins is None

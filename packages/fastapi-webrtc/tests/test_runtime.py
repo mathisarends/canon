@@ -117,6 +117,27 @@ async def test_dependency_denial_allocates_no_peer() -> None:
     assert len(engine_of(rtc).peers) == 1
 
 
+async def test_allowed_origins_refuse_cross_site_handshakes() -> None:
+    rtc = router(allowed_origins=["https://App.example.com/"])
+    factories: list[str] = []
+
+    @rtc.session("/s")
+    def guarded() -> Session:
+        factories.append("called")
+        return Session()
+
+    async with serve(application(rtc)) as base:
+        with pytest.raises(InvalidStatus) as error:
+            await Signal.open(f"{base}/s", origin="https://evil.example.com")
+        assert error.value.response.status_code == 403
+        assert factories == []
+        for origin in ("https://app.example.com", None):
+            signal = await Signal.start(f"{base}/s", origin=origin)
+            await signal.close()
+    assert factories == ["called", "called"]
+    assert len(engine_of(rtc).peers) == 2
+
+
 async def test_hello_describes_the_session() -> None:
     rtc = router(limits=SessionLimits(negotiation_timeout_seconds=3))
 

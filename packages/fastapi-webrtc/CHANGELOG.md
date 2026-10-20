@@ -17,6 +17,8 @@ Initial release.
   negotiation, media and transport deadlines.
 - ICE server providers, `TurnRestCredentials` with separate engine URLs and
   session event hooks.
+- `WebRtcRouter(allowed_origins=...)` refuses cross-site browser handshakes with
+  HTTP 403 before the session factory runs.
 - A pluggable `Engine` protocol, with an `aiortc` reference engine behind the
   `aiortc` extra.
 - Tested Canon/Dishka composition with explicit async-factory injection,

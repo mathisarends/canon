@@ -21,16 +21,24 @@ class Signal:
 
     @classmethod
     async def open(
-        cls, url: str, *, subprotocols: Sequence[str] = (SUBPROTOCOL,)
+        cls,
+        url: str,
+        *,
+        subprotocols: Sequence[str] = (SUBPROTOCOL,),
+        origin: str | None = None,
     ) -> Signal:
         offered = [websockets.Subprotocol(p) for p in subprotocols]
-        ws = await websockets.connect(url, subprotocols=offered or None)
+        ws = await websockets.connect(
+            url,
+            subprotocols=offered or None,
+            origin=None if origin is None else websockets.Origin(origin),
+        )
         return cls(ws)
 
     @classmethod
-    async def start(cls, url: str) -> Signal:
+    async def start(cls, url: str, *, origin: str | None = None) -> Signal:
         """Connect and read the session hello."""
-        signal = await cls.open(url)
+        signal = await cls.open(url, origin=origin)
         signal.hello = await signal.expect("session")
         return signal
 

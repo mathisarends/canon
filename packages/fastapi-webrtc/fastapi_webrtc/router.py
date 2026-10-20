@@ -12,8 +12,9 @@ from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, TypeVar, cast
 
-from fastapi import APIRouter, Depends, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, WebSocket
 from fastapi.params import Depends as DependsParam
+from starlette.requests import HTTPConnection
 
 from fastapi_webrtc.declarations import (
     DataChannelSpec,
@@ -73,6 +74,14 @@ class WebRtcRouter(APIRouter):
 
     Including the router in an application registers its lifespan, which closes
     every active session with ``shutdown`` when the application stops.
+
+    ``allowed_origins`` lists browser origins such as ``"https://app.example.com"``
+    that may open sessions. Browsers attach cookies to cross-site WebSocket
+    handshakes and CORS does not apply to them, so set it whenever session
+    admission relies on cookies. A handshake from another origin is refused with
+    HTTP 403 before the session factory runs. Handshakes without an ``Origin``
+    header come from non-browser clients and are not affected. ``None`` (the
+    default) accepts every origin.
     """
 
     def __init__(
@@ -83,6 +92,7 @@ class WebRtcRouter(APIRouter):
         limits: SessionLimits | None = None,
         max_sessions: int | None = None,
         on_event: EventHook | None = None,
+        allowed_origins: Sequence[str] | None = None,
         prefix: str = "",
         tags: list[str] | None = None,
         dependencies: Sequence[DependsParam] | None = None,
@@ -99,6 +109,7 @@ class WebRtcRouter(APIRouter):
         self.ice_servers = ice_servers
         self.limits = limits or SessionLimits()
         self.event_hook = on_event
+        self.allowed_origins = _origins(allowed_origins)
         self.declarations: list[SessionDeclaration] = []
         self._counter = _Counter(max_sessions)
         self._runtimes: set[SessionRuntime] = set()
@@ -164,7 +175,7 @@ class WebRtcRouter(APIRouter):
                 path,
                 endpoint,
                 name=declaration.name,
-                dependencies=dependencies,
+                dependencies=[Depends(self._check_origin), *(dependencies or ())],
             )
             return factory
 
@@ -202,6 +213,16 @@ class WebRtcRouter(APIRouter):
                     _stop_native(track)
             else:
                 self._runtimes.discard(runtime)
+
+    def _check_origin(self, connection: HTTPConnection) -> None:
+        """Refuse cross-site handshakes before the session factory runs."""
+        allowed = self.allowed_origins
+        origin = connection.headers.get("origin")
+        if allowed is None or origin is None:
+            return
+        if origin.lower().rstrip("/") not in allowed:
+            logger.warning("Refused WebRTC session from origin %r", origin)
+            raise HTTPException(status_code=403, detail="Origin not allowed")
 
     def _admit(
         self,
@@ -276,6 +297,24 @@ class WebRtcRouter(APIRouter):
             yield
         finally:
             await self.aclose()
+
+
+def _origins(origins: Sequence[str] | None) -> frozenset[str] | None:
+    if origins is None:
+        return None
+    if isinstance(origins, str):
+        raise TypeError("allowed_origins must be a sequence of origins, not a str")
+    normalized = set()
+    for origin in origins:
+        value = origin.strip().lower().rstrip("/")
+        scheme, separator, host = value.partition("://")
+        if not separator or not scheme or not host or "/" in host:
+            raise ValueError(
+                f"Invalid origin {origin!r}; use scheme://host[:port], for "
+                "example 'https://app.example.com'"
+            )
+        normalized.add(value)
+    return frozenset(normalized)
 
 
 async def _refuse(websocket: WebSocket, code: ErrorCode) -> None:
