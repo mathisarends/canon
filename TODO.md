@@ -28,6 +28,8 @@ belong in [migration](docs/migration.md), [releases](docs/releases.md) and
 - [ ] Complete Maximus's native Hermes runtime and browser E2E validation.
   Keep consumer-reported evidence separate from workspace verification; see
   [the adoption record](docs/compatibility.md#maximus-consumer-reported-adoption).
+- [ ] Turn new contract/validation failures into minimal schema fixtures and
+  regression cases before preparing another independent package release.
 
 ## Repository transition
 
