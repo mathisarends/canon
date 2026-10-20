@@ -3,7 +3,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator, Sequence
-from typing import Annotated, Any, assert_type
+from typing import Annotated, Any, Never, NoReturn, assert_type
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -1018,6 +1018,66 @@ async def test_typed_channels_can_be_iterated() -> None:
         await until(lambda: len(received) == 2)
         await signal.close()
     assert received == ["one", "two"]
+
+
+async def test_one_way_channels_drop_or_refuse_the_other_direction() -> None:
+    failures: list[BaseException] = []
+    rtc = router()
+    ticks: DataChannelSpec[Never, str] = DataChannelSpec(
+        "ticks", receive_model=Never, send_model=str
+    )
+    uploads = DataChannelSpec("uploads", receive_model=str, send_model=NoReturn)
+
+    @rtc.session("/s", data_channels=(ticks, uploads))
+    def one_way() -> Session:
+        async def run(peer: Peer) -> None:
+            await peer.send_message(ticks, "tick")
+            for attempt in (
+                peer.send_message(uploads, "back"),
+                anext(aiter(peer.channel(ticks))),
+            ):
+                try:
+                    await attempt
+                except (WebRtcError, RuntimeError) as error:
+                    failures.append(error)
+            await peer.wait_closed()
+
+        return Session(run=run)
+
+    async with serve(application(rtc)) as base:
+        signal = await Signal.start(f"{base}/s")
+        peer = await establish(signal, rtc)
+        await until(lambda: len(failures) == 2)
+        peer.channels["ticks"].deliver("tock")
+        await signal.expect("error")
+        await signal.close()
+    assert peer.channels["ticks"].sent == ["tick"]
+    assert peer.channels["uploads"].sent == []
+    sent, received = failures
+    assert isinstance(sent, WebRtcError) and sent.code is ErrorCode.INVALID_MESSAGE
+    assert isinstance(received, RuntimeError)
+    assert "does not receive" in str(received)
+    errors = [(e["code"], e["channel"]) for e in signal.of("error")]
+    assert errors == [("invalid_message", "ticks")]
+    described = signal.hello["channels"]
+    assert [c["receive_format"] for c in described] == ["none", "text"]
+    assert [c["send_format"] for c in described] == ["text", "none"]
+
+
+async def test_handlers_for_send_only_channels_are_refused() -> None:
+    rtc = router()
+    ticks = DataChannelSpec("ticks", receive_model=Never, send_model=str)
+
+    @rtc.session("/s", data_channels=(ticks,))
+    def misdeclared() -> Session:
+        async def on_tick(peer: Peer, tick: Any) -> None:
+            raise AssertionError("unreachable")
+
+        return Session(on_message={"ticks": on_tick})
+
+    async with serve(application(rtc)) as base:
+        refused = await Signal.open(f"{base}/s")
+        assert await refused.closed() == (1011, "handler_failure")
 
 
 async def test_handlers_for_foreign_specs_are_refused() -> None:

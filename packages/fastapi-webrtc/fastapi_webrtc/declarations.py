@@ -7,7 +7,17 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypedDict, Unpack, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Literal,
+    Never,
+    NoReturn,
+    TypedDict,
+    Unpack,
+    overload,
+)
 
 from fastapi import WebSocket
 from pydantic import TypeAdapter
@@ -72,7 +82,7 @@ class MediaPolicy:
         return None
 
 
-MessageFormat = Literal["raw", "text", "binary", "json"]
+MessageFormat = Literal["raw", "text", "binary", "json", "none"]
 
 
 class _ChannelOptions(TypedDict, total=False):
@@ -100,11 +110,14 @@ class DataChannelSpec(Generic[Receive, Send]):
     validates messages to it. A Pydantic model or any type that Pydantic can
     validate is sent as a JSON text message. ``str`` and ``bytes`` select text
     and binary messages without validation; ``None`` accepts both unvalidated.
+    ``Never`` (or ``NoReturn``) makes the channel one-way: the server drops and
+    reports messages from the browser, or refuses to send them.
 
     The type parameters are the received and sent message types. They are
     inferred from model classes, so ``peer.channel(spec)`` returns a typed
     :class:`~fastapi_webrtc.Channel`. Annotate the variable for other models,
-    for example ``DataChannelSpec[int | str, bytes]``.
+    for example ``DataChannelSpec[int | str, bytes]`` or
+    ``DataChannelSpec[Never, Tick]``.
 
     Channels are pre-negotiated by default: both peers create them with the same
     stream ID before negotiation, so no in-band open handshake is needed and the
@@ -192,6 +205,8 @@ class DataChannelSpec(Generic[Receive, Send]):
                 f"Data channel name {self.name!r} must be an identifier of at most "
                 "63 characters"
             )
+        if self.receive_format == self.send_format == "none":
+            raise ValueError(f"Data channel {self.name!r} neither receives nor sends")
         if (
             self.max_retransmits is not None
             and self.max_packet_life_time_ms is not None
@@ -228,6 +243,8 @@ class DataChannelSpec(Generic[Receive, Send]):
 
 
 def _format(model: Any) -> MessageFormat:
+    if model is Never or model is NoReturn:
+        return "none"
     if model is None:
         return "raw"
     if model is str:

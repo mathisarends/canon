@@ -251,6 +251,10 @@ class SessionRuntime:
             raise RuntimeError(
                 f"Channel {channel.spec.name!r} is consumed by its on_message handler"
             )
+        if channel.spec.receive_format == "none":
+            raise RuntimeError(
+                f"Channel {channel.spec.name!r} does not receive messages"
+            )
         if channel.consumer:
             raise RuntimeError(f"Channel {channel.spec.name!r} already has a reader")
         channel.consumer = True
@@ -1221,6 +1225,10 @@ def _stop_native(native: Any) -> None:
 
 def _encode(spec: DataChannelSpec, message: Any) -> str | bytes:
     fmt = spec.send_format
+    if fmt == "none":
+        raise WebRtcError(
+            ErrorCode.INVALID_MESSAGE, f"Channel {spec.name!r} does not send messages."
+        )
     if fmt == "raw":
         if isinstance(message, str | bytes):
             return message
@@ -1250,6 +1258,8 @@ def _encode(spec: DataChannelSpec, message: Any) -> str | bytes:
 
 def _decode(spec: DataChannelSpec, data: str | bytes) -> Any:
     fmt = spec.receive_format
+    if fmt == "none":
+        raise WebRtcError(ErrorCode.INVALID_MESSAGE)
     if fmt == "raw":
         return data
     if fmt == "text":

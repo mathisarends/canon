@@ -35,7 +35,7 @@
           "max_retransmits": null,
           "max_packet_life_time_ms": null,
           "max_message_bytes": 65536,
-          "receive_format": "raw",
+          "receive_format": "none",
           "send_format": "json",
           "receive_schema": null,
           "send_schema": {

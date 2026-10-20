@@ -24,6 +24,8 @@ Initial release.
   queues and send backpressure. A `DataChannelSpec` is generic over its message
   types: `on_message` accepts specs as keys, and `peer.channel(spec)` and
   `peer.send_message(spec, ...)` are type-checked against its models.
+  `Never` as `receive_model` or `send_model` declares a one-way channel
+  (format `none`); the generated client omits `send` or `subscribe` for it.
 - Signaling protocol `fastapi-webrtc.v1`. It uses perfect negotiation,
   candidate buffering, ICE username checks, categorized close codes and
   negotiation, media and transport deadlines. Negotiation timeouts and shutdown

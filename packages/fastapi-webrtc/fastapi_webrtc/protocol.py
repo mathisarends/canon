@@ -103,9 +103,9 @@ class ChannelDescriptor(_Message):
     max_retransmits: int | None
     max_packet_life_time_ms: int | None
     max_message_bytes: int
-    receive_format: Literal["raw", "text", "binary", "json"]
-    """Format the server accepts (browser to server)."""
-    send_format: Literal["raw", "text", "binary", "json"]
+    receive_format: Literal["raw", "text", "binary", "json", "none"]
+    """Format the server accepts (browser to server); ``none`` accepts nothing."""
+    send_format: Literal["raw", "text", "binary", "json", "none"]
     """Format the server sends (server to browser)."""
 
 

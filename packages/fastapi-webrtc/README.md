@@ -99,7 +99,14 @@ A `Session` is assembled from handlers:
 `Peer` sends with `send_message`, `send_track` and `remove_track`, which
 renegotiate. `peer.channel(spec)` and `peer.send_message(spec, message)` are
 typed by the spec's `receive_model` and `send_model`; a channel name gives an
-untyped handle. Reliability options such as `ordered` are keyword-only. It also provides `stats()`, `close(code)` and `wait_closed()`.
+untyped handle. Reliability options such as `ordered` are keyword-only.
+
+`receive_model=Never` or `send_model=Never` declares a one-way channel. The
+server drops and reports messages it does not accept, `send_message` raises
+`WebRtcError(invalid_message)`, and `on_message` handlers or `async for` on a
+channel without inbound messages are refused. The generated client omits
+`send` or `subscribe` for that direction. `Never` is not inferred as a type
+argument; annotate the spec, for example `DataChannelSpec[Never, Tick]`. It also provides `stats()`, `close(code)` and `wait_closed()`.
 The session stops tracks it owns when it closes. It never stops tracks passed
 with `owned=False`.
 

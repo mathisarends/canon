@@ -18,7 +18,7 @@ regenerate the browser client with::
 
 import asyncio
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Never
 
 from aiortc import VideoStreamTrack
 from aiortc.contrib.media import MediaRelay
@@ -78,7 +78,10 @@ class Tick(BaseModel):
 
 # Specs type the channel handles, e.g. `peer.send_message(MESSAGES, Feedback(...))`.
 MESSAGES = DataChannelSpec("messages", receive_model=Prompt, send_model=Feedback)
-TICKS = DataChannelSpec("ticks", send_model=Tick)
+# `Never` makes the clock one-way: the browser cannot send ticks back.
+TICKS: DataChannelSpec[Never, Tick] = DataChannelSpec(
+    "ticks", receive_model=Never, send_model=Tick
+)
 
 
 def lesson_access(

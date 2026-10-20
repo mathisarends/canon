@@ -392,11 +392,13 @@ _RECEIVE_TYPES = {
     "raw": "string | ArrayBuffer",
     "text": "string",
     "binary": "ArrayBuffer",
+    "none": "never",
 }
 _SEND_TYPES = {
     "raw": "string | ArrayBuffer | ArrayBufferView",
     "text": "string",
     "binary": "ArrayBuffer | ArrayBufferView",
+    "none": "never",
 }
 
 

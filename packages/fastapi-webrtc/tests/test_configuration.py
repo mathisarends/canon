@@ -3,7 +3,7 @@
 import base64
 import hashlib
 import hmac
-from typing import Any, assert_type
+from typing import Any, Never, NoReturn, assert_type
 
 import pytest
 from pydantic import BaseModel
@@ -88,6 +88,11 @@ def test_channel_formats_and_adapters() -> None:
     assert raw.receive_adapter is None and text.send_adapter is None
     assert typed.receive_adapter is not None
     assert typed.receive_adapter.validate_json("3") == 3
+    one_way = DataChannelSpec(name="ticks", receive_model=Never, send_model=int)
+    assert (one_way.receive_format, one_way.send_format) == ("none", "json")
+    assert one_way.receive_adapter is None
+    with pytest.raises(ValueError, match="neither receives nor sends"):
+        DataChannelSpec(name="ticks", receive_model=Never, send_model=NoReturn)
 
 
 def test_channel_specs_infer_message_types() -> None:

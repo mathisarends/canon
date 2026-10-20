@@ -54,7 +54,8 @@ error; the session continues.
 
 `json` channels carry JSON text that is validated against the channel model.
 `text` carries strings, `binary` carries bytes, and `raw` carries both
-unchanged. Messages larger than `max_message_bytes` are rejected. Invalid
+unchanged. `none` marks a one-way channel: nothing is accepted in that
+direction, and the receiving side reports `invalid_message` for every message. Messages larger than `max_message_bytes` are rejected. Invalid
 inbound messages produce a non-terminal `error` with the channel name; the
 offending value is never echoed.
 

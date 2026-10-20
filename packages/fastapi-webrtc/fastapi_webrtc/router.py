@@ -195,10 +195,10 @@ class WebRtcRouter(APIRouter):
     ) -> None:
         runtime: SessionRuntime | None = None
         try:
-            unknown = _undeclared_handlers(declaration, session)
+            unknown = _invalid_handlers(declaration, session)
             if unknown:
                 logger.error(
-                    "Session %s has handlers for undeclared channels: %s",
+                    "Session %s has handlers for undeclared or send-only channels: %s",
                     declaration.name,
                     ", ".join(sorted(unknown)),
                 )
@@ -323,9 +323,14 @@ def _origins(origins: Sequence[str] | None) -> frozenset[str] | None:
     return frozenset(normalized)
 
 
-def _undeclared_handlers(declaration: SessionDeclaration, session: Session) -> set[str]:
-    """Handler keys that name no channel or use a different spec of the same name."""
-    declared = {spec.name: spec for spec in declaration.channels}
+def _invalid_handlers(declaration: SessionDeclaration, session: Session) -> set[str]:
+    """Handler keys that name no receiving channel or use a different spec of the
+    same name."""
+    declared = {
+        spec.name: spec
+        for spec in declaration.channels
+        if spec.receive_format != "none"
+    }
     unknown = set(session.message_handlers) - declared.keys()
     for key in session.on_message:
         if isinstance(key, DataChannelSpec) and declared.get(key.name) != key:

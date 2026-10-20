@@ -84,7 +84,7 @@ export function isRtcError(value: unknown): value is RtcError {
 
 /** Media direction from the server's point of view. */
 export type Direction = "send" | "receive" | "send_receive";
-export type MessageFormat = "raw" | "text" | "binary" | "json";
+export type MessageFormat = "raw" | "text" | "binary" | "json" | "none";
 export type Role = "answerer" | "offerer";
 
 export interface ParameterDescriptor {
@@ -154,8 +154,12 @@ export interface RemoteTrack {
   readonly transceiver: RTCRtpTransceiver;
 }
 
+/** Handlers for every channel the client receives from; send-only channels are omitted. */
 export type MessageHandlers<C extends ChannelMap> = {
-  readonly [K in keyof C]?: (message: C[K]["receive"], session: RtcSession<C>) => void | Promise<void>;
+  readonly [K in keyof C as [C[K]["receive"]] extends [never] ? never : K]?: (
+    message: C[K]["receive"],
+    session: RtcSession<C>,
+  ) => void | Promise<void>;
 };
 
 export interface ConnectOptions<C extends ChannelMap> {
@@ -183,20 +187,34 @@ export interface ConnectOptions<C extends ChannelMap> {
   readonly onClose?: (reason: RtcError) => void;
 }
 
-export interface RtcChannel<TSend, TReceive> {
+export interface ChannelInfo {
   readonly name: string;
   readonly isOpen: boolean;
   readonly bufferedAmount: number;
   readonly dataChannel: RTCDataChannel;
+}
+
+export interface ChannelSender<TSend> {
   /**
    * Encode, size-check and send a message. Waits while the channel is not yet
    * open or its send buffer is above the high-water mark. Exceeding sendTimeoutMs
    * ends the session with slow_consumer.
    */
   send(message: TSend): Promise<void>;
+}
+
+export interface ChannelReceiver<TReceive> {
   /** Receive messages; returns an unsubscribe function. */
   subscribe(handler: (message: TReceive) => void | Promise<void>): () => void;
 }
+
+/**
+ * A data channel. One-way channels omit `send` or `subscribe`: their message
+ * type in that direction is `never`.
+ */
+export type RtcChannel<TSend, TReceive> = ChannelInfo &
+  ([TSend] extends [never] ? unknown : ChannelSender<TSend>) &
+  ([TReceive] extends [never] ? unknown : ChannelReceiver<TReceive>);
 
 export type SessionChannels<C extends ChannelMap> = {
   readonly [K in keyof C]: RtcChannel<C[K]["send"], C[K]["receive"]>;
@@ -409,6 +427,8 @@ export function encodeMessage(
         return message;
       }
       throw new RtcError("invalid_message", "Raw channels send strings or binary values.");
+    case "none":
+      throw new RtcError("invalid_message", "The server does not receive messages on this channel.");
   }
 }
 
@@ -430,6 +450,8 @@ export function decodeMessage(format: MessageFormat, data: unknown): unknown {
       return data;
     case "raw":
       return data;
+    case "none":
+      throw new RtcError("invalid_message", "The server does not send messages on this channel.");
   }
 }
 

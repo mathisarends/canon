@@ -13,7 +13,7 @@ import {
 /** Data channels of the `clock` session, from the client's point of view. */
 export type ClockChannels = {
   readonly ticks: {
-    readonly send: string | ArrayBuffer | ArrayBufferView;
+    readonly send: never;
     readonly receive: models.Tick;
   };
 };
@@ -37,7 +37,7 @@ export const clockDescriptor: SessionDescriptor = {
   channels: [
     {
       name: "ticks",
-      receiveFormat: "raw",
+      receiveFormat: "none",
       sendFormat: "json",
     },
   ],

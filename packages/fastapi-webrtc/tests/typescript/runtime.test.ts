@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 import {
   type Feedback,
   type ConnectOptions,
+  type MessageHandlers,
   type QueryParams,
   PracticeRtcClient,
   type PracticeSession,
@@ -592,7 +593,7 @@ describe("offerer sessions", () => {
             max_retransmits: null,
             max_packet_life_time_ms: null,
             max_message_bytes: 65536,
-            receive_format: "raw",
+            receive_format: "none",
             send_format: "json",
           },
         ],
@@ -615,6 +616,8 @@ describe("offerer sessions", () => {
     await flush();
     assert.deepEqual(ticks, [4]);
     assert.deepEqual(tracks, ["video"]);
+    // @ts-expect-error The server does not receive ticks, so the client cannot send them.
+    void session.channels.ticks.send;
     assert.equal(session.remoteTracks.length, 1);
     await session.close();
   });
@@ -637,7 +640,7 @@ describe("offerer sessions", () => {
             max_retransmits: null,
             max_packet_life_time_ms: null,
             max_message_bytes: 65536,
-            receive_format: "raw",
+            receive_format: "none",
             send_format: "json",
           },
         ],
@@ -805,5 +808,20 @@ describe("message formats", () => {
     assert.throws(() => decodeMessage("binary", "x"), RtcError);
     assert.throws(() => decodeMessage("json", buffer), RtcError);
     assert.equal(decodeMessage("text", "t"), "t");
+  });
+
+  test("one-way channels reject both directions", () => {
+    assert.throws(() => encodeMessage("none", "x"), { code: "invalid_message" });
+    assert.throws(() => decodeMessage("none", "x"), { code: "invalid_message" });
+    type Channels = {
+      readonly upload: { readonly send: string; readonly receive: never };
+      readonly news: { readonly send: never; readonly receive: string };
+    };
+    const handlers: MessageHandlers<Channels> = {
+      news: () => undefined,
+      // @ts-expect-error Send-only channels have no message handler.
+      upload: () => undefined,
+    };
+    assert.ok(handlers);
   });
 });
