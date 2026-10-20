@@ -18,7 +18,7 @@ For an installed canon checkout or release containing this integration:
 pip install "fastapi-canon[streams]"
 ```
 
-Published Canon 0.5.4 installs `fastapi-streams==0.4.0`. Both releases have verified
+Published Canon 0.5.5 installs `fastapi-streams==0.4.0`. Both releases have verified
 PyPI installs and matching GitHub Releases with original artifacts.
 Upgrading requires an explicit
 compatibility review and pin update. `uv.lock` records the workspace

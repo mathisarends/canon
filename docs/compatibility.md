@@ -1,23 +1,63 @@
 # Compatibility
 
-Published versions, verified on 2026-10-19:
+Published versions, verified on 2026-10-20:
 
 | Distribution | Version | Import |
 | --- | --- | --- |
-| `fastapi-canon` | 0.5.4 | `fastapi_canon` |
+| `fastapi-canon` | 0.5.5 | `fastapi_canon` |
 | `fastapi-streams` | 0.4.0 | `fastapi_streams` |
-| `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.2.0 | `fastapi_rpckit` |
+| `fastapi-rpckit` (successor to pyrpckit 0.11.0) | 0.3.0 | `fastapi_rpckit` |
+| `fastapi-webrtc` | 0.1.0 | `fastapi_webrtc` |
 
 The root workspace supports Python `>=3.12,<3.15`, the intersection with Canon's
 existing declared range. The combined stack needs FastAPI >=0.143.3 due to
-Streams; Canon's independent requirement remains >=0.115,<1. All three versions
+Streams; Canon's independent requirement remains >=0.115,<1. All four versions
 are available through PyPI and this repository's independent GitHub releases.
+
+## WebRTC, RPCkit and Canon publications, verified 2026-10-20
+
+WebRTC 0.1.0, RPCkit 0.3.0 and Canon 0.5.5 were explicitly authorized, published
+and independently verified from final dated source
+[`0e1dec2`](https://github.com/mathisarends/canon/commit/0e1dec24cb128ea5b87fb7959c7ed424cd733fd8).
+It passed [four-target main CI](https://github.com/mathisarends/canon/actions/runs/39385377402),
+including real Chromium/aiortc scenarios and installed-wheel/client checks.
+Local workspace validation passed 1,707 Python tests, 70 TypeScript tests,
+lint, package-specific types, client drift and coverage thresholds.
+
+All three exact-source dry runs and publications passed current/minimum
+nine-combination installed-wheel matrices and installed Streams/WebRTC CLI
+checks. Each selected wheel/sdist is byte-identical across its dry run, original
+Actions artifacts, GitHub Release and PyPI. All package tags resolve to `0e1dec2`;
+release notes and attached original manifests are independently verified. Each
+publication passed fresh public-index installs; Canon covered core-only and
+`[streams]`. See the [workflow and release links](releases.md#webrtc-rpckit-and-canon-publications-2026-10-20).
+
+Two additional fresh Windows/CPython 3.14.0 public-index environments pass:
+
+- Canon 0.5.5 / Streams 0.4.0 / RPCkit 0.3.0: HTTP/SSE/RPC composition,
+  Dishka state/cleanup, typed JSON sockets and generated RPC Python/TypeScript SDKs.
+- The same combination with WebRTC 0.1.0 `[aiortc]`: all four installed packages,
+  composed endpoints, denied WebRTC admission, categorized engine failure,
+  contract/client generation and the optional engine import.
+
+Both install exact public versions from `https://pypi.org/simple`, independently
+of workspace source overrides. Inventories are
+`dist/publications/public-webrtc-batch-stack-inventory.json` and
+`dist/publications/public-webrtc-batch-all-four-inventory.json`. The first local
+attempt preceded Canon 0.5.5's install-index visibility; retrying with fresh
+metadata passed. No upload or tag was replaced. The log is
+`dist/release-public-stack-verification.log`; original download/verification
+receipts are under `dist/publications/39386465235/`,
+`dist/publications/39386919116/` and `dist/publications/39387382419/`.
+
+These checks establish the package and SDK release combinations. Full external
+Cara/Maximus application migration and forced-TURN coverage remain separate.
 
 ## Independent release preparation, verified 2026-10-20
 
 The prepared combination is Canon 0.5.5 / Streams 0.4.0 / RPCkit 0.3.0 /
-WebRTC 0.1.0. Only Streams 0.4.0 is already public in that combination; the
-published-version table above remains unchanged until publication is verified.
+WebRTC 0.1.0. At preparation time only Streams 0.4.0 was public in that
+combination; all four are now published and verified in the record above.
 
 Both nine-combination installed-wheel matrices pass: current compatible
 dependencies on CPython 3.14.0 and direct minima on CPython 3.12.12. The current
@@ -38,10 +78,10 @@ Inventories are `dist/compatibility-latest.json` and
 
 The earlier merged baseline `69daa8a` also passed four-target CI, Chromium/aiortc
 scenarios and a complete WebRTC release dry run; see the
-[baseline evidence](releases.md#webrtc-baseline-dry-run). The preparation must
-still be merged, pass exact-commit `main` CI and repeat the selected release dry
-runs. A dry run does not check WebRTC's private Pending Publisher and is not a
-publication. See the [publisher setup](releases.md#webrtc-first-publication-setup).
+[baseline evidence](releases.md#webrtc-baseline-dry-run). The preparation was
+subsequently merged and passed exact-commit `main` CI and all selected dry runs
+before the authorized publications above. A dry run alone does not check a
+Pending Publisher. See the [publisher setup](releases.md#webrtc-first-publication-setup).
 
 ## WebRTC PR #7 corrections, verified 2026-10-19
 

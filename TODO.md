@@ -5,19 +5,6 @@ listed in the [README](README.md#current-releases); completed work and evidence
 belong in [migration](docs/migration.md), [releases](docs/releases.md) and
 [compatibility](docs/compatibility.md).
 
-## Current priority
-
-- [ ] Merge the release preparation for WebRTC 0.1.0, RPCkit 0.3.0 and Canon
-  0.5.5, then pass exact-commit CI and each package's release dry run on `main`.
-  WebRTC PR #7 and RPCkit PRs #4, #5 and #6 are merged. Streams remains 0.4.0.
-- [ ] Confirm WebRTC's PyPI Pending Publisher using the exact fields in
-  [the release procedure](docs/releases.md#webrtc-first-publication-setup).
-  GitHub's `pypi` environment already allows `main`; PyPI's private publishing
-  page returned HTTP 503 during the 2026-10-20 audit, so registration is unverified.
-- [ ] Obtain explicit publication authorization for the three prepared versions,
-  then verify each PyPI install, tag, GitHub Release and original attached assets.
-  Prepared source versions and dated changelogs are not published releases.
-
 ## External consumers
 
 - [ ] Complete Cara Gateway's application migration from pyrpckit, including

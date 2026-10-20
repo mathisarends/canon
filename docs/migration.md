@@ -36,7 +36,10 @@
 - [x] Publish all three packages with separate tags and GitHub releases; verify
       PyPI files, fresh installs and generated SDKs.
 - [x] Add `fastapi-webrtc` as an independent extension (issue #2); see
-      [decision 0005](design-decisions/0005-webrtc-extension.md). Unreleased.
+      [decision 0005](design-decisions/0005-webrtc-extension.md).
+- [x] Publish and verify WebRTC 0.1.0, RPCkit 0.3.0 and Canon 0.5.5 on
+      2026-10-20, including their PyPI installs, tags, central GitHub Releases
+      and original artifacts; see the [publication record](releases.md#webrtc-rpckit-and-canon-publications-2026-10-20).
 - [ ] Complete external application migrations. Archive the predecessor only
       after a separate explicit decision.
 

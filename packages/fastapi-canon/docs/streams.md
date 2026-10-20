@@ -12,7 +12,7 @@ Import the router explicitly:
 from fastapi_canon.integrations.streams import CanonStreamRouter
 ```
 
-Published Canon 0.5.4 pins `fastapi-streams==0.4.0`. Both releases have verified
+Published Canon 0.5.5 pins `fastapi-streams==0.4.0`. Both releases have verified
 PyPI installs and matching GitHub Releases with original artifacts.
 `uv.lock` records the workspace combination. Streams upgrades require an explicit
 compatibility review and pin update. Streams requires FastAPI >=0.143.3 and Pydantic >=2.11.2.

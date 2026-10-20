@@ -11,9 +11,10 @@ The libraries remain independently installable and independently versioned.
 
 | Package | Version | GitHub | PyPI |
 | --- | --- | --- | --- |
-| `fastapi-canon` | 0.5.4 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.4) | [Install](https://pypi.org/project/fastapi-canon/0.5.4/) |
+| `fastapi-canon` | 0.5.5 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.5.5) | [Install](https://pypi.org/project/fastapi-canon/0.5.5/) |
 | `fastapi-streams` | 0.4.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.4.0) | [Install](https://pypi.org/project/fastapi-streams/0.4.0/) |
-| `fastapi-rpckit` | 0.2.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.2.0) | [Install](https://pypi.org/project/fastapi-rpckit/0.2.0/) |
+| `fastapi-rpckit` | 0.3.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.3.0) | [Install](https://pypi.org/project/fastapi-rpckit/0.3.0/) |
+| `fastapi-webrtc` | 0.1.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-webrtc-v0.1.0) | [Install](https://pypi.org/project/fastapi-webrtc/0.1.0/) |
 
 Package releases appear in this repository's [central release list](https://github.com/mathisarends/canon/releases).
 Each has its own version, package-prefixed tag, changelog and distribution files.
@@ -25,14 +26,14 @@ Each has its own version, package-prefixed tag, changelog and distribution files
 | Composition, Dishka, HTTP contracts | [`packages/fastapi-canon`](packages/fastapi-canon) | `fastapi-canon` / `fastapi_canon` |
 | Typed SSE and generated clients | [`packages/fastapi-streams`](packages/fastapi-streams) | `fastapi-streams` / `fastapi_streams` |
 | WebSocket RPC and generated clients | [`packages/fastapi-rpckit`](packages/fastapi-rpckit) | `fastapi-rpckit` / `fastapi_rpckit` |
-| WebRTC sessions and generated browser clients | [`packages/fastapi-webrtc`](packages/fastapi-webrtc) | `fastapi-webrtc` / `fastapi_webrtc` (unreleased) |
+| WebRTC sessions and generated browser clients | [`packages/fastapi-webrtc`](packages/fastapi-webrtc) | `fastapi-webrtc` / `fastapi_webrtc` |
 | Architecture conventions | [`guides`](guides) | feature slices, inward dependencies, Dishka |
 | Runnable architecture example | [`examples/reference-service`](examples/reference-service) | development-only workspace member |
 
 `fastapi-rpckit` is the FastAPI-first successor to `pyrpckit`, with its existing
 WebSocket engine and protocol retained. See the [RPC migration guide](packages/fastapi-rpckit/docs/migration.md).
 Its initial release is 0.1.0. The existing source repositories remain available;
-current development and releases for all three packages live here.
+current development and releases for all four packages live here.
 
 Read the [vision](VISION.md), the concrete [workspace decision](docs/design-decisions/0001-workspace.md),
 and the [migration checklist](docs/migration.md). The vision describes the target;
