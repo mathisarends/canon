@@ -1,4 +1,5 @@
 import asyncio
+import faulthandler
 import importlib
 import importlib.util
 import runpy
@@ -381,4 +382,8 @@ def _rpc_codegen(rpc) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    faulthandler.dump_traceback_later(90, exit=True)
+    try:
+        main()
+    finally:
+        faulthandler.cancel_dump_traceback_later()

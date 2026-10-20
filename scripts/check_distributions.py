@@ -106,6 +106,7 @@ def main() -> None:
                 str(ROOT / "scripts/smoke_installed.py"),
                 *names,
                 cwd=Path(temporary),
+                timeout=120,
             )
             installed = subprocess.check_output(
                 ["uv", "pip", "list", "--python", str(python), "--format", "json"],
@@ -209,9 +210,9 @@ def _check_reference(canon_wheel: str, python_version: str) -> None:
         )
 
 
-def _run(*command: str, cwd: Path = ROOT) -> None:
+def _run(*command: str, cwd: Path = ROOT, timeout: float | None = None) -> None:
     print(" ".join(command), flush=True)
-    subprocess.run(command, cwd=cwd, check=True)
+    subprocess.run(command, cwd=cwd, check=True, timeout=timeout)
 
 
 if __name__ == "__main__":
