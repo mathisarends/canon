@@ -117,9 +117,12 @@ def main() -> None:
         routers.append(_webrtc_router(engine, canon="fastapi-canon" in selected))
         _cli("fastapi-webrtc")
     if "fastapi-canon" in selected:
-        from fastapi_canon import Composition, Feature
+        from fastapi_canon import Composition, ErrorOptions, Feature
 
-        app = Composition(Feature(name="installed", routers=routers)).apply(app)
+        app = Composition(
+            Feature(name="installed", routers=routers),
+            errors=ErrorOptions(type_base="https://example.test/problems"),
+        ).apply(app)
     else:
         for router in routers:
             app.include_router(router)
@@ -150,7 +153,7 @@ def main() -> None:
                 websocket.send_json({"value": 41})
                 assert websocket.receive_json() == {"value": 42}
         if "fastapi-webrtc" in selected:
-            _webrtc_sessions(client, engine)
+            _webrtc_sessions(client, engine, canon="fastapi-canon" in selected)
     assert app.openapi()["openapi"]
     if "fastapi-webrtc" in selected:
         _webrtc_codegen(app)
@@ -247,7 +250,7 @@ def _webrtc_router(engine, *, canon=False):
     return rtc
 
 
-def _webrtc_sessions(client, engine) -> None:
+def _webrtc_sessions(client, engine, *, canon=False) -> None:
     from fastapi_webrtc import SUBPROTOCOL
     from starlette.testclient import WebSocketDenialResponse
 
@@ -256,6 +259,8 @@ def _webrtc_sessions(client, engine) -> None:
             raise AssertionError("A denied session was accepted")
     except WebSocketDenialResponse as error:
         assert error.status_code == 403
+        if canon:
+            assert error.json()["code"] == "admission_denied"
     assert engine.created == 0
     with client.websocket_connect("/rtc/rooms/a?token=ok", [SUBPROTOCOL]) as socket:
         try:

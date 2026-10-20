@@ -210,6 +210,12 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
             "Reference service",
         ),
         ("packages/fastapi-streams/CHANGELOG.md", "## 0.4.0", "## 9.9.9", "Changelog"),
+        (
+            "packages/fastapi-canon/pyproject.toml",
+            "fastapi-webrtc==0.2.0",
+            "fastapi-webrtc==0.1.0",
+            "Dependency pin",
+        ),
     ],
 )
 def test_release_rejects_inconsistent_metadata(
@@ -221,6 +227,32 @@ def test_release_rejects_inconsistent_metadata(
     )
     with pytest.raises(ValueError, match=message):
         release.validate_release("fastapi-streams", "0.4.0", root=release_repo)
+
+
+def test_public_canon_verification_checks_each_optional_integration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(release, "publication_state", lambda report: "complete")
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        release, "_run", lambda command, **kwargs: commands.append(command)
+    )
+    release.verify_published({"package": "fastapi-canon", "version": "0.6.0"})
+    installs = [
+        command for command in commands if command[:3] == ["uv", "pip", "install"]
+    ]
+    assert len(installs) == 4
+    assert any("fastapi-canon[webrtc]==0.6.0" in command for command in installs)
+    assert any(
+        "fastapi-canon[streams,webrtc]==0.6.0" in command for command in installs
+    )
+    smokes = [command for command in commands if "-I" in command]
+    assert [command[3:] for command in smokes] == [
+        ["fastapi-canon"],
+        ["fastapi-canon", "fastapi-streams"],
+        ["fastapi-canon", "fastapi-webrtc"],
+        ["fastapi-canon", "fastapi-streams", "fastapi-webrtc"],
+    ]
 
 
 def test_publication_requires_final_changelog(release_repo: Path) -> None:

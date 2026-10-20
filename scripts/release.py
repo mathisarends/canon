@@ -252,6 +252,8 @@ def verify_published(report: dict[str, Any], root: Path = ROOT) -> None:
     combinations = [(report["package"] + "==" + report["version"],)]
     if report["package"] == "fastapi-canon":
         combinations.append((f"fastapi-canon[streams]=={report['version']}",))
+        combinations.append((f"fastapi-canon[webrtc]=={report['version']}",))
+        combinations.append((f"fastapi-canon[streams,webrtc]=={report['version']}",))
     for requirements in combinations:
         with tempfile.TemporaryDirectory(prefix="canon-pypi-") as temporary:
             environment = Path(temporary) / "venv"
@@ -272,8 +274,12 @@ def verify_published(report: dict[str, Any], root: Path = ROOT) -> None:
             )
             _run(["uv", "pip", "check", "--python", str(python)])
             selected = [report["package"]]
-            if "[streams]" in requirements[0]:
-                selected.append("fastapi-streams")
+            for extra, distribution in (
+                ("streams", "fastapi-streams"),
+                ("webrtc", "fastapi-webrtc"),
+            ):
+                if extra in Requirement(requirements[0]).extras:
+                    selected.append(distribution)
             _run(
                 [
                     str(python),
