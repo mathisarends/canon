@@ -9,8 +9,8 @@ GitHub Releases and Actions retain publication evidence.
 
 ## Prepared versions
 
-These source versions are unpublished. Repository cleanup changes the source
-artifacts, so repeat exact-source CI and dry runs after that cleanup is merged.
+These source versions are unpublished. Validate CI and dry runs against the same
+commit on `main`; results from before repository cleanup do not cover its artifacts.
 
 | Package | Version | Migration |
 | --- | --- | --- |
@@ -21,6 +21,31 @@ artifacts, so repeat exact-source CI and dry runs after that cleanup is merged.
 Streams remains at published 0.4.0. Publish WebRTC before Canon, which pins it in
 the optional extra. RPCKit can be released independently. If Streams changes,
 publish it before a Canon version that pins it.
+
+### Consumer integration upgrade
+
+This batch addresses the integration feedback for Canon 0.5.5, WebRTC 0.1.0 and
+RPCKit 0.3.0:
+
+- [Canon admission errors](../packages/fastapi-canon/docs/webrtc.md) reuse named
+  errors, validate registry membership and export declared dependency/factory
+  failures in session contracts. HTTP denials happen before peer allocation;
+  accepted sessions retain WebRTC protocol errors.
+- [Remote engine bindings and leases](../packages/fastapi-webrtc/examples/remote_video/README.md)
+  keep each viewer's resources independent, including cancellation and rejected
+  second viewers. The example documents native error mapping and partial stats.
+- [Browser video health](../packages/fastapi-webrtc/docs/media-health.md) observes
+  decoded or compositor frames with optional first-frame and stall deadlines.
+  Applications retain control of playback and fallback. The optional
+  [HTTP ticket recipe](../packages/fastapi-webrtc/docs/admission-tickets.md) provides
+  readable admission errors before signaling.
+- [RPCKit factory typing](../packages/fastapi-rpckit/CHANGELOG.md#040---unreleased)
+  removes the URL-parameter and backend subprotocol mismatches. Regenerate clients
+  before removing consumer generator overrides.
+
+The signaling protocol stays `fastapi-webrtc.v1`. A maintained CDP binding and
+deployed TURN/NAT, database concurrency and proxy validation remain separate work
+in [TODO](../TODO.md).
 
 ## Publisher setup
 

@@ -11,10 +11,10 @@
 
 ## Releases
 
-- [ ] After the repository cleanup, finalize changelog dates and repeat exact-source
-  CI and release dry runs for WebRTC 0.2.0, RPCkit 0.4.0 and Canon 0.6.0. Publish
-  only when explicitly authorized, with WebRTC before Canon. Follow
-  [the release process](docs/releases.md).
+- [ ] When publication is explicitly authorized, finalize changelog dates for
+  WebRTC 0.2.0, RPCKit 0.4.0 and Canon 0.6.0, then pass CI and dry runs on that final
+  commit. Publish WebRTC before Canon and verify PyPI installs, tags, GitHub
+  Releases and attached artifacts. Follow [the release process](docs/releases.md).
 
 ## Repository transition
 

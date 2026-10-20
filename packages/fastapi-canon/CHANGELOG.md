@@ -16,6 +16,10 @@ All notable changes to `fastapi-canon` are documented in this file.
 - Export registered admission Problem Details in the WebRTC contract and generated
   session descriptor, using the composed registry's type URIs and exact Error
   objects. `raises` documents failures without restricting runtime mapping.
+- Validate declarations against the existing registry and map dependency/factory
+  failures before peer allocation. Export with `build_contract(app)` after
+  composition to use the application's problem type URIs. Follow the
+  [WebRTC admission guide](docs/webrtc.md) when migrating a plain router.
 
 ## 0.5.5 - 2026-10-20
 

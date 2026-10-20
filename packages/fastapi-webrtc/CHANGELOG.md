@@ -28,6 +28,9 @@
 - Canon-independent admission contract export, including optional generated
   descriptor metadata. HTTP denials remain distinct from accepted-session errors;
   this metadata does not expose failed WebSocket handshake bodies in browsers.
+- An optional [HTTP admission ticket recipe](docs/admission-tickets.md) for readable
+  denials before signaling, with application-owned authorization and atomic ticket
+  consumption. It does not reserve remote viewer capacity automatically.
 
 ## 0.1.0 - 2026-10-20
 
