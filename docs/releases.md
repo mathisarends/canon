@@ -5,6 +5,32 @@ published releases from this repository. The root workspace and reference servic
 are not publication targets. The [README](../README.md#current-releases) lists all
 current package versions with PyPI and GitHub release links.
 
+## Consumer integration preparation, 2026-10-20
+
+These are prepared, **unpublished** source versions. The current public releases
+remain Canon 0.5.5, WebRTC 0.1.0, RPCkit 0.3.0 and Streams 0.4.0.
+
+| Package | Prepared version | Migration |
+| --- | --- | --- |
+| Canon | 0.6.0 | Install `[webrtc]` for the optional `CanonWebRtcRouter`; reuse named Errors and declare dependency/factory failures with `raises`. |
+| WebRTC | 0.2.0 | Forward new admission-provider keywords in router overrides, regenerate clients and optionally use session engine bindings or browser video health. |
+| RPCkit | 0.4.0 | Regenerate Python clients; invoke factory protocols with positional URLs. Default connectors now adapt nominal subprotocol types. |
+
+See [decision 0006](design-decisions/0006-consumer-integration.md) and each package
+changelog for concrete migration steps. Versions are independent; the public API
+and generated-client changes require minor versions under the pre-1.0 policy.
+
+Local workspace gates, all four Chromium scenarios, both ten-combination wheel
+matrices and installed Streams/WebRTC CLI checks pass. Detailed counts, platforms
+and evidence boundaries are in the
+[compatibility record](compatibility.md#consumer-integration-preparation-verified-locally-2026-10-20).
+
+Publish WebRTC 0.2.0 before Canon 0.6.0, which pins it in its optional extra.
+RPCkit 0.4.0 can be published independently. Streams needs no release. Finalize
+changelog dates only for a separately authorized publication and repeat CI on that
+final commit. Canon publication verification covers core, `[streams]`, `[webrtc]`
+and `[streams,webrtc]` public-index installs.
+
 ## WebRTC, RPCkit and Canon publications, 2026-10-20
 
 The user explicitly authorized the publisher registration, preparation merge

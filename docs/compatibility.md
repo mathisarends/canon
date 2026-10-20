@@ -14,6 +14,33 @@ existing declared range. The combined stack needs FastAPI >=0.143.3 due to
 Streams; Canon's independent requirement remains >=0.115,<1. All four versions
 are available through PyPI and this repository's independent GitHub releases.
 
+## Consumer integration preparation, verified locally 2026-10-20
+
+Prepared source versions are Canon 0.6.0, WebRTC 0.2.0 and RPCkit 0.4.0, with
+Streams unchanged at 0.4.0. These versions are **unpublished**. See
+[decision 0006](design-decisions/0006-consumer-integration.md) and the
+[release preparation record](releases.md#consumer-integration-preparation-2026-10-20).
+
+Local Windows/Python 3.14 workspace checks pass lint, formatting, package-specific
+typing, contract/client drift and coverage gates: 1,727 Python tests (Canon 254,
+Streams 323, RPCkit 872, reference service 5, WebRTC 213, root integration/release
+60) and 80 TypeScript tests (Streams 23, WebRTC 57). RPCkit's installed public type
+completeness is 92.6%, above its existing 92% threshold.
+
+Four Chromium/aiortc scenarios pass, including real decoded video, compositor
+frame observation, an intentional presentation stall and recovery without closing
+the session. Both independent ten-combination wheel matrices pass: current
+compatible dependencies on Python 3.14 and direct minima on Python 3.12.12.
+They include Canon core with extensions absent, its WebRTC extra and all four
+packages together. Inventories are `dist/compatibility-latest.json` and
+`dist/compatibility-minimum.json`. These are workspace/library results, separate
+from the consumer-reported Maximus Linux evidence below.
+
+Installed Streams CLI checks pass in core-only, HTTPX-only and HTTPX2-only fresh
+wheel environments. The installed WebRTC CLI exports the saved contract,
+regenerates matching clients/provenance and compiles the generated TypeScript.
+Logs are `dist/consumer-integration-{checks,wheels-current,wheels-minimum,streams-artifacts,webrtc-artifacts}.log`.
+
 ## WebRTC, RPCkit and Canon publications, verified 2026-10-20
 
 WebRTC 0.1.0, RPCkit 0.3.0 and Canon 0.5.5 were explicitly authorized, published
@@ -220,6 +247,20 @@ Logs are `dist/consumer-review-distributions-current.log`,
 is recorded below; outstanding Hermes/browser work remains in [TODO.md](../TODO.md).
 
 ## Maximus consumer-reported adoption
+
+The [20 October integration report](feedback/2026-10-20-maximus.md) supersedes the
+earlier verification boundary below. It reports adoption of Canon 0.5.5, Streams
+0.4.0, RPCkit 0.3.0 and WebRTC 0.1.0 without patching libraries or generated clients.
+Follow-up checks report 133 Chromium component tests and 42 browser transport/unit
+tests, plus all three native Linux Playwright workflows: WebRTC with previews and
+no RPC fallback, RPC with previews, and deliberately failed WebRTC negotiation
+recovering through RPC while preserving the document and input.
+
+The report says Chromium, GStreamer/Xvfb, FFmpeg, authentication and application
+services ran normally in an isolated Linux container. Model output and the fixture
+website were scripted. This is supplied consumer evidence; this workspace has not
+independently rerun Maximus. Deployed TURN/NAT, PostgreSQL concurrency and proxies
+remain unverified here. The older report below is retained as historical evidence.
 
 The supplied Maximus report for merge request 125 confirms adoption of Canon
 0.5.3 / Streams 0.3.1 with regenerated SDKs and unchanged callers, HTTP/SSE

@@ -42,6 +42,9 @@
       and original artifacts; see the [publication record](releases.md#webrtc-rpckit-and-canon-publications-2026-10-20).
 - [ ] Complete external application migrations. Archive the predecessor only
       after a separate explicit decision.
+- [x] Address the October 20 Maximus integration feedback in prepared Canon 0.6.0,
+      WebRTC 0.2.0 and RPCkit 0.4.0 sources. Native Maximus Linux E2E remains
+      consumer-reported evidence; see [decision 0006](design-decisions/0006-consumer-integration.md).
 
 The user requested the RPC successor rename during consolidation. Its new
 distribution starts at 0.1.0; Canon and Streams preserve their PyPI identities and

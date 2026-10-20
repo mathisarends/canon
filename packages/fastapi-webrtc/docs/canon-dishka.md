@@ -11,6 +11,10 @@ WebRTC contract while preserving the native session runtime and signaling protoc
 Register a plain WebRTC feature's registry explicitly with `Feature(errors=...)`
 when using runtime exception mapping without that integration.
 
+For typed browser denials, see the optional [HTTP ticket recipe](admission-tickets.md).
+For remote peers, the [send-only example](../examples/remote_video/README.md)
+binds a separate engine and lease to each session, including refused sessions.
+
 The session factory is a FastAPI dependency. Decorate an **async factory** with
 `@inject` below `@rtc.session(...)`; Canon does not automatically inject this
 factory. Session services use `Scope.SESSION`, matching Dishka's

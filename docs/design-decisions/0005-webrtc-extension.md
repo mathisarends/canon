@@ -1,7 +1,10 @@
 # 0005: Add `fastapi-webrtc` as an independent extension
 
-Status: implemented, unreleased (0.1.0 prepared). Tracks
+Status: implemented and published as 0.1.0 on 2026-10-20. Tracks
 [issue #2](https://github.com/mathisarends/canon/issues/2).
+
+The consumer-driven 0.2.0 preparation is recorded in
+[decision 0006](0006-consumer-integration.md).
 
 The Maximus trading application signals WebRTC through hand-written FastAPI
 WebSocket routes, an aiortc peer and hand-written browser code. Those parts
@@ -56,7 +59,8 @@ approach as Streams and RPCKit.
 ## Deferred
 
 - An RPCKit signaling adapter.
-- GStreamer and remote-peer engine adapters.
+- Native GStreamer and production remote-peer engines beyond the tested lease
+  adapter example added in 0.2.0.
 - ICE restart on transport loss. The protocol reserves the capability, and the
   aiortc engine does not support it.
-- Forced-TURN CI and media-stall detection beyond the media deadline.
+- Forced-TURN CI. Optional client media-stall observation is implemented in 0.2.0.
