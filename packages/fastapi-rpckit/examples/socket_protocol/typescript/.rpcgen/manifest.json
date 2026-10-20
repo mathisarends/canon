@@ -1,6 +1,6 @@
 {
   "generator": "fastapi_rpckit",
-  "generatorVersion": "0.3.0",
+  "generatorVersion": "0.4.0",
   "layoutVersion": 10,
   "language": "typescript",
   "contractSha256": "85a8208dc5aea2134ba3ff9a318efbc1e3d015cfef414619d7bbc00728484505",

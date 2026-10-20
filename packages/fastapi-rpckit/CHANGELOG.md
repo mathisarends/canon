@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 - Unreleased
+
+### Breaking changes
+
+- Generated `WebSocketFactory`, `SocketConnectionFactory` and
+  `BinaryWebSocketFactory` protocols accept their URL as a positional-only
+  argument. Regenerate Python clients and pass the URL positionally when invoking
+  these factories. This matches the existing generated runtime calls and permits
+  custom factories with differently named first parameters. Custom factories
+  with named first parameters continue to work.
+
+### Fixed
+
+- The generated default connectors adapt `websockets`' nominal `Subprotocol` type
+  inside their lazy backend boundary. Factory protocols remain independent of
+  `websockets`; consumers no longer need generator overrides for this mismatch.
+
 ## 0.3.0 - 2026-10-20
 
 ### Breaking changes

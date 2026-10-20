@@ -180,6 +180,7 @@ class SocketConnectionFactory(Protocol):
     def __call__(
         self,
         url: str,
+        /,
         *,
         subprotocols: list[str] | None,
         additional_headers: Mapping[str, str] | None,
@@ -202,11 +203,30 @@ class SocketConnectionStream:
         if socket_factory is None:
             try:
                 from websockets.asyncio.client import connect
+                from websockets.typing import Subprotocol
             except ImportError as error:
                 raise RuntimeError(
                     "Generated WebSocket clients require the 'websockets' package"
                 ) from error
-            socket_factory = connect
+
+            async def connect_socket(
+                url: str,
+                /,
+                *,
+                subprotocols: list[str] | None,
+                additional_headers: Mapping[str, str] | None,
+            ) -> SocketConnection:
+                return await connect(
+                    url,
+                    subprotocols=(
+                        [Subprotocol(value) for value in subprotocols]
+                        if subprotocols is not None
+                        else None
+                    ),
+                    additional_headers=additional_headers,
+                )
+
+            socket_factory = connect_socket
         socket = await socket_factory(
             endpoint.url,
             subprotocols=list(endpoint.subprotocols) or None,
