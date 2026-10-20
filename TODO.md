@@ -9,13 +9,6 @@
   Native Linux runtime and browser tests are consumer-reported evidence.
 - [ ] Reduce new consumer contract failures to regression fixtures.
 
-## Releases
-
-- [ ] When publication is explicitly authorized, finalize changelog dates for
-  WebRTC 0.2.0, RPCKit 0.4.0 and Canon 0.6.0, then pass CI and dry runs on that final
-  commit. Publish WebRTC before Canon and verify PyPI installs, tags, GitHub
-  Releases and attached artifacts. Follow [the release process](docs/releases.md).
-
 ## Repository transition
 
 - [ ] Add development-repository notices to predecessor repositories and decide

@@ -7,20 +7,22 @@ Published versions and their GitHub/PyPI assets are listed in the
 [README](../README.md#current-releases). Package changelogs contain migration notes;
 GitHub Releases and Actions retain publication evidence.
 
-## Prepared versions
+## Current versions
 
-These source versions are unpublished. Validate CI and dry runs against the same
-commit on `main`; results from before repository cleanup do not cover its artifacts.
+These consumer integration versions were published on 2026-10-20 from
+[verified source `7568df7`](https://github.com/mathisarends/canon/commit/7568df705bfba6b6165249734fa0a1f5dd768a1f).
+Each package has a matching tag and GitHub Release with its original wheel, sdist
+and manifest. PyPI file hashes, public installs and release assets are verified.
 
 | Package | Version | Migration |
 | --- | --- | --- |
 | Canon | 0.6.0 | Use the optional `[webrtc]` extra and `CanonWebRtcRouter` for registry-backed admission errors; declare dependency/factory failures with `raises`. |
 | WebRTC | 0.2.0 | Forward the new admission-provider keyword in router overrides and regenerate clients. Session engine bindings and browser media observation are optional. |
-| RPCKit | 0.4.0 | Regenerate Python clients and invoke factory protocols with positional URLs. Default connectors normalize backend subprotocol types. |
+| RPCKit | 0.4.0 | Regenerate Python clients and invoke factory protocols with positional URLs. Handle `CancelledError` when cancelling direct `serve_websocket()` calls. |
 
-Streams remains at published 0.4.0. Publish WebRTC before Canon, which pins it in
-the optional extra. RPCKit can be released independently. If Streams changes,
-publish it before a Canon version that pins it.
+Streams remains at published 0.4.0. WebRTC must be available before publishing a
+Canon version that pins it in the optional extra. RPCKit releases independently.
+Apply the same dependency order when a Canon version pins a new Streams release.
 
 ### Consumer integration upgrade
 
@@ -77,7 +79,7 @@ patch zero for declared breaking changes.
 Local metadata validation does not establish remote publication readiness:
 
 ```console
-uv run --locked python scripts/release.py validate --package fastapi-webrtc --version 0.2.0
+uv run --locked python scripts/release.py validate --package fastapi-webrtc --version NEXT_VERSION
 ```
 
 ## Dispatch a dry run

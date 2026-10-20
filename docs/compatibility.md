@@ -2,18 +2,24 @@
 
 ## Package versions
 
-| Package | Published | Prepared, unpublished |
-| --- | --- | --- |
-| `fastapi-canon` | 0.5.5 | 0.6.0 |
-| `fastapi-streams` | 0.4.0 | — |
-| `fastapi-rpckit` | 0.3.0 | 0.4.0 |
-| `fastapi-webrtc` | 0.1.0 | 0.2.0 |
+| Package | Published |
+| --- | --- |
+| `fastapi-canon` | 0.6.0 |
+| `fastapi-streams` | 0.4.0 |
+| `fastapi-rpckit` | 0.4.0 |
+| `fastapi-webrtc` | 0.2.0 |
 
 Published versions and assets are linked in the [README](../README.md#current-releases).
 Package metadata defines dependency ranges; the root `uv.lock` selects development
 versions and does not establish support for every resolvable combination. Canon's
 Streams and WebRTC extras pin the corresponding independently versioned package.
 Canon core and each extension work independently.
+
+The consumer integration releases passed exact-source CI, current/minimum wheel
+matrices and installed CLI/client checks before publication. Public installs cover
+Canon core, each optional extra and both extras together. A fresh Windows/Python
+3.14 installation also verified all four published packages together, including
+HTTP/SSE/RPC/WebRTC routing and generated RPC SDK execution and compilation.
 
 ## Verification scope
 
