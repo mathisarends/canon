@@ -364,6 +364,31 @@ def test_router_lifespans_run_inside_feature_and_dependency_lifetimes() -> None:
     ]
 
 
+@pytest.mark.parametrize("app_lifespan", [False, True])
+def test_router_event_handlers_run_once(app_lifespan: bool) -> None:
+    events: list[str] = []
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        yield
+
+    class Resources(Provider):
+        @provide(scope=Scope.APP)
+        def resource(self) -> str:
+            return "available"
+
+    router = APIRouter(
+        on_startup=[lambda: events.append("startup")],
+        on_shutdown=[lambda: events.append("shutdown")],
+    )
+    app = Composition(
+        Feature(name="legacy", routers=[router], providers=[Resources])
+    ).apply(FastAPI(lifespan=lifespan) if app_lifespan else FastAPI())
+    with TestClient(app):
+        pass
+    assert events == ["startup", "shutdown"]
+
+
 def test_lifespan_cleans_up_when_later_startup_fails() -> None:
     events: list[str] = []
 
