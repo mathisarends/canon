@@ -47,10 +47,15 @@ approach as Streams and RPCKit.
 7. **No required dependency on Canon, RPCKit or GStreamer.** Canon composition
    works with `WebRtcRouter` as an ordinary router. Wheel checks cover WebRTC
    alone, with aiortc, and together with Canon.
+8. **Dishka injection is explicit at the async session factory.** Use `@inject`
+   with `Scope.SESSION` services and child `Scope.REQUEST` containers for
+   per-message resources. Callbacks capture services from the factory. The
+   [integration guide](../../packages/fastapi-webrtc/docs/canon-dishka.md) and
+   lifecycle tests cover admission, disconnect and shutdown without an adapter.
 
 ## Deferred
 
-- An RPCKit signaling adapter and Canon/Dishka session-scope integration.
+- An RPCKit signaling adapter.
 - GStreamer and remote-peer engine adapters.
 - ICE restart on transport loss. The protocol reserves the capability, and the
   aiortc engine does not support it.

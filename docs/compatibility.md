@@ -22,23 +22,30 @@ flat query models, generated-name conflicts, asynchronous credentials and query
 precedence. The [changelog](../packages/fastapi-webrtc/CHANGELOG.md) records
 provisional-client migration steps.
 
-The full workspace gate passes 1,661 Python tests and 60 TypeScript tests,
-including WebRTC's 165 Python tests (92.24% branch-aware coverage) and 37
+Follow-up regressions cover rejected-session track ownership, active-track
+capacity, browser renegotiation/send deadlines, unavailable jitter units and
+reliability declaration validation. Canon/Dishka tests exercise admission,
+disconnect, shutdown and per-message request scopes using real aiortc messages.
+They also exposed and now cover composition dropping router lifespans and
+ASGI cancellation ending dependency scopes before cleanup.
+
+The full workspace gate passes 1,691 Python tests and 69 TypeScript tests,
+including WebRTC's 190 Python tests (92.91% branch-aware coverage) and 46
 TypeScript tests. Lint, package-specific types, generated-client drift and
-coverage thresholds pass. WebRTC's generated runtime has 94.98% line, 84.88%
-branch and 98.02% function coverage.
+coverage thresholds pass. WebRTC's generated runtime has 95.18% line, 86.13%
+branch and 98.13% function coverage.
 
 Both nine-combination installed-wheel matrices pass on the corrected source:
 current compatible dependencies on CPython 3.14.0 and direct dependency minima
-on CPython 3.12.12. The standalone minimum regression additionally checks flat
+on CPython 3.12.12. The earlier standalone minimum regression additionally checks flat
 aliased query fields, list/default handling and nested serialization aliases
 against FastAPI 0.115.3 / Pydantic 2.9.0. Its query model enables Pydantic
 `populate_by_name` for FastAPI's minimum-version alias handling. Installed
 Streams CLI/backend checks and all four Chromium/aiortc scenarios also pass.
 
 Logs are `dist/pr7-review-workspace.log`,
-`dist/pr7-review-distributions-latest.log`,
-`dist/pr7-review-distributions-minimum.log`,
+`dist/pr7-review-wheels-current.log`,
+`dist/pr7-review-wheels-minimum.log`,
 `dist/pr7-review-installed-minimum.log`,
 `dist/pr7-review-streams-artifacts.log` and `dist/pr7-review-browser.log`.
 These are local checks, not a publication or an exact-commit remote CI result.
@@ -138,7 +145,22 @@ These include manifest/report provenance equality for each target/backend.
 Logs are `dist/consumer-review-distributions-current.log`,
 `dist/consumer-review-distributions-minimum.log` and
 `dist/consumer-review-streams-artifacts.log`. Consumer-reported Maximus adoption
-and remaining Hermes/browser coverage are recorded separately in TODO.md.
+is recorded below; outstanding Hermes/browser work remains in [TODO.md](../TODO.md).
+
+## Maximus consumer-reported adoption
+
+The supplied Maximus report for merge request 125 confirms adoption of Canon
+0.5.3 / Streams 0.3.1 with regenerated SDKs and unchanged callers, HTTP/SSE
+contracts and TypeScript SDK. It reports 317 Python tests passed, 14 native
+Chromium tests skipped, frontend type checking and an SSE unit test passed,
+19 exact reviewed TypeScript allowances, and an empty Python diagnostic report.
+It also reports passing existing request/event/error/pool checks. No independent
+performance benchmark, full Linux Hermes runtime or browser E2E was run there.
+
+This is consumer-reported evidence, not locally verified application/deployment
+coverage. See [the supplied review](https://git.fh-muenster.de/fep_ai_agent/maximus-trading/-/merge_requests/125#note_242680).
+The earlier adoption report covered Canon 0.5.2, Streams 0.3.0 and RPCkit 0.2.0.
+Keep the selected HTTP backend when regenerating clients.
 
 ## Follow-up verification, 2026-10-18
 
