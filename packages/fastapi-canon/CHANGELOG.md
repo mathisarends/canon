@@ -2,7 +2,7 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
-## Unreleased
+## 0.5.5 - 2026-10-20
 
 - Preserve feature-router lifespans when composing application dependencies or
   feature lifespans. Routers now complete shutdown before feature resources and

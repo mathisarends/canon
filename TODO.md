@@ -7,17 +7,16 @@ belong in [migration](docs/migration.md), [releases](docs/releases.md) and
 
 ## Current priority
 
-- [ ] Finish review and merge [WebRTC PR #7](https://github.com/mathisarends/canon/pull/7)
-  after CI passes on the final commit. The review fixes and Canon/Dishka lifecycle
-  coverage are implemented; WebRTC 0.1.0 remains unreleased.
-- [ ] When release preparation is requested, select independent versions for
-  WebRTC, RPCkit's merged changes and the Canon lifecycle fix. RPCkit's source
-  remains 0.2.0 with changes documented under unreleased 0.3.0; PRs #4, #5 and
-  [#6](https://github.com/mathisarends/canon/pull/6) are merged.
-- [ ] Before WebRTC's first publication, confirm its PyPI Trusted Publisher and
-  release-environment setup, then pass final-source CI and a release dry run.
-  Follow [the release procedure](docs/releases.md); publication needs explicit
-  authorization and complete PyPI/tag/GitHub Release verification.
+- [ ] Merge the release preparation for WebRTC 0.1.0, RPCkit 0.3.0 and Canon
+  0.5.5, then pass exact-commit CI and each package's release dry run on `main`.
+  WebRTC PR #7 and RPCkit PRs #4, #5 and #6 are merged. Streams remains 0.4.0.
+- [ ] Confirm WebRTC's PyPI Pending Publisher using the exact fields in
+  [the release procedure](docs/releases.md#webrtc-first-publication-setup).
+  GitHub's `pypi` environment already allows `main`; PyPI's private publishing
+  page returned HTTP 503 during the 2026-10-20 audit, so registration is unverified.
+- [ ] Obtain explicit publication authorization for the three prepared versions,
+  then verify each PyPI install, tag, GitHub Release and original attached assets.
+  Prepared source versions and dated changelogs are not published releases.
 
 ## External consumers
 

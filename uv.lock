@@ -635,7 +635,7 @@ wheels = [
 
 [[package]]
 name = "fastapi-canon"
-version = "0.5.4"
+version = "0.5.5"
 source = { editable = "packages/fastapi-canon" }
 dependencies = [
     { name = "dishka" },
@@ -734,7 +734,7 @@ dev = [
 
 [[package]]
 name = "fastapi-rpckit"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/fastapi-rpckit" }
 dependencies = [
     { name = "fastapi" },
