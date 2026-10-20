@@ -53,7 +53,8 @@ These are local checks, not a publication or an exact-commit remote CI result.
 ## WebRTC extension preparation, verified 2026-10-19
 
 `fastapi-webrtc` 0.1.0 is prepared and unreleased. It declares FastAPI
-`>=0.115,<1`, Pydantic `>=2.9,<3` and Starlette `>=0.41`. The explicit Starlette
+`>=0.115,<1`, Pydantic `>=2.9,<3`, Starlette `>=0.41` and typing-extensions
+`>=4.12` (type-parameter defaults for typed channels). The explicit Starlette
 floor is required for an admission dependency's `HTTPException` to send an HTTP
 response before accepting a WebSocket. These bounds jointly resolve to FastAPI
 0.115.3 or later; FastAPI 0.115.0 cannot satisfy the Starlette requirement.
@@ -71,7 +72,8 @@ These are fresh wheel environments, independent of workspace source overrides.
 The WebRTC smoke asserts HTTP 403 and zero peers for denied admission, checks
 categorized engine failure, CLI availability, contract export and TypeScript
 code generation/drift, and checks the optional engine import with and without
-aiortc. The aiortc profiles resolve PyAV 16.1.0. Inventories are under
+aiortc. The aiortc profiles resolve PyAV 16.1.0. A rerun on 2026-10-20 after
+typed and one-way channels resolves typing-extensions 4.12.0 and passes. Inventories are under
 `dist/compatibility-minimum.json`; the log is
 `dist/webrtc-distributions-minimum.log`.
 
