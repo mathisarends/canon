@@ -46,8 +46,7 @@ RPCKit 0.3.0:
   before removing consumer generator overrides.
 
 The signaling protocol stays `fastapi-webrtc.v1`. A maintained CDP binding and
-deployed TURN/NAT, database concurrency and proxy validation remain separate work
-in [TODO](../TODO.md).
+deployed TURN/NAT, database concurrency and proxy validation remain separate work.
 
 ## Prepared source versions
 
@@ -149,6 +148,6 @@ Prereleases produce prerelease GitHub Releases. A PyPI-only upload is incomplete
   workflow-write permission. Use the manifest's exact commit, original notes,
   wheel, sdist and report, then retry finalization. See
   [GitHub's release API permission note](https://docs.github.com/en/rest/releases/releases#create-a-release).
-- After verified publication, update the README's current versions, TODO and
+- After verified publication, update the README's current versions and
   compatibility table. Keep per-run logs, manifests and checksums in Actions and
   the matching GitHub Release rather than adding development transcripts here.
