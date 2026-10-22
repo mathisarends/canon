@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-_DIRECTIONS = frozenset({"sendrecv", "sendonly", "recvonly", "inactive"})
+from fastapi_webrtc.engine import TransceiverDirection
 
 
 @dataclass(frozen=True)
 class MediaSection:
     kind: str
     mid: str | None
-    direction: str
+    direction: TransceiverDirection
     """The direction from the perspective of the description's author."""
     port: int
     ufrag: str | None
@@ -26,11 +26,17 @@ class MediaSection:
 
     @property
     def author_sends(self) -> bool:
-        return not self.rejected and self.direction in ("sendrecv", "sendonly")
+        return not self.rejected and self.direction in (
+            TransceiverDirection.SENDRECV,
+            TransceiverDirection.SENDONLY,
+        )
 
     @property
     def author_receives(self) -> bool:
-        return not self.rejected and self.direction in ("sendrecv", "recvonly")
+        return not self.rejected and self.direction in (
+            TransceiverDirection.SENDRECV,
+            TransceiverDirection.RECVONLY,
+        )
 
 
 @dataclass(frozen=True)
@@ -46,7 +52,7 @@ class DescriptionSummary:
 
 
 def summarize(sdp: str) -> DescriptionSummary:
-    session_direction = "sendrecv"
+    session_direction = TransceiverDirection.SENDRECV
     session_ufrag: str | None = None
     raw: list[dict[str, str | int | None]] = []
     current: dict[str, str | int | None] | None = None
@@ -67,9 +73,9 @@ def summarize(sdp: str) -> DescriptionSummary:
         if not line.startswith("a="):
             continue
         attribute, _, value = line[2:].partition(":")
-        if attribute in _DIRECTIONS:
+        if attribute in TransceiverDirection:
             if current is None:
-                session_direction = attribute
+                session_direction = TransceiverDirection(attribute)
             else:
                 current["direction"] = attribute
         elif attribute == "ice-ufrag":
@@ -83,7 +89,7 @@ def summarize(sdp: str) -> DescriptionSummary:
         MediaSection(
             kind=str(item["kind"]),
             mid=None if item["mid"] is None else str(item["mid"]),
-            direction=str(item["direction"] or session_direction),
+            direction=TransceiverDirection(str(item["direction"] or session_direction)),
             port=int(item["port"] or 0),
             ufrag=session_ufrag if item["ufrag"] is None else str(item["ufrag"]),
         )

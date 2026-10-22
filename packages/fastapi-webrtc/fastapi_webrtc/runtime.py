@@ -19,6 +19,7 @@ from fastapi_webrtc import protocol
 from fastapi_webrtc.declarations import (
     DataChannelSpec,
     Direction,
+    MessageFormat,
     Role,
     Session,
     SessionContext,
@@ -26,8 +27,10 @@ from fastapi_webrtc.declarations import (
 )
 from fastapi_webrtc.engine import (
     ChannelParameters,
+    ChannelState,
     ConnectionState,
     ConnectionStats,
+    DescriptionType,
     Engine,
     EngineDataChannel,
     EnginePeer,
@@ -36,6 +39,8 @@ from fastapi_webrtc.engine import (
     MediaKind,
     PeerConfig,
     SessionDescription,
+    SignalingState,
+    TransceiverDirection,
 )
 from fastapi_webrtc.errors import (
     ErrorCode,
@@ -129,7 +134,7 @@ class SessionRuntime:
         self._local_offer: int | None = None
         self._offer_settled: asyncio.Event | None = None
         self._initial_tracks_attached = False
-        self._connection_state: ConnectionState = "new"
+        self._connection_state = ConnectionState.NEW
         self._ever_connected = False
         self._established = False
         self._signaling_open = False
@@ -251,7 +256,7 @@ class SessionRuntime:
             raise RuntimeError(
                 f"Channel {channel.spec.name!r} is consumed by its on_message handler"
             )
-        if channel.spec.receive_format == "none":
+        if channel.spec.receive_format == MessageFormat.NONE:
             raise RuntimeError(
                 f"Channel {channel.spec.name!r} does not receive messages"
             )
@@ -347,7 +352,7 @@ class SessionRuntime:
         await self._ws.accept(subprotocol=subprotocol)
         self._signaling_open = True
         self._accepted = True
-        self._emit("admitted")
+        self._emit(SessionEventKind.ADMITTED)
         return True
 
     async def _run(self) -> None:
@@ -416,7 +421,7 @@ class SessionRuntime:
         if declaration.role is Role.OFFERER:
             self._attach_initial_tracks()
             media = declaration.media
-            for kind in ("audio", "video"):
+            for kind in MediaKind:
                 direction = media.direction(kind)
                 if direction is None or not direction.receives:
                     continue
@@ -425,7 +430,9 @@ class SessionRuntime:
                 ):
                     continue
                 self._engine_call(
-                    functools.partial(peer.add_transceiver, kind, "recvonly")
+                    functools.partial(
+                        peer.add_transceiver, kind, TransceiverDirection.RECVONLY
+                    )
                 )
 
     def _attach_initial_tracks(self) -> None:
@@ -457,11 +464,11 @@ class SessionRuntime:
         return protocol.SessionMessage(
             session_id=self.session_id,
             name=declaration.name,
-            role=declaration.role.value,
+            role=declaration.role,
             ice_servers=ice.client,
             media=protocol.MediaDescriptor(
-                audio=None if media.audio is None else media.audio.value,
-                video=None if media.video is None else media.video.value,
+                audio=media.audio,
+                video=media.video,
                 max_incoming_tracks=media.max_incoming_tracks,
             ),
             channels=tuple(
@@ -564,7 +571,7 @@ class SessionRuntime:
 
     async def _on_description(self, message: protocol.DescriptionMessage) -> None:
         description = message.description.to_engine()
-        if description.type == "offer":
+        if description.type == DescriptionType.OFFER:
             await self._on_offer(description, message.negotiation)
         else:
             await self._on_answer(description, message.negotiation)
@@ -574,7 +581,7 @@ class SessionRuntime:
         async with self._negotiation:
             self._ensure_active()
             peer = self._require_peer()
-            if peer.signaling_state != "stable":
+            if peer.signaling_state != SignalingState.STABLE:
                 # The server is the impolite peer: it keeps its own offer and the
                 # browser rolls back (perfect negotiation).
                 logger.debug("Ignoring a colliding offer for %s", self._label)
@@ -598,14 +605,14 @@ class SessionRuntime:
             self._release_candidates()
             await self._flush_pending_candidates()
         if renegotiation:
-            self._emit("renegotiated")
+            self._emit(SessionEventKind.RENEGOTIATED)
 
     async def _on_answer(self, answer: SessionDescription, negotiation: int) -> None:
         async with self._negotiation:
             self._ensure_active()
             peer = self._require_peer()
             if (
-                peer.signaling_state != "have-local-offer"
+                peer.signaling_state != SignalingState.HAVE_LOCAL_OFFER
                 or self._local_offer != negotiation
             ):
                 logger.debug("Dropping a stale answer for %s", self._label)
@@ -623,7 +630,7 @@ class SessionRuntime:
                 settled.set()
             await self._flush_pending_candidates()
         if renegotiation:
-            self._emit("renegotiated")
+            self._emit(SessionEventKind.RENEGOTIATED)
 
     async def _on_candidate(self, candidate: IceCandidate | None) -> None:
         if candidate is not None and not candidate.candidate:
@@ -669,7 +676,7 @@ class SessionRuntime:
         if (
             peer is None
             or self.code is not None
-            or peer.signaling_state != "stable"
+            or peer.signaling_state != SignalingState.STABLE
             or not self._remote_applied
         ):
             return
@@ -685,9 +692,9 @@ class SessionRuntime:
             initial = not self._remote_applied and self._local_offer is None
             if self._signaling_lost or not self._signaling_open:
                 raise WebRtcError(ErrorCode.SIGNALING_LOST)
-            if peer.signaling_state == "have-local-offer":
+            if peer.signaling_state == SignalingState.HAVE_LOCAL_OFFER:
                 settled = self._offer_settled
-            elif peer.signaling_state != "stable":
+            elif peer.signaling_state != SignalingState.STABLE:
                 # A remote offer is being answered; renegotiate afterwards.
                 pass
             elif initial or peer.needs_negotiation():
@@ -754,7 +761,7 @@ class SessionRuntime:
                 continue
             direction = media.direction(section.kind)
             if direction is None:
-                if section.direction == "inactive":
+                if section.direction == TransceiverDirection.INACTIVE:
                     continue
                 raise WebRtcError(
                     ErrorCode.MEDIA_REJECTED,
@@ -782,17 +789,17 @@ class SessionRuntime:
         if self.code is not None:
             return
         self._connection_state = state
-        if state == "connected":
+        if state == ConnectionState.CONNECTED:
             self._ever_connected = True
             self._cancel_timer("transport")
             self._check_established()
-        elif state == "disconnected":
+        elif state == ConnectionState.DISCONNECTED:
             self._timer(
                 "transport",
                 self._limits.transport_loss_grace_seconds,
                 ErrorCode.TRANSPORT_LOST,
             )
-        elif state == "failed":
+        elif state == ConnectionState.FAILED:
             if not self._ever_connected:
                 self.terminate(ErrorCode.NEGOTIATION_FAILED)
             elif self._engine.capabilities.ice_restart:
@@ -803,7 +810,7 @@ class SessionRuntime:
                 )
             else:
                 self.terminate(ErrorCode.TRANSPORT_LOST)
-        elif state == "closed":
+        elif state == ConnectionState.CLOSED:
             self.terminate(ErrorCode.TRANSPORT_LOST)
 
     def _on_track(self, track: EngineTrack) -> None:
@@ -834,7 +841,7 @@ class SessionRuntime:
         track.on_ended(ended)
         incoming = IncomingTrack(track)
         self.incoming.append(incoming)
-        self._emit("track", media_kind=track.kind)
+        self._emit(SessionEventKind.TRACK, media_kind=track.kind)
         if self._started.is_set():
             self._dispatch_track(incoming)
         else:
@@ -878,7 +885,7 @@ class SessionRuntime:
             on_close=closed,
             on_buffered_amount_low=channel.drained.set,
         )
-        if engine_channel.ready_state == "open":
+        if engine_channel.ready_state == ChannelState.OPEN:
             opened()
 
     def _on_channel_message(self, channel: _Channel, data: str | bytes) -> None:
@@ -904,13 +911,13 @@ class SessionRuntime:
     def _check_established(self) -> None:
         if self._established or self.code is not None:
             return
-        if self._connection_state != "connected":
+        if self._connection_state != ConnectionState.CONNECTED:
             return
         if not all(channel.opened.is_set() for channel in self._channels.values()):
             return
         self._established = True
         self._cancel_timer("negotiation")
-        self._emit("connected")
+        self._emit(SessionEventKind.CONNECTED)
         self._spawn(self._begin(), "start", ErrorCode.HANDLER_FAILURE)
 
     async def _begin(self) -> None:
@@ -919,7 +926,7 @@ class SessionRuntime:
             await session.on_start(self._peer_handle)
         self._started.set()
         self._send(protocol.ReadyMessage())
-        self._emit("ready")
+        self._emit(SessionEventKind.READY)
         for name, handler in session.message_handlers.items():
             self._spawn_handler(
                 self._consume(self._channels[name], handler), f"message:{name}"
@@ -954,9 +961,9 @@ class SessionRuntime:
         expected: list[MediaKind] = []
         media = self.declaration.media
         if media.audio is not None and media.audio.receives:
-            expected.append("audio")
+            expected.append(MediaKind.AUDIO)
         if media.video is not None and media.video.receives:
-            expected.append("video")
+            expected.append(MediaKind.VIDEO)
         if not expected:
             return
         deadline = self._limits.media_timeout_seconds
@@ -971,7 +978,7 @@ class SessionRuntime:
         except TimeoutError:
             self.terminate(ErrorCode.MEDIA_TIMEOUT)
             return
-        self._emit("media_ready")
+        self._emit(SessionEventKind.MEDIA_READY)
 
     # ------------------------------------------------------------ task helpers
 
@@ -1175,7 +1182,7 @@ class SessionRuntime:
             except Exception:
                 logger.exception("Engine cleanup of %s failed", self._label)
         self._slots.release()
-        self._emit("closed", code=code)
+        self._emit(SessionEventKind.CLOSED, code=code)
         log = (
             logger.info
             if code in (ErrorCode.CLOSED, ErrorCode.SHUTDOWN)
@@ -1227,11 +1234,11 @@ def _stop_native(native: Any) -> None:
 
 def _encode(spec: DataChannelSpec, message: Any) -> str | bytes:
     fmt = spec.send_format
-    if fmt == "none":
+    if fmt == MessageFormat.NONE:
         raise WebRtcError(
             ErrorCode.INVALID_MESSAGE, f"Channel {spec.name!r} does not send messages."
         )
-    if fmt == "raw":
+    if fmt == MessageFormat.RAW:
         if isinstance(message, str | bytes):
             return message
         if isinstance(message, bytearray | memoryview):
@@ -1239,11 +1246,11 @@ def _encode(spec: DataChannelSpec, message: Any) -> str | bytes:
         raise WebRtcError(
             ErrorCode.INVALID_MESSAGE, "Raw channels send str or bytes values."
         )
-    if fmt == "text":
+    if fmt == MessageFormat.TEXT:
         if isinstance(message, str):
             return message
         raise WebRtcError(ErrorCode.INVALID_MESSAGE, "Text channels send str values.")
-    if fmt == "binary":
+    if fmt == MessageFormat.BINARY:
         if isinstance(message, bytes | bytearray | memoryview):
             return bytes(message)
         raise WebRtcError(
@@ -1260,15 +1267,15 @@ def _encode(spec: DataChannelSpec, message: Any) -> str | bytes:
 
 def _decode(spec: DataChannelSpec, data: str | bytes) -> Any:
     fmt = spec.receive_format
-    if fmt == "none":
+    if fmt == MessageFormat.NONE:
         raise WebRtcError(ErrorCode.INVALID_MESSAGE)
-    if fmt == "raw":
+    if fmt == MessageFormat.RAW:
         return data
-    if fmt == "text":
+    if fmt == MessageFormat.TEXT:
         if isinstance(data, str):
             return data
         raise WebRtcError(ErrorCode.INVALID_MESSAGE)
-    if fmt == "binary":
+    if fmt == MessageFormat.BINARY:
         if isinstance(data, bytes):
             return data
         raise WebRtcError(ErrorCode.INVALID_MESSAGE)

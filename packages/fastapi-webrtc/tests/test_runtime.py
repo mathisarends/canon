@@ -13,6 +13,7 @@ from websockets.exceptions import InvalidStatus
 
 from fastapi_webrtc import (
     Channel,
+    ConnectionState,
     DataChannelSpec,
     Direction,
     EngineCapabilities,
@@ -20,12 +21,14 @@ from fastapi_webrtc import (
     IceServer,
     IceServers,
     IncomingTrack,
+    MediaKind,
     MediaPolicy,
     Peer,
     Role,
     Session,
     SessionContext,
     SessionEvent,
+    SessionEventKind,
     SessionLimits,
     WebRtcError,
     WebRtcRouter,
@@ -618,7 +621,7 @@ async def test_failed_descriptions_close_with_negotiation_failed() -> None:
 async def test_server_offers_ignore_stale_answers_and_colliding_offers() -> None:
     events: list[SessionEvent] = []
     rtc = router(events=events)
-    track = NativeTrack("video")
+    track = NativeTrack(MediaKind.VIDEO)
 
     @rtc.session(
         "/s",
@@ -743,20 +746,22 @@ async def test_negotiation_deadline() -> None:
         await signal.describe("offer", sdp())
         await signal.expect("description")
         # The transport connects, but a declared channel never opens.
-        engine_of(rtc).peer.set_state("connected")
+        engine_of(rtc).peer.set_state(ConnectionState.CONNECTED)
         assert await signal.closed() == (4000, "negotiation_timeout")
 
 
 @pytest.mark.parametrize(
     ("states", "expected"),
     [
-        (("failed",), "negotiation_failed"),
-        (("connected", "failed"), "transport_lost"),
-        (("connected", "disconnected"), "transport_lost"),
-        (("connected", "closed"), "transport_lost"),
+        ((ConnectionState.FAILED,), "negotiation_failed"),
+        ((ConnectionState.CONNECTED, ConnectionState.FAILED), "transport_lost"),
+        ((ConnectionState.CONNECTED, ConnectionState.DISCONNECTED), "transport_lost"),
+        ((ConnectionState.CONNECTED, ConnectionState.CLOSED), "transport_lost"),
     ],
 )
-async def test_transport_failures(states: tuple[Any, ...], expected: str) -> None:
+async def test_transport_failures(
+    states: tuple[ConnectionState, ...], expected: str
+) -> None:
     rtc = router(limits=SessionLimits(transport_loss_grace_seconds=0.1))
 
     @rtc.session("/s")
@@ -782,9 +787,9 @@ async def test_transport_recovering_within_grace_keeps_the_session() -> None:
     async with serve(application(rtc)) as base:
         signal = await Signal.start(f"{base}/s")
         peer = await establish(signal, rtc)
-        peer.set_state("disconnected")
+        peer.set_state(ConnectionState.DISCONNECTED)
         await asyncio.sleep(0.05)
-        peer.set_state("connected")
+        peer.set_state(ConnectionState.CONNECTED)
         await asyncio.sleep(0.3)
         assert rtc.active_sessions == 1
         await signal.close()
@@ -806,7 +811,7 @@ async def test_ice_restart_engines_get_a_grace_after_failure() -> None:
     async with serve(application(rtc)) as base:
         signal = await Signal.start(f"{base}/s")
         peer = await establish(signal, rtc)
-        peer.set_state("failed")
+        peer.set_state(ConnectionState.FAILED)
         assert rtc.active_sessions == 1
         assert await signal.closed() == (4000, "transport_lost")
 
@@ -828,7 +833,7 @@ async def test_media_deadline() -> None:
         await signal.describe("offer", sdp("audio sendrecv"))
         await signal.expect("description")
         peer = engine_of(rtc).peer
-        peer.received_packets["audio"] = 3
+        peer.received_packets[MediaKind.AUDIO] = 3
         peer.connect()
         await signal.expect("ready")
         await until(lambda: events[-1].kind == "media_ready")
@@ -1376,7 +1381,7 @@ async def test_in_band_channels_opened_by_the_browser_are_bound() -> None:
         peer = engine_of(rtc).peer
         assert peer.channels == {}
         channel = peer.remote_channel("late")
-        peer.set_state("connected")
+        peer.set_state(ConnectionState.CONNECTED)
         await asyncio.sleep(0.05)
         assert not signal.of("ready")
         channel.open()
@@ -1410,7 +1415,7 @@ async def test_incoming_tracks_are_dispatched_and_stopped() -> None:
         await signal.describe("offer", sdp("audio sendrecv"))
         await signal.expect("description")
         peer = engine_of(rtc).peer
-        remote = FakeTrack("audio")
+        remote = FakeTrack(MediaKind.AUDIO)
         # Tracks that arrive before the session is ready are queued.
         peer.observer.track(remote)
         remote.frames.put_nowait("frame-1")
@@ -1433,7 +1438,7 @@ async def test_unhandled_tracks_are_drained() -> None:
     async with serve(application(rtc)) as base:
         signal = await Signal.start(f"{base}/s")
         peer = await establish(signal, rtc, ["audio sendrecv"])
-        remote = FakeTrack("audio")
+        remote = FakeTrack(MediaKind.AUDIO)
         peer.observer.track(remote)
         for index in range(3):
             remote.frames.put_nowait(index)
@@ -1443,10 +1448,10 @@ async def test_unhandled_tracks_are_drained() -> None:
 
 @pytest.mark.parametrize(
     "kinds",
-    [("video",), ("audio", "audio")],
+    [(MediaKind.VIDEO,), (MediaKind.AUDIO, MediaKind.AUDIO)],
     ids=["undeclared-kind", "too-many-tracks"],
 )
-async def test_tracks_violating_media_policy(kinds: tuple[Any, ...]) -> None:
+async def test_tracks_violating_media_policy(kinds: tuple[MediaKind, ...]) -> None:
     rtc = router()
 
     @rtc.session(
@@ -1484,21 +1489,21 @@ async def test_ended_tracks_release_capacity_exactly_once(ready: bool) -> None:
             peer = await establish(signal, rtc, ["audio sendonly", "video sendonly"])
         else:
             peer = engine_of(rtc).peer
-        video = FakeTrack("video")
+        video = FakeTrack(MediaKind.VIDEO)
         peer.observer.track(video)
         for _ in range(3):
-            audio = FakeTrack("audio")
+            audio = FakeTrack(MediaKind.AUDIO)
             peer.observer.track(audio)
             assert not audio.stopped
             audio.end()
             audio.end()  # Duplicate engine notifications must not free two slots.
-        current = FakeTrack("audio")
+        current = FakeTrack(MediaKind.AUDIO)
         peer.observer.track(current)
         assert not current.stopped
         assert not video.stopped
         if not ready:
             await establish(signal, rtc, ["audio sendonly", "video sendonly"])
-        extra = FakeTrack("audio")
+        extra = FakeTrack(MediaKind.AUDIO)
         peer.observer.track(extra)
         assert await signal.closed() == (1008, "media_rejected")
         assert extra.stopped
@@ -1506,8 +1511,8 @@ async def test_ended_tracks_release_capacity_exactly_once(ready: bool) -> None:
 
 async def test_tracks_added_after_negotiation_renegotiate() -> None:
     events: list[SessionEvent] = []
-    owned = NativeTrack("audio")
-    borrowed = NativeTrack("audio")
+    owned = NativeTrack(MediaKind.AUDIO)
+    borrowed = NativeTrack(MediaKind.AUDIO)
     steps: list[str] = []
     rtc = router(events=events)
 
@@ -1522,7 +1527,7 @@ async def test_tracks_added_after_negotiation_renegotiate() -> None:
             await handle.remove()
             steps.append("removed")
             for track, error in (
-                (NativeTrack("video"), "media_rejected"),
+                (NativeTrack(MediaKind.VIDEO), "media_rejected"),
                 ("not a track", "media_rejected"),
             ):
                 try:
@@ -1557,7 +1562,7 @@ async def test_tracks_added_after_negotiation_renegotiate() -> None:
         "connected",
     ]
     assert not borrowed.stopped
-    assert [e.kind for e in events].count("renegotiated") == 3
+    assert [e.kind for e in events].count(SessionEventKind.RENEGOTIATED) == 3
     assert [s.track for s in peer.senders] == [borrowed]
 
 
@@ -1588,7 +1593,7 @@ async def test_engines_without_renegotiation_refuse_late_tracks() -> None:
     @rtc.session("/s", media=MediaPolicy(audio=Direction.SEND))
     def speaker() -> Session:
         async def run(peer: Peer) -> None:
-            await peer.send_track(NativeTrack("audio"))
+            await peer.send_track(NativeTrack(MediaKind.AUDIO))
 
         return Session(run=run)
 

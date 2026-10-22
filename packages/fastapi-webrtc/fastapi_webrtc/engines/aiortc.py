@@ -17,7 +17,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Callable, Sequence
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 try:
     from aiortc import (
@@ -50,6 +50,7 @@ from fastapi_webrtc.engine import (
     ChannelState,
     ConnectionState,
     ConnectionStats,
+    DescriptionType,
     EngineCapabilities,
     IceCandidate,
     MediaKind,
@@ -78,7 +79,7 @@ class AiortcEngine:
     """Create aiortc peer connections for sessions.
 
     ``codec_preferences`` optionally maps a kind to preferred MIME types in
-    order, for example ``{"video": ("video/VP8",)}``.
+    order, for example ``{MediaKind.VIDEO: ("video/VP8",)}``.
     """
 
     def __init__(
@@ -96,7 +97,7 @@ class AiortcEngine:
             "video",
         ):
             raise TypeError("The aiortc engine sends aiortc MediaStreamTrack values")
-        return cast(MediaKind, track.kind)
+        return MediaKind(track.kind)
 
     async def create_peer(
         self, config: PeerConfig, observer: PeerObserver
@@ -133,11 +134,11 @@ class AiortcPeer:
 
     @property
     def signaling_state(self) -> SignalingState:
-        return cast(SignalingState, self.connection.signalingState)
+        return SignalingState(self.connection.signalingState)
 
     @property
     def connection_state(self) -> ConnectionState:
-        return cast(ConnectionState, self.connection.connectionState)
+        return ConnectionState(self.connection.connectionState)
 
     def _state_changed(self) -> None:
         self._observer.connection_state(self.connection_state)
@@ -195,10 +196,7 @@ class AiortcPeer:
         local = self.connection.localDescription
         # aiortc embeds every gathered candidate in the description.
         self._observer.ice_candidate(None)
-        kind: Literal["offer", "answer"] = (
-            "offer" if local.type == "offer" else "answer"
-        )
-        return SessionDescription(type=kind, sdp=local.sdp)
+        return SessionDescription(type=DescriptionType(local.type), sdp=local.sdp)
 
     async def add_ice_candidate(self, candidate: IceCandidate | None) -> None:
         if candidate is None:
@@ -219,7 +217,7 @@ class AiortcPeer:
         # SessionRuntime, so the engine only owns this forwarding track.
         sender = self.connection.addTrack(_SenderTrack(track))
         self._dirty = True
-        return AiortcSender(sender, cast(MediaKind, track.kind))
+        return AiortcSender(sender, MediaKind(track.kind))
 
     async def remove_track(self, sender: Any) -> None:
         native = cast(AiortcSender, sender).native
@@ -262,7 +260,7 @@ class AiortcPeer:
             if isinstance(item, RTCInboundRtpStreamStats):
                 inbound.append(
                     MediaStats(
-                        kind=cast(MediaKind, item.kind),
+                        kind=MediaKind(item.kind),
                         packets=item.packetsReceived,
                         packets_lost=item.packetsLost,
                         # aiortc reports RTP timestamp units, but exposes no
@@ -273,7 +271,7 @@ class AiortcPeer:
             elif isinstance(item, RTCOutboundRtpStreamStats):
                 outbound.append(
                     MediaStats(
-                        kind=cast(MediaKind, item.kind),
+                        kind=MediaKind(item.kind),
                         packets=item.packetsSent,
                         bytes=item.bytesSent,
                     )
@@ -342,7 +340,7 @@ class AiortcPeer:
         if not self._codec_preferences:
             return
         for transceiver in self.connection.getTransceivers():
-            preferred = self._codec_preferences.get(cast(MediaKind, transceiver.kind))
+            preferred = self._codec_preferences.get(MediaKind(transceiver.kind))
             if preferred:
                 _prefer(transceiver, preferred)
 
@@ -407,7 +405,7 @@ class AiortcTrack:
 
     @property
     def kind(self) -> MediaKind:
-        return cast(MediaKind, self._track.kind)
+        return MediaKind(self._track.kind)
 
     @property
     def native(self) -> MediaStreamTrack:
@@ -440,7 +438,7 @@ class AiortcDataChannel:
 
     @property
     def ready_state(self) -> ChannelState:
-        return cast(ChannelState, self.native.readyState)
+        return ChannelState(self.native.readyState)
 
     @property
     def buffered_amount(self) -> int:

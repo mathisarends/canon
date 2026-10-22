@@ -12,37 +12,68 @@ GStreamer) marshal callbacks with ``loop.call_soon_threadsafe``.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, Literal, Protocol, runtime_checkable
+from dataclasses import KW_ONLY, dataclass
+from enum import StrEnum
+from typing import Any, Protocol, runtime_checkable
 
 from fastapi_webrtc.ice import IceServer
 
-MediaKind = Literal["audio", "video"]
-SignalingState = Literal["stable", "have-local-offer", "have-remote-offer", "closed"]
-ConnectionState = Literal[
-    "new", "connecting", "connected", "disconnected", "failed", "closed"
-]
-TransceiverDirection = Literal["sendrecv", "sendonly", "recvonly", "inactive"]
-ChannelState = Literal["connecting", "open", "closing", "closed"]
+
+class MediaKind(StrEnum):
+    AUDIO = "audio"
+    VIDEO = "video"
 
 
-@dataclass(frozen=True)
+class SignalingState(StrEnum):
+    STABLE = "stable"
+    HAVE_LOCAL_OFFER = "have-local-offer"
+    HAVE_REMOTE_OFFER = "have-remote-offer"
+    CLOSED = "closed"
+
+
+class ConnectionState(StrEnum):
+    NEW = "new"
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    FAILED = "failed"
+    CLOSED = "closed"
+
+
+class TransceiverDirection(StrEnum):
+    SENDRECV = "sendrecv"
+    SENDONLY = "sendonly"
+    RECVONLY = "recvonly"
+    INACTIVE = "inactive"
+
+
+class ChannelState(StrEnum):
+    CONNECTING = "connecting"
+    OPEN = "open"
+    CLOSING = "closing"
+    CLOSED = "closed"
+
+
+class DescriptionType(StrEnum):
+    OFFER = "offer"
+    ANSWER = "answer"
+
+
+@dataclass(frozen=True, kw_only=True)
 class EngineCapabilities:
     """Optional engine behavior, advertised to clients in the session hello."""
 
     trickle_ice: bool
     """Local candidates are emitted incrementally instead of inside the SDP."""
     ice_restart: bool
-    """The engine can answer or create offers that restart ICE."""
     renegotiation: bool
     """Tracks can be added after the initial negotiation."""
     negotiated_data_channels: bool = True
-    """Pre-negotiated (``negotiated=True``) data channels are supported."""
 
 
 @dataclass(frozen=True)
 class SessionDescription:
-    type: Literal["offer", "answer"]
+    type: DescriptionType
     sdp: str
 
 
@@ -59,6 +90,7 @@ class IceCandidate:
 @dataclass(frozen=True)
 class ChannelParameters:
     label: str
+    _: KW_ONLY
     ordered: bool = True
     max_retransmits: int | None = None
     max_packet_life_time_ms: int | None = None

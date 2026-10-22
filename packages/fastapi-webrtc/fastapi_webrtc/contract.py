@@ -36,7 +36,7 @@ _ANNOTATED: Any = Annotated
 CONTRACT_VERSION = 1
 REF_TEMPLATE = "#/definitions/{model}"
 
-ParameterLocation = Literal["path", "query"]
+type ParameterLocation = Literal["path", "query"]
 
 
 class _SchemaGenerator(GenerateJsonSchema):

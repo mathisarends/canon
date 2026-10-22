@@ -8,20 +8,21 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Literal
+from enum import StrEnum
 
+from fastapi_webrtc.engine import MediaKind
 from fastapi_webrtc.errors import ErrorCode
 
-SessionEventKind = Literal[
-    "admitted",
-    "rejected",
-    "connected",
-    "ready",
-    "media_ready",
-    "track",
-    "renegotiated",
-    "closed",
-]
+
+class SessionEventKind(StrEnum):
+    ADMITTED = "admitted"
+    REJECTED = "rejected"
+    CONNECTED = "connected"
+    READY = "ready"
+    MEDIA_READY = "media_ready"
+    TRACK = "track"
+    RENEGOTIATED = "renegotiated"
+    CLOSED = "closed"
 
 
 @dataclass(frozen=True)
@@ -44,9 +45,9 @@ class SessionEvent:
     elapsed_seconds: float
     """Seconds since admission."""
     code: ErrorCode | None = None
-    media_kind: Literal["audio", "video"] | None = None
+    media_kind: MediaKind | None = None
     attributes: dict[str, str | int | float | bool] = field(default_factory=dict)
 
 
-EventHook = Callable[[SessionEvent], None]
+type EventHook = Callable[[SessionEvent], None]
 """A synchronous, non-blocking observer. Exceptions are logged and ignored."""

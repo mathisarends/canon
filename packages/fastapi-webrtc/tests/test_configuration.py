@@ -9,11 +9,13 @@ import pytest
 from pydantic import BaseModel
 
 from fastapi_webrtc import (
+    ConnectionState,
     DataChannelSpec,
     Direction,
     ErrorCode,
     IceServer,
     IceServers,
+    MediaKind,
     MediaPolicy,
     Peer,
     Role,
@@ -322,18 +324,18 @@ def test_error_categories() -> None:
 
 def test_stats_helpers() -> None:
     stats = ConnectionStats(
-        connection_state="connected",
+        connection_state=ConnectionState.CONNECTED,
         selected_candidate_pair=CandidatePairStats(
             local_type="host", remote_type="relay"
         ),
         inbound=(
-            MediaStats(kind="audio", packets=3),
-            MediaStats(kind="audio", packets=4),
-            MediaStats(kind="video", packets=1),
+            MediaStats(kind=MediaKind.AUDIO, packets=3),
+            MediaStats(kind=MediaKind.AUDIO, packets=4),
+            MediaStats(kind=MediaKind.VIDEO, packets=1),
         ),
     )
-    assert stats.received("audio") == 7
-    assert stats.received("video") == 1
+    assert stats.received(MediaKind.AUDIO) == 7
+    assert stats.received(MediaKind.VIDEO) == 1
     assert stats.selected_candidate_pair is not None
     assert stats.selected_candidate_pair.relayed
     assert not CandidatePairStats(local_type="host", remote_type="srflx").relayed
