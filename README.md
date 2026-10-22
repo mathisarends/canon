@@ -35,8 +35,7 @@ WebSocket engine and protocol retained. See the [RPC migration guide](packages/f
 Its initial release is 0.1.0. The existing source repositories remain available;
 current development and releases for all four packages live here.
 
-[TODO.md](TODO.md) lists prioritized open work. Package READMEs and guides
-describe implemented APIs; [contributing](docs/contributing.md) covers development.
+Package READMEs and guides describe implemented APIs; [contributing](docs/contributing.md) covers development.
 
 Start with [architecture](guides/architecture.md) when building an application.
 Package READMEs document their current public APIs. Existing Streams integration

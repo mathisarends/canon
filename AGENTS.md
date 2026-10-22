@@ -2,9 +2,9 @@
 
 Use `README.md` for the package inventory, `docs/contributing.md` for development
 commands and `docs/compatibility.md` for the tested dependency scope. Package
-guides document implemented APIs. `TODO.md` lists prioritized open work.
-Write all repository Markdown documentation in English, including TODO lists,
-changelogs, guides, and agent instructions.
+guides document implemented APIs.
+Write all repository Markdown documentation in English, including changelogs,
+guides, and agent instructions.
 
 ## Boundaries
 
@@ -83,7 +83,7 @@ Canon version that pins it. Verify public-index installs and release/tag results
 On failure, follow the documented resume procedure with the original run's
 verified artifacts; do not replace published contents or move existing tags.
 After verified publication, update the README's current-release table and the
-TODO/release/compatibility records. All workspace package releases belong in this
+release/compatibility records. All workspace package releases belong in this
 repository's central GitHub Releases list, with independent package-prefixed tags.
 Always create the matching GitHub Release for every package publication, including
 changelog notes, the verified wheel/sdist and the release manifest. A publication
