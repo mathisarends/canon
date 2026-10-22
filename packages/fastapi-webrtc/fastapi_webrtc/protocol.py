@@ -12,7 +12,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from fastapi_webrtc.engine import IceCandidate, SessionDescription
+from fastapi_webrtc.declarations import Direction, MessageFormat, Role
+from fastapi_webrtc.engine import DescriptionType, IceCandidate, SessionDescription
 from fastapi_webrtc.errors import ErrorCode
 from fastapi_webrtc.ice import IceServer
 
@@ -25,7 +26,7 @@ class _Message(BaseModel):
 
 
 class DescriptionPayload(_Message):
-    type: Literal["offer", "answer"]
+    type: DescriptionType
     sdp: str = Field(max_length=1024 * 1024)
 
     def to_engine(self) -> SessionDescription:
@@ -81,7 +82,7 @@ class CandidateMessage(_Message):
     candidate: CandidatePayload | None
 
 
-ClientMessage = Annotated[
+type ClientMessage = Annotated[
     DescriptionMessage | CandidateMessage, Field(discriminator="type")
 ]
 client_message_adapter: TypeAdapter[DescriptionMessage | CandidateMessage] = (
@@ -90,8 +91,8 @@ client_message_adapter: TypeAdapter[DescriptionMessage | CandidateMessage] = (
 
 
 class MediaDescriptor(_Message):
-    audio: Literal["send", "receive", "send_receive"] | None
-    video: Literal["send", "receive", "send_receive"] | None
+    audio: Direction | None
+    video: Direction | None
     max_incoming_tracks: int
 
 
@@ -103,9 +104,9 @@ class ChannelDescriptor(_Message):
     max_retransmits: int | None
     max_packet_life_time_ms: int | None
     max_message_bytes: int
-    receive_format: Literal["raw", "text", "binary", "json", "none"]
+    receive_format: MessageFormat
     """Format the server accepts (browser to server); ``none`` accepts nothing."""
-    send_format: Literal["raw", "text", "binary", "json", "none"]
+    send_format: MessageFormat
     """Format the server sends (server to browser)."""
 
 
@@ -128,7 +129,7 @@ class SessionMessage(_Message):
     protocol: int = PROTOCOL_VERSION
     session_id: str
     name: str
-    role: Literal["answerer", "offerer"]
+    role: Role
     ice_servers: tuple[IceServer, ...]
     media: MediaDescriptor
     channels: tuple[ChannelDescriptor, ...]
@@ -151,7 +152,7 @@ class ErrorMessage(_Message):
     channel: str | None = None
 
 
-ServerMessage = (
+type ServerMessage = (
     SessionMessage | ReadyMessage | DescriptionMessage | CandidateMessage | ErrorMessage
 )
 

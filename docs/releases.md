@@ -49,6 +49,14 @@ The signaling protocol stays `fastapi-webrtc.v1`. A maintained CDP binding and
 deployed TURN/NAT, database concurrency and proxy validation remain separate work
 in [TODO](../TODO.md).
 
+## Prepared source versions
+
+WebRTC 0.3.0 is prepared for the public enum and keyword-only engine API changes;
+see its [migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---unreleased).
+Canon 0.7.0 pins that version in its optional WebRTC extra. These source versions
+are unpublished; publish WebRTC before Canon after the documented release gates.
+Streams and RPCKit keep their existing versions.
+
 ## Publisher setup
 
 Trusted Publishers use GitHub owner `mathisarends`, repository `canon`, workflow

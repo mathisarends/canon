@@ -20,6 +20,7 @@ from fastapi_webrtc.declarations import (
     AdmissionErrors,
     DataChannelSpec,
     MediaPolicy,
+    MessageFormat,
     Role,
     Session,
     SessionDeclaration,
@@ -27,7 +28,7 @@ from fastapi_webrtc.declarations import (
 )
 from fastapi_webrtc.engine import Engine
 from fastapi_webrtc.errors import ErrorCode, close_code
-from fastapi_webrtc.events import EventHook, SessionEvent
+from fastapi_webrtc.events import EventHook, SessionEvent, SessionEventKind
 from fastapi_webrtc.ice import IceServerSource
 from fastapi_webrtc.runtime import (
     MINIMUM_CLEANUP_STEP_SECONDS,
@@ -249,7 +250,7 @@ class WebRtcRouter(APIRouter):
         if self._counter.full or counter.full:
             self._emit(
                 SessionEvent(
-                    kind="rejected",
+                    kind=SessionEventKind.REJECTED,
                     name=declaration.name,
                     session_id=session_id,
                     elapsed_seconds=0.0,
@@ -339,7 +340,7 @@ def _invalid_handlers(declaration: SessionDeclaration, session: Session) -> set[
     declared = {
         spec.name: spec
         for spec in declaration.channels
-        if spec.receive_format != "none"
+        if spec.receive_format != MessageFormat.NONE
     }
     unknown = set(session.message_handlers) - declared.keys()
     for key in session.on_message:

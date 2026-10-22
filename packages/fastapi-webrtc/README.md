@@ -208,10 +208,27 @@ give the server-side engine internal relay URLs.
 - Runnable example: [`examples/practice`](examples/practice). Its generated
   client is in `examples/practice/client`.
 
-The engine interface abstracts signaling and lifecycle. Native outgoing tracks
-and received frames remain engine-specific: aiortc uses `MediaStreamTrack` and
-PyAV frames. Its statistics return `jitter_seconds=None` because the public
-report does not identify the per-stream codec clock rate needed for conversion.
+The engine interface abstracts signaling and lifecycle. `MediaKind`,
+`SignalingState`, `ConnectionState`, `TransceiverDirection` and `ChannelState`
+are public `StrEnum` classes available from `fastapi_webrtc` and
+`fastapi_webrtc.engine`. Custom adapters return enum members and convert native
+strings with constructors such as `ConnectionState(native_state)`. Use
+`MediaKind.VIDEO` for video stats and codec-preference keys, and
+`TransceiverDirection.RECVONLY` when adding a receive-only transceiver.
+Their string and JSON values match the WebRTC names. Construct engine flags with
+`EngineCapabilities(trickle_ice=False, ice_restart=False, renegotiation=True)`;
+all flags are keyword-only and `negotiated_data_channels` defaults to `True`.
+`ChannelParameters` keeps its positional label and requires keywords for its
+options, for example `ChannelParameters("chat", ordered=False)`.
+`MessageFormat` and `SessionEventKind` are public enums too; use
+`MessageFormat.JSON` and `SessionEventKind.TRACK` in descriptors and event hooks.
+SDP descriptions use `DescriptionType.OFFER` or `DescriptionType.ANSWER` for their
+`type` field. Protocol message discriminators retain their individual literal types.
+
+Native outgoing tracks and received frames remain engine-specific: aiortc uses
+`MediaStreamTrack` and PyAV frames. Its statistics return `jitter_seconds=None`
+because the public report does not identify the per-stream codec clock rate
+needed for conversion.
 
 Generated TypeScript models provide compile-time message types; the browser
 runtime checks formats and sizes but does not enforce every JSON Schema rule.

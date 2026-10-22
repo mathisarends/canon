@@ -10,6 +10,7 @@ import pytest
 from examples.remote_video.app import create_app, create_router
 from examples.remote_video.engine import RemoteVideoEngine, VideoLease
 from fastapi_webrtc import (
+    DescriptionType,
     ErrorCode,
     Session,
     SessionLimits,
@@ -31,8 +32,8 @@ from tests.test_runtime import application
 
 
 class Lease:
-    signaling_state: SignalingState = "stable"
-    connection_state: ConnectionState = "new"
+    signaling_state: SignalingState = SignalingState.STABLE
+    connection_state: ConnectionState = ConnectionState.NEW
 
     def __init__(
         self, browser_id: str, *, block: bool = False, fail: bool = False
@@ -57,12 +58,12 @@ class Lease:
         self.started.set()
         if self.block:
             await asyncio.Event().wait()
-        self.signaling_state = "have-local-offer"
-        return SessionDescription("offer", sdp("video sendonly"))
+        self.signaling_state = SignalingState.HAVE_LOCAL_OFFER
+        return SessionDescription(DescriptionType.OFFER, sdp("video sendonly"))
 
     async def answer(self, description: SessionDescription) -> None:
         self.answers.append(description)
-        self.signaling_state = "stable"
+        self.signaling_state = SignalingState.STABLE
 
     async def candidate(self, candidate: IceCandidate | None) -> None:
         self.candidates.append(candidate)
@@ -174,12 +175,12 @@ async def test_remote_peer_forwards_native_state_and_partial_stats() -> None:
     assert lease.observer is observer
     await peer.create_offer()
     await peer.set_remote_description(
-        SessionDescription("answer", sdp("video recvonly"))
+        SessionDescription(DescriptionType.ANSWER, sdp("video recvonly"))
     )
     await peer.add_ice_candidate(None)
     assert peer.signaling_state == "stable"
     assert peer.connection_state == "new"  # An answer does not prove connectivity.
-    lease.connection_state = "connected"
+    lease.connection_state = ConnectionState.CONNECTED
     stats = await peer.stats()
     assert stats.connection_state == "connected"
     assert stats.inbound == stats.outbound == ()
@@ -188,7 +189,7 @@ async def test_remote_peer_forwards_native_state_and_partial_stats() -> None:
     for operation in (
         peer.create_offer(ice_restart=True),
         peer.create_answer(),
-        peer.set_remote_description(SessionDescription("offer", sdp())),
+        peer.set_remote_description(SessionDescription(DescriptionType.OFFER, sdp())),
     ):
         with pytest.raises(WebRtcError):
             await operation

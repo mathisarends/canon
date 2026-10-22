@@ -10,6 +10,7 @@ from fastapi_webrtc.declarations import (
     DataChannelSpec,
     Direction,
     MediaPolicy,
+    MessageFormat,
     Role,
     Session,
     SessionContext,
@@ -18,13 +19,19 @@ from fastapi_webrtc.declarations import (
 )
 from fastapi_webrtc.engine import (
     CandidatePairStats,
+    ChannelState,
+    ConnectionState,
     ConnectionStats,
+    DescriptionType,
     Engine,
     EngineCapabilities,
+    MediaKind,
     MediaStats,
+    SignalingState,
+    TransceiverDirection,
 )
 from fastapi_webrtc.errors import ErrorCode, SessionClosedError, WebRtcError
-from fastapi_webrtc.events import EventHook, SessionEvent
+from fastapi_webrtc.events import EventHook, SessionEvent, SessionEventKind
 from fastapi_webrtc.ice import (
     IceServer,
     IceServers,
@@ -35,7 +42,7 @@ from fastapi_webrtc.peer import Channel, IncomingTrack, OutgoingTrack, Peer
 from fastapi_webrtc.protocol import PROTOCOL_VERSION, SUBPROTOCOL
 from fastapi_webrtc.router import WebRtcRouter
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "PROTOCOL_VERSION",
@@ -43,8 +50,11 @@ __all__ = [
     "AdmissionErrors",
     "CandidatePairStats",
     "Channel",
+    "ChannelState",
+    "ConnectionState",
     "ConnectionStats",
     "DataChannelSpec",
+    "DescriptionType",
     "Direction",
     "Engine",
     "EngineCapabilities",
@@ -54,8 +64,10 @@ __all__ = [
     "IceServerSource",
     "IceServers",
     "IncomingTrack",
+    "MediaKind",
     "MediaPolicy",
     "MediaStats",
+    "MessageFormat",
     "OutgoingTrack",
     "Peer",
     "Role",
@@ -64,7 +76,10 @@ __all__ = [
     "SessionContext",
     "SessionDeclaration",
     "SessionEvent",
+    "SessionEventKind",
     "SessionLimits",
+    "SignalingState",
+    "TransceiverDirection",
     "TurnRestCredentials",
     "WebRtcError",
     "WebRtcRouter",

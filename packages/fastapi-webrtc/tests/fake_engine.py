@@ -17,6 +17,7 @@ from fastapi_webrtc.engine import (
     ChannelState,
     ConnectionState,
     ConnectionStats,
+    DescriptionType,
     EngineCapabilities,
     IceCandidate,
     MediaKind,
@@ -49,7 +50,7 @@ def sdp(*sections: str, ufrag: str = "remote") -> str:
 class NativeTrack:
     """A local track handed to ``Peer.send_track`` or ``Session.tracks``."""
 
-    def __init__(self, kind: MediaKind = "audio") -> None:
+    def __init__(self, kind: MediaKind = MediaKind.AUDIO) -> None:
         self.kind = kind
         self.stopped = False
 
@@ -60,7 +61,7 @@ class NativeTrack:
 class FakeTrack:
     """A remote track emitted by the fake engine."""
 
-    def __init__(self, kind: MediaKind = "audio") -> None:
+    def __init__(self, kind: MediaKind = MediaKind.AUDIO) -> None:
         self.id = f"track-{next(_ids)}"
         self.kind: MediaKind = kind
         self.frames: asyncio.Queue[Any] = asyncio.Queue()
@@ -100,7 +101,7 @@ class FakeChannel:
     def __init__(self, label: str, channel_id: int | None = None) -> None:
         self.label = label
         self.id = channel_id
-        self.ready_state: ChannelState = "connecting"
+        self.ready_state: ChannelState = ChannelState.CONNECTING
         self.buffered_amount = 0
         self.threshold: int | None = None
         self.sent: list[str | bytes] = []
@@ -132,15 +133,15 @@ class FakeChannel:
         self.sent.append(data)
 
     def close(self) -> None:
-        if self.ready_state != "closed":
-            self.ready_state = "closed"
+        if self.ready_state != ChannelState.CLOSED:
+            self.ready_state = ChannelState.CLOSED
             if self._on_close is not None:
                 self._on_close()
 
     # Test controls -------------------------------------------------------
 
     def open(self) -> None:
-        self.ready_state = "open"
+        self.ready_state = ChannelState.OPEN
         if self._on_open is not None:
             self._on_open()
 
@@ -161,8 +162,8 @@ class FakePeer:
         self.engine = engine
         self.config = config
         self.observer = observer
-        self.signaling_state: SignalingState = "stable"
-        self.connection_state: ConnectionState = "new"
+        self.signaling_state: SignalingState = SignalingState.STABLE
+        self.connection_state: ConnectionState = ConnectionState.NEW
         self.remote_descriptions: list[SessionDescription] = []
         self.local_descriptions: list[SessionDescription] = []
         self.candidates: list[IceCandidate | None] = []
@@ -173,29 +174,32 @@ class FakePeer:
         self.closed = False
         self.reject_candidates = False
         self.fail_remote = False
-        self.received_packets: dict[MediaKind, int] = {"audio": 0, "video": 0}
+        self.received_packets: dict[MediaKind, int] = {
+            MediaKind.AUDIO: 0,
+            MediaKind.VIDEO: 0,
+        }
 
     async def set_remote_description(self, description: SessionDescription) -> None:
         if self.fail_remote:
             raise ValueError("bad description")
         self.remote_descriptions.append(description)
-        if description.type == "offer":
-            self.signaling_state = "have-remote-offer"
+        if description.type == DescriptionType.OFFER:
+            self.signaling_state = SignalingState.HAVE_REMOTE_OFFER
         else:
-            self.signaling_state = "stable"
+            self.signaling_state = SignalingState.STABLE
 
     async def create_offer(self, *, ice_restart: bool = False) -> SessionDescription:
         self.dirty = False
         sections = [f"{kind} {direction}" for kind, direction in self.transceivers]
         sections += [f"{sender.kind} sendonly" for sender in self.senders]
-        offer = SessionDescription("offer", sdp(*sections, ufrag="local"))
-        self.signaling_state = "have-local-offer"
+        offer = SessionDescription(DescriptionType.OFFER, sdp(*sections, ufrag="local"))
+        self.signaling_state = SignalingState.HAVE_LOCAL_OFFER
         self.local_descriptions.append(offer)
         return offer
 
     async def create_answer(self) -> SessionDescription:
-        self.signaling_state = "stable"
-        answer = SessionDescription("answer", sdp(ufrag="local"))
+        self.signaling_state = SignalingState.STABLE
+        answer = SessionDescription(DescriptionType.ANSWER, sdp(ufrag="local"))
         self.local_descriptions.append(answer)
         return answer
 
@@ -236,7 +240,7 @@ class FakePeer:
 
     async def close(self) -> None:
         self.closed = True
-        self.signaling_state = "closed"
+        self.signaling_state = SignalingState.CLOSED
 
     # Test controls -------------------------------------------------------
 
@@ -246,7 +250,7 @@ class FakePeer:
 
     def connect(self) -> None:
         """Connect the transport and open every channel."""
-        self.set_state("connected")
+        self.set_state(ConnectionState.CONNECTED)
         for channel in self.channels.values():
             channel.open()
 

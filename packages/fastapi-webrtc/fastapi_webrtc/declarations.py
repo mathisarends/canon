@@ -11,7 +11,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
-    Literal,
     Never,
     NoReturn,
     TypedDict,
@@ -31,7 +30,7 @@ if TYPE_CHECKING:
     from fastapi_webrtc.peer import IncomingTrack, Peer
 
 
-AdmissionErrors = Callable[[FastAPI | None], Sequence[Mapping[str, Any]]]
+type AdmissionErrors = Callable[[FastAPI | None], Sequence[Mapping[str, Any]]]
 """Export HTTP denial contracts before acceptance; never maps runtime failures.
 
 The application is available when exporting ``build_contract(app)``. Exporting
@@ -91,7 +90,12 @@ class MediaPolicy:
         return None
 
 
-MessageFormat = Literal["raw", "text", "binary", "json", "none"]
+class MessageFormat(StrEnum):
+    RAW = "raw"
+    TEXT = "text"
+    BINARY = "binary"
+    JSON = "json"
+    NONE = "none"
 
 
 class _ChannelOptions(TypedDict, total=False):
@@ -214,7 +218,7 @@ class DataChannelSpec(Generic[Receive, Send]):
                 f"Data channel name {self.name!r} must be an identifier of at most "
                 "63 characters"
             )
-        if self.receive_format == self.send_format == "none":
+        if self.receive_format == self.send_format == MessageFormat.NONE:
             raise ValueError(f"Data channel {self.name!r} neither receives nor sends")
         if (
             self.max_retransmits is not None
@@ -253,18 +257,18 @@ class DataChannelSpec(Generic[Receive, Send]):
 
 def _format(model: Any) -> MessageFormat:
     if model is Never or model is NoReturn:
-        return "none"
+        return MessageFormat.NONE
     if model is None:
-        return "raw"
+        return MessageFormat.RAW
     if model is str:
-        return "text"
+        return MessageFormat.TEXT
     if model is bytes:
-        return "binary"
-    return "json"
+        return MessageFormat.BINARY
+    return MessageFormat.JSON
 
 
 def _adapter(model: Any) -> TypeAdapter[Any] | None:
-    return TypeAdapter(model) if _format(model) == "json" else None
+    return TypeAdapter(model) if _format(model) == MessageFormat.JSON else None
 
 
 @dataclass(frozen=True)
@@ -325,13 +329,13 @@ class SessionLimits:
             raise ValueError("media_timeout_seconds must be positive")
 
 
-PeerHandler = Callable[["Peer"], Awaitable[None]]
-TrackHandler = Callable[["Peer", "IncomingTrack"], Awaitable[None]]
-MessageHandler = Callable[["Peer", Any], Awaitable[None]]
-CloseHandler = Callable[["Peer", ErrorCode], Awaitable[None]]
+type PeerHandler = Callable[["Peer"], Awaitable[None]]
+type TrackHandler = Callable[["Peer", "IncomingTrack"], Awaitable[None]]
+type MessageHandler = Callable[["Peer", Any], Awaitable[None]]
+type CloseHandler = Callable[["Peer", ErrorCode], Awaitable[None]]
 # Keys are channel names or DataChannelSpecs. Mapping keys are invariant, so a
 # precise key type would reject plain ``dict[str, ...]`` values.
-MessageHandlers = Mapping[Any, MessageHandler]
+type MessageHandlers = Mapping[Any, MessageHandler]
 
 
 @dataclass(frozen=True)

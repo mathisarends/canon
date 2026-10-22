@@ -10,6 +10,9 @@
 | `fastapi-webrtc` | 0.2.0 |
 
 Published versions and assets are linked in the [README](../README.md#current-releases).
+Prepared WebRTC 0.3.0 and Canon 0.7.0 are unpublished source versions; see
+[release preparation](releases.md#prepared-source-versions) and the WebRTC
+migration notes before upgrading custom engines.
 Package metadata defines dependency ranges; the root `uv.lock` selects development
 versions and does not establish support for every resolvable combination. Canon's
 Streams and WebRTC extras pin the corresponding independently versioned package.

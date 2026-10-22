@@ -6,6 +6,7 @@ from fastapi_webrtc import ConnectionStats, EngineCapabilities, ErrorCode, WebRt
 from fastapi_webrtc.engine import (
     ChannelParameters,
     ConnectionState,
+    DescriptionType,
     EngineDataChannel,
     EngineSender,
     IceCandidate,
@@ -79,7 +80,7 @@ class RemoteVideoPeer:
         return self.lease.connection_state
 
     async def set_remote_description(self, description: SessionDescription) -> None:
-        if description.type != "answer":
+        if description.type != DescriptionType.ANSWER:
             raise WebRtcError(
                 ErrorCode.NEGOTIATION_FAILED, "This peer only creates offers."
             )

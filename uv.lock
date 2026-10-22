@@ -635,7 +635,7 @@ wheels = [
 
 [[package]]
 name = "fastapi-canon"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "packages/fastapi-canon" }
 dependencies = [
     { name = "dishka" },
@@ -894,7 +894,7 @@ test = [
 
 [[package]]
 name = "fastapi-webrtc"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/fastapi-webrtc" }
 dependencies = [
     { name = "anyio" },

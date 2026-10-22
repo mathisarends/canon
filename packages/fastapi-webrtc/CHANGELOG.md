@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.0 - unreleased
+
+### Breaking changes
+
+- Replace the engine's `MediaKind`, `SignalingState`, `ConnectionState`,
+  `TransceiverDirection` and `ChannelState` literal aliases with public `StrEnum`
+  classes, also exported from `fastapi_webrtc`. Use members such as
+  `MediaKind.AUDIO` and `ConnectionState.CONNECTED` in engine implementations,
+  callbacks, stats and codec-preference maps. Convert native strings with the
+  corresponding enum constructor; aiortc does this at its adapter boundary.
+  Values and string/JSON serialization stay unchanged.
+- Make `EngineCapabilities` keyword-only. Replace positional flags with
+  `EngineCapabilities(trickle_ice=..., ice_restart=..., renegotiation=...)`;
+  `negotiated_data_channels` still defaults to `True`.
+- Make `ChannelParameters` options after `label` keyword-only. For example,
+  replace `ChannelParameters("chat", False)` with
+  `ChannelParameters("chat", ordered=False)`.
+- Replace `MessageFormat` and `SessionEventKind` literal aliases with public
+  `StrEnum` classes, also exported from `fastapi_webrtc`. Use members such as
+  `MessageFormat.JSON` and `SessionEventKind.TRACK` when constructing descriptors
+  and events. Signaling descriptors reuse `Direction`, `Role` and `MessageFormat`;
+  parsed SDP sections expose `TransceiverDirection`. JSON values stay unchanged.
+- Use the public `DescriptionType` enum for `SessionDescription.type` and signaling
+  payloads. Replace `SessionDescription("offer", sdp)` with
+  `SessionDescription(DescriptionType.OFFER, sdp)` (likewise for `ANSWER`).
+  The aiortc adapter converts native description types directly instead of
+  treating any non-offer value as an answer.
+- Declare remaining type aliases with Python 3.12's `type` syntax. These exported
+  names are `typing.TypeAliasType` instances; introspection tools must handle
+  their lazy `__value__` instead of expecting a runtime union or `Callable`.
+  `SessionEvent.media_kind` now uses `MediaKind` too.
+
 ## 0.2.0 - 2026-10-20
 
 ### Breaking changes

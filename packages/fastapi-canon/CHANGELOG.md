@@ -2,6 +2,16 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## 0.7.0 - unreleased
+
+### Breaking changes
+
+- Pin the optional `fastapi-canon[webrtc]` integration to WebRTC 0.3.0. Custom
+  engines must use its public `StrEnum` types and keyword-only engine/channel
+  options; follow the
+  [WebRTC migration notes](../fastapi-webrtc/CHANGELOG.md#030---unreleased).
+  Canon core and the Streams integration keep their existing behavior.
+
 ## 0.6.0 - 2026-10-20
 
 ### Breaking changes
