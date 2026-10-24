@@ -51,10 +51,12 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 ## Prepared source versions
 
 WebRTC 0.3.0 is prepared for the public enum and keyword-only engine API changes;
-see its [migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---unreleased).
+see its [migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24).
 Canon 0.7.0 pins that version in its optional WebRTC extra. These source versions
 are unpublished; publish WebRTC before Canon after the documented release gates.
-Streams and RPCKit keep their existing versions.
+The changelog dates are finalized for 2026-10-24. Publication still requires
+successful exact-source CI, package dry runs and explicit approval. Streams and
+RPCKit keep their existing versions.
 
 ## Publisher setup
 
