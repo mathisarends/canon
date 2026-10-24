@@ -4,21 +4,22 @@
 
 | Package | Published |
 | --- | --- |
-| `fastapi-canon` | 0.6.0 |
+| `fastapi-canon` | 0.7.0 |
 | `fastapi-streams` | 0.4.0 |
 | `fastapi-rpckit` | 0.4.0 |
-| `fastapi-webrtc` | 0.2.0 |
+| `fastapi-webrtc` | 0.3.0 |
 
 Published versions and assets are linked in the [README](../README.md#current-releases).
-Prepared WebRTC 0.3.0 and Canon 0.7.0 are unpublished source versions; see
-[release preparation](releases.md#prepared-source-versions) and the WebRTC
-migration notes before upgrading custom engines.
+WebRTC 0.3.0 and Canon 0.7.0 were published on 2026-10-24. Follow the
+[WebRTC migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24)
+before upgrading custom engines. The [release record](releases.md#current-versions)
+links the verified source and publication workflows.
 Package metadata defines dependency ranges; the root `uv.lock` selects development
 versions and does not establish support for every resolvable combination. Canon's
 Streams and WebRTC extras pin the corresponding independently versioned package.
 Canon core and each extension work independently.
 
-The consumer integration releases passed exact-source CI, current/minimum wheel
+The current releases passed exact-source CI, current/minimum wheel
 matrices and installed CLI/client checks before publication. Public installs cover
 Canon core, each optional extra and both extras together. A fresh Windows/Python
 3.14 installation also verified all four published packages together, including
@@ -69,7 +70,8 @@ Dishka or media behavior of Cara's full application. Follow
 [RPC parity and consumer checks](rpc-parity.md) for the installed-wheel command
 and remaining migration scope.
 
-Maximus reports successful native Linux Chromium/GStreamer integration and browser
-fallback tests for the published stack. These are consumer-reported results, not
-independent workspace deployment verification. Deployed TURN/NAT, PostgreSQL
-concurrency and proxies still require application-side validation.
+For the preceding consumer integration releases, Maximus reported successful
+native Linux Chromium/GStreamer integration and browser fallback tests. These
+are consumer-reported results, not independent workspace deployment verification.
+Deployed TURN/NAT, PostgreSQL concurrency and proxies still require
+application-side validation.

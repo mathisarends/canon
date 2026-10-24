@@ -9,15 +9,21 @@ GitHub Releases and Actions retain publication evidence.
 
 ## Current versions
 
-These consumer integration versions were published on 2026-10-20 from
-[verified source `7568df7`](https://github.com/mathisarends/canon/commit/7568df705bfba6b6165249734fa0a1f5dd768a1f).
-Each package has a matching tag and GitHub Release with its original wheel, sdist
-and manifest. PyPI file hashes, public installs and release assets are verified.
+WebRTC 0.3.0 and Canon 0.7.0 were published on 2026-10-24 from
+[verified source `6aad274`](https://github.com/mathisarends/canon/commit/6aad274800d1960a8bbbcb0fd7d54ec3f6901c99),
+in that order. Both publication workflows completed successfully:
+[WebRTC](https://github.com/mathisarends/canon/actions/runs/40079433426) and
+[Canon](https://github.com/mathisarends/canon/actions/runs/40079766254).
+Each has a matching tag and GitHub Release with its original wheel, sdist and
+manifest. PyPI file hashes, public installs, release notes and downloaded GitHub
+assets are verified. Streams and RPCKit remain at the versions published on
+2026-10-20.
 
 | Package | Version | Migration |
 | --- | --- | --- |
-| Canon | 0.6.0 | Use the optional `[webrtc]` extra and `CanonWebRtcRouter` for registry-backed admission errors; declare dependency/factory failures with `raises`. |
-| WebRTC | 0.2.0 | Forward the new admission-provider keyword in router overrides and regenerate clients. Session engine bindings and browser media observation are optional. |
+| Canon | 0.7.0 | The optional `[webrtc]` extra pins WebRTC 0.3.0; apply its engine API migration. |
+| WebRTC | 0.3.0 | Use public enum members, keyword-only engine/channel options and `DescriptionType`; handle lazy type aliases in introspection tools. See the [migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24). |
+| Streams | 0.4.0 | No new release in this batch; existing client provenance and error-decoder contracts remain unchanged. |
 | RPCKit | 0.4.0 | Regenerate Python clients and invoke factory protocols with positional URLs. Handle `CancelledError` when cancelling direct `serve_websocket()` calls. |
 
 Streams remains at published 0.4.0. WebRTC must be available before publishing a
@@ -26,8 +32,8 @@ Apply the same dependency order when a Canon version pins a new Streams release.
 
 ### Consumer integration upgrade
 
-This batch addresses the integration feedback for Canon 0.5.5, WebRTC 0.1.0 and
-RPCKit 0.3.0:
+The 2026-10-20 consumer integration batch addressed feedback for Canon 0.5.5,
+WebRTC 0.1.0 and RPCKit 0.3.0:
 
 - [Canon admission errors](../packages/fastapi-canon/docs/webrtc.md) reuse named
   errors, validate registry membership and export declared dependency/factory
@@ -50,13 +56,8 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 
 ## Prepared source versions
 
-WebRTC 0.3.0 is prepared for the public enum and keyword-only engine API changes;
-see its [migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24).
-Canon 0.7.0 pins that version in its optional WebRTC extra. These source versions
-are unpublished; publish WebRTC before Canon after the documented release gates.
-The changelog dates are finalized for 2026-10-24. Publication still requires
-successful exact-source CI, package dry runs and explicit approval. Streams and
-RPCKit keep their existing versions.
+All current source versions match published releases. No unpublished version is
+currently prepared. Future versions must pass the release gates below.
 
 ## Publisher setup
 

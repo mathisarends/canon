@@ -2,6 +2,9 @@
 
 ## 0.3.0 - 2026-10-24
 
+[GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-webrtc-v0.3.0)
+and [PyPI](https://pypi.org/project/fastapi-webrtc/0.3.0/).
+
 ### Breaking changes
 
 - Replace the engine's `MediaKind`, `SignalingState`, `ConnectionState`,

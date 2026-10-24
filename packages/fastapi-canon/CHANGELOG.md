@@ -4,6 +4,9 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ## 0.7.0 - 2026-10-24
 
+[GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.7.0)
+and [PyPI](https://pypi.org/project/fastapi-canon/0.7.0/).
+
 ### Breaking changes
 
 - Pin the optional `fastapi-canon[webrtc]` integration to WebRTC 0.3.0. Custom
