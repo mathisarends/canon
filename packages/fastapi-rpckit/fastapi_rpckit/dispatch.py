@@ -34,11 +34,20 @@ class RpcDispatcher:
         self._resolver = resolver or EmptyResolver()
         _assert_executable(protocol)
 
-    def parse_request(self, raw_request: object) -> RpcInvocation:
-        try:
-            request = RpcRequestEnvelope.model_validate(raw_request)
-        except ValidationError as error:
-            raise RpcInvalidRequestError() from error
+    def parse_request(
+        self,
+        raw_request: object,
+        *,
+        envelope: RpcRequestEnvelope | None = None,
+    ) -> RpcInvocation:
+        """Validate a request, or reuse an `envelope` validated from `raw_request`."""
+        if envelope is not None:
+            request = envelope
+        else:
+            try:
+                request = RpcRequestEnvelope.model_validate(raw_request)
+            except ValidationError as error:
+                raise RpcInvalidRequestError() from error
         method = self._protocol.method(request.method)
         return RpcInvocation(
             request=request,

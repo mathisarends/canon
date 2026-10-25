@@ -344,11 +344,10 @@ async def _run_rpc_endpoint(
                         return await reject_pending(message)
                     if not call.batch and subscriptions.owns(message["method"]):
                         return await subscriptions.handle(
-                            RpcRequestEnvelope.model_validate(message),
-                            admitted_at=call.admitted_at,
+                            call.envelope, admitted_at=call.admitted_at
                         )
                     return await server._handle_one_bounded(
-                        message, admitted_at=call.admitted_at
+                        message, admitted_at=call.admitted_at, envelope=call.envelope
                     )
                 finally:
                     if call.reservation is not None:
@@ -538,6 +537,7 @@ async def _run_rpc_endpoint(
                                         "Cancellation must be a notification"
                                     )
                             except (ValidationError, ValueError):
+                                envelope = None
                                 invalid = True
                                 reservation = None
                             else:
@@ -566,6 +566,7 @@ async def _run_rpc_endpoint(
                                 asyncio.get_running_loop().time(),
                                 shutting_down=not invalid
                                 and endpoint.service.drain.draining,
+                                envelope=envelope,
                             )
                             call.task = asyncio.create_task(invoke_one(call))
                             call_tasks.add(call.task)
@@ -705,6 +706,8 @@ class _PendingCall:
     batch: bool
     admitted_at: float
     shutting_down: bool = False
+    # Validated once by the reader and reused for dispatch.
+    envelope: RpcRequestEnvelope | None = None
     task: asyncio.Task = field(init=False)
     started: bool = False
     cancel_requested: bool = False

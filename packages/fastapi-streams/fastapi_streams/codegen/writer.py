@@ -18,13 +18,7 @@ def write_files(
 
     Check mode is read-only, including when output does not yet exist.
     """
-    expected = dict(files)
-    if MANIFEST in expected:
-        raise ValueError(f"{MANIFEST} is reserved")
-    metadata: dict[str, Any] = {"files": sorted(files)}
-    if generation is not None:
-        metadata["generation"] = dict(generation)
-    expected[MANIFEST] = json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+    expected = planned_files(files, generation=generation)
     manifest = _owned_path(output, MANIFEST)
     previous: set[str] = set()
     if manifest.exists():
@@ -59,6 +53,22 @@ def write_files(
             if not check:
                 path.unlink()
     return tuple(changed)
+
+
+def planned_files(
+    files: Mapping[str, str],
+    *,
+    generation: Mapping[str, str | None] | None = None,
+) -> dict[str, str]:
+    """Return the generated files plus the ownership manifest, keyed by path."""
+    expected = dict(files)
+    if MANIFEST in expected:
+        raise ValueError(f"{MANIFEST} is reserved")
+    metadata: dict[str, Any] = {"files": sorted(files)}
+    if generation is not None:
+        metadata["generation"] = dict(generation)
+    expected[MANIFEST] = json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+    return expected
 
 
 def _owned_path(root: Path, relative: str) -> Path:

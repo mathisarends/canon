@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import codecs
+import re
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
@@ -13,6 +14,8 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_core import ErrorDetails
 
 _JSON_ADAPTER = TypeAdapter[JsonValue](JsonValue)
+_LINE_END = re.compile(r"\r\n|\r|\n")
+DEFAULT_TIMEOUT = httpx.Timeout(None, connect=10.0)
 
 
 class TransportError(Exception):
@@ -114,13 +117,13 @@ def set_header(
 
 async def iter_sse(response: httpx.Response) -> AsyncGenerator[str, None]:
     decoder = codecs.getincrementaldecoder("utf-8-sig")("strict")
-    line = ""
+    # Fragments of the current unterminated line, joined once it ends.
+    pending: list[str] = []
     data: list[str] = []
     skip_lf = False
 
-    def accept_line() -> str | None:
-        nonlocal line, data
-        current, line = line, ""
+    def accept_line(current: str) -> str | None:
+        nonlocal data
         if not current:
             if not data:
                 return None
@@ -134,21 +137,32 @@ async def iter_sse(response: httpx.Response) -> AsyncGenerator[str, None]:
         return None
 
     async for chunk in response.aiter_bytes():
-        for char in decoder.decode(chunk):
-            if skip_lf:
-                skip_lf = False
-                if char == "\n":
-                    continue
-            if char in "\r\n":
-                skip_lf = char == "\r"
-                payload = accept_line()
-                if payload is not None:
-                    yield payload
-            else:
-                line += char
-    line += decoder.decode(b"", final=True)
-    if line:
-        accept_line()
+        text = decoder.decode(chunk)
+        if skip_lf and text:
+            skip_lf = False
+            if text[0] == "\n":
+                text = text[1:]
+        if not text:
+            continue
+        lines = _LINE_END.split(text)
+        if len(lines) == 1:
+            pending.append(text)
+            continue
+        # A trailing CR may be the first half of a CRLF split across chunks.
+        skip_lf = text[-1] == "\r"
+        if pending:
+            pending.append(lines[0])
+            lines[0] = "".join(pending)
+            pending.clear()
+        if rest := lines.pop():
+            pending.append(rest)
+        for line in lines:
+            payload = accept_line(line)
+            if payload is not None:
+                yield payload
+    pending.append(decoder.decode(b"", final=True))
+    if line := "".join(pending):
+        accept_line(line)
     if data:
         yield "\n".join(data)
 
@@ -163,7 +177,8 @@ class Transport:
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.headers = httpx.Headers(headers)
-        self.http_client = http_client or httpx.AsyncClient(timeout=None)
+        # Streams may idle indefinitely, but an unreachable host should fail fast.
+        self.http_client = http_client or httpx.AsyncClient(timeout=DEFAULT_TIMEOUT)
         self.owns_client = http_client is None
 
     async def aclose(self) -> None:

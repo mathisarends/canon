@@ -39,6 +39,24 @@ Streams remains at published 0.4.0. WebRTC must be available before publishing a
 Canon version that pins it in the optional extra. RPCKit releases independently.
 Apply the same dependency order when a Canon version pins a new Streams release.
 
+### Prepared source versions, not published
+
+The `perf-usability-streams-rpckit` branch prepares the following source versions.
+They are **not published**; the versions in the table above remain current, and
+the README release table changes only after verified publication.
+
+| Package | Prepared | Release type | Migration |
+| --- | --- | --- | --- |
+| Streams | 0.5.0 | Minor: SDK-owned generated Python clients now bound the connect time to 10 seconds. | Regenerate clients. Pass `RequestOptions(timeout=None)` or inject `httpx.AsyncClient(timeout=None)` to keep an unbounded connect time. See the [Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050-unreleased). |
+| Canon | 0.8.1 | Patch: optional Streams extra and development pin move to 0.5.0. | No Canon API change; follow the Streams notes when regenerating stream SDKs. See the [Canon 0.8.1 notes](../packages/fastapi-canon/CHANGELOG.md#081-unreleased). |
+| RPCKit | 0.4.1 | Patch: socket request envelopes are validated once; benchmark script and documentation. | None; wire output and generated clients are unchanged apart from the manifest generator version. See the [RPCKit 0.4.1 notes](../packages/fastapi-rpckit/CHANGELOG.md#041-unreleased). |
+
+Remaining steps: merge to `main`, wait for exact-commit CI, then dispatch
+`release.yml` with `dry_run=true` for Streams 0.5.0, Canon 0.8.1 and RPCKit 0.4.1.
+Finalize the changelog dates and pass CI on that final source before any
+publication. Publish Streams before Canon, because Canon 0.8.1 pins it. RPCKit
+has no ordering constraint.
+
 ### Consumer integration upgrade
 
 The 2026-10-20 consumer integration batch addressed feedback for Canon 0.5.5,
@@ -65,9 +83,9 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 
 ## Prepared source versions
 
-All four package source versions match their published releases. No additional
-release is currently prepared. Follow the release gates below when preparing
-the next independent package version.
+The versions prepared on this branch are listed under
+[Prepared source versions, not published](#prepared-source-versions-not-published).
+Follow the release gates below when preparing the next independent package version.
 
 ## Publisher setup
 

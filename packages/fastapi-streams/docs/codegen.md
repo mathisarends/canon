@@ -112,6 +112,49 @@ compares generated files without writing. Omit `--app` for a contract supplied
 by another service. `schema --check` and `generate --check` are also supported.
 Exit codes: **0** current, **1** drift, **2** invalid input.
 
+Add `--diff` to any check (`schema --check`, `generate --check`, `check`,
+`sync --check`) to print a unified diff of each out-of-date file to stdout. The
+`Out of date:` lines stay on stderr. New files diff against `/dev/null`, and so
+do stale files the manifest owns but generation no longer emits. A changed
+application contract prints the stored schema against the app's export. `--diff`
+without `--check` is rejected with exit code 2.
+
+### One command for schema and clients
+
+Configure the schema and its clients once in `pyproject.toml` (or another TOML
+file passed with `--config`):
+
+```toml
+[tool.fastapi-streams]
+app = "myapp.main:app"            # optional; omit for an externally supplied schema
+schema = "contracts/openapi.json"
+
+[[tool.fastapi-streams.clients]]
+language = "typescript"
+output = "web/src/generated"
+
+[[tool.fastapi-streams.clients]]
+language = "python"
+output = "sdk/generated"
+python-http-client = "httpx"      # optional, Python only
+strict = true                     # optional
+allow-diagnostics = "reviewed-python.json"  # optional
+diagnostics = "reports/python.json"         # optional
+```
+
+```sh
+uv run fastapi-streams sync            # export the schema, then regenerate every client
+uv run fastapi-streams sync --check    # read-only CI check of schema and all clients
+uv run fastapi-streams sync --check --diff
+```
+
+Paths and the app import resolve relative to the configuration file. `sync` runs
+`schema` (when `app` is set) and then `generate` for each client with the same
+options as the individual commands, so diagnostics, manifests and exit codes
+behave identically. A check reports every stale target before exiting with **1**.
+It compares clients with the stored schema; when that schema is missing, client
+checks are skipped. Unknown keys and invalid values fail with exit code **2**.
+
 Generation is deterministic. A manifest tracks owned files and cleans up stale
 generated files without deleting neighboring handwritten files. Use a dedicated
 output directory for each language. Unsafe paths and generated-name collisions
@@ -185,8 +228,28 @@ Ignoring requires a top-level discriminated union with known string tags. Only
 valid JSON objects with an unknown string discriminator are skipped. Invalid
 JSON, missing/non-string discriminators and malformed known variants still fail;
 unknown nested variants inside a known event fail too. The option adds no retry,
-reconnect or replay. TypeScript continues to forward JSON-decoded values without
-runtime union validation. Regenerate existing Python SDKs to obtain the option.
+reconnect or replay. Regenerate existing Python SDKs to obtain the option.
+
+TypeScript does not validate event shapes, so it forwards every JSON-decoded
+value by default (`unknownEvents: "forward"`). An exhaustive `switch` over the
+event tag then reaches its `never` branch for a variant the client does not
+know. Generated operations embed their union's discriminator and known tags;
+`unknownEvents: "ignore"` skips JSON objects whose discriminator is an
+undeclared string tag:
+
+```typescript
+for await (const event of client.agentRuns.streamRunEvents(
+  { runId: "run_abc" }, { unknownEvents: "ignore" },
+)) {
+  handle(event);
+}
+```
+
+Objects without a string tag, arrays and scalars are still forwarded, and invalid
+JSON still throws `StreamParseError`; known variants are not validated. An
+operation without a top-level discriminated union rejects `"ignore"` with a
+`TypeError` before the request is sent. Regenerate TypeScript SDKs to obtain the
+option.
 
 ## Validation support matrix
 

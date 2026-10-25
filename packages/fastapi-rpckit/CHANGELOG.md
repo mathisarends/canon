@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+### Performance
+
+- Validate each socket request envelope once. The reader's validated envelope is
+  reused for dispatch and subscription handling instead of being validated again,
+  which saves about 3 µs per request. Middleware still receives the original raw
+  request, and error responses for invalid requests are unchanged. Wire output
+  is unchanged; JSON encoding stays on the standard library because
+  pydantic-core's serializer formats some floats differently.
+
+### Added
+
+- `scripts/bench_rpc_requests.py` measures sequential round-trip latency and
+  pipelined request throughput over the in-process socket runtime. See
+  [Measure request throughput](docs/transports.md#measure-request-throughput).
+
+### Documentation
+
+- Add a core-API overview to the README and use the workspace's locked root
+  commands for development. Replace the stale version note with links to the
+  changelog and the `pyrpckit` migration guide.
+- Refresh `AGENTS.md`: current module map, locked workspace commands and one
+  consistent compatibility rule (preserve wire behavior and generated-client
+  contracts; remove superseded Python APIs only through a breaking release).
+
 ## 0.4.0 - 2026-10-20
 
 ### Breaking changes

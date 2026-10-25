@@ -378,7 +378,23 @@ See the late-response regression in
 [`tests/codegen/test_python_runtime.py`](../tests/codegen/test_python_runtime.py)
 for a complete generated-client example using held responses.
 
+## Measure request throughput
+
+Measure the in-process request path over `InMemorySocket` with:
+
+```console
+uv run --locked --directory packages/fastapi-rpckit python scripts/bench_rpc_requests.py
+```
+
+It reports sequential round-trip latency and pipelined requests per second for
+`RpcModel` and plain Pydantic params, list results, and small and 16 KiB payloads,
+each the median of `--repeat` runs. Add `--profile` for the top cProfile entries
+of the pipelined path. It covers frame decoding, validation, dispatch,
+serialization and queueing, but excludes the ASGI server, WebSocket framing and
+network. Compare runs on the same idle machine.
+
 [Back to documentation](README.md)
+
 # Application heartbeats
 
 The RPC socket runtime reserves `$/ping` alongside `$/cancelRequest`. A ping

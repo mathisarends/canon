@@ -3,6 +3,63 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
+## 0.5.0 (unreleased)
+
+### Breaking changes
+
+- The client that a generated Python SDK creates when no `http_client` is
+  passed now uses `httpx.Timeout(None, connect=10.0)` (also exported as
+  `runtime.DEFAULT_TIMEOUT`) instead of `timeout=None`. Connecting to an
+  unreachable host now fails with `TransportError` after 10 seconds instead of
+  hanging; read, write and pool waits remain unbounded, so idle streams are
+  unaffected. This changed default requires a minor release under the pre-1.0
+  version policy. Migration: regenerate the SDK. To keep unbounded connects,
+  pass `RequestOptions(timeout=None)` per request or inject your own client,
+  for example `Client(url, http_client=httpx.AsyncClient(timeout=None))`.
+  Injected clients and explicit `RequestOptions.timeout` values behave as
+  before.
+
+### Added
+
+- Generated TypeScript clients accept `RequestOptions.unknownEvents`. The default
+  `"forward"` keeps the current behavior; `"ignore"` skips JSON objects whose
+  discriminator is a string tag the generated event union does not declare, so
+  exhaustive `switch` statements survive additive server variants. Each
+  generated operation now embeds its discriminator and known tags. Operations
+  without a top-level discriminated union reject `"ignore"` with a `TypeError`
+  before any request. Regenerate TypeScript SDKs to adopt the option.
+- `--diff` for `schema --check`, `generate --check`, `check` and `sync --check`
+  prints a unified diff of each out-of-date file (including new and stale owned
+  files and a changed application contract) to stdout, so CI logs and agents can
+  see the drift without regenerating locally.
+- `fastapi-streams sync` reads `[tool.fastapi-streams]` (`app`, `schema` and
+  `[[tool.fastapi-streams.clients]]` with `language`, `output` and the existing
+  generation options) from `pyproject.toml` or `--config`, exports the schema and
+  regenerates every client. `sync --check` reports all stale targets read-only.
+  Unknown keys and invalid values are rejected with exit code 2.
+- `fastapi_streams.codegen.writer.planned_files` returns the files including the
+  ownership manifest that `write_files` would write.
+
+### Performance
+
+- Generated Python and TypeScript runtimes split each decoded SSE chunk at line
+  endings instead of iterating characters. With the repository benchmark,
+  framing nested events is about 17x faster in Python and 4x faster in
+  TypeScript; complete small/nested stream consumption is 2-4.7x faster. Long
+  lines spanning many chunks are joined once. Framing semantics are unchanged:
+  LF/CR/CRLF (also split across chunks), the leading BOM, multi-line `data`,
+  comments and the end-of-stream frame behave as before. A randomized test
+  compares both runtimes with the previous character parser. Regenerate SDKs to
+  adopt the faster runtime.
+
+### Documentation
+
+- Point the README badge, example checkout and quickstart to the Canon workspace
+  repository and its locked workspace commands. The documentation check now
+  rejects links to the retired standalone repository.
+- Expand the package `AGENTS.md` with the module layout, focused test/codegen
+  commands and the template-regeneration workflow.
+
 ## 0.4.0 - 2026-10-18
 
 ### Breaking changes

@@ -53,6 +53,10 @@ export function {{ factory }}(client: ClientOptions) {
 {% if operation.body %}
         ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
 {% endif %}
+{% set policy = operation | event_policy %}
+{% if policy %}
+        events: {{ policy }},
+{% endif %}
       }, options);
     },
 {% endfor %}

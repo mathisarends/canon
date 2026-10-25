@@ -416,3 +416,9 @@ def test_python_codegen_cli_and_snapshot(tmp_path):
         .text
         == "typed"
     )
+
+
+async def test_sdk_owned_client_bounds_connect_but_not_stream_idle_time():
+    async with Client("http://example.test") as client:
+        timeout = client._transport.http_client.timeout
+    assert timeout == httpx.Timeout(None, connect=10.0)

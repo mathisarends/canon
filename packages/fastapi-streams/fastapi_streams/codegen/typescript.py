@@ -117,6 +117,9 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
     def documentation(operation: Operation) -> str:
         return operation_doc(operation, "typescript")
 
+    def event_policy(operation: Operation) -> str | None:
+        return _event_policy(contract, operation)
+
     add_filters(
         env,
         ts_type=render_type,
@@ -127,6 +130,7 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
         error_type=_error_type,
         path=_path,
         operation_doc=documentation,
+        event_policy=event_policy,
     )
     output: dict[str, str] = {}
     declarations: list[str] = []
@@ -198,6 +202,57 @@ def generate_typescript(contract: Contract) -> dict[str, str]:
     )
     output["index.ts"] = "\n".join(exports) + "\n"
     return output
+
+
+def _event_policy(contract: Contract, operation: Operation) -> str | None:
+    """Discriminator and known tags for the `unknownEvents: "ignore"` option."""
+    types = {item.name: item.type for item in contract.declarations}
+
+    def resolve(type_: Type) -> Type:
+        seen: set[str] = set()
+        while isinstance(type_, Reference) and type_.name not in seen:
+            seen.add(type_.name)
+            type_ = types.get(type_.name, type_)
+        return type_
+
+    def tags(type_: Type) -> list[str] | None:
+        match resolve(type_):
+            case LiteralType(value=str(value)):
+                return [value]
+            case EnumValue(enum=enum, member=member):
+                enum_type = resolve(Reference(enum))
+                if not isinstance(enum_type, StringEnum):
+                    return None
+                return [item.value for item in enum_type.members if item.name == member]
+            case StringEnum(members=members):
+                return [item.value for item in members]
+            case EnumAlias(target=target):
+                return tags(Reference(target))
+            case Union(members=members):
+                parts = [tags(item) for item in members]
+                if any(part is None for part in parts):
+                    return None
+                return [value for part in parts if part for value in part]
+            case _:
+                return None
+
+    union = resolve(operation.event)
+    if not isinstance(union, Union) or union.discriminator is None:
+        return None
+    known: list[str] = []
+    for member in union.members:
+        variant = resolve(member)
+        if not isinstance(variant, Object):
+            return None
+        field = next(
+            (item for item in variant.fields if item.name == union.discriminator), None
+        )
+        values = None if field is None else tags(field.type)
+        if not values:
+            return None
+        known.extend(values)
+    policy = {"discriminator": union.discriminator, "known": sorted(set(known))}
+    return json.dumps(policy, ensure_ascii=False)
 
 
 def _input_name(operation: Operation) -> str:

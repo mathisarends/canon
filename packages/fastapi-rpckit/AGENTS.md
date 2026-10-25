@@ -1,49 +1,55 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository.
+Guidance for AI coding agents working on this package. The workspace-wide rules
+in the root [`AGENTS.md`](../../AGENTS.md) take precedence.
 
 ## Project
 
-`fastapi_rpckit` is a Python library with distribution name `fastapi-rpckit`
-(initial successor version 0.1.0). It turns
-decorated channel functions and mounted service endpoints into a JSON-RPC 2.0
-protocol: definition (`channel.py`, `protocol.py`), serving (`service.py`,
-`runtime.py`, `dispatch.py`, `server.py`), contract generation (`schema/`), and
-client generation (`codegen/`). Generated Python clients embed their runtime
-from the templates under `codegen/templates/python/runtime/`.
+`fastapi_rpckit` (distribution `fastapi-rpckit`, current version in
+`pyproject.toml`) turns decorated channel functions and mounted service endpoints
+into a JSON-RPC 2.0 protocol over WebSockets. FastAPI is a required dependency.
 
-## Environment
+| Area | Modules |
+| --- | --- |
+| Definition | `channel.py`, `protocol.py`, `service.py` |
+| Serving | `runtime.py`, `dispatch.py`, `server.py`, `integrations/fastapi.py` |
+| Contract | `schema/` (OpenRPC) |
+| Client generation | `codegen/`; Python clients embed `codegen/templates/python/runtime/` |
 
-- Dependency management: [uv](https://docs.astral.sh/uv/)
-- Supported Python versions: 3.12–3.14
-- Install dependencies: `uv sync --all-groups`
+## Commands
 
-## Workflow
+Run from the workspace root, using the root environment and lockfile:
 
-- Lint: `uv run ruff check .`
-- Format: `uv run ruff format .`
-- Tests: `uv run pytest`
-- Install pre-commit only from the workspace root using its root configuration.
+```console
+uv sync --locked --all-packages --all-groups
+uv run --locked python scripts/check.py lint
+uv run --locked python scripts/check.py types
+uv run --locked --directory packages/fastapi-rpckit python -m pytest
+```
+
+Do not run this suite in the same pytest process as other workspace packages.
+Install pre-commit only from the workspace root.
+
+## Compatibility
+
+- Preserve wire behavior and generated-client contracts. A change to either is a
+  breaking change, even when the Python implementation is small.
+- Before 1.0, a breaking change needs the next minor version with patch zero
+  (`0.x.y` to `0.(x+1).0`). This includes public signature changes, stricter
+  validation and changed defaults. Record migration steps in `CHANGELOG.md`
+  under `### Breaking changes`.
+- When an intentional breaking change supersedes a Python API, remove the old
+  API instead of keeping aliases or parallel implementations, and update guides,
+  tests and generated clients in the same change.
+- Build only on documented, public FastAPI and Starlette APIs.
 
 ## Conventions
 
-- Library code lives in `fastapi_rpckit/`; the public API is re-exported from `fastapi_rpckit/__init__.py`.
-- Use relative imports for all public re-exports in `fastapi_rpckit/__init__.py`.
+- The public API is re-exported from `fastapi_rpckit/__init__.py` with relative imports.
 - No module-level docstrings. Document a class or function only where the name is not enough.
-- During consolidation preserve the existing runtime and adapter behavior. The
-  successor direction is FastAPI-first; see the root README.md. Do not remove
-  test seams or redesign the public API as part of a workspace move.
-- Generators read the OpenRPC document, never the `RpcProtocol` object, so a new target
-  language only needs an emitter beside `codegen/python.py` on top of `codegen/ir.py`.
+- Generators read the OpenRPC document, never the `RpcProtocol` object, so a new
+  target language only needs an emitter beside `codegen/python.py` on top of `codegen/ir.py`.
 - Generated code must pass `ruff check` and `ruff format` in the consuming repository.
+  Change generated clients through generators/templates, then check for drift.
 - Tests live in `tests/` and mirror the package structure.
 - Keep `pyproject.toml` as the single source of truth for metadata and tool config.
-- Before 1.0, any breaking change requires the next minor version with patch zero
-  (`0.x.y` to `0.(x+1).0`), including signature or validation changes without wire
-  changes. Follow the root release policy and record migration steps in the
-  changelog under `### Breaking changes`.
-
-- Use the current intended API only. Remove superseded APIs, compatibility aliases,
-  deprecated wrappers, and parallel legacy implementations instead of preserving
-  them. Document breaking changes and concrete migration steps in `CHANGELOG.md`,
-  update guides/tests, and regenerate clients. This applies throughout the project.

@@ -11,6 +11,16 @@ export interface ClientOptions {
 export interface RequestOptions {
   headers?: HeadersInit;
   signal?: AbortSignal;
+  /**
+   * "forward" (default) yields every decoded event. "ignore" skips JSON objects
+   * whose discriminator is a string tag the generated union does not declare.
+   */
+  unknownEvents?: "forward" | "ignore";
+}
+
+export interface EventPolicy {
+  discriminator: string;
+  known: readonly string[];
 }
 
 export interface StreamRequest {
@@ -19,6 +29,7 @@ export interface StreamRequest {
   query?: URLSearchParams;
   headers?: HeadersInit;
   body?: string;
+  events?: EventPolicy;
 }
 
 export function encodePath(value: string | number | boolean | null): string {
@@ -64,6 +75,8 @@ export function setHeader(
   headers.set(name, String(value));
 }
 
+const LINE_END = /\r\n|\r|\n/;
+
 async function readChunk(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal?: AbortSignal,
@@ -88,14 +101,13 @@ export async function* parseSSE<T>(
 ): AsyncGenerator<T, void, unknown> {
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
+  // The current unterminated line, possibly spanning several chunks.
   let line = "";
   let data: string[] = [];
   let skipLF = false;
   let ended = false;
 
-  function acceptLine(): string | undefined {
-    const current = line;
-    line = "";
+  function acceptLine(current: string): string | undefined {
     if (current === "") {
       if (data.length === 0) return undefined;
       const payload = data.join("\n");
@@ -121,23 +133,29 @@ export async function* parseSSE<T>(
   try {
     while (true) {
       const chunk = await readChunk(reader, signal);
-      const text = chunk.done ? decoder.decode() : decoder.decode(chunk.value, { stream: true });
-      for (const char of text) {
-        if (skipLF) {
-          skipLF = false;
-          if (char === "\n") continue;
-        }
-        if (char === "\r" || char === "\n") {
-          skipLF = char === "\r";
-          const payload = acceptLine();
-          if (payload !== undefined) yield decode(payload);
+      let text = chunk.done ? decoder.decode() : decoder.decode(chunk.value, { stream: true });
+      if (skipLF && text !== "") {
+        skipLF = false;
+        if (text.startsWith("\n")) text = text.slice(1);
+      }
+      if (text !== "") {
+        const lines = text.split(LINE_END);
+        if (lines.length === 1) {
+          line += text;
         } else {
-          line += char;
+          // A trailing CR may be the first half of a CRLF split across chunks.
+          skipLF = text.endsWith("\r");
+          lines[0] = line + lines[0];
+          line = lines.pop()!;
+          for (const current of lines) {
+            const payload = acceptLine(current);
+            if (payload !== undefined) yield decode(payload);
+          }
         }
       }
       if (chunk.done) {
         ended = true;
-        if (line !== "") acceptLine();
+        if (line !== "") acceptLine(line);
         if (data.length > 0) yield decode(data.join("\n"));
         return;
       }
@@ -149,6 +167,24 @@ export async function* parseSSE<T>(
       reader.releaseLock();
     }
   }
+}
+
+function unknownTags(options: RequestOptions, request: StreamRequest): ReadonlySet<string> | undefined {
+  const policy = options.unknownEvents ?? "forward";
+  if (policy !== "forward" && policy !== "ignore") {
+    throw new TypeError('unknownEvents must be "forward" or "ignore"');
+  }
+  if (policy === "forward") return undefined;
+  if (!request.events) {
+    throw new TypeError('unknownEvents: "ignore" requires a top-level discriminated event union');
+  }
+  return new Set(request.events.known);
+}
+
+function isUnknownEvent(event: unknown, discriminator: string, known: ReadonlySet<string>): boolean {
+  if (typeof event !== "object" || event === null || Array.isArray(event)) return false;
+  const tag = (event as Record<string, unknown>)[discriminator];
+  return typeof tag === "string" && !known.has(tag);
 }
 
 function mergeHeaders(...sources: (HeadersInit | undefined)[]): Headers {
@@ -197,6 +233,7 @@ export async function* stream<T>(
   request: StreamRequest,
   options: RequestOptions = {},
 ): AsyncGenerator<T, void, unknown> {
+  const known = unknownTags(options, request);
   const controller = new AbortController();
   const onAbort = () => controller.abort(options.signal?.reason);
   options.signal?.addEventListener("abort", onAbort, { once: true });
@@ -241,7 +278,15 @@ export async function* stream<T>(
     if (!response.body) throw new TransportError("SSE response has no body");
     bodyHandled = true;
     try {
-      yield* parseSSE<T>(response.body, controller.signal);
+      const events = parseSSE<T>(response.body, controller.signal);
+      if (known === undefined || request.events === undefined) {
+        yield* events;
+      } else {
+        const { discriminator } = request.events;
+        for await (const event of events) {
+          if (!isUnknownEvent(event, discriminator, known)) yield event;
+        }
+      }
     } catch (cause) {
       controller.signal.throwIfAborted();
       if (cause instanceof TransportError) throw cause;
