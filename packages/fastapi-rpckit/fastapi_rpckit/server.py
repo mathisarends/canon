@@ -12,7 +12,12 @@ from fastapi_rpckit.connection import RpcConnection, RpcLimits
 from fastapi_rpckit.constants import LOGGER_NAME
 from fastapi_rpckit.dependencies import RpcResolver
 from fastapi_rpckit.dispatch import RpcDispatcher
-from fastapi_rpckit.envelopes import RpcFailure, RpcRequestId, RpcSuccess
+from fastapi_rpckit.envelopes import (
+    RpcFailure,
+    RpcRequestEnvelope,
+    RpcRequestId,
+    RpcSuccess,
+)
 from fastapi_rpckit.errors import (
     RpcError,
     RpcInternalError,
@@ -110,10 +115,16 @@ class RpcServer:
         return await self._handle_one_bounded(raw_request)
 
     async def _handle_one_bounded(
-        self, raw_request: object, *, admitted_at: float | None = None
+        self,
+        raw_request: object,
+        *,
+        admitted_at: float | None = None,
+        envelope: RpcRequestEnvelope | None = None,
     ) -> RpcResponse | None:
         async def dispatch(scope: "RpcRequestScope | None") -> RpcResponse | None:
-            return await self._dispatch_request(raw_request, scope=scope)
+            return await self._dispatch_request(
+                raw_request, scope=scope, envelope=envelope
+            )
 
         return await self._run_bounded(raw_request, dispatch, admitted_at=admitted_at)
 
@@ -256,13 +267,14 @@ class RpcServer:
         *,
         failure: Exception | None = None,
         scope: RpcRequestScope | None = None,
+        envelope: RpcRequestEnvelope | None = None,
     ) -> RpcResponse | None:
         invocation = None
         response: RpcResponse | None = None
         try:
             if failure is not None:
                 raise failure
-            invocation = self._dispatcher.parse_request(raw_request)
+            invocation = self._dispatcher.parse_request(raw_request, envelope=envelope)
             result = await self._dispatcher.execute(invocation)
         except Exception as error:
             return self._failure_response(

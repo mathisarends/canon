@@ -1098,6 +1098,8 @@ async def test_slow_socket_send_closes_with_policy_violation() -> None:
     [
         (b"\xff", (RpcConnectionClose.PROTOCOL_ERROR, "Invalid RPC frame")),
         ("12345", (RpcConnectionClose.MESSAGE_TOO_BIG, "")),
+        ("ééé", (RpcConnectionClose.MESSAGE_TOO_BIG, "")),
+        (b"12345", (RpcConnectionClose.MESSAGE_TOO_BIG, "")),
     ],
 )
 async def test_invalid_or_oversized_rpc_frames_close_the_connection(
@@ -1437,3 +1439,20 @@ async def test_event_bindings_are_scoped_and_exported(declared, caplog) -> None:
 def test_endpoint_rejects_takes_one_rejecting_binding_per_exception(raises) -> None:
     with pytest.raises(ProtocolDefinitionError):
         RpcService().socket("/rpc", channels=(RpcChannel("sessions"),), rejects=raises)
+
+
+async def test_request_envelope_is_validated_once(monkeypatch) -> None:
+    from fastapi_rpckit.envelopes import RpcRequestEnvelope
+
+    calls = []
+    original = RpcRequestEnvelope.model_validate
+
+    def counted(value, *args, **kwargs):
+        calls.append(value)
+        return original(value, *args, **kwargs)
+
+    monkeypatch.setattr(RpcRequestEnvelope, "model_validate", counted)
+    async with RpcTestClient(service, "/rpc") as client:
+        assert await client.request("demo.echo", {"value": "x"}) == {"value": "x"}
+
+    assert len(calls) == 1
