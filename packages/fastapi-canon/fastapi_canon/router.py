@@ -9,8 +9,17 @@ from fastapi.responses import JSONResponse, Response
 from fastapi_canon.error.contracts import SUCCESS_EXTENSION
 from fastapi_canon.error.error import Error
 from fastapi_canon.error.registry import AnyError, ErrorRegistry
-from fastapi_canon.error.types import ErrorConfigurationError, OpenAPIResponses
+from fastapi_canon.error.types import OpenAPIResponses
 from fastapi_canon.error.validation import unique_instances
+from fastapi_canon.policy import (
+    RouterPolicy,
+    merge_policy_registry,
+    validate_policy,
+    validate_registry,
+)
+from fastapi_canon.policy import (
+    normalize_raises as _normalize_raises,
+)
 from fastapi_canon.response import CanonResponse, ResponseConfigurationError
 
 
@@ -22,20 +31,25 @@ class CanonRouter(APIRouter):
         *,
         error_registry: ErrorRegistry | None = None,
         raises: Sequence[AnyError] = (),
+        policy: RouterPolicy | None = None,
         **kwargs: Any,
     ) -> None:
-        raw_error_registry: object = error_registry
-        if raw_error_registry is not None and not isinstance(
-            raw_error_registry, ErrorRegistry
-        ):
-            msg = "error_registry must be an ErrorRegistry instance or None"
-            raise ErrorConfigurationError(msg)
+        validate_registry(error_registry)
+        validate_policy(policy)
+        error_registry = merge_policy_registry(error_registry, policy)
+        self.policy = policy
         self.error_registry = error_registry
         self.raises = _normalize_raises(
             raises,
             registry=error_registry,
             parameter="raises",
         )
+        if policy is not None:
+            self.raises = _distinct((*policy.raises, *self.raises))
+            kwargs["dependencies"] = [
+                *policy.dependencies,
+                *(kwargs.get("dependencies") or ()),
+            ]
         super().__init__(**kwargs)
 
     def api_route[CallableT: Callable[..., Any]](
@@ -208,28 +222,6 @@ class CanonRouter(APIRouter):
                 )
                 raise ResponseConfigurationError(msg)
         return {**manual, **canon}
-
-
-def _normalize_raises(
-    values: Sequence[AnyError],
-    *,
-    registry: ErrorRegistry | None,
-    parameter: str,
-) -> tuple[AnyError, ...]:
-    raw_values: object = values
-    if isinstance(raw_values, str) or not isinstance(raw_values, Sequence):
-        msg = f"{parameter} must be a sequence of Error instances"
-        raise ErrorConfigurationError(msg)
-    normalized = tuple(unique_instances(values, Error, parameter=parameter))
-    if normalized and registry is None:
-        msg = f"{parameter} requires an error registry"
-        raise ErrorConfigurationError(msg)
-    if registry is not None:
-        for error in normalized:
-            if not registry.contains(error):
-                msg = f"error {error.code!r} does not belong to this router's registry"
-                raise ErrorConfigurationError(msg)
-    return normalized
 
 
 def _normalize_responses(value: object) -> OpenAPIResponses:

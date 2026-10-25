@@ -10,10 +10,13 @@ from fastapi import APIRouter, FastAPI
 from starlette.types import ExceptionHandler, Lifespan
 
 from fastapi_canon.error import ErrorConfigurationError, ErrorRegistry
+from fastapi_canon.error.contracts import iter_operations
+from fastapi_canon.error.openapi import install_policy_contracts
 from fastapi_canon.openapi import (
     install_openapi_contracts,
     validate_openapi_contracts,
 )
+from fastapi_canon.policy import RouterPolicy
 from fastapi_canon.router import CanonRouter
 
 type FeatureLifespan = Lifespan[FastAPI]
@@ -149,26 +152,35 @@ class Composition:
     features: tuple[Feature, ...]
     errors: ErrorOptions
     router_factory: RouterFactory | None
+    router_policy: RouterPolicy | None
 
     def __init__(
         self,
         *features: Feature,
         errors: ErrorOptions | None = None,
         router_factory: RouterFactory | None = None,
+        router_policy: RouterPolicy | None = None,
     ) -> None:
         normalized_features = _unique_instances(features, Feature, "features")
         _validate_unique_feature_names(normalized_features)
         raw_errors: object = errors
         raw_router_factory: object = router_factory
+        raw_router_policy: object = router_policy
         if raw_errors is not None and not isinstance(raw_errors, ErrorOptions):
             msg = "errors must be an ErrorOptions instance or None"
             raise FeatureConfigurationError(msg)
         if raw_router_factory is not None and not callable(raw_router_factory):
             msg = "router_factory must be callable or None"
             raise FeatureConfigurationError(msg)
+        if raw_router_policy is not None and not isinstance(
+            raw_router_policy, RouterPolicy
+        ):
+            msg = "router_policy must be a RouterPolicy instance or None"
+            raise FeatureConfigurationError(msg)
         object.__setattr__(self, "features", normalized_features)
         object.__setattr__(self, "errors", errors or ErrorOptions())
         object.__setattr__(self, "router_factory", router_factory)
+        object.__setattr__(self, "router_policy", router_policy)
 
     def apply(self, app: FastAPI) -> FastAPI:
         """Apply this composition to *app* exactly once and return the app."""
@@ -188,6 +200,8 @@ class _Installation:
     errors: ErrorOptions
     router_factory: RouterFactory | None = field(compare=False)
     router_factory_id: int | None
+    router_policy: RouterPolicy | None = field(compare=False)
+    router_policy_id: int | None
     container: AsyncContainer | None = field(compare=False)
 
 
@@ -213,6 +227,12 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
             else None
         ),
         container=None,
+        router_policy=composition.router_policy,
+        router_policy_id=(
+            id(composition.router_policy)
+            if composition.router_policy is not None
+            else None
+        ),
     )
     installed = getattr(app.state, _INSTALLATION_STATE_KEY, None)
     if installed is not None:
@@ -236,13 +256,18 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
     materialized_providers = _materialize_providers(provider_sources)
     _reject_duplicate_materialized_providers(materialized_providers)
     _validate_handlers(app, composition.features)
-    installed_routers = _prepare_routers(routers, composition.router_factory)
+    installed_routers = _prepare_routers(
+        routers, composition.router_factory, composition.router_policy
+    )
 
     registries = tuple(
         (feature.name, feature.errors)
         for feature in composition.features
         if feature.errors is not None
     )
+    policy = composition.router_policy
+    if policy is not None and policy.error_registry is not None:
+        registries = (("router policy", policy.error_registry), *registries)
     registry = _merge_errors(
         registries,
         name=composition.errors.registry_name,
@@ -251,7 +276,7 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
     container = _make_container(
         tuple(contribution.provider for contribution in materialized_providers)
     )
-    _validate_error_installation(
+    policy_operations = _validate_error_installation(
         app,
         installed_routers,
         handler_specs,
@@ -259,6 +284,7 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
         include_validation_error=composition.errors.include_validation_error,
         include_http_exceptions=composition.errors.include_http_exceptions,
         include_unhandled_error=composition.errors.include_unhandled_error,
+        router_policy=policy,
     )
     if container is not None and app.middleware_stack is not None:
         msg = "features with providers must be installed before the app starts"
@@ -278,6 +304,8 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
         )
     else:
         install_openapi_contracts(app)
+    if policy is not None and policy.raises:
+        install_policy_contracts(app, policy.raises, policy_operations)
     if container is not None:
         setup_dishka(container, app)
     if lifespans or container is not None:
@@ -295,6 +323,8 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
         errors=composition.errors,
         router_factory=composition.router_factory,
         router_factory_id=requested.router_factory_id,
+        router_policy=policy,
+        router_policy_id=requested.router_policy_id,
         container=container,
     )
     setattr(app.state, _INSTALLATION_STATE_KEY, completed)
@@ -331,6 +361,12 @@ def _validate_applied_composition(app: object, composition: Composition) -> None
         installed.feature_ids != tuple(id(feature) for feature in composition.features)
         or installed.errors != composition.errors
         or installed.router_factory_id != expected_router_factory_id
+        or installed.router_policy_id
+        != (
+            id(composition.router_policy)
+            if composition.router_policy is not None
+            else None
+        )
     ):
         msg = "composition must be applied to the application before validation"
         raise FeatureConfigurationError(msg)
@@ -495,6 +531,20 @@ def _reject_duplicate_materialized_providers(
 
 
 def _prepare_routers(
+    routers: tuple[APIRouter, ...],
+    router_factory: RouterFactory | None,
+    router_policy: RouterPolicy | None,
+) -> tuple[APIRouter, ...]:
+    prepared = _prepare_application_router(routers, router_factory)
+    if router_policy is None or not router_policy.dependencies:
+        return prepared
+    wrapper = APIRouter(dependencies=list(router_policy.dependencies))
+    for router in prepared:
+        wrapper.include_router(router)
+    return (wrapper,)
+
+
+def _prepare_application_router(
     routers: tuple[APIRouter, ...], router_factory: RouterFactory | None
 ) -> tuple[APIRouter, ...]:
     if router_factory is None:
@@ -594,18 +644,25 @@ def _validate_error_installation(
     include_validation_error: bool,
     include_http_exceptions: bool,
     include_unhandled_error: bool,
-) -> None:
+    router_policy: RouterPolicy | None,
+) -> frozenset[str]:
     if app.openapi_schema is not None:
         msg = "install features before generating or caching OpenAPI"
         raise FeatureConfigurationError(msg)
     if registry is None:
-        return
+        return frozenset()
     validation_app = FastAPI()
     validation_app.exception_handlers.update(app.exception_handlers)
     for router in routers:
         validation_app.include_router(router)
     for spec in handler_specs:
         validation_app.add_exception_handler(spec.exception, spec.handler)
+    operations: frozenset[str] = frozenset()
+    if router_policy is not None and router_policy.raises:
+        operations = frozenset(
+            path for path, _ in iter_operations(validation_app.openapi())
+        )
+        validation_app.openapi_schema = None
     try:
         registry.install(
             validation_app,
@@ -613,8 +670,12 @@ def _validate_error_installation(
             include_http_exceptions=include_http_exceptions,
             include_unhandled_error=include_unhandled_error,
         )
+        if router_policy is not None and router_policy.raises:
+            install_policy_contracts(validation_app, router_policy.raises, operations)
+            validation_app.openapi()
     except ErrorConfigurationError as error:
         raise FeatureConfigurationError(str(error)) from error
+    return operations
 
 
 def _router_lifespans(

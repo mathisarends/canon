@@ -77,6 +77,8 @@ def install_openapi(
             document,
             include_validation_error=current.include_validation_error,
             include_http_exceptions=current.include_http_exceptions,
+            policy_errors=installation.policy_errors,
+            policy_operations=installation.policy_operations,
         )
         app.openapi_schema = compiled
         return compiled
@@ -95,6 +97,23 @@ class _OpenAPIConfiguration:
 @dataclass(slots=True)
 class _OpenAPIInstallation:
     configuration: _OpenAPIConfiguration
+    policy_errors: tuple[AnyError, ...] = ()
+    policy_operations: frozenset[str] = frozenset()
+
+
+def install_policy_contracts(
+    app: FastAPI, errors: tuple[AnyError, ...], operations: frozenset[str]
+) -> None:
+    """Scope composition contracts using operation names from generated OpenAPI."""
+    installed = getattr(app.state, INSTALLED_OPENAPI_STATE_KEY, None)
+    if not isinstance(installed, _OpenAPIInstallation):
+        raise ErrorConfigurationError(
+            "install the OpenAPI compiler before router policy"
+        )
+    if app.openapi_schema is not None:
+        raise ErrorConfigurationError("install router policy before caching OpenAPI")
+    installed.policy_errors = errors
+    installed.policy_operations = operations
 
 
 def compile_document(
@@ -103,6 +122,8 @@ def compile_document(
     *,
     include_validation_error: bool,
     include_http_exceptions: bool,
+    policy_errors: tuple[AnyError, ...] = (),
+    policy_operations: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     result = copy.deepcopy(document)
     components = result.setdefault("components", {}).setdefault("schemas", {})
@@ -131,6 +152,14 @@ def compile_document(
         _errors, http_statuses, _success = contracts_from_responses(
             path, responses, registry
         )
+        if path in policy_operations and policy_errors:
+            if registry is None:
+                raise ErrorConfigurationError(
+                    "router policy requires an error registry"
+                )
+            _compose_policy_responses(
+                path, responses, registry, policy_errors, _errors, http_statuses
+            )
         if http_statuses and not include_http_exceptions:
             msg = (
                 f"route {path!r} declares normalized HTTP responses, "
@@ -152,6 +181,32 @@ def compile_document(
             _replace_default_validation_response(responses)
 
     return result
+
+
+def _compose_policy_responses(
+    path: str,
+    responses: dict[str, Any],
+    registry: ErrorRegistry,
+    shared: tuple[AnyError, ...],
+    local: tuple[AnyError, ...],
+    http_statuses: tuple[int, ...],
+) -> None:
+    declared = tuple({id(error): error for error in (*shared, *local)}.values())
+    generated = compile_responses(registry, declared, http_statuses=http_statuses)
+    for status in dict.fromkeys(error.status for error in shared):
+        key = str(status)
+        existing = responses.get(key)
+        if existing is not None and not (
+            ERRORS_EXTENSION in existing
+            or HTTP_STATUSES_EXTENSION in existing
+            or (status == 422 and _is_default_validation_response(existing))
+        ):
+            msg = (
+                f"route {path!r} router policy response status {status} "
+                "conflicts with a FastAPI responses declaration"
+            )
+            raise ErrorConfigurationError(msg)
+        responses[key] = generated[status]
 
 
 def compile_responses(
@@ -399,22 +454,27 @@ def _merge_response_members(
 
 def _replace_default_validation_response(responses: dict[str, Any]) -> None:
     response = responses.get("422")
-    if not isinstance(response, dict):
+    if not isinstance(response, dict) or not _is_default_validation_response(response):
         return
-    content = response.get("content")
-    if not isinstance(content, dict):
-        return
-    application_json = content.get("application/json")
-    if not isinstance(application_json, dict):
-        return
-    schema = application_json.get("schema")
-    if schema != {"$ref": "#/components/schemas/HTTPValidationError"}:
-        return
+    content = response["content"]
     content.pop("application/json")
     content[_PROBLEM_MEDIA_TYPE] = {
         "schema": {"$ref": "#/components/schemas/RequestValidationProblem"}
     }
     response["description"] = "Request validation failed"
+
+
+def _is_default_validation_response(response: Any) -> bool:
+    if not isinstance(response, dict):
+        return False
+    content = response.get("content")
+    if not isinstance(content, dict):
+        return False
+    application_json = content.get("application/json")
+    if not isinstance(application_json, dict):
+        return False
+    schema = application_json.get("schema")
+    return schema == {"$ref": "#/components/schemas/HTTPValidationError"}
 
 
 def _request_validation_schema(registry: ErrorRegistry) -> dict[str, Any]:

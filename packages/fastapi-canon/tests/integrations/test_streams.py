@@ -42,6 +42,7 @@ from fastapi_canon import (
     ErrorRegistry,
     Feature,
     HTTPMethod,
+    RouterPolicy,
 )
 from fastapi_canon.integrations.streams import CanonStreamRouter
 
@@ -359,6 +360,39 @@ def test_compilation_preserves_entire_native_sse_contract() -> None:
         assert schema["components"]["schemas"][name] == definition
     assert "RunNotFoundProblem" in schema["components"]["schemas"]
     assert "x-fastapi-canon" not in json.dumps(schema)
+
+
+def test_composition_policy_preserves_typed_sse_and_runs_before_streaming() -> None:
+    selected = CanonStreamRouter(error_registry=run_errors)
+
+    @selected.stream("/policy-events", raises=[run_not_found])
+    async def events() -> AsyncIterator[RunEvent]:
+        yield RunCompleted(run_id=1)
+
+    baseline = Composition(Feature(name="baseline", routers=[selected])).apply(
+        FastAPI()
+    )
+    expected = baseline.openapi()["paths"]["/policy-events"]["get"]["responses"]["200"]
+
+    def require_run() -> None:
+        raise RunNotFound(1)
+
+    policy = RouterPolicy(
+        error_registry=run_errors,
+        dependencies=[Depends(require_run)],
+        raises=[run_not_found],
+    )
+    application = Composition(
+        Feature(name="events", routers=[selected]), router_policy=policy
+    ).apply(FastAPI())
+    responses = application.openapi()["paths"]["/policy-events"]["get"]["responses"]
+    assert responses["200"] == expected
+    assert responses["404"]["content"]["application/problem+json"]["schema"] == {
+        "$ref": "#/components/schemas/RunNotFoundProblem"
+    }
+    response = TestClient(application).get("/policy-events")
+    assert response.status_code == 404
+    assert response.json()["code"] == "run_not_found"
 
 
 def test_generator_body_errors_happen_after_response_start() -> None:

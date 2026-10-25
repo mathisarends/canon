@@ -2,6 +2,29 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## 0.8.0 - Unreleased
+
+### Breaking changes
+
+- Extend the public constructor signatures with `CanonRouter(policy=...)` and
+  `Composition(router_policy=...)`. Update wrappers or signature snapshots that
+  mirror those constructors. Existing calls without policies keep their behavior.
+  To migrate a shared router helper, create a `RouterPolicy` containing its
+  `error_registry`, `dependencies`, and shared `raises`, then instantiate
+  `CanonRouter(policy=...)` explicitly. Keep `route_class=DishkaRoute` on the
+  declaring router. Use `Composition(router_policy=...)` to extend contracts
+  across included feature routers; ordinary parent `raises=` remains local.
+
+### Added
+
+- Export immutable `RouterPolicy` for reusable HTTP prerequisites and their error
+  contracts. Combine policy, router and operation declarations with the existing
+  registry collision checks and identity-based error deduplication.
+- Apply composition policies to nested HTTP/SSE operations without mutating
+  reusable feature routers or walking FastAPI's internal route tree. Preserve
+  FastAPI dependency behavior, combine same-status Problem schemas, and reject
+  manual response collisions before installing the composition.
+
 ## 0.7.0 - 2026-10-24
 
 [GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.7.0)
