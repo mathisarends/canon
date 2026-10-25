@@ -2,15 +2,34 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
-## Unreleased
+## 0.8.0 - Unreleased
+
+### Breaking changes
+
+- Extend the public constructor signatures with `CanonRouter(policy=...)` and
+  `Composition(router_policy=...)`. Update wrappers or signature snapshots that
+  mirror those constructors. Existing calls without policies keep their behavior.
+  To migrate a shared router helper, create a `RouterPolicy` containing its
+  `error_registry`, `dependencies`, and shared `raises`, then instantiate
+  `CanonRouter(policy=...)` explicitly. Keep `route_class=DishkaRoute` on the
+  declaring router. Use `Composition(router_policy=...)` to extend contracts
+  across included feature routers; ordinary parent `raises=` remains local.
 
 ### Added
 
-- Optional `python -m fastapi_canon.check_error_contracts` source checker for explicit application
-  exceptions missing from direct CanonRouter error contracts. It follows typed
-  services, helpers and FastAPI dependencies, accounts for supported exception
-  handling and inheritance, and reports unresolved paths as incomplete analysis.
-  Warning output is the default; strict CI modes and JSON reports are opt-in.
+- Export immutable `RouterPolicy` for reusable HTTP prerequisites and their error
+  contracts. Combine policy, router and operation declarations with the existing
+  registry collision checks and identity-based error deduplication.
+- Apply composition policies to nested HTTP/SSE operations without mutating
+  reusable feature routers or walking FastAPI's internal route tree. Preserve
+  FastAPI dependency behavior, combine same-status Problem schemas, and reject
+  manual response collisions before installing the composition.
+- Optional `python -m fastapi_canon.check_error_contracts` source checker for
+  explicit application exceptions missing from direct CanonRouter error
+  contracts. It follows typed services, helpers and FastAPI dependencies,
+  accounts for supported exception handling and inheritance, and reports
+  unresolved paths as incomplete analysis. Warning output is the default;
+  strict CI modes and JSON reports are opt-in.
 
 ## 0.7.0 - 2026-10-24
 

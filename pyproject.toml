@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "Development workspace for the Canon FastAPI stack (not published)"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "fastapi-canon[streams,webrtc]==0.7.0",
+    "fastapi-canon[streams,webrtc]==0.8.0",
     "fastapi-streams[codegen]==0.4.0",
     "fastapi-rpckit[codegen,dishka,otel]==0.4.0",
     "fastapi-webrtc[aiortc]==0.3.0",

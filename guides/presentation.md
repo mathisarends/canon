@@ -77,6 +77,15 @@ belong on the router; resource-specific errors belong on the operation. A featur
 discovers its direct Canon routers' registries, and `Composition` merges them and
 installs runtime handlers and OpenAPI contracts once.
 
+When several routers share HTTP prerequisites, keep their `CanonRouter`
+declarations explicit and pass a reusable `RouterPolicy` through `policy=`.
+Bundle the actual FastAPI dependencies with the errors they can raise. Use
+`Composition(router_policy=...)` at the composition root when the policy must
+cover all included feature routers, including nested routers. Local `raises=`
+adds resource-specific errors. Keep `route_class=DishkaRoute` where endpoints
+are declared; a composition policy does not retrofit endpoint injection. See
+[router policies](../packages/fastapi-canon/README.md#router-policies).
+
 ```python
 task_not_found = Error(
     TaskNotFound,

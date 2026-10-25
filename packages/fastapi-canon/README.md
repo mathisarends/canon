@@ -22,6 +22,7 @@ outside the library's intended architecture.
 - [Quick start](#quick-start)
 - [Feature composition](#feature-composition)
   - [Shared API router](#shared-api-router)
+  - [Router policies](#router-policies)
   - [Dishka](#dishka)
 - [Error contracts](#error-contracts)
   - [Optional source checking](docs/error-checking.md)
@@ -111,6 +112,80 @@ composition = Composition(
 The factory is called during `apply()` and must return a fresh, empty
 `APIRouter`; custom `APIRouter` subclasses remain supported. Omitting it
 preserves direct router installation.
+
+### Router policies
+
+Use an immutable `RouterPolicy` to reuse HTTP prerequisites and the errors they
+can raise while keeping `CanonRouter` explicit at each declaration:
+
+```python
+from dishka.integrations.fastapi import DishkaRoute
+from fastapi import Depends
+from fastapi_canon import CanonRouter, Composition, RouterPolicy
+
+protected = RouterPolicy(
+    error_registry=authentication_errors,
+    dependencies=[Depends(require_authenticated_user)],
+    raises=[authentication_required, forbidden],
+)
+
+projects = CanonRouter(
+    prefix="/projects",
+    tags=["projects"],
+    route_class=DishkaRoute,
+    policy=protected,
+    error_registry=project_errors,
+)
+
+
+@projects.get("/{project_id}", raises=[project_not_found])
+async def get_project(project_id: int) -> ProjectResponse: ...
+```
+
+The application supplies the authentication dependency and error definitions.
+Dependencies execute through FastAPI; `raises` documents HTTP failures and does
+not itself enforce authentication. Policies copy their input sequences to tuples.
+A dependency-only policy needs no error registry. Policy errors must belong to
+the policy's own registry. Router and operation errors may use the merged policy
+and router catalog. The merge keeps the existing registry collision checks and
+deduplicates identical Error instances. Policy errors precede router and local
+errors; local declarations extend the shared contract. Policy dependencies run
+before local router dependencies, with FastAPI's normal dependency caching.
+
+To apply a policy across every feature router in a composition, including nested
+routers, pass it at the composition boundary instead:
+
+```python
+composition = Composition(
+    projects_feature,
+    users_feature,
+    router_policy=protected,
+    router_factory=lambda: CanonRouter(prefix="/api/v1"),
+)
+```
+
+`router_policy` merges its catalog with the feature registries and applies its
+dependencies to the installed routes. Its error contracts extend the generated
+HTTP operations, including typed SSE operations. Errors sharing a status produce
+one combined Problem schema. A conflicting manual `responses=` declaration is
+rejected before installation. A policy's `422` error replaces FastAPI's automatic
+validation response just as a router-level `raises` declaration does.
+
+Composition policies leave the original feature routers unchanged, so the same
+features can be installed in another app with a different policy. Routes mounted
+outside the composition do not acquire its prerequisites or declared errors.
+Hidden routes execute the dependencies but have no OpenAPI operation to extend.
+The application error registry still handles registered exceptions globally;
+policy declarations are not a runtime exception allowlist.
+
+`CanonRouter(policy=...)` shares error contracts with operations declared directly
+on that router, like router-level `raises`. Use `Composition(router_policy=...)`
+for contracts across included child routers; the meaning of ordinary `raises=`
+and `include_router()` is unchanged. Keep `route_class=DishkaRoute` on the router
+where endpoints are declared. A composition policy does not replace route classes
+or retrofit injection. For WebRTC session admission contracts, use
+`CanonWebRtcRouter(policy=...)`; composition HTTP contract compilation does not
+extend the separate WebRTC session descriptor.
 
 ### Dishka
 

@@ -13,7 +13,7 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
@@ -158,6 +158,8 @@ def main() -> None:
         if "fastapi-webrtc" in selected:
             _webrtc_sessions(client, engine, canon="fastapi-canon" in selected)
     assert app.openapi()["openapi"]
+    if "fastapi-canon" in selected:
+        _router_policies()
     if "fastapi-webrtc" in selected:
         _webrtc_codegen(app)
     if "fastapi-rpckit" in selected and importlib.util.find_spec("jinja2"):
@@ -436,6 +438,70 @@ def _rpc_codegen(rpc) -> None:
             check=True,
             timeout=30,
         )
+
+
+def _router_policies() -> None:
+    """Check the public policy API against installed wheels, including minima."""
+    from fastapi_canon import (
+        CanonRouter,
+        Composition,
+        Error,
+        ErrorRegistry,
+        Feature,
+        RouterPolicy,
+    )
+
+    class AuthenticationRequired(Exception):
+        pass
+
+    class ItemDenied(Exception):
+        pass
+
+    authentication_required = Error(
+        AuthenticationRequired,
+        status=401,
+        code="authentication_required",
+        title="Authentication required",
+    )
+    item_denied = Error(ItemDenied, status=401, code="item_denied", title="Item denied")
+    auth_errors = ErrorRegistry(
+        errors=[authentication_required], type_base="https://example.test/problems"
+    )
+    item_errors = ErrorRegistry(
+        errors=[item_denied], type_base="https://example.test/problems"
+    )
+
+    async def require_user(authorization: str | None = Header(default=None)) -> None:
+        if authorization != "Bearer test":
+            raise AuthenticationRequired
+
+    policy = RouterPolicy(
+        error_registry=auth_errors,
+        dependencies=[Depends(require_user)],
+        raises=[authentication_required],
+    )
+    for direct in (False, True):
+        router = CanonRouter(
+            policy=policy if direct else None, error_registry=item_errors
+        )
+        router.get("/policy", raises=[item_denied])(lambda: "ok")
+        feature = Feature(name="policy", routers=[router])
+        composition = Composition(feature, router_policy=None if direct else policy)
+        app = composition.apply(FastAPI())
+        composition.validate(app)
+        with TestClient(app) as client:
+            assert client.get("/policy").json()["code"] == "authentication_required"
+            assert (
+                client.get("/policy", headers={"Authorization": "Bearer test"}).json()
+                == "ok"
+            )
+        response = app.openapi()["paths"]["/policy"]["get"]["responses"]["401"]
+        assert (
+            len(response["content"]["application/problem+json"]["schema"]["oneOf"]) == 2
+        )
+        if not direct:
+            public = Composition(feature).apply(FastAPI())
+            assert TestClient(public).get("/policy").status_code == 200
 
 
 if __name__ == "__main__":
