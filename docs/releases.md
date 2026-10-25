@@ -47,9 +47,9 @@ the README release table changes only after verified publication.
 
 | Package | Prepared | Release type | Migration |
 | --- | --- | --- | --- |
-| Streams | 0.5.0 | Minor: SDK-owned generated Python clients now bound the connect time to 10 seconds. | Regenerate clients. Pass `RequestOptions(timeout=None)` or inject `httpx.AsyncClient(timeout=None)` to keep an unbounded connect time. See the [Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050-unreleased). |
-| Canon | 0.8.1 | Patch: optional Streams extra and development pin move to 0.5.0. | No Canon API change; follow the Streams notes when regenerating stream SDKs. See the [Canon 0.8.1 notes](../packages/fastapi-canon/CHANGELOG.md#081-unreleased). |
-| RPCKit | 0.4.1 | Patch: socket request envelopes are validated once; benchmark script and documentation. | None; wire output and generated clients are unchanged apart from the manifest generator version. See the [RPCKit 0.4.1 notes](../packages/fastapi-rpckit/CHANGELOG.md#041-unreleased). |
+| Streams | 0.5.0 | Minor: SDK-owned generated Python clients now bound the connect time to 10 seconds. | Regenerate clients. Pass `RequestOptions(timeout=None)` or inject `httpx.AsyncClient(timeout=None)` to keep an unbounded connect time. See the [Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050---2026-10-25). |
+| Canon | 0.8.1 | Patch: optional Streams extra and development pin move to 0.5.0. | No Canon API change; follow the Streams notes when regenerating stream SDKs. See the [Canon 0.8.1 notes](../packages/fastapi-canon/CHANGELOG.md#081---2026-10-25). |
+| RPCKit | 0.4.1 | Patch: socket request envelopes are validated once; benchmark script and documentation. | None; wire output and generated clients are unchanged apart from the manifest generator version. See the [RPCKit 0.4.1 notes](../packages/fastapi-rpckit/CHANGELOG.md#041---2026-10-25). |
 
 Remaining steps: merge to `main`, wait for exact-commit CI, then dispatch
 `release.yml` with `dry_run=true` for Streams 0.5.0, Canon 0.8.1 and RPCKit 0.4.1.

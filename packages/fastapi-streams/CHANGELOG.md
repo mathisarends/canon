@@ -3,7 +3,7 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
-## 0.5.0 (unreleased)
+## 0.5.0 - 2026-10-25
 
 ### Breaking changes
 
