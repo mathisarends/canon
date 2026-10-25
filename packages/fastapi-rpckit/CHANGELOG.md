@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+### Documentation
+
+- Add a core-API overview to the README and use the workspace's locked root
+  commands for development. Replace the stale version note with links to the
+  changelog and the `pyrpckit` migration guide.
+- Refresh `AGENTS.md`: current module map, locked workspace commands and one
+  consistent compatibility rule (preserve wire behavior and generated-client
+  contracts; remove superseded Python APIs only through a breaking release).
+
 ## 0.4.0 - 2026-10-20
 
 ### Breaking changes

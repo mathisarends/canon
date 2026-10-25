@@ -26,7 +26,8 @@ dependency. REST and SSE stay with FastAPI/Canon and `fastapi-streams`.
 The existing dispatch engine, OpenRPC contracts, binary/raw channels, and client
 generators are retained. The old repository remains available.
 
-Version 0.1.0 is the initial successor release; see the [migration guide](docs/migration.md).
+Upgrade notes for each release are in the [changelog](CHANGELOG.md); moving from
+`pyrpckit` is covered by the [migration guide](docs/migration.md).
 
 ## The idea
 
@@ -163,6 +164,23 @@ Every operation on a channel is implemented by the server: `@tasks.method()`,
 whole API. Clients call methods on the server; the server never calls methods
 on the client. Push data to clients with events or subscriptions instead.
 
+## Core API
+
+Most services need only these names; everything else in `fastapi_rpckit` is for
+hooks, limits and custom transports.
+
+| Name | Use it for |
+| --- | --- |
+| `RpcChannel` | Group operations under a namespace with `@channel.method()`, `.event()`, `.subscription()` and `.stream()`. |
+| `RpcModel` | Base class for parameter, result and event payloads. |
+| `RpcService` | Mount channels on a socket path with `service.socket(...)`. |
+| `create_router` / `RpcRoutes` | Serve a service from a FastAPI app or an existing `APIRouter`. |
+| `Inject[T]` | Resolve a server-side dependency; it never appears in the contract. |
+| `RpcError` | Subclass for typed errors; declare them with `raises=` so generated clients raise matching exceptions. |
+
+Reach for `RpcLimits`, `RpcMiddleware` and the connection hooks when you need
+quotas, observability or handshake checks; see the guides below.
+
 ## Documentation
 
 Read the [hardening stack and SDK migration guide](docs/hardening-overview.md) for all
@@ -191,9 +209,11 @@ anything.
 
 ## Development
 
+Run from the [Canon workspace](https://github.com/mathisarends/canon) root with
+its single lockfile:
+
 ```bash
-uv sync --all-groups
-uv run ruff check .
-uv run ruff format .
-uv run pytest
+uv sync --locked --all-packages --all-groups
+uv run --locked python scripts/check.py lint
+uv run --locked --directory packages/fastapi-rpckit python -m pytest
 ```
