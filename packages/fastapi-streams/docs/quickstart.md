@@ -5,12 +5,13 @@
 ## Run the example
 
 ```sh
-git clone https://github.com/mathisarends/fastapi-streams.git
-cd fastapi-streams
-uv sync --all-extras
-npm ci
-uv run python scripts/codegen.py
-uv run uvicorn examples.agent_runs:app --reload
+git clone https://github.com/mathisarends/canon.git
+cd canon
+uv sync --locked --all-packages --all-groups
+npm ci --ignore-scripts --prefix packages/fastapi-streams
+cd packages/fastapi-streams
+uv run --locked python scripts/codegen.py
+uv run --locked uvicorn examples.agent_runs:app --reload
 ```
 
 In another terminal:
@@ -21,7 +22,7 @@ npx tsc -p tests/typescript/tsconfig.json
 node tests/typescript/dist/examples/agent_runs/consume.js
 
 # Python
-uv run python -m examples.agent_runs.consume
+uv run --locked python -m examples.agent_runs.consume
 ```
 
 Both consume streamed tokens, including Unicode. The example also has a POST
@@ -31,9 +32,9 @@ stream authenticated with `Authorization: Bearer demo-token`, and a normal
 ## Define your own stream
 
 The server package needs only FastAPI and Pydantic. Install the optional
-`fastapi-streams[codegen]` extra where you generate contracts and SDKs. From this
-checkout use `uv sync --all-extras`; `uv build` produces an installable wheel and
-sdist. Once published, use `uv add 'fastapi-streams[codegen]'` in another project.
+`fastapi-streams[codegen]` extra where you generate contracts and SDKs. In another
+project use `uv add 'fastapi-streams[codegen]'`; the workspace checkout above
+already installs it.
 
 ```python
 from collections.abc import AsyncIterator

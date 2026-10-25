@@ -25,6 +25,12 @@ def check_documentation(root: Path = ROOT) -> list[str]:
     readme = (root / "packages/fastapi-streams/README.md").read_text("utf-8")
     if "git+https://github.com/mathisarends/fastapi-streams" in readme:
         errors.append("Streams quickstart must install the PyPI distribution")
+    streams = root / "packages/fastapi-streams"
+    for path in (streams / "README.md", *(streams / "docs").rglob("*.md")):
+        if "github.com/mathisarends/fastapi-streams" in path.read_text("utf-8"):
+            errors.append(
+                f"{path.relative_to(root)}: link the Canon workspace repository"
+            )
     rpc = root / "packages/fastapi-rpckit"
     for folder in ("docs", "examples"):
         for path in (rpc / folder).rglob("*.md"):

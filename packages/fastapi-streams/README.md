@@ -1,6 +1,6 @@
 # fastapi-streams
 
-[![CI](https://github.com/mathisarends/fastapi-streams/actions/workflows/ci.yml/badge.svg)](https://github.com/mathisarends/fastapi-streams/actions/workflows/ci.yml)
+[![CI](https://github.com/mathisarends/canon/actions/workflows/ci.yml/badge.svg)](https://github.com/mathisarends/canon/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![MIT License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -181,12 +181,16 @@ and Pyright to catch invalid parameters and event access in consumer code.
 
 ## Run the complete example
 
+The package is developed in the [Canon workspace](https://github.com/mathisarends/canon),
+which shares one lockfile across its packages:
+
 ```sh
-git clone https://github.com/mathisarends/fastapi-streams.git
-cd fastapi-streams
-uv sync --all-extras
-npm ci
-uv run uvicorn examples.agent_runs:app --reload
+git clone https://github.com/mathisarends/canon.git
+cd canon
+uv sync --locked --all-packages --all-groups
+npm ci --ignore-scripts --prefix packages/fastapi-streams
+cd packages/fastapi-streams
+uv run --locked uvicorn examples.agent_runs:app --reload
 ```
 
 In another terminal:
@@ -197,12 +201,12 @@ npx tsc -p tests/typescript/tsconfig.json
 node tests/typescript/dist/examples/agent_runs/consume.js
 
 # Python
-uv run python -m examples.agent_runs.consume
+uv run --locked python -m examples.agent_runs.consume
 ```
 
 The example includes GET and authenticated POST streams, both generated SDKs,
 and committed OpenAPI regression fixtures in `tests/fixtures/`. Verify all generated artifacts with
-`uv run python scripts/codegen.py --check`.
+`uv run --locked python scripts/codegen.py --check`.
 
 ## Documentation
 
@@ -216,7 +220,7 @@ and regenerating committed clients.
 | [Client usage](docs/clients.md) | Enums, authentication, cancellation, and errors. |
 | [Architecture](docs/architecture.md) | Native SSE, shared IR, templates, and transports. |
 | [Development](docs/development.md) | Tests, supported scope, and roadmap. |
-| [Releasing](docs/releasing.md) | Tag-based releases and credential-free PyPI publishing. |
+| [Releasing](docs/releasing.md) | Workspace release process and package-prefixed tags. |
 
 The current release supports GET/POST JSON SSE streams. Ordinary REST endpoints
 stay in the contract for your existing REST SDK. See the

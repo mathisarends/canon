@@ -3,6 +3,16 @@
 All notable changes and consumer upgrade steps are recorded here. Entries marked
 unreleased describe prepared source versions that have not been published.
 
+## 0.5.0 (unreleased)
+
+### Documentation
+
+- Point the README badge, example checkout and quickstart to the Canon workspace
+  repository and its locked workspace commands. The documentation check now
+  rejects links to the retired standalone repository.
+- Expand the package `AGENTS.md` with the module layout, focused test/codegen
+  commands and the template-regeneration workflow.
+
 ## 0.4.0 - 2026-10-18
 
 ### Breaking changes
