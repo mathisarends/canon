@@ -2,6 +2,12 @@
 
 ## 0.4.1 (unreleased)
 
+### Added
+
+- `scripts/bench_rpc_requests.py` measures sequential round-trip latency and
+  pipelined request throughput over the in-process socket runtime. See
+  [Measure request throughput](docs/transports.md#measure-request-throughput).
+
 ### Documentation
 
 - Add a core-API overview to the README and use the workspace's locked root
