@@ -2,6 +2,16 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Optional `python -m fastapi_canon.check` source checker for explicit application
+  exceptions missing from direct CanonRouter error contracts. It follows typed
+  services, helpers and FastAPI dependencies, accounts for supported exception
+  handling and inheritance, and reports unresolved paths as incomplete analysis.
+  Warning output is the default; strict CI modes and JSON reports are opt-in.
+
 ## 0.7.0 - 2026-10-24
 
 [GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.7.0)

@@ -24,6 +24,7 @@ outside the library's intended architecture.
   - [Shared API router](#shared-api-router)
   - [Dishka](#dishka)
 - [Error contracts](#error-contracts)
+  - [Optional source checking](docs/error-checking.md)
   - [Canon routers](#canon-routers)
   - [OpenAPI representation](#openapi-representation)
 - [Success response contracts](#success-response-contracts)
@@ -135,6 +136,11 @@ automatically. Applications should treat the exposed container as
 composition-owned and not close it independently.
 
 ## Error contracts
+
+The optional [source checker](docs/error-checking.md) finds explicit application
+exceptions missing from route `raises=` declarations, without importing your
+application. Run `python -m fastapi_canon.check src`; unresolved calls and abstract
+ports are reported as incomplete analysis. CI failure modes are opt-in.
 
 Error contracts are implemented directly by `fastapi-canon`; no separate error
 library is required. Each feature may expose one `ErrorRegistry`. Registries are
