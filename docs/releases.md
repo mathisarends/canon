@@ -60,7 +60,7 @@ Canon source 0.8.0 is prepared for reusable router policies and optional
 source-based error-contract checking. It is unpublished;
 the current public Canon release remains 0.7.0. Constructor-signature migration
 and policy scope are documented in the
-[Canon changelog](../packages/fastapi-canon/CHANGELOG.md#080---unreleased).
+[Canon changelog](../packages/fastapi-canon/CHANGELOG.md#080---2026-10-25).
 The other package source versions still match their published releases. Complete
 the release gates below before publishing the prepared Canon version.
 
