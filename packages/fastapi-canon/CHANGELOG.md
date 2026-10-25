@@ -4,6 +4,9 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ## 0.8.1 - 2026-10-25
 
+[GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.8.1)
+and [PyPI](https://pypi.org/project/fastapi-canon/0.8.1/).
+
 - Update the optional Streams integration and development pin to 0.5.0 for the
   TypeScript `unknownEvents` option, `--diff` drift output, the config-driven
   `fastapi-streams sync` command and faster SSE line splitting in generated

@@ -9,14 +9,23 @@ GitHub Releases and Actions retain publication evidence.
 
 ## Current versions
 
-Canon 0.8.0 was published on 2026-10-25 from
+Streams 0.5.0, Canon 0.8.1 and RPCKit 0.4.1 were published on 2026-10-25 from
+[verified source `ebd725b`](https://github.com/mathisarends/canon/commit/ebd725b14610f4017614281d9ad074920cf6f002),
+after [exact-source CI](https://github.com/mathisarends/canon/actions/runs/40237725498). Streams was published
+before Canon, which pins it. Publication workflows:
+[Streams](https://github.com/mathisarends/canon/actions/runs/40238129418),
+[Canon](https://github.com/mathisarends/canon/actions/runs/40238523107) and
+[RPCKit](https://github.com/mathisarends/canon/actions/runs/40238531843). The RPCKit finalization job was rerun
+once on the original run after the PyPI API briefly reported an incomplete
+upload; no files were replaced. PyPI hashes match the GitHub Release assets and
+manifests, each tag points to the verified source, and a fresh Windows/Python 3.12
+public-index installation of all four current package versions passed import and
+CLI smoke checks.
+
+Before that, Canon 0.8.0 was published on 2026-10-25 from
 [verified source `50b8e4b`](https://github.com/mathisarends/canon/commit/50b8e4b442b93ad75b8e2b36024487e38f308330),
 after [exact-source CI](https://github.com/mathisarends/canon/actions/runs/40213500982)
 and the [publication workflow](https://github.com/mathisarends/canon/actions/runs/40214446851).
-The public PyPI hashes, fresh core/extra installs, matching tag, GitHub Release,
-release notes and original wheel/sdist/manifest assets are verified. A fresh
-Windows/Python 3.14 public-index installation also passed the combined-stack
-smoke checks for all four current package versions.
 
 Previously, WebRTC 0.3.0 and Canon 0.7.0 were published on 2026-10-24 from
 [verified source `6aad274`](https://github.com/mathisarends/canon/commit/6aad274800d1960a8bbbcb0fd7d54ec3f6901c99),
@@ -25,37 +34,17 @@ in that order. Both publication workflows completed successfully:
 [Canon](https://github.com/mathisarends/canon/actions/runs/40079766254).
 Each has a matching tag and GitHub Release with its original wheel, sdist and
 manifest. PyPI file hashes, public installs, release notes and downloaded GitHub
-assets are verified. Streams and RPCKit remain at the versions published on
-2026-10-20.
+assets are verified.
 
 | Package | Version | Migration |
 | --- | --- | --- |
-| Canon | 0.8.0 | Update constructor wrappers or signature snapshots for `CanonRouter(policy=...)` and `Composition(router_policy=...)`. See the [router-policy migration notes](../packages/fastapi-canon/CHANGELOG.md#080---2026-10-25); source error-contract checking is optional. |
+| Canon | 0.8.1 | No Canon API change; the optional Streams extra pins 0.5.0. Follow the Streams notes when regenerating stream SDKs. See the [Canon 0.8.1 notes](../packages/fastapi-canon/CHANGELOG.md#081---2026-10-25). |
 | WebRTC | 0.3.0 | Use public enum members, keyword-only engine/channel options and `DescriptionType`; handle lazy type aliases in introspection tools. See the [migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24). |
-| Streams | 0.4.0 | No new release in this batch; existing client provenance and error-decoder contracts remain unchanged. |
-| RPCKit | 0.4.0 | Regenerate Python clients and invoke factory protocols with positional URLs. Handle `CancelledError` when cancelling direct `serve_websocket()` calls. |
+| Streams | 0.5.0 | Regenerate clients. SDK-owned generated Python clients bound the connect time to 10 seconds; pass `RequestOptions(timeout=None)` or inject `httpx.AsyncClient(timeout=None)` to keep it unbounded. See the [Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050---2026-10-25). |
+| RPCKit | 0.4.1 | None; wire output and generated clients are unchanged apart from the manifest generator version. See the [RPCKit 0.4.1 notes](../packages/fastapi-rpckit/CHANGELOG.md#041---2026-10-25). |
 
-Streams remains at published 0.4.0. WebRTC must be available before publishing a
-Canon version that pins it in the optional extra. RPCKit releases independently.
-Apply the same dependency order when a Canon version pins a new Streams release.
-
-### Prepared source versions, not published
-
-The `perf-usability-streams-rpckit` branch prepares the following source versions.
-They are **not published**; the versions in the table above remain current, and
-the README release table changes only after verified publication.
-
-| Package | Prepared | Release type | Migration |
-| --- | --- | --- | --- |
-| Streams | 0.5.0 | Minor: SDK-owned generated Python clients now bound the connect time to 10 seconds. | Regenerate clients. Pass `RequestOptions(timeout=None)` or inject `httpx.AsyncClient(timeout=None)` to keep an unbounded connect time. See the [Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050---2026-10-25). |
-| Canon | 0.8.1 | Patch: optional Streams extra and development pin move to 0.5.0. | No Canon API change; follow the Streams notes when regenerating stream SDKs. See the [Canon 0.8.1 notes](../packages/fastapi-canon/CHANGELOG.md#081---2026-10-25). |
-| RPCKit | 0.4.1 | Patch: socket request envelopes are validated once; benchmark script and documentation. | None; wire output and generated clients are unchanged apart from the manifest generator version. See the [RPCKit 0.4.1 notes](../packages/fastapi-rpckit/CHANGELOG.md#041---2026-10-25). |
-
-Remaining steps: merge to `main`, wait for exact-commit CI, then dispatch
-`release.yml` with `dry_run=true` for Streams 0.5.0, Canon 0.8.1 and RPCKit 0.4.1.
-Finalize the changelog dates and pass CI on that final source before any
-publication. Publish Streams before Canon, because Canon 0.8.1 pins it. RPCKit
-has no ordering constraint.
+WebRTC and Streams must be available before publishing a Canon version that pins
+them in the optional extras. RPCKit releases independently.
 
 ### Consumer integration upgrade
 
@@ -83,9 +72,9 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 
 ## Prepared source versions
 
-The versions prepared on this branch are listed under
-[Prepared source versions, not published](#prepared-source-versions-not-published).
-Follow the release gates below when preparing the next independent package version.
+All four package source versions match their published releases. No additional
+release is currently prepared. Follow the release gates below when preparing
+the next independent package version.
 
 ## Publisher setup
 

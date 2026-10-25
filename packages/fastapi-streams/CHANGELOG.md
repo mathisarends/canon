@@ -5,6 +5,9 @@ unreleased describe prepared source versions that have not been published.
 
 ## 0.5.0 - 2026-10-25
 
+[GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.5.0)
+and [PyPI](https://pypi.org/project/fastapi-streams/0.5.0/).
+
 ### Breaking changes
 
 - The client that a generated Python SDK creates when no `http_client` is

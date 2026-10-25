@@ -11,9 +11,9 @@ The libraries remain independently installable and independently versioned.
 
 | Package | Version | GitHub | PyPI |
 | --- | --- | --- | --- |
-| `fastapi-canon` | 0.8.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.8.0) | [Install](https://pypi.org/project/fastapi-canon/0.8.0/) |
-| `fastapi-streams` | 0.4.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.4.0) | [Install](https://pypi.org/project/fastapi-streams/0.4.0/) |
-| `fastapi-rpckit` | 0.4.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.4.0) | [Install](https://pypi.org/project/fastapi-rpckit/0.4.0/) |
+| `fastapi-canon` | 0.8.1 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.8.1) | [Install](https://pypi.org/project/fastapi-canon/0.8.1/) |
+| `fastapi-streams` | 0.5.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-streams-v0.5.0) | [Install](https://pypi.org/project/fastapi-streams/0.5.0/) |
+| `fastapi-rpckit` | 0.4.1 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.4.1) | [Install](https://pypi.org/project/fastapi-rpckit/0.4.1/) |
 | `fastapi-webrtc` | 0.3.0 | [Release notes and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-webrtc-v0.3.0) | [Install](https://pypi.org/project/fastapi-webrtc/0.3.0/) |
 
 Package releases appear in this repository's [central release list](https://github.com/mathisarends/canon/releases).

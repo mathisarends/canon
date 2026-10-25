@@ -4,13 +4,16 @@
 
 | Package | Published |
 | --- | --- |
-| `fastapi-canon` | 0.8.0 |
-| `fastapi-streams` | 0.4.0 |
-| `fastapi-rpckit` | 0.4.0 |
+| `fastapi-canon` | 0.8.1 |
+| `fastapi-streams` | 0.5.0 |
+| `fastapi-rpckit` | 0.4.1 |
 | `fastapi-webrtc` | 0.3.0 |
 
 Published versions and assets are linked in the [README](../README.md#current-releases).
-Canon 0.8.0 was published on 2026-10-25; WebRTC 0.3.0 on 2026-10-24. Follow the
+Streams 0.5.0, Canon 0.8.1 and RPCKit 0.4.1 were published on 2026-10-25; Canon
+0.8.0 earlier that day; WebRTC 0.3.0 on 2026-10-24. Follow the
+[Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050---2026-10-25)
+when regenerating Python stream clients, the
 [Canon router-policy migration notes](../packages/fastapi-canon/CHANGELOG.md#080---2026-10-25)
 when updating constructor wrappers and the
 [WebRTC migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24)

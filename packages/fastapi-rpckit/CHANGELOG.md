@@ -2,6 +2,9 @@
 
 ## 0.4.1 - 2026-10-25
 
+[GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-rpckit-v0.4.1)
+and [PyPI](https://pypi.org/project/fastapi-rpckit/0.4.1/).
+
 ### Performance
 
 - Validate each socket request envelope once. The reader's validated envelope is
