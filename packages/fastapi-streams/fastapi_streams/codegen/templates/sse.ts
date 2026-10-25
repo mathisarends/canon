@@ -64,6 +64,8 @@ export function setHeader(
   headers.set(name, String(value));
 }
 
+const LINE_END = /\r\n|\r|\n/;
+
 async function readChunk(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal?: AbortSignal,
@@ -88,14 +90,13 @@ export async function* parseSSE<T>(
 ): AsyncGenerator<T, void, unknown> {
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
+  // The current unterminated line, possibly spanning several chunks.
   let line = "";
   let data: string[] = [];
   let skipLF = false;
   let ended = false;
 
-  function acceptLine(): string | undefined {
-    const current = line;
-    line = "";
+  function acceptLine(current: string): string | undefined {
     if (current === "") {
       if (data.length === 0) return undefined;
       const payload = data.join("\n");
@@ -121,23 +122,29 @@ export async function* parseSSE<T>(
   try {
     while (true) {
       const chunk = await readChunk(reader, signal);
-      const text = chunk.done ? decoder.decode() : decoder.decode(chunk.value, { stream: true });
-      for (const char of text) {
-        if (skipLF) {
-          skipLF = false;
-          if (char === "\n") continue;
-        }
-        if (char === "\r" || char === "\n") {
-          skipLF = char === "\r";
-          const payload = acceptLine();
-          if (payload !== undefined) yield decode(payload);
+      let text = chunk.done ? decoder.decode() : decoder.decode(chunk.value, { stream: true });
+      if (skipLF && text !== "") {
+        skipLF = false;
+        if (text.startsWith("\n")) text = text.slice(1);
+      }
+      if (text !== "") {
+        const lines = text.split(LINE_END);
+        if (lines.length === 1) {
+          line += text;
         } else {
-          line += char;
+          // A trailing CR may be the first half of a CRLF split across chunks.
+          skipLF = text.endsWith("\r");
+          lines[0] = line + lines[0];
+          line = lines.pop()!;
+          for (const current of lines) {
+            const payload = acceptLine(current);
+            if (payload !== undefined) yield decode(payload);
+          }
         }
       }
       if (chunk.done) {
         ended = true;
-        if (line !== "") acceptLine();
+        if (line !== "") acceptLine(line);
         if (data.length > 0) yield decode(data.join("\n"));
         return;
       }

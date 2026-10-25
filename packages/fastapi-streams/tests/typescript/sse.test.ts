@@ -33,6 +33,93 @@ test("SSE survives every byte boundary, fragmented UTF-8, multiline data and EOF
   assert.deepEqual(await collect(parseSSE(bytes(Array.from(raw, byte => Uint8Array.of(byte))))), expected);
 });
 
+function referenceFrames(text: string): string[] {
+  // The original character-by-character parser, kept as a test oracle.
+  let line = "";
+  let data: string[] = [];
+  let skipLF = false;
+  const frames: string[] = [];
+  const accept = () => {
+    const current = line;
+    line = "";
+    if (current === "") {
+      if (data.length > 0) frames.push(data.join("\n"));
+      data = [];
+      return;
+    }
+    const colon = current.indexOf(":");
+    const field = colon < 0 ? current : current.slice(0, colon);
+    let value = colon < 0 ? "" : current.slice(colon + 1);
+    if (value.startsWith(" ")) value = value.slice(1);
+    if (field === "data") data.push(value);
+  };
+  for (const char of text.replace(/^﻿/, "")) {
+    if (skipLF) {
+      skipLF = false;
+      if (char === "\n") continue;
+    }
+    if (char === "\r" || char === "\n") {
+      skipLF = char === "\r";
+      accept();
+    } else {
+      line += char;
+    }
+  }
+  if (line !== "") accept();
+  if (data.length > 0) frames.push(data.join("\n"));
+  return frames;
+}
+
+async function outcome(events: AsyncIterable<unknown>): Promise<unknown[]> {
+  const result: unknown[] = [];
+  try {
+    for await (const event of events) result.push(event);
+  } catch (error) {
+    assert.ok(error instanceof StreamParseError);
+    result.push({ invalid: error.data });
+  }
+  return result;
+}
+
+test("line splitting matches the character parser for random chunkings", async () => {
+  const alphabet = ["data", ":", " ", "1", "世", "\r", "\n", "\r\n", "id", "﻿"];
+  let seed = 20261025;
+  const random = () => {
+    seed ^= seed << 13;
+    seed ^= seed >>> 17;
+    seed ^= seed << 5;
+    return (seed >>> 0) / 2 ** 32;
+  };
+  for (let run = 0; run < 2000; run++) {
+    let text = "";
+    for (let index = Math.floor(random() * 40); index > 0; index--) {
+      text += alphabet[Math.floor(random() * alphabet.length)];
+    }
+    const raw = encoder.encode(text);
+    const cuts = Array.from({ length: Math.floor(random() * 6) }, () => Math.floor(random() * (raw.length + 1)));
+    const edges = [0, ...cuts.sort((a, b) => a - b), raw.length];
+    const chunks = edges.slice(1).map((end, index) => raw.slice(edges[index], end));
+    const expected: unknown[] = [];
+    for (const frame of referenceFrames(text)) {
+      try {
+        expected.push(JSON.parse(frame));
+      } catch {
+        expected.push({ invalid: frame });
+        break;
+      }
+    }
+    assert.deepEqual(await outcome(parseSSE(bytes(chunks))), expected, JSON.stringify(text));
+  }
+});
+
+test("a line spanning many chunks is joined once", async () => {
+  const raw = encoder.encode(`data: "${"x".repeat(100_000)}"\r`);
+  const chunks: Uint8Array[] = [];
+  for (let index = 0; index < raw.length; index += 7) chunks.push(raw.slice(index, index + 7));
+  chunks.push(encoder.encode("\n\n"));
+  assert.deepEqual(await collect(parseSSE(bytes(chunks))), ["x".repeat(100_000)]);
+});
+
 test("LF, CRLF, CR, final newlines and metadata-only frames", async () => {
   for (const newline of ["\n", "\r\n", "\r"]) {
     const text = [": ping", "", "event: ignored", "id: abc", "retry: 2", "", "data: 1", "", "data: 2", ""].join(newline);

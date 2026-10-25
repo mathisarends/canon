@@ -5,6 +5,18 @@ unreleased describe prepared source versions that have not been published.
 
 ## 0.5.0 (unreleased)
 
+### Performance
+
+- Generated Python and TypeScript runtimes split each decoded SSE chunk at line
+  endings instead of iterating characters. With the repository benchmark,
+  framing nested events is about 17x faster in Python and 4x faster in
+  TypeScript; complete small/nested stream consumption is 2-4.7x faster. Long
+  lines spanning many chunks are joined once. Framing semantics are unchanged:
+  LF/CR/CRLF (also split across chunks), the leading BOM, multi-line `data`,
+  comments and the end-of-stream frame behave as before. A randomized test
+  compares both runtimes with the previous character parser. Regenerate SDKs to
+  adopt the faster runtime.
+
 ### Documentation
 
 - Point the README badge, example checkout and quickstart to the Canon workspace
