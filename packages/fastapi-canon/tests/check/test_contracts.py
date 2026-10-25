@@ -4,8 +4,8 @@ from textwrap import dedent
 
 import pytest
 
-from fastapi_canon._checks.contracts import Report, check
-from fastapi_canon.check import main
+from fastapi_canon._checks.contracts import _check_error_contracts, _Report
+from fastapi_canon.check_error_contracts import _main
 
 PRELUDE = """
 from fastapi_canon import CanonRouter, Error, ErrorRegistry
@@ -19,16 +19,16 @@ router = CanonRouter(error_registry=registry)
 """
 
 
-def analyze(tmp_path: Path, source: str, **modules: str) -> Report:
+def analyze(tmp_path: Path, source: str, **modules: str) -> _Report:
     (tmp_path / "api.py").write_text(dedent(source), encoding="utf-8")
     for name, content in modules.items():
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(dedent(content), encoding="utf-8")
-    return check([tmp_path])
+    return _check_error_contracts([tmp_path])
 
 
-def codes(report: Report) -> list[str]:
+def codes(report: _Report) -> list[str]:
     return [
         item.code for operation in report.operations for item in operation.diagnostics
     ]
@@ -404,21 +404,21 @@ def endpoint():
     raise Missing()
 """,
     )
-    assert main([str(tmp_path)]) == 0
+    assert _main([str(tmp_path)]) == 0
     assert "1 contract gaps; 1 incomplete operations" in capsys.readouterr().out
-    assert main([str(tmp_path), "--strict"]) == 1
-    assert main([str(tmp_path), "--require-complete", "--format", "json"]) == 1
+    assert _main([str(tmp_path), "--strict"]) == 1
+    assert _main([str(tmp_path), "--require-complete", "--format", "json"]) == 1
     assert '"complete": false' in capsys.readouterr().out
 
 
 def test_cli_syntax_error_and_empty_scan(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert main([str(tmp_path), "--require-complete"]) == 1
+    assert _main([str(tmp_path), "--require-complete"]) == 1
     assert "No supported CanonRouter operations" in capsys.readouterr().out
     (tmp_path / "broken.py").write_text("def (", encoding="utf-8")
     with pytest.raises(SystemExit) as error:
-        main([str(tmp_path)])
+        _main([str(tmp_path)])
     assert error.value.code == 2
 
 
@@ -428,13 +428,13 @@ def test_duplicate_module_roots_rejected(tmp_path: Path) -> None:
         root.mkdir()
         (root / "api.py").write_text("", encoding="utf-8")
     with pytest.raises(ValueError, match="duplicate module"):
-        check([tmp_path / "one", tmp_path / "two"])
+        _check_error_contracts([tmp_path / "one", tmp_path / "two"])
 
 
 def test_reference_service_detects_removed_contract(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[4]
     shutil.copytree(root / "examples/reference-service/src", tmp_path / "src")
-    before = check([tmp_path / "src"])
+    before = _check_error_contracts([tmp_path / "src"])
     assert len(before.operations) == 4
     assert before.gaps == 0
     assert before.incomplete > 0
@@ -443,7 +443,7 @@ def test_reference_service_detects_removed_contract(tmp_path: Path) -> None:
         router.read_text("utf-8").replace("    raises=[task_not_found],\n", ""),
         encoding="utf-8",
     )
-    after = check([tmp_path / "src"])
+    after = _check_error_contracts([tmp_path / "src"])
     assert after.gaps == 1
     finding = next(
         item
@@ -658,3 +658,14 @@ def endpoint(): raise Missing()
 """,
     )
     assert codes(report) == ["CAN003"]
+
+
+def test_cli_help_names_the_error_contract_check(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as result:
+        _main(["--help"])
+    assert result.value.code == 0
+    output = capsys.readouterr().out
+    assert "python -m fastapi_canon.check_error_contracts" in output
+    assert "CanonRouter raises declarations" in output

@@ -4,7 +4,7 @@ Run the source checker to find application exceptions missing from a direct
 `CanonRouter` operation's `raises=` declaration:
 
 ```console
-python -m fastapi_canon.check src
+python -m fastapi_canon.check_error_contracts src
 ```
 
 Pass Python import roots: for `src/app/features/...`, use `src`, not `src/app`.
@@ -12,7 +12,7 @@ Multiple roots are accepted when they contain different modules. In this
 workspace, run:
 
 ```console
-uv run --locked python -m fastapi_canon.check examples/reference-service/src --strict
+uv run --locked python -m fastapi_canon.check_error_contracts examples/reference-service/src --strict
 ```
 
 The checker is included in Canon and needs no extra dependencies or annotations
@@ -20,6 +20,45 @@ on application services. It parses source without importing the inspected
 application, constructing a Dishka container, or opening application resources.
 It is optional development tooling; normal route registration, runtime exception
 mapping and OpenAPI validation keep their existing behavior.
+
+## How the check works
+
+The checker compares two sets for each operation: application exceptions escaping
+the supported source paths, and errors declared by that operation and its router.
+It reads both from source; it does not execute the application.
+
+```mermaid
+flowchart TD
+    CLI["check_error_contracts src"] --> AST["Parse Python files into an AST"]
+    AST --> INDEX["Resolve imports, aliases, types and definitions"]
+    INDEX --> CONTRACT["Read ErrorRegistry and combine router + operation raises"]
+    INDEX --> CALLS["Follow endpoint, service, helper and dependency calls"]
+    CALLS --> HANDLING["Remove caught exceptions and include translated exceptions"]
+    HANDLING --> MATCH{"Registry mapping found through inheritance?"}
+    CONTRACT --> MATCH
+    MATCH -->|Yes| COMPARE{"Mapped error declared?"}
+    COMPARE -->|Yes| COVERED["Supported error path covered"]
+    COMPARE -->|No| MISSING["CAN001: missing raises entry"]
+    MATCH -->|No| UNMAPPED["CAN002: missing registry mapping"]
+    INDEX -.->|Unresolved declaration| UNKNOWN["CAN003: incomplete analysis"]
+    CONTRACT -.->|Dynamic contract| UNKNOWN
+    CALLS -.->|Abstract port or unresolved call| UNKNOWN
+    COVERED --> REPORT["Text or JSON report + optional CI exit status"]
+    MISSING --> REPORT
+    UNMAPPED --> REPORT
+    UNKNOWN --> REPORT
+```
+
+For example, `complete_task` calls `TaskService.complete`, which can explicitly
+raise `TaskNotFound`. The checker finds its `task_not_found` registry mapping and
+looks for that exact error in the operation's combined `raises`. Removing the
+declaration produces `CAN001` with the call path. If the same service calls an
+abstract repository method, that call also produces `CAN003`: a known gap and an
+incomplete analysis can appear together.
+
+The command is the supported entry point. The `_checks` modules, their types and
+constants, and the report objects are private implementation details;
+the documented JSON fields are the machine-readable interface.
 
 ## Findings and CI
 
@@ -44,8 +83,8 @@ Add `--require-complete` to fail for incomplete operations or a scan containing 
 supported operations. Use both flags when both conditions should fail CI:
 
 ```console
-python -m fastapi_canon.check src --strict --require-complete
-python -m fastapi_canon.check src --strict --format json
+python -m fastapi_canon.check_error_contracts src --strict --require-complete
+python -m fastapi_canon.check_error_contracts src --strict --format json
 ```
 
 Invalid roots, duplicate module names, unreadable files and syntax errors exit

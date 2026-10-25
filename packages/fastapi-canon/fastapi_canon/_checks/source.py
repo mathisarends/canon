@@ -1,14 +1,13 @@
 """A deliberately bounded Python symbol index; never imports inspected code."""
 
-from __future__ import annotations
-
 import ast
 import builtins
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Self
 
-type FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
-type Environment = dict[str, str]
+type _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
+type _Environment = dict[str, str]
 
 
 def _walk_error(error: OSError) -> None:
@@ -16,24 +15,24 @@ def _walk_error(error: OSError) -> None:
 
 
 @dataclass
-class Definition:
+class _Definition:
     name: str
     module: str
-    node: FunctionNode | ast.ClassDef
+    node: _FunctionNode | ast.ClassDef
     owner: str | None = None
 
 
 @dataclass
-class Source:
+class _Source:
     paths: dict[str, Path] = field(default_factory=dict)
-    definitions: dict[str, Definition] = field(default_factory=dict)
+    definitions: dict[str, _Definition] = field(default_factory=dict)
     bindings: dict[str, tuple[str, ast.expr] | str] = field(default_factory=dict)
     uncertain: dict[str, list[str]] = field(default_factory=dict)
-    nested: list[Definition] = field(default_factory=list)
+    nested: list[_Definition] = field(default_factory=list)
     touched: set[str] = field(default_factory=set)
 
     @classmethod
-    def read(cls, roots: list[Path]) -> Source:
+    def read(cls, roots: list[Path]) -> Self:
         source = cls()
         for root in roots:
             root = root.resolve()
@@ -62,7 +61,7 @@ class Source:
                     source._index(module, tree.body, package=package)
                     indexed = {id(item.node) for item in source.definitions.values()}
                     source.nested.extend(
-                        Definition(
+                        _Definition(
                             f"{module}.<local>.{node.name}:{node.lineno}", module, node
                         )
                         for node in ast.walk(tree)
@@ -126,12 +125,12 @@ class Source:
                 node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
             ):
                 name = f"{module}.{node.name}"
-                self.definitions[name] = Definition(name, module, node)
+                self.definitions[name] = _Definition(name, module, node)
                 if isinstance(node, ast.ClassDef):
                     for member in node.body:
                         if isinstance(member, ast.FunctionDef | ast.AsyncFunctionDef):
                             key = f"{name}.{member.name}"
-                            self.definitions[key] = Definition(
+                            self.definitions[key] = _Definition(
                                 key, module, member, name
                             )
             elif isinstance(node, ast.If):
@@ -185,7 +184,7 @@ class Source:
         self,
         node: ast.expr,
         module: str,
-        env: Environment | None = None,
+        env: _Environment | None = None,
         *,
         seen: frozenset[str] = frozenset(),
     ) -> str | None:
@@ -298,7 +297,7 @@ class Source:
                     sequence.pop(0)
         return result
 
-    def method(self, owner: str, name: str) -> Definition | None:
+    def method(self, owner: str, name: str) -> _Definition | None:
         # Direct methods can be resolved even when an external base is unknown.
         for base in self.mro(owner) or [owner]:
             definition = self.definitions.get(f"{base}.{name}")
@@ -309,9 +308,9 @@ class Source:
     def exception(self, name: str) -> bool:
         return "builtins.Exception" in (self.mro(name) or [])
 
-    def environment(self, function: Definition) -> Environment:
+    def environment(self, function: _Definition) -> _Environment:
         assert isinstance(function.node, ast.FunctionDef | ast.AsyncFunctionDef)
-        env: Environment = {}
+        env: _Environment = {}
         arguments = function.node.args
         for arg in [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs]:
             env[arg.arg] = ""
@@ -323,7 +322,7 @@ class Source:
             env["self"] = function.owner
             constructor = self.method(function.owner, "__init__")
             if constructor and isinstance(constructor.node, ast.FunctionDef):
-                constructor_env: Environment = {"self": function.owner}
+                constructor_env: _Environment = {"self": function.owner}
                 for arg in (
                     constructor.node.args.posonlyargs
                     + constructor.node.args.args

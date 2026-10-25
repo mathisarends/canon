@@ -1,55 +1,53 @@
 """Explicit-exception propagation for the supported, statically resolved subset."""
 
-from __future__ import annotations
-
 import ast
 from dataclasses import dataclass, field
 
-from .source import Definition, Environment, Source
+from .source import _Definition, _Environment, _Source
 
 
 @dataclass(frozen=True)
-class Escape:
+class _Escape:
     exception: str
     trace: tuple[str, ...]
     line: int
 
 
 @dataclass(frozen=True)
-class Unknown:
+class _Unknown:
     message: str
     function: str
     line: int
 
 
 @dataclass
-class Flow:
-    escapes: list[Escape] = field(default_factory=list)
-    unknowns: list[Unknown] = field(default_factory=list)
+class _Flow:
+    escapes: list[_Escape] = field(default_factory=list)
+    unknowns: list[_Unknown] = field(default_factory=list)
 
-    def extend(self, other: Flow) -> None:
+    def extend(self, other: "_Flow") -> None:
         self.escapes.extend(other.escapes)
         self.unknowns.extend(other.unknowns)
 
 
-class Analyzer:
-    def __init__(self, source: Source) -> None:
+class _Analyzer:
+    def __init__(self, source: _Source) -> None:
         self.source = source
 
-    def function(self, function: Definition, stack: tuple[str, ...] = ()) -> Flow:
+    def function(self, function: _Definition, stack: tuple[str, ...] = ()) -> _Flow:
         node = function.node
         assert isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
         if function.name in stack:
-            return Flow(
-                unknowns=[Unknown("recursive call", function.name, node.lineno)]
+            return _Flow(
+                unknowns=[_Unknown("recursive call", function.name, node.lineno)]
             )
-        flow = Flow()
+        flow = _Flow()
         for decorator in node.decorator_list:
             name = self.source.resolve(decorator, function.module)
             if name == "abc.abstractmethod":
-                return Flow(
+                return _Flow(
                     unknowns=[
-                        Unknown("abstract implementation", function.name, node.lineno)
+                        _Unknown("abstract implementation", function.name, node.lineno)
                     ]
                 )
             if name not in {
@@ -60,17 +58,17 @@ class Analyzer:
             } and not (
                 isinstance(decorator, ast.Call)
                 and isinstance(decorator.func, ast.Attribute)
-                and decorator.func.attr in ROUTE_METHODS
+                and decorator.func.attr in _ROUTE_METHODS
             ):
                 flow.unknowns.append(
-                    Unknown("unresolved decorator", function.name, decorator.lineno)
+                    _Unknown("unresolved decorator", function.name, decorator.lineno)
                 )
         if any(
             isinstance(child, ast.Yield | ast.YieldFrom)
             for child in self._executed_nodes(node.body)
         ):
             flow.unknowns.append(
-                Unknown(
+                _Unknown(
                     "generator execution is outside the HTTP response boundary",
                     function.name,
                     node.lineno,
@@ -101,13 +99,13 @@ class Analyzer:
     def expression(
         self,
         node: ast.expr,
-        function: Definition,
-        env: Environment,
+        function: _Definition,
+        env: _Environment,
         stack: tuple[str, ...],
         *,
         awaited: bool = False,
-    ) -> Flow:
-        flow = Flow()
+    ) -> _Flow:
+        flow = _Flow()
         if isinstance(node, ast.Await):
             return self.expression(node.value, function, env, stack, awaited=True)
         if isinstance(node, ast.Lambda):
@@ -121,7 +119,7 @@ class Analyzer:
             | ast.NamedExpr,
         ):
             flow.unknowns.append(
-                Unknown(
+                _Unknown(
                     f"unsupported expression: {type(node).__name__}",
                     function.name,
                     node.lineno,
@@ -137,7 +135,7 @@ class Analyzer:
             if definition and isinstance(definition.node, ast.ClassDef):
                 if definition.node.decorator_list or definition.node.keywords:
                     flow.unknowns.append(
-                        Unknown(
+                        _Unknown(
                             "class decorators or metaclasses may change construction",
                             function.name,
                             node.lineno,
@@ -147,13 +145,13 @@ class Analyzer:
                 if constructor:
                     called = self.function(constructor, stack)
                     flow.escapes.extend(
-                        Escape(item.exception, (function.name, *item.trace), item.line)
+                        _Escape(item.exception, (function.name, *item.trace), item.line)
                         for item in called.escapes
                     )
                     flow.unknowns.extend(called.unknowns)
                 elif self.source.mro(definition.name) is None:
                     flow.unknowns.append(
-                        Unknown(
+                        _Unknown(
                             f"unresolved constructor: {name}",
                             function.name,
                             node.lineno,
@@ -166,7 +164,7 @@ class Analyzer:
                     )
                     if receiver and receiver != definition.owner:
                         flow.unknowns.append(
-                            Unknown(
+                            _Unknown(
                                 "inherited method dispatch may use subclass overrides",
                                 function.name,
                                 node.lineno,
@@ -174,7 +172,7 @@ class Analyzer:
                         )
                 if isinstance(definition.node, ast.AsyncFunctionDef) and not awaited:
                     flow.unknowns.append(
-                        Unknown(
+                        _Unknown(
                             "coroutine execution is deferred until awaited",
                             function.name,
                             node.lineno,
@@ -183,13 +181,13 @@ class Analyzer:
                     return flow
                 called = self.function(definition, stack)
                 flow.escapes.extend(
-                    Escape(item.exception, (function.name, *item.trace), item.line)
+                    _Escape(item.exception, (function.name, *item.trace), item.line)
                     for item in called.escapes
                 )
                 flow.unknowns.extend(called.unknowns)
             else:
                 flow.unknowns.append(
-                    Unknown(
+                    _Unknown(
                         f"unresolved call: {ast.unparse(node.func)}",
                         function.name,
                         node.lineno,
@@ -216,12 +214,12 @@ class Analyzer:
     def block(
         self,
         body: list[ast.stmt],
-        function: Definition,
-        env: Environment,
+        function: _Definition,
+        env: _Environment,
         stack: tuple[str, ...],
-        reraised: tuple[Escape, ...] = (),
-    ) -> Flow:
-        flow = Flow()
+        reraised: tuple[_Escape, ...] = (),
+    ) -> _Flow:
+        flow = _Flow()
         for node in body:
             if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
                 # Nested definitions are not executed, but their bodies cannot be resolved.
@@ -230,7 +228,9 @@ class Analyzer:
                     flow.extend(self.expression(expression, function, env, stack))
                 if isinstance(node, ast.ClassDef):
                     flow.unknowns.append(
-                        Unknown("nested class construction", function.name, node.lineno)
+                        _Unknown(
+                            "nested class construction", function.name, node.lineno
+                        )
                     )
                 else:
                     for expression in [
@@ -245,7 +245,7 @@ class Analyzer:
                         flow.escapes.extend(reraised)
                     else:
                         flow.unknowns.append(
-                            Unknown("unresolved re-raise", function.name, node.lineno)
+                            _Unknown("unresolved re-raise", function.name, node.lineno)
                         )
                 else:
                     flow.extend(self.expression(node.exc, function, env, stack))
@@ -256,10 +256,12 @@ class Analyzer:
                     )
                     name = self.source.resolve(target, function.module, env)
                     if name and self.source.exception(name):
-                        flow.escapes.append(Escape(name, (function.name,), node.lineno))
+                        flow.escapes.append(
+                            _Escape(name, (function.name,), node.lineno)
+                        )
                     else:
                         flow.unknowns.append(
-                            Unknown(
+                            _Unknown(
                                 f"unresolved raised exception: {ast.unparse(node.exc)}",
                                 function.name,
                                 node.lineno,
@@ -290,7 +292,7 @@ class Analyzer:
                     )
                     if unknown_catch:
                         flow.unknowns.append(
-                            Unknown(
+                            _Unknown(
                                 "unresolved exception handler",
                                 function.name,
                                 handler.lineno,
@@ -331,7 +333,7 @@ class Analyzer:
                     for child in self._executed_nodes(node.finalbody)
                 ):
                     flow.unknowns.append(
-                        Unknown(
+                        _Unknown(
                             "finally may replace an escaping exception",
                             function.name,
                             node.lineno,
@@ -409,7 +411,7 @@ class Analyzer:
                 continue
             # Context managers, loops, match, try*, etc. need more control-flow knowledge.
             flow.unknowns.append(
-                Unknown(
+                _Unknown(
                     f"unsupported statement: {type(node).__name__}",
                     function.name,
                     node.lineno,
@@ -423,13 +425,13 @@ class Analyzer:
                     name = self.source.resolve(target, function.module, env)
                     if name and self.source.exception(name):
                         flow.escapes.append(
-                            Escape(name, (function.name,), child.lineno)
+                            _Escape(name, (function.name,), child.lineno)
                         )
             self._invalidate(node, env)
         return flow
 
     @staticmethod
-    def _invalidate(node: ast.AST, env: Environment) -> None:
+    def _invalidate(node: ast.AST, env: _Environment) -> None:
         for child in ast.walk(node):
             if isinstance(child, ast.Name | ast.Attribute) and isinstance(
                 child.ctx, ast.Store
@@ -437,6 +439,6 @@ class Analyzer:
                 env[ast.unparse(child)] = ""
 
 
-ROUTE_METHODS = frozenset(
+_ROUTE_METHODS = frozenset(
     {"get", "post", "put", "patch", "delete", "head", "options", "trace", "api_route"}
 )

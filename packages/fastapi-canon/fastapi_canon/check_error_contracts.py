@@ -1,18 +1,17 @@
-"""Optional source-only error-contract lint: ``python -m fastapi_canon.check``."""
-
-from __future__ import annotations
+"""Find missing route error contracts: ``python -m fastapi_canon.check_error_contracts``."""
 
 import argparse
 import json
 from collections.abc import Sequence
 from pathlib import Path
 
-from fastapi_canon._checks.contracts import check
+from fastapi_canon._checks.contracts import _check_error_contracts
 
 
-def main(arguments: Sequence[str] | None = None) -> int:
+def _main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Check explicit application exceptions against CanonRouter raises declarations without importing application code."
+        prog="python -m fastapi_canon.check_error_contracts",
+        description="Check explicit application exceptions against CanonRouter raises declarations without importing application code.",
     )
     parser.add_argument(
         "roots",
@@ -33,7 +32,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(arguments)
     try:
-        report = check(args.roots)
+        report = _check_error_contracts(args.roots)
     except (OSError, SyntaxError, UnicodeError, ValueError) as error:
         parser.exit(2, f"error-contract check: {error}\n")
     if args.format == "json":
@@ -62,4 +61,4 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_main())

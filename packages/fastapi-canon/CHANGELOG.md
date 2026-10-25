@@ -6,7 +6,7 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ### Added
 
-- Optional `python -m fastapi_canon.check` source checker for explicit application
+- Optional `python -m fastapi_canon.check_error_contracts` source checker for explicit application
   exceptions missing from direct CanonRouter error contracts. It follows typed
   services, helpers and FastAPI dependencies, accounts for supported exception
   handling and inheritance, and reports unresolved paths as incomplete analysis.

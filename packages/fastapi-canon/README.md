@@ -139,7 +139,7 @@ composition-owned and not close it independently.
 
 The optional [source checker](docs/error-checking.md) finds explicit application
 exceptions missing from route `raises=` declarations, without importing your
-application. Run `python -m fastapi_canon.check src`; unresolved calls and abstract
+application. Run `python -m fastapi_canon.check_error_contracts src`; unresolved calls and abstract
 ports are reported as incomplete analysis. CI failure modes are opt-in.
 
 Error contracts are implemented directly by `fastapi-canon`; no separate error
