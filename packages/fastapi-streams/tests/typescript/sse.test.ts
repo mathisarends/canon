@@ -318,3 +318,53 @@ test("required query and header nulls fail before serialization", () => {
     assert.throws(() => setHeader(new Headers(), "x-limit", value, true), /Required header parameter x-limit/);
   }
 });
+
+test("unknownEvents ignore skips only objects with undeclared string tags", async () => {
+  const body = [
+    'data: {"type":"run.started","run_id":"a"}',
+    'data: {"type":"run.paused"}',
+    'data: {"type":7}',
+    'data: {"other":true}',
+    "data: [1]",
+    'data: {"type":"run.completed","run_id":"a"}',
+  ].join("\n\n");
+  const fetch = async () => response(body);
+  const client = { baseUrl: "http://example.test", fetch };
+  const request = { path: "/", method: "GET", events: { discriminator: "type", known: ["run.completed", "run.started"] } };
+  assert.equal((await collect(stream(client, request))).length, 6);
+  assert.deepEqual(await collect(stream(client, request, { unknownEvents: "ignore" })), [
+    { type: "run.started", run_id: "a" },
+    { type: 7 },
+    { other: true },
+    [1],
+    { type: "run.completed", run_id: "a" },
+  ]);
+});
+
+test("unknownEvents ignore still fails on invalid JSON", async () => {
+  const fetch = async () => response('data: {"type":"run.paused"}\n\ndata: {oops\n\n');
+  const request = { path: "/", method: "GET", events: { discriminator: "type", known: [] } };
+  await assert.rejects(collect(stream({ baseUrl: "http://example.test", fetch }, request, { unknownEvents: "ignore" })), (error: unknown) => {
+    assert.ok(error instanceof StreamParseError);
+    return true;
+  });
+});
+
+test("unknownEvents ignore requires a discriminated union before any request", async () => {
+  let calls = 0;
+  const fetch = async () => {
+    calls++;
+    return response("");
+  };
+  await assert.rejects(collect(stream({ baseUrl: "http://example.test", fetch }, { path: "/", method: "GET" }, { unknownEvents: "ignore" })), TypeError);
+  await assert.rejects(collect(stream({ baseUrl: "http://example.test", fetch }, { path: "/", method: "GET" }, { unknownEvents: "drop" as "ignore" })), TypeError);
+  assert.equal(calls, 0);
+});
+
+test("generated operations declare their known event tags", async () => {
+  const body = 'data: {"type":"run.paused"}\n\ndata: {"type":"run.completed","run_id":"run_abc"}\n\n';
+  const fetch = async () => response(body);
+  const client = createClient({ baseUrl: "http://example.test", fetch });
+  const events = await collect(client.agentRuns.streamRunEvents({ runId: "run_abc" }, { unknownEvents: "ignore" }));
+  assert.deepEqual(events, [{ type: "run.completed", run_id: "run_abc" }]);
+});

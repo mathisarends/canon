@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 import httpx
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 from fastapi_streams.codegen.python import generate_python
 from tests.codegen.helpers import event_contract, load_package
@@ -131,3 +131,37 @@ async def test_ignore_reuses_policy_across_requests_and_keeps_nested_validation(
                 await anext(api.streams.events(options=options))
             assert caught.value.category == "invalid_event_schema"
             assert caught.value.validation_errors[0]["loc"] == ("container", "child")
+
+
+def _typescript_policy(event: object) -> str | None:
+    from fastapi_streams.codegen.typescript import generate_typescript
+
+    api = next(
+        text
+        for path, text in generate_typescript(event_contract(event)).items()
+        if path.endswith("/api.ts")
+    )
+    line = next((row for row in api.splitlines() if "events: {" in row), None)
+    return None if line is None else line.strip()
+
+
+def test_typescript_operations_declare_known_tags():
+    assert _typescript_policy(Event) == (
+        'events: {"discriminator": "type", "known": ["done", "started"]},'
+    )
+
+
+def test_typescript_known_tags_cover_aliases_and_multi_value_literals():
+    first = create_model(
+        "First", kind=(Literal["first", "second"], Field(alias="event-type"))
+    )
+    last = create_model("Last", kind=(Literal["last"], Field(alias="event-type")))
+    event = Annotated[first | last, Field(discriminator="kind")]
+    assert _typescript_policy(event) == (
+        'events: {"discriminator": "event-type", "known": ["first", "last", "second"]},'
+    )
+
+
+def test_typescript_omits_tags_without_a_discriminated_union():
+    assert _typescript_policy(str) is None
+    assert _typescript_policy(Started | Done) is None

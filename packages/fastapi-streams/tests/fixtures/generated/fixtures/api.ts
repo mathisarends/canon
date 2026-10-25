@@ -45,6 +45,7 @@ export function createFixturesApi(client: ClientOptions) {
         method: "GET",
         query,
         headers,
+        events: {"discriminator": "type", "known": ["done", "nested"]},
       }, options);
     },
   };

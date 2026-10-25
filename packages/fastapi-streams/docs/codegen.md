@@ -185,8 +185,28 @@ Ignoring requires a top-level discriminated union with known string tags. Only
 valid JSON objects with an unknown string discriminator are skipped. Invalid
 JSON, missing/non-string discriminators and malformed known variants still fail;
 unknown nested variants inside a known event fail too. The option adds no retry,
-reconnect or replay. TypeScript continues to forward JSON-decoded values without
-runtime union validation. Regenerate existing Python SDKs to obtain the option.
+reconnect or replay. Regenerate existing Python SDKs to obtain the option.
+
+TypeScript does not validate event shapes, so it forwards every JSON-decoded
+value by default (`unknownEvents: "forward"`). An exhaustive `switch` over the
+event tag then reaches its `never` branch for a variant the client does not
+know. Generated operations embed their union's discriminator and known tags;
+`unknownEvents: "ignore"` skips JSON objects whose discriminator is an
+undeclared string tag:
+
+```typescript
+for await (const event of client.agentRuns.streamRunEvents(
+  { runId: "run_abc" }, { unknownEvents: "ignore" },
+)) {
+  handle(event);
+}
+```
+
+Objects without a string tag, arrays and scalars are still forwarded, and invalid
+JSON still throws `StreamParseError`; known variants are not validated. An
+operation without a top-level discriminated union rejects `"ignore"` with a
+`TypeError` before the request is sent. Regenerate TypeScript SDKs to obtain the
+option.
 
 ## Validation support matrix
 

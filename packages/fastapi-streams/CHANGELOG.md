@@ -5,6 +5,16 @@ unreleased describe prepared source versions that have not been published.
 
 ## 0.5.0 (unreleased)
 
+### Added
+
+- Generated TypeScript clients accept `RequestOptions.unknownEvents`. The default
+  `"forward"` keeps the current behavior; `"ignore"` skips JSON objects whose
+  discriminator is a string tag the generated event union does not declare, so
+  exhaustive `switch` statements survive additive server variants. Each
+  generated operation now embeds its discriminator and known tags. Operations
+  without a top-level discriminated union reject `"ignore"` with a `TypeError`
+  before any request. Regenerate TypeScript SDKs to adopt the option.
+
 ### Performance
 
 - Generated Python and TypeScript runtimes split each decoded SSE chunk at line

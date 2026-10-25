@@ -11,6 +11,16 @@ export interface ClientOptions {
 export interface RequestOptions {
   headers?: HeadersInit;
   signal?: AbortSignal;
+  /**
+   * "forward" (default) yields every decoded event. "ignore" skips JSON objects
+   * whose discriminator is a string tag the generated union does not declare.
+   */
+  unknownEvents?: "forward" | "ignore";
+}
+
+export interface EventPolicy {
+  discriminator: string;
+  known: readonly string[];
 }
 
 export interface StreamRequest {
@@ -19,6 +29,7 @@ export interface StreamRequest {
   query?: URLSearchParams;
   headers?: HeadersInit;
   body?: string;
+  events?: EventPolicy;
 }
 
 export function encodePath(value: string | number | boolean | null): string {
@@ -158,6 +169,24 @@ export async function* parseSSE<T>(
   }
 }
 
+function unknownTags(options: RequestOptions, request: StreamRequest): ReadonlySet<string> | undefined {
+  const policy = options.unknownEvents ?? "forward";
+  if (policy !== "forward" && policy !== "ignore") {
+    throw new TypeError('unknownEvents must be "forward" or "ignore"');
+  }
+  if (policy === "forward") return undefined;
+  if (!request.events) {
+    throw new TypeError('unknownEvents: "ignore" requires a top-level discriminated event union');
+  }
+  return new Set(request.events.known);
+}
+
+function isUnknownEvent(event: unknown, discriminator: string, known: ReadonlySet<string>): boolean {
+  if (typeof event !== "object" || event === null || Array.isArray(event)) return false;
+  const tag = (event as Record<string, unknown>)[discriminator];
+  return typeof tag === "string" && !known.has(tag);
+}
+
 function mergeHeaders(...sources: (HeadersInit | undefined)[]): Headers {
   const result = new Headers();
   for (const source of sources) {
@@ -204,6 +233,7 @@ export async function* stream<T>(
   request: StreamRequest,
   options: RequestOptions = {},
 ): AsyncGenerator<T, void, unknown> {
+  const known = unknownTags(options, request);
   const controller = new AbortController();
   const onAbort = () => controller.abort(options.signal?.reason);
   options.signal?.addEventListener("abort", onAbort, { once: true });
@@ -248,7 +278,15 @@ export async function* stream<T>(
     if (!response.body) throw new TransportError("SSE response has no body");
     bodyHandled = true;
     try {
-      yield* parseSSE<T>(response.body, controller.signal);
+      const events = parseSSE<T>(response.body, controller.signal);
+      if (known === undefined || request.events === undefined) {
+        yield* events;
+      } else {
+        const { discriminator } = request.events;
+        for await (const event of events) {
+          if (!isUnknownEvent(event, discriminator, known)) yield event;
+        }
+      }
     } catch (cause) {
       controller.signal.throwIfAborted();
       if (cause instanceof TransportError) throw cause;

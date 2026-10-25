@@ -52,6 +52,7 @@ export function createAgentRunsApi(client: ClientOptions) {
         query,
         headers,
         ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
+        events: {"discriminator": "type", "known": ["run.completed", "run.failed", "run.started", "token.delta"]},
       }, options);
     },
     /**
@@ -83,6 +84,7 @@ export function createAgentRunsApi(client: ClientOptions) {
         method: "GET",
         query,
         headers,
+        events: {"discriminator": "type", "known": ["run.completed", "run.failed", "run.started", "token.delta"]},
       }, options);
     },
   };
