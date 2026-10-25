@@ -174,7 +174,10 @@ recursive calls, dynamic contracts, nested route factories, deferred coroutine
 execution and unsupported control flow produce `CAN003`. Loops, context managers,
 comprehensions, `match` and `except*` are currently outside the supported flow
 analysis. Reassigned module declarations and detected contract mutations also
-prevent a complete result. Dishka provider bindings are not executed or inferred:
+prevent a complete result, including assignments with type annotations. Expanded
+`ErrorRegistry(**config)` arguments are unresolved contracts: the checker reports
+`CAN003` and suppresses guessed gaps for those operations. Dishka provider bindings
+are not executed or inferred:
 an abstract port remains incomplete even if the application always binds one
 implementation.
 

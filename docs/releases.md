@@ -56,7 +56,8 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 
 ## Prepared source versions
 
-Canon source 0.8.0 is prepared for reusable router policies. It is unpublished;
+Canon source 0.8.0 is prepared for reusable router policies and optional
+source-based error-contract checking. It is unpublished;
 the current public Canon release remains 0.7.0. Constructor-signature migration
 and policy scope are documented in the
 [Canon changelog](../packages/fastapi-canon/CHANGELOG.md#080---unreleased).

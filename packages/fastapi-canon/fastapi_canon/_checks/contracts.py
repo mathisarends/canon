@@ -338,6 +338,11 @@ class _Checker:
                     "fastapi_canon.error.ErrorRegistry",
                     "fastapi_canon.error.registry.ErrorRegistry",
                 }:
+                    if any(item.arg is None for item in registry.keywords):
+                        self._unknown(
+                            operation,
+                            "expanded ErrorRegistry keyword arguments may change the contract",
+                        )
                     catalog.update(
                         self._errors(
                             _keyword(registry, "errors"), registry_scope, operation

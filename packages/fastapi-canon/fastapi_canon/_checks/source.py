@@ -134,6 +134,10 @@ class _Source:
                         )
             elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
                 if node.value is not None:
+                    if f"{module}.{node.target.id}" in self.bindings:
+                        self.uncertain.setdefault(module, []).append(
+                            f"reassigned module binding: {node.target.id}"
+                        )
                     self.bindings[f"{module}.{node.target.id}"] = module, node.value
             elif isinstance(node, ast.TypeAlias) and isinstance(node.name, ast.Name):
                 self.bindings[f"{module}.{node.name.id}"] = module, node.value

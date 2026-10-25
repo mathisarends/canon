@@ -662,6 +662,59 @@ def endpoint(): raise Missing()
     assert codes(report) == ["CAN003"]
 
 
+@pytest.mark.parametrize("initially_declared", [False, True])
+def test_reassigned_annotated_contract_is_incomplete(
+    tmp_path: Path, initially_declared: bool
+) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + f"""
+shared: list = {"[missing]" if initially_declared else "[]"}
+@router.get('/', raises=shared)
+def endpoint(): raise Missing()
+shared: list = {"[]" if initially_declared else "[missing]"}
+""",
+    )
+    assert report.gaps == 0
+    assert report.incomplete == 1
+    assert codes(report) == ["CAN003"]
+    assert (
+        "reassigned module binding: shared"
+        in report.operations[0].diagnostics[0].message
+    )
+    assert _main([str(tmp_path), "--strict", "--require-complete"]) == 1
+
+
+@pytest.mark.parametrize("explicit_errors", [False, True])
+def test_expanded_registry_is_incomplete_without_guessed_gaps(
+    tmp_path: Path, explicit_errors: bool
+) -> None:
+    configuration = (
+        'config = {"type_base": "https://example.test/problems"}\n'
+        "registry = ErrorRegistry(errors=[missing], **config)"
+        if explicit_errors
+        else 'config = {"errors": [missing]}\nregistry = ErrorRegistry(**config)'
+    )
+    report = analyze(
+        tmp_path,
+        PRELUDE.replace("registry = ErrorRegistry(errors=[missing])", configuration)
+        + """
+@router.get('/', raises=[missing])
+def endpoint(): raise Missing()
+""",
+    )
+    assert report.gaps == 0
+    assert report.incomplete == 1
+    assert codes(report) == ["CAN003"]
+    assert (
+        "expanded ErrorRegistry keyword arguments"
+        in report.operations[0].diagnostics[0].message
+    )
+    assert _main([str(tmp_path), "--strict"]) == 0
+    assert _main([str(tmp_path), "--strict", "--require-complete"]) == 1
+
+
 def test_cli_help_names_the_error_contract_check(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -34,6 +34,14 @@ All notable changes to `fastapi-canon` are documented in this file.
   invocation, preserving error paths and incomplete-analysis diagnostics. Add a
   reproducible benchmark for source-processing and full-command timings.
 
+### Fixed
+
+- Mark annotated module reassignments as incomplete source analysis, preventing
+  later declarations from hiding a missing route error contract or creating a
+  false gap for an already registered contract.
+- Report expanded `ErrorRegistry(**config)` arguments as incomplete instead of
+  treating an unresolved catalog as empty and reporting missing error mappings.
+
 ## 0.7.0 - 2026-10-24
 
 [GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.7.0)
