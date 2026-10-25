@@ -4,13 +4,15 @@
 
 | Package | Published |
 | --- | --- |
-| `fastapi-canon` | 0.7.0 |
+| `fastapi-canon` | 0.8.0 |
 | `fastapi-streams` | 0.4.0 |
 | `fastapi-rpckit` | 0.4.0 |
 | `fastapi-webrtc` | 0.3.0 |
 
 Published versions and assets are linked in the [README](../README.md#current-releases).
-WebRTC 0.3.0 and Canon 0.7.0 were published on 2026-10-24. Follow the
+Canon 0.8.0 was published on 2026-10-25; WebRTC 0.3.0 on 2026-10-24. Follow the
+[Canon router-policy migration notes](../packages/fastapi-canon/CHANGELOG.md#080---2026-10-25)
+when updating constructor wrappers and the
 [WebRTC migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24)
 before upgrading custom engines. The [release record](releases.md#current-versions)
 links the verified source and publication workflows.
@@ -19,10 +21,9 @@ versions and does not establish support for every resolvable combination. Canon'
 Streams and WebRTC extras pin the corresponding independently versioned package.
 Canon core and each extension work independently.
 
-Canon source 0.8.0 adds router policies and optional source-based error-contract
-checking and is not yet published. Its policy contracts and installed checker
-are exercised by the current/minimum installed-wheel smoke matrices;
-the published-release verification record below still refers to Canon 0.7.0.
+Canon 0.8.0 adds router policies and optional source-based error-contract checking.
+Its policy contracts and installed checker are exercised by the current/minimum
+installed-wheel smoke matrices and public-index installation checks.
 
 The current releases passed exact-source CI, current/minimum wheel
 matrices and installed CLI/client checks before publication. Public installs cover

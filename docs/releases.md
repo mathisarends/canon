@@ -9,7 +9,16 @@ GitHub Releases and Actions retain publication evidence.
 
 ## Current versions
 
-WebRTC 0.3.0 and Canon 0.7.0 were published on 2026-10-24 from
+Canon 0.8.0 was published on 2026-10-25 from
+[verified source `50b8e4b`](https://github.com/mathisarends/canon/commit/50b8e4b442b93ad75b8e2b36024487e38f308330),
+after [exact-source CI](https://github.com/mathisarends/canon/actions/runs/40213500982)
+and the [publication workflow](https://github.com/mathisarends/canon/actions/runs/40214446851).
+The public PyPI hashes, fresh core/extra installs, matching tag, GitHub Release,
+release notes and original wheel/sdist/manifest assets are verified. A fresh
+Windows/Python 3.14 public-index installation also passed the combined-stack
+smoke checks for all four current package versions.
+
+Previously, WebRTC 0.3.0 and Canon 0.7.0 were published on 2026-10-24 from
 [verified source `6aad274`](https://github.com/mathisarends/canon/commit/6aad274800d1960a8bbbcb0fd7d54ec3f6901c99),
 in that order. Both publication workflows completed successfully:
 [WebRTC](https://github.com/mathisarends/canon/actions/runs/40079433426) and
@@ -21,7 +30,7 @@ assets are verified. Streams and RPCKit remain at the versions published on
 
 | Package | Version | Migration |
 | --- | --- | --- |
-| Canon | 0.7.0 | The optional `[webrtc]` extra pins WebRTC 0.3.0; apply its engine API migration. |
+| Canon | 0.8.0 | Update constructor wrappers or signature snapshots for `CanonRouter(policy=...)` and `Composition(router_policy=...)`. See the [router-policy migration notes](../packages/fastapi-canon/CHANGELOG.md#080---2026-10-25); source error-contract checking is optional. |
 | WebRTC | 0.3.0 | Use public enum members, keyword-only engine/channel options and `DescriptionType`; handle lazy type aliases in introspection tools. See the [migration notes](../packages/fastapi-webrtc/CHANGELOG.md#030---2026-10-24). |
 | Streams | 0.4.0 | No new release in this batch; existing client provenance and error-decoder contracts remain unchanged. |
 | RPCKit | 0.4.0 | Regenerate Python clients and invoke factory protocols with positional URLs. Handle `CancelledError` when cancelling direct `serve_websocket()` calls. |
@@ -56,13 +65,9 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 
 ## Prepared source versions
 
-Canon source 0.8.0 is prepared for reusable router policies and optional
-source-based error-contract checking. It is unpublished;
-the current public Canon release remains 0.7.0. Constructor-signature migration
-and policy scope are documented in the
-[Canon changelog](../packages/fastapi-canon/CHANGELOG.md#080---2026-10-25).
-The other package source versions still match their published releases. Complete
-the release gates below before publishing the prepared Canon version.
+All four package source versions match their published releases. No additional
+release is currently prepared. Follow the release gates below when preparing
+the next independent package version.
 
 ## Publisher setup
 

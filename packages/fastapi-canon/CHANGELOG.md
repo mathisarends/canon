@@ -4,6 +4,9 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ## 0.8.0 - 2026-10-25
 
+[GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.8.0)
+and [PyPI](https://pypi.org/project/fastapi-canon/0.8.0/).
+
 ### Breaking changes
 
 - Extend the public constructor signatures with `CanonRouter(policy=...)` and
