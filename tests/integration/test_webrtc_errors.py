@@ -12,6 +12,7 @@ from fastapi_canon import (
     ErrorOptions,
     ErrorRegistry,
     Feature,
+    RouterPolicy,
 )
 from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
 from fastapi_webrtc import Session
@@ -119,6 +120,44 @@ def test_shared_local_contracts_use_composed_registry_and_effective_path() -> No
     generated = generate_typescript(contract)["client.ts"]
     assert "admissionErrors:" in generated
     assert 'code: "browser_missing"' in generated
+
+
+def test_router_policy_applies_to_webrtc_admission_and_contract() -> None:
+    def authorize() -> None:
+        raise Forbidden()
+
+    policy = RouterPolicy(
+        error_registry=ErrorRegistry(errors=[FORBIDDEN]),
+        dependencies=[Depends(authorize)],
+        raises=[FORBIDDEN],
+    )
+    router = CanonWebRtcRouter(
+        engine=NoPeerEngine(),
+        policy=policy,
+        error_registry=ErrorRegistry(errors=[MISSING]),
+    )
+
+    @router.session("/policy-video", raises=[MISSING])
+    async def video() -> Session:
+        return Session()
+
+    app = Composition(
+        Feature(name="video", routers=[router]),
+        errors=ErrorOptions(type_base="https://example.test/problems"),
+    ).apply(FastAPI())
+    errors = build_contract(app)["sessions"][0]["admission_errors"]
+    assert [error["code"] for error in errors] == [
+        "browser_forbidden",
+        "browser_missing",
+    ]
+    with (
+        TestClient(app) as client,
+        pytest.raises(WebSocketDenialResponse) as caught,
+        client.websocket_connect("/policy-video"),
+    ):
+        pytest.fail("Denied session was accepted")
+    assert caught.value.status_code == 403
+    assert caught.value.json()["code"] == "browser_forbidden"
 
 
 def test_invalid_declarations_fail_during_configuration() -> None:

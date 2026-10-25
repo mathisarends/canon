@@ -25,7 +25,8 @@ from fastapi_canon.error.contracts import INSTALLED_REGISTRY_STATE_KEY
 from fastapi_canon.error.openapi import compile_error_schema
 from fastapi_canon.error.registry import AnyError, ErrorRegistry
 from fastapi_canon.error.types import ErrorConfigurationError
-from fastapi_canon.router import CanonRouter, _distinct, _normalize_raises
+from fastapi_canon.policy import normalize_raises as _normalize_raises
+from fastapi_canon.router import CanonRouter, _distinct
 
 __all__ = ["CanonWebRtcRouter"]
 

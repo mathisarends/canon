@@ -19,6 +19,10 @@ versions and does not establish support for every resolvable combination. Canon'
 Streams and WebRTC extras pin the corresponding independently versioned package.
 Canon core and each extension work independently.
 
+Canon source 0.8.0 adds router policies and is not yet published. Its policy
+contracts are exercised by the current/minimum installed-wheel smoke matrices;
+the published-release verification record below still refers to Canon 0.7.0.
+
 The current releases passed exact-source CI, current/minimum wheel
 matrices and installed CLI/client checks before publication. Public installs cover
 Canon core, each optional extra and both extras together. A fresh Windows/Python
