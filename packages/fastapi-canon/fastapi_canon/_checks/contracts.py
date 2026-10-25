@@ -78,6 +78,7 @@ class _Checker:
 
     def check(self) -> _Report:
         operations: list[_Operation] = []
+        nested = {id(function.node) for function in self.source.nested}
         for function in [*self.source.definitions.values(), *self.source.nested]:
             if not isinstance(function.node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
@@ -96,7 +97,7 @@ class _Checker:
                     str(self.source.paths[function.module]),
                     decorator.lineno,
                 )
-                if function in self.source.nested:
+                if id(function.node) in nested:
                     operations.append(operation)
                     self._unknown(
                         operation,

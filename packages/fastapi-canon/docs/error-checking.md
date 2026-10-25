@@ -95,6 +95,46 @@ and still contain a contract gap. An empty result does not establish coverage.
 When an error catalog or `raises` sequence cannot be resolved, the checker reports
 incomplete analysis instead of guessing which errors are missing.
 
+## Performance in CI
+
+The checker reads each source file once and reuses function summaries and
+inheritance results within that invocation. Summaries retain the first error path
+per exception, matching the report's existing behavior. Cached summaries also
+retain dependencies on modules with uncertain declarations; recursive call paths
+remain incomplete. All caches are discarded when the check finishes, so each new
+invocation reads the current source.
+
+Local Windows/Python 3.14 measurements with dependencies installed and a warm
+filesystem cache:
+
+| Workload | Source processing | Full CLI invocation |
+| --- | --- | --- |
+| Reference service: 43 files, 4 operations | 18–39 ms | 1.0–1.9 s |
+| Synthetic shared helper graph: 102 files, 1,000 operations | 0.26 s | 1.32 s |
+| Synthetic shared helper graph: 1,002 files, 10,000 operations | 4.93 s | 6.63 s |
+
+The 1,000-operation case improved from 7.70 s to 1.32 s for the full command,
+using five-run medians. Before/after reports have identical fingerprints,
+including source locations, error paths and incomplete-analysis diagnostics.
+The 10,000-operation case uses a three-run median. These synthetic workloads
+exercise shared services and repeated helper calls; they are measurements, not CI
+time limits or guarantees for other projects. Python and Canon's existing
+FastAPI/Dishka imports account for most of a small project's command time.
+
+Pass all relevant import roots in one invocation to pay interpreter startup once.
+Measure on your CI runner before setting a time budget. From this workspace, use:
+
+```console
+uv run --locked python scripts/benchmark_error_contracts.py --output dist/checker-benchmark.json
+```
+
+The benchmark generates its workload under `dist/`, measures source processing
+and fresh CLI processes separately, and records Python/platform metadata. Use
+`--compare dist/previous-benchmark.json` to verify unchanged report fingerprints;
+`--profile dist/checker.prof` records a cProfile capture. CI regression tests
+verify that shared helpers are analyzed once and cached results preserve
+completeness, rather than asserting machine-dependent wall-clock thresholds.
+
 ## Supported source patterns
 
 The initial checker follows direct `CanonRouter` declarations with ordinary route

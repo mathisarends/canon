@@ -4,7 +4,9 @@ from textwrap import dedent
 
 import pytest
 
-from fastapi_canon._checks.contracts import _check_error_contracts, _Report
+from fastapi_canon._checks.analysis import _Flow
+from fastapi_canon._checks.contracts import _check_error_contracts, _Checker, _Report
+from fastapi_canon._checks.source import _Definition, _Source
 from fastapi_canon.check_error_contracts import _main
 
 PRELUDE = """
@@ -734,3 +736,163 @@ def endpoint(): raise Missing()
     )
     assert codes(report) == ["CAN003"]
     assert "composition policy mounting" in report.operations[0].diagnostics[0].message
+
+
+def test_shared_helpers_are_analyzed_once_per_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    analyze(
+        tmp_path,
+        PRELUDE
+        + """
+def shared(): raise Missing()
+@router.get('/first')
+def first(): shared()
+@router.get('/second', raises=[missing])
+def second(): shared()
+""",
+    )
+    checker = _Checker(_Source.read([tmp_path]))
+    calls: list[str] = []
+    original = checker.analyzer._analyze_function
+
+    def counted(function: _Definition, stack: tuple[str, ...]) -> _Flow:
+        calls.append(function.name)
+        return original(function, stack)
+
+    monkeypatch.setattr(checker.analyzer, "_analyze_function", counted)
+    report = checker.check()
+    assert calls.count("api.shared") == 1
+    assert codes(report) == ["CAN001"]
+    assert not report.operations[1].diagnostics
+
+
+def test_cached_function_does_not_acquire_route_dependencies(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+from fastapi import Depends
+def authenticate(): raise Missing()
+@router.get('/first', dependencies=[Depends(authenticate)])
+def first(): pass
+@router.get('/second')
+def second(): first()
+""",
+    )
+    assert codes(report) == ["CAN001"]
+    assert not report.operations[1].diagnostics
+
+
+def test_cached_call_graph_preserves_uncertain_modules(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+from outer import run
+@router.get('/first')
+def first(): run()
+@router.get('/second')
+def second(): run()
+""",
+        **{
+            "outer.py": "from inner import work\ndef run(): work()\n",
+            "inner.py": "state = 1\nstate = 2\ndef work(): pass\n",
+        },
+    )
+    assert len(report.operations) == report.incomplete == 2
+    assert all(
+        "reassigned module binding" in operation.diagnostics[0].message
+        for operation in report.operations
+    )
+
+
+def test_cached_inheritance_preserves_uncertain_modules(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        """
+from fastapi_canon import CanonRouter
+from errors import registry
+router = CanonRouter(error_registry=registry)
+@router.get('/first')
+def first(): pass
+@router.get('/second')
+def second(): pass
+""",
+        **{
+            "base.py": "state = 1\nstate = 2\nclass Base(Exception): pass\n",
+            "errors.py": """
+from fastapi_canon import Error, ErrorRegistry
+from base import Base
+class Missing(Base): pass
+missing = Error(Missing, status=404, code='missing', title='Missing')
+registry = ErrorRegistry(errors=[missing])
+""",
+        },
+    )
+    assert len(report.operations) == report.incomplete == 2
+    assert report.gaps == 0
+
+
+def test_recursive_summaries_preserve_each_entry_context(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+def a(): b()
+def b():
+    a()
+    raise Missing()
+@router.get('/first')
+def first(): a()
+@router.get('/second')
+def second(): b()
+""",
+    )
+    assert report.incomplete == report.gaps == 2
+    paths = [
+        next(item.trace for item in operation.diagnostics if item.code == "CAN001")
+        for operation in report.operations
+    ]
+    assert paths == [("api.first", "api.a", "api.b"), ("api.second", "api.b")]
+
+
+def test_summary_retains_first_error_paths_and_order(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+class Conflict(Exception): pass
+def shared(flag: bool):
+    if flag:
+        raise Missing()
+    if flag:
+        raise Conflict()
+    raise Missing()
+@router.get('/')
+def endpoint(): shared(True)
+""",
+    )
+    assert codes(report) == ["CAN001", "CAN002"]
+    first = report.operations[0].diagnostics[0]
+    assert (tmp_path / "api.py").read_text("utf-8").splitlines()[
+        first.line - 2
+    ].strip() == "if flag:"
+
+
+def test_separate_runs_recheck_changed_helpers(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+from helper import work
+@router.get('/')
+def endpoint(): work()
+""",
+        **{"helper.py": "def work(): pass\n"},
+    )
+    assert not codes(report)
+    (tmp_path / "helper.py").write_text(
+        "from api import Missing\ndef work(): raise Missing()\n", encoding="utf-8"
+    )
+    assert codes(_check_error_contracts([tmp_path])) == ["CAN001"]

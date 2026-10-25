@@ -33,14 +33,46 @@ class _Flow:
 class _Analyzer:
     def __init__(self, source: _Source) -> None:
         self.source = source
+        self._summaries: dict[
+            str, tuple[tuple[_Escape, ...], tuple[_Unknown, ...], frozenset[str]]
+        ] = {}
 
     def function(self, function: _Definition, stack: tuple[str, ...] = ()) -> _Flow:
-        node = function.node
-        assert isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
         if function.name in stack:
             return _Flow(
-                unknowns=[_Unknown("recursive call", function.name, node.lineno)]
+                unknowns=[
+                    _Unknown("recursive call", function.name, function.node.lineno)
+                ]
             )
+        if function.name in self._summaries:
+            escapes, unknowns, modules = self._summaries[function.name]
+            self.source.touched.update(modules)
+            return _Flow(list(escapes), list(unknowns))
+        previous = self.source.touched
+        self.source.touched = set()
+        try:
+            flow = self._analyze_function(function, stack)
+            # The report retains the first path per exception. Propagation and
+            # catching depend on exception types, not duplicate paths to them.
+            first: dict[str, _Escape] = {}
+            for item in flow.escapes:
+                first.setdefault(item.exception, item)
+            flow.escapes = list(first.values())
+            flow.unknowns = list(dict.fromkeys(flow.unknowns))
+            if not any(item.message == "recursive call" for item in flow.unknowns):
+                self._summaries[function.name] = (
+                    tuple(flow.escapes),
+                    tuple(flow.unknowns),
+                    frozenset(self.source.touched),
+                )
+            return flow
+        finally:
+            previous.update(self.source.touched)
+            self.source.touched = previous
+
+    def _analyze_function(self, function: _Definition, stack: tuple[str, ...]) -> _Flow:
+        node = function.node
+        assert isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
         flow = _Flow()
         for decorator in node.decorator_list:
             name = self.source.resolve(decorator, function.module)
@@ -397,7 +429,7 @@ class _Analyzer:
                                 definition.node.returns, definition.module
                             )
                 for target in targets:
-                    key = ast.unparse(target)
+                    key = self.source.key(target)
                     env[key] = resolved or ""
                 continue
             if isinstance(node, ast.Return):
@@ -430,13 +462,12 @@ class _Analyzer:
             self._invalidate(node, env)
         return flow
 
-    @staticmethod
-    def _invalidate(node: ast.AST, env: _Environment) -> None:
+    def _invalidate(self, node: ast.AST, env: _Environment) -> None:
         for child in ast.walk(node):
             if isinstance(child, ast.Name | ast.Attribute) and isinstance(
                 child.ctx, ast.Store
             ):
-                env[ast.unparse(child)] = ""
+                env[self.source.key(child)] = ""
 
 
 _ROUTE_METHODS = frozenset(

@@ -31,6 +31,10 @@ class _Source:
     nested: list[_Definition] = field(default_factory=list)
     touched: set[str] = field(default_factory=set)
     composition_policies: list[tuple[str, int]] = field(default_factory=list)
+    _keys: dict[ast.expr, str] = field(default_factory=dict)
+    _mros: dict[str, tuple[tuple[str, ...] | None, frozenset[str]]] = field(
+        default_factory=dict
+    )
 
     @classmethod
     def read(cls, roots: list[Path]) -> Self:
@@ -60,21 +64,25 @@ class _Source:
                         raise ValueError(f"duplicate module {module!r}: {path}")
                     source.paths[module] = path
                     tree = ast.parse(path.read_text("utf-8-sig"), filename=str(path))
-                    calls.extend(
-                        (module, node)
-                        for node in ast.walk(tree)
-                        if isinstance(node, ast.Call)
-                    )
-                    source._index(module, tree.body, package=package)
-                    indexed = {id(item.node) for item in source.definitions.values()}
-                    source.nested.extend(
-                        _Definition(
-                            f"{module}.<local>.{node.name}:{node.lineno}", module, node
-                        )
-                        for node in ast.walk(tree)
-                        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-                        and id(node) not in indexed
-                    )
+                    names: set[str] = set()
+                    source._index(module, tree.body, package=package, names=names)
+                    indexed = {id(source.definitions[name].node) for name in names}
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Call) and any(
+                            item.arg == "router_policy" for item in node.keywords
+                        ):
+                            calls.append((module, node))
+                        elif (
+                            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+                            and id(node) not in indexed
+                        ):
+                            source.nested.append(
+                                _Definition(
+                                    f"{module}.<local>.{node.name}:{node.lineno}",
+                                    module,
+                                    node,
+                                )
+                            )
         for module, call in calls:
             if source.resolve(call.func, module) in {
                 "fastapi_canon.Composition",
@@ -89,7 +97,9 @@ class _Source:
                 source.composition_policies.append((module, call.lineno))
         return source
 
-    def _index(self, module: str, body: list[ast.stmt], *, package: bool) -> None:
+    def _index(
+        self, module: str, body: list[ast.stmt], *, package: bool, names: set[str]
+    ) -> None:
         for node in body:
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -145,6 +155,7 @@ class _Source:
             ):
                 name = f"{module}.{node.name}"
                 self.definitions[name] = _Definition(name, module, node)
+                names.add(name)
                 if isinstance(node, ast.ClassDef):
                     for member in node.body:
                         if isinstance(member, ast.FunctionDef | ast.AsyncFunctionDef):
@@ -152,10 +163,11 @@ class _Source:
                             self.definitions[key] = _Definition(
                                 key, module, member, name
                             )
+                            names.add(key)
             elif isinstance(node, ast.If):
                 # In particular, imports guarded by TYPE_CHECKING remain available.
-                self._index(module, node.body, package=package)
-                self._index(module, node.orelse, package=package)
+                self._index(module, node.body, package=package, names=names)
+                self._index(module, node.orelse, package=package, names=names)
                 if ast.unparse(node.test) not in {
                     "TYPE_CHECKING",
                     "typing.TYPE_CHECKING",
@@ -209,9 +221,10 @@ class _Source:
     ) -> str | None:
         self.touched.add(module)
         env = env or {}
-        text = ast.unparse(node)
-        if text in env:
-            return env[text] or None
+        if env:
+            text = self.key(node)
+            if text in env:
+                return env[text] or None
         if isinstance(node, ast.Name):
             local = f"{module}.{node.id}"
             if local in self.bindings or local in self.definitions:
@@ -227,6 +240,13 @@ class _Source:
                 method = self.method(parent, node.attr)
                 return method.name if method else candidate
         return None
+
+    def key(self, node: ast.expr) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if node not in self._keys:
+            self._keys[node] = ast.unparse(node)
+        return self._keys[node]
 
     def value(self, node: ast.expr, module: str) -> tuple[str, ast.expr]:
         seen: set[str] = set()
@@ -276,9 +296,29 @@ class _Source:
                 return self.annotation(node.right, module, seen)
         return self.resolve(node, module)
 
-    def mro(self, name: str, seen: frozenset[str] = frozenset()) -> list[str] | None:
+    def mro(
+        self, name: str, seen: frozenset[str] = frozenset()
+    ) -> tuple[str, ...] | None:
         if name in seen:
             return None
+        if name in self._mros:
+            order, modules = self._mros[name]
+            self.touched.update(modules)
+            return order
+        # Resolution also records modules with uncertain declarations. Replay
+        # those dependencies on cache hits so completeness checks stay intact.
+        previous = self.touched
+        self.touched = set()
+        try:
+            resolved = self._mro(name, seen)
+            order = tuple(resolved) if resolved is not None else None
+            self._mros[name] = order, frozenset(self.touched)
+            return order
+        finally:
+            previous.update(self.touched)
+            self.touched = previous
+
+    def _mro(self, name: str, seen: frozenset[str]) -> list[str] | None:
         if name.startswith("builtins."):
             value = getattr(builtins, name.split(".")[1], None)
             if isinstance(value, type):
@@ -296,7 +336,7 @@ class _Source:
             order = self.mro(base, seen | {name}) if base else None
             if order is None:
                 return None
-            sequences.append(order.copy())
+            sequences.append(list(order))
         sequences.append([base for base in bases if base is not None])
         result = [name]
         while remaining := [sequence for sequence in sequences if sequence]:
@@ -359,5 +399,5 @@ class _Source:
                         if resolved:
                             for target in statement.targets:
                                 if isinstance(target, ast.Attribute):
-                                    env[ast.unparse(target)] = resolved
+                                    env[self.key(target)] = resolved
         return env

@@ -30,6 +30,9 @@ All notable changes to `fastapi-canon` are documented in this file.
   accounts for supported exception handling and inheritance, and reports
   unresolved paths as incomplete analysis. Warning output is the default;
   strict CI modes and JSON reports are opt-in.
+- Reuse source-checker function summaries and inheritance results within each
+  invocation, preserving error paths and incomplete-analysis diagnostics. Add a
+  reproducible benchmark for source-processing and full-command timings.
 
 ## 0.7.0 - 2026-10-24
 
