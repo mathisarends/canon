@@ -111,3 +111,9 @@ the compiled operation contracts. Do not install a parallel validation handler
 for the same error shape. See the reference service's
 [error definitions](../examples/reference-service/src/app/features/tasks/presentation/errors.py)
 and [runtime/contract tests](../examples/reference-service/tests/test_api.py).
+
+For an optional source check of explicit application exceptions against route
+`raises`, run `python -m fastapi_canon.check_error_contracts src`. This complements contract
+validation and reports unsupported paths, including abstract ports, as incomplete.
+See [error-contract checking](../packages/fastapi-canon/docs/error-checking.md) for
+supported patterns and opt-in CI failure modes.

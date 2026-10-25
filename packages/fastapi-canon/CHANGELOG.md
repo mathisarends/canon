@@ -24,6 +24,15 @@ All notable changes to `fastapi-canon` are documented in this file.
   reusable feature routers or walking FastAPI's internal route tree. Preserve
   FastAPI dependency behavior, combine same-status Problem schemas, and reject
   manual response collisions before installing the composition.
+- Optional `python -m fastapi_canon.check_error_contracts` source checker for
+  explicit application exceptions missing from direct CanonRouter error
+  contracts. It follows typed services, helpers and FastAPI dependencies,
+  accounts for supported exception handling and inheritance, and reports
+  unresolved paths as incomplete analysis. Warning output is the default;
+  strict CI modes and JSON reports are opt-in.
+- Reuse source-checker function summaries and inheritance results within each
+  invocation, preserving error paths and incomplete-analysis diagnostics. Add a
+  reproducible benchmark for source-processing and full-command timings.
 
 ## 0.7.0 - 2026-10-24
 

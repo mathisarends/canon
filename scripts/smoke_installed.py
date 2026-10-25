@@ -2,6 +2,7 @@ import asyncio
 import faulthandler
 import importlib
 import importlib.util
+import json
 import runpy
 import shutil
 import subprocess
@@ -64,6 +65,7 @@ def main() -> None:
             return {"status": "ok"}
 
         routers.append(http)
+        _canon_check()
     if "fastapi-streams" in selected:
         from fastapi_streams import StreamRouter
 
@@ -182,6 +184,61 @@ def main() -> None:
             )
         assert counter.closed
     print(f"Installed artifact checks passed: {', '.join(sorted(selected))}")
+
+
+def _canon_check() -> None:
+    with tempfile.TemporaryDirectory(prefix="canon-check-") as temporary:
+        root = Path(temporary)
+        source = root / "api.py"
+        source.write_text(
+            "from fastapi_canon import CanonRouter, Error, ErrorRegistry\n"
+            "class Missing(Exception): pass\n"
+            "missing = Error(Missing, status=404, code='missing', title='Missing')\n"
+            "registry = ErrorRegistry(errors=[missing])\n"
+            "router = CanonRouter(error_registry=registry)\n"
+            "@router.get('/')\n"
+            "def endpoint(): raise Missing()\n",
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-m",
+                "fastapi_canon.check_error_contracts",
+                str(root),
+                "--strict",
+                "--format",
+                "json",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        assert result.returncode == 1, result.stderr
+        report = json.loads(result.stdout)
+        assert report["contract_gaps"] == 1
+        assert report["incomplete_operations"] == 0
+        source.write_text(
+            source.read_text("utf-8").replace(
+                "@router.get('/')", "@router.get('/', raises=[missing])"
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-m",
+                "fastapi_canon.check_error_contracts",
+                str(root),
+                "--strict",
+                "--require-complete",
+            ],
+            check=True,
+            timeout=30,
+        )
 
 
 def _cli(name: str) -> None:
