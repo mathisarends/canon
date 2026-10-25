@@ -30,10 +30,12 @@ class _Source:
     uncertain: dict[str, list[str]] = field(default_factory=dict)
     nested: list[_Definition] = field(default_factory=list)
     touched: set[str] = field(default_factory=set)
+    composition_policies: list[tuple[str, int]] = field(default_factory=list)
 
     @classmethod
     def read(cls, roots: list[Path]) -> Self:
         source = cls()
+        calls: list[tuple[str, ast.Call]] = []
         for root in roots:
             root = root.resolve()
             if not root.is_dir():
@@ -58,6 +60,11 @@ class _Source:
                         raise ValueError(f"duplicate module {module!r}: {path}")
                     source.paths[module] = path
                     tree = ast.parse(path.read_text("utf-8-sig"), filename=str(path))
+                    calls.extend(
+                        (module, node)
+                        for node in ast.walk(tree)
+                        if isinstance(node, ast.Call)
+                    )
                     source._index(module, tree.body, package=package)
                     indexed = {id(item.node) for item in source.definitions.values()}
                     source.nested.extend(
@@ -68,6 +75,18 @@ class _Source:
                         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
                         and id(node) not in indexed
                     )
+        for module, call in calls:
+            if source.resolve(call.func, module) in {
+                "fastapi_canon.Composition",
+                "fastapi_canon.feature.Composition",
+            } and any(
+                item.arg == "router_policy"
+                and not (
+                    isinstance(item.value, ast.Constant) and item.value.value is None
+                )
+                for item in call.keywords
+            ):
+                source.composition_policies.append((module, call.lineno))
         return source
 
     def _index(self, module: str, body: list[ast.stmt], *, package: bool) -> None:

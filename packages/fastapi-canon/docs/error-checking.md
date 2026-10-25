@@ -31,7 +31,7 @@ It reads both from source; it does not execute the application.
 flowchart TD
     CLI["check_error_contracts src"] --> AST["Parse Python files into an AST"]
     AST --> INDEX["Resolve imports, aliases, types and definitions"]
-    INDEX --> CONTRACT["Read ErrorRegistry and combine router + operation raises"]
+    INDEX --> CONTRACT["Read ErrorRegistry and combine policy + router + operation raises"]
     INDEX --> CALLS["Follow endpoint, service, helper and dependency calls"]
     CALLS --> HANDLING["Remove caught exceptions and include translated exceptions"]
     HANDLING --> MATCH{"Registry mapping found through inheritance?"}
@@ -99,7 +99,9 @@ incomplete analysis instead of guessing which errors are missing.
 
 The initial checker follows direct `CanonRouter` declarations with ordinary route
 decorators, including `api_route`. It reads literal `ErrorRegistry(errors=[...])`
-and named `Error` definitions. Router and operation `raises` combine; supported
+and named `Error` definitions. A direct, statically resolved `RouterPolicy` supplies
+its registry, dependencies and shared errors. Policy, router and operation `raises`
+combine; supported
 sequences include named lists/tuples, unpacking and concatenation. Router contracts
 do not propagate to separately included child routers.
 
@@ -140,6 +142,10 @@ Only source route declarations are inspected; the tool does not establish which
 routers are actually mounted, follow `dependency_overrides`, or validate composed
 registries from other features. Pass all relevant source roots, retain runtime
 contract validation and test the application's intended error paths.
+
+When the scanned source contains `Composition(router_policy=...)`, the checker
+marks operations incomplete and suppresses guessed contract gaps: determining
+which operations inherit that policy requires analyzing application mounting.
 
 Plain FastAPI routers are skipped. Canon's SSE and WebRTC declarations are outside
 this first version. Generator bodies are explicitly incomplete: failures after

@@ -296,33 +296,63 @@ class _Checker:
         router: ast.Call,
     ) -> None:
         self.source.touched = {function.module, module}
-        for call in (router, decorator):
+        layers = [(module, router)]
+        policy_node = _keyword(router, "policy")
+        if policy_node is not None:
+            scope, policy = self.source.value(policy_node, module)
+            if not (isinstance(policy, ast.Constant) and policy.value is None):
+                if isinstance(policy, ast.Call) and self.source.resolve(
+                    policy.func, scope
+                ) in {
+                    "fastapi_canon.RouterPolicy",
+                    "fastapi_canon.policy.RouterPolicy",
+                }:
+                    layers.insert(0, (scope, policy))
+                else:
+                    self._unknown(operation, "unresolved RouterPolicy declaration")
+        for scope, line in self.source.composition_policies:
+            operation.diagnostics.append(
+                _Diagnostic(
+                    "CAN003",
+                    "composition policy mounting is outside source-declaration analysis",
+                    str(self.source.paths[scope]),
+                    line,
+                )
+            )
+        for call in [*(layer for _, layer in layers), decorator]:
             if any(item.arg is None for item in call.keywords):
                 self._unknown(
                     operation, "expanded keyword arguments may change the contract"
                 )
-        registry_node = _keyword(router, "error_registry")
         catalog: dict[str, str] = {}
-        if registry_node is not None:
-            scope, registry = self.source.value(registry_node, module)
-            if isinstance(registry, ast.Call) and self.source.resolve(
-                registry.func, scope
-            ) in {
-                _REGISTRY,
-                "fastapi_canon.error.ErrorRegistry",
-                "fastapi_canon.error.registry.ErrorRegistry",
-            }:
-                catalog = self._errors(_keyword(registry, "errors"), scope, operation)
-            else:
-                self._unknown(operation, "unresolved ErrorRegistry declaration")
-        declared = self._errors(_keyword(router, "raises"), module, operation)
+        declared: dict[str, str] = {}
+        for scope, layer in layers:
+            registry_node = _keyword(layer, "error_registry")
+            if registry_node is not None:
+                registry_scope, registry = self.source.value(registry_node, scope)
+                if isinstance(registry, ast.Call) and self.source.resolve(
+                    registry.func, registry_scope
+                ) in {
+                    _REGISTRY,
+                    "fastapi_canon.error.ErrorRegistry",
+                    "fastapi_canon.error.registry.ErrorRegistry",
+                }:
+                    catalog.update(
+                        self._errors(
+                            _keyword(registry, "errors"), registry_scope, operation
+                        )
+                    )
+                else:
+                    self._unknown(operation, "unresolved ErrorRegistry declaration")
+            declared.update(self._errors(_keyword(layer, "raises"), scope, operation))
         declared.update(
             self._errors(_keyword(decorator, "raises"), function.module, operation)
         )
         contracts_known = not operation.diagnostics
         flow = self.analyzer.function(function)
         flow.extend(self._dependencies(function))
-        flow.extend(self._router_dependencies(router, module, operation))
+        for scope, layer in layers:
+            flow.extend(self._router_dependencies(layer, scope, operation))
         flow.extend(self._router_dependencies(decorator, function.module, operation))
         contracts_known = contracts_known and not any(
             self.source.uncertain.get(scope) for scope in self.source.touched

@@ -669,3 +669,68 @@ def test_cli_help_names_the_error_contract_check(
     output = capsys.readouterr().out
     assert "python -m fastapi_canon.check_error_contracts" in output
     assert "CanonRouter raises declarations" in output
+
+
+@pytest.mark.parametrize("declared", [True, False])
+def test_direct_router_policy_contracts(tmp_path: Path, declared: bool) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + f"""
+from fastapi_canon import RouterPolicy
+policy = RouterPolicy(error_registry=registry, raises={"[missing]" if declared else "[]"})
+secured = CanonRouter(policy=policy)
+@secured.get('/')
+def endpoint(): raise Missing()
+""",
+    )
+    assert codes(report) == ([] if declared else ["CAN001"])
+
+
+def test_policy_dependencies_and_local_registry_combine(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+from fastapi import Depends
+from fastapi_canon import RouterPolicy
+class Conflict(Exception): pass
+conflict = Error(Conflict, status=409, code='conflict', title='Conflict')
+local_registry = ErrorRegistry(errors=[conflict])
+def authentication(): raise Missing()
+policy = RouterPolicy(error_registry=registry, dependencies=[Depends(authentication)])
+secured = CanonRouter(policy=policy, error_registry=local_registry, raises=[conflict])
+@secured.get('/')
+def endpoint(): raise Conflict()
+""",
+    )
+    assert codes(report) == ["CAN001"]
+    assert "api.missing" in report.operations[0].diagnostics[0].message
+
+
+def test_dynamic_policy_is_incomplete(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+secured = CanonRouter(policy=build_policy())
+@secured.get('/')
+def endpoint(): raise Missing()
+""",
+    )
+    assert codes(report) == ["CAN003"]
+
+
+def test_composition_policy_is_incomplete_instead_of_guessing(tmp_path: Path) -> None:
+    report = analyze(
+        tmp_path,
+        PRELUDE
+        + """
+from fastapi_canon import Composition, RouterPolicy
+composition = Composition(router_policy=RouterPolicy(error_registry=registry, raises=[missing]))
+@router.get('/')
+def endpoint(): raise Missing()
+""",
+    )
+    assert codes(report) == ["CAN003"]
+    assert "composition policy mounting" in report.operations[0].diagnostics[0].message
