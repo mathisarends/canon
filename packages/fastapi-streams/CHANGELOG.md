@@ -14,6 +14,17 @@ unreleased describe prepared source versions that have not been published.
   generated operation now embeds its discriminator and known tags. Operations
   without a top-level discriminated union reject `"ignore"` with a `TypeError`
   before any request. Regenerate TypeScript SDKs to adopt the option.
+- `--diff` for `schema --check`, `generate --check`, `check` and `sync --check`
+  prints a unified diff of each out-of-date file (including new and stale owned
+  files and a changed application contract) to stdout, so CI logs and agents can
+  see the drift without regenerating locally.
+- `fastapi-streams sync` reads `[tool.fastapi-streams]` (`app`, `schema` and
+  `[[tool.fastapi-streams.clients]]` with `language`, `output` and the existing
+  generation options) from `pyproject.toml` or `--config`, exports the schema and
+  regenerates every client. `sync --check` reports all stale targets read-only.
+  Unknown keys and invalid values are rejected with exit code 2.
+- `fastapi_streams.codegen.writer.planned_files` returns the files including the
+  ownership manifest that `write_files` would write.
 
 ### Performance
 

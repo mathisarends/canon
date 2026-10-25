@@ -168,8 +168,14 @@ uv run fastapi-streams check \
 ```
 
 `check` fails if the app's contract changed or generated files are stale. It
-writes nothing and needs no running server. Pair it with TypeScript's compiler
-and Pyright to catch invalid parameters and event access in consumer code.
+writes nothing and needs no running server. Add `--diff` to print what changed.
+Pair it with TypeScript's compiler and Pyright to catch invalid parameters and
+event access in consumer code.
+
+To regenerate or check the schema and every client with one command, list them
+under `[tool.fastapi-streams]` in `pyproject.toml` and run
+`uv run fastapi-streams sync` (or `sync --check --diff` in CI); see the
+[sync configuration](docs/codegen.md#one-command-for-schema-and-clients).
 
 | Check | What it verifies |
 | --- | --- |
