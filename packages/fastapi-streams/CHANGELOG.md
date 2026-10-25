@@ -5,6 +5,20 @@ unreleased describe prepared source versions that have not been published.
 
 ## 0.5.0 (unreleased)
 
+### Breaking changes
+
+- The client that a generated Python SDK creates when no `http_client` is
+  passed now uses `httpx.Timeout(None, connect=10.0)` (also exported as
+  `runtime.DEFAULT_TIMEOUT`) instead of `timeout=None`. Connecting to an
+  unreachable host now fails with `TransportError` after 10 seconds instead of
+  hanging; read, write and pool waits remain unbounded, so idle streams are
+  unaffected. This changed default requires a minor release under the pre-1.0
+  version policy. Migration: regenerate the SDK. To keep unbounded connects,
+  pass `RequestOptions(timeout=None)` per request or inject your own client,
+  for example `Client(url, http_client=httpx.AsyncClient(timeout=None))`.
+  Injected clients and explicit `RequestOptions.timeout` values behave as
+  before.
+
 ### Added
 
 - Generated TypeScript clients accept `RequestOptions.unknownEvents`. The default

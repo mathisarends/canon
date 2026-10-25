@@ -99,7 +99,11 @@ response.
 
 Requests inherit the injected client's timeout unless explicitly overridden
 with `RequestOptions(timeout=seconds)`. `RequestOptions(timeout=None)` disables
-timeouts for that request. The SDK-owned client defaults to no timeout for streams.
+timeouts for that request. The SDK-owned client (no `http_client` passed) uses
+`httpx.Timeout(None, connect=10.0)`, exported as `runtime.DEFAULT_TIMEOUT`: an
+unreachable host fails after 10 seconds, while read, write and pool waits stay
+unbounded so quiet streams are not cut off. Inject a client or pass
+`RequestOptions(timeout=...)` for different limits.
 
 Use `aclosing` for deterministic cleanup when exiting early:
 

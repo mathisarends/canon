@@ -15,6 +15,7 @@ from pydantic_core import ErrorDetails
 
 _JSON_ADAPTER = TypeAdapter[JsonValue](JsonValue)
 _LINE_END = re.compile(r"\r\n|\r|\n")
+DEFAULT_TIMEOUT = httpx.Timeout(None, connect=10.0)
 
 
 class TransportError(Exception):
@@ -176,7 +177,8 @@ class Transport:
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.headers = httpx.Headers(headers)
-        self.http_client = http_client or httpx.AsyncClient(timeout=None)
+        # Streams may idle indefinitely, but an unreachable host should fail fast.
+        self.http_client = http_client or httpx.AsyncClient(timeout=DEFAULT_TIMEOUT)
         self.owns_client = http_client is None
 
     async def aclose(self) -> None:
