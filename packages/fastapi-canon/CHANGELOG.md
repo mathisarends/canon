@@ -2,6 +2,18 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## 0.8.1 (unreleased)
+
+- Update the optional Streams integration and development pin to 0.5.0 for the
+  TypeScript `unknownEvents` option, `--diff` drift output, the config-driven
+  `fastapi-streams sync` command and faster SSE line splitting in generated
+  runtimes. Canon's public API and composition behavior remain unchanged; core
+  imports continue to work without Streams, RPCkit or WebRTC.
+- Streams 0.5.0 changes the connect timeout of SDK-owned generated Python HTTP
+  clients. Regenerate stream SDKs and follow the
+  [Streams 0.5.0 upgrade notes](../fastapi-streams/CHANGELOG.md) if a client
+  relied on an unbounded connect time.
+
 ## 0.8.0 - 2026-10-25
 
 [GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.8.0)

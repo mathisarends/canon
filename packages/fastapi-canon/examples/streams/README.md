@@ -18,8 +18,9 @@ For an installed canon checkout or release containing this integration:
 pip install "fastapi-canon[streams]"
 ```
 
-Published Canon 0.5.5 installs `fastapi-streams==0.4.0`. Both releases have verified
-PyPI installs and matching GitHub Releases with original artifacts.
+This source prepares Canon 0.8.1 with `fastapi-streams==0.5.0`; these versions
+are unreleased. The current public Canon 0.8.0 installs Streams 0.4.0, and both
+published releases have verified PyPI installs and matching GitHub Releases.
 Upgrading requires an explicit
 compatibility review and pin update. `uv.lock` records the workspace
 combination for reproducible repository checks. The extra
@@ -97,8 +98,8 @@ uv run --group streams fastapi-streams generate --schema openapi.json --language
 uv run --group streams fastapi-streams generate --schema openapi.json --language typescript --output generated/typescript
 ```
 
-An installed application can add `fastapi-streams[codegen]==0.4.0`
-and lock it alongside its dependencies. Both clients consume the same
+After publication, an installed application can add `fastapi-streams[codegen]==0.5.0`
+and lock it alongside its dependencies; until then, use the 0.4.0 generator. Both clients consume the same
 exported OpenAPI 3.2 document, containing typed SSE events and canon problem schemas.
 
 ## Streaming boundary

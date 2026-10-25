@@ -39,6 +39,22 @@ Streams remains at published 0.4.0. WebRTC must be available before publishing a
 Canon version that pins it in the optional extra. RPCKit releases independently.
 Apply the same dependency order when a Canon version pins a new Streams release.
 
+### Prepared source versions, not published
+
+The `perf-usability-streams-rpckit` branch prepares the following source versions.
+They are **not published**; the versions in the table above remain current, and
+the README release table changes only after verified publication.
+
+| Package | Prepared | Release type | Migration |
+| --- | --- | --- | --- |
+| Streams | 0.5.0 | Minor: SDK-owned generated Python clients now bound the connect time to 10 seconds. | Regenerate clients. Pass `RequestOptions(timeout=None)` or inject `httpx.AsyncClient(timeout=None)` to keep an unbounded connect time. See the [Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050-unreleased). |
+| Canon | 0.8.1 | Patch: optional Streams extra and development pin move to 0.5.0. | No Canon API change; follow the Streams notes when regenerating stream SDKs. See the [Canon 0.8.1 notes](../packages/fastapi-canon/CHANGELOG.md#081-unreleased). |
+
+Remaining steps: merge to `main`, wait for exact-commit CI, then dispatch
+`release.yml` with `dry_run=true` for Streams 0.5.0 and afterwards Canon 0.8.1.
+Finalize both changelog dates and pass CI on that final source before any
+publication. Publish Streams before Canon, because Canon 0.8.1 pins it.
+
 ### Consumer integration upgrade
 
 The 2026-10-20 consumer integration batch addressed feedback for Canon 0.5.5,

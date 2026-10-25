@@ -12,8 +12,9 @@ Import the router explicitly:
 from fastapi_canon.integrations.streams import CanonStreamRouter
 ```
 
-Published Canon 0.5.5 pins `fastapi-streams==0.4.0`. Both releases have verified
-PyPI installs and matching GitHub Releases with original artifacts.
+This source prepares Canon 0.8.1 with `fastapi-streams==0.5.0`; these versions
+are unreleased. The current public Canon 0.8.0 pins Streams 0.4.0, and both
+published releases have verified PyPI installs and matching GitHub Releases.
 `uv.lock` records the workspace combination. Streams upgrades require an explicit
 compatibility review and pin update. Streams requires FastAPI >=0.143.3 and Pydantic >=2.11.2.
 Installing and importing canon without the extra continues to work.
@@ -227,8 +228,8 @@ uv run --group streams fastapi-streams generate --schema openapi.json --language
 uv run --group streams fastapi-streams generate --schema openapi.json --language typescript --output generated/typescript
 ```
 
-Another application can install `fastapi-streams[codegen]==0.4.0`
-and use its own module path.
+After publication, another application can install `fastapi-streams[codegen]==0.5.0`
+and use its own module path. For the current public stack, use the 0.4.0 generator.
 Both clients consume the same OpenAPI 3.2 contract.
 
 ## Streaming boundary
