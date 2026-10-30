@@ -10,10 +10,9 @@ import sys
 import time
 from pathlib import Path
 
+from fastapi_canon.websockets import RpcChannel, RpcModel, RpcService
+from fastapi_canon.websockets.testing import InMemorySocket
 from pydantic import BaseModel
-
-from fastapi_rpckit import RpcChannel, RpcModel, RpcService
-from fastapi_rpckit.testing import InMemorySocket
 
 
 class Echo(RpcModel):

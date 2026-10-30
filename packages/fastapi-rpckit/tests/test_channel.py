@@ -1,8 +1,7 @@
 from collections.abc import AsyncIterator
 
 import pytest
-
-from fastapi_rpckit import (
+from fastapi_canon.websockets import (
     ProtocolDefinitionError,
     RpcChannel,
     RpcError,

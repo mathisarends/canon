@@ -8,16 +8,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from fastapi_rpckit import (
+from fastapi_canon.websockets import (
     RpcChannel,
     RpcDisconnect,
     RpcErrorBinding,
     RpcModel,
     RpcService,
 )
-from fastapi_rpckit.codegen import generate_python_client
-from fastapi_rpckit.codegen.python import PythonClientOptions
+from fastapi_canon.websockets.codegen import generate_python_client
+from fastapi_canon.websockets.codegen.python import PythonClientOptions
+
 from tests.testing import InMemorySocket
 
 

@@ -4,9 +4,8 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, Header, Query
+from fastapi_canon.sse import StreamRouter
 from pydantic import BaseModel, Field
-
-from fastapi_streams import StreamRouter
 
 
 class Metadata(BaseModel):

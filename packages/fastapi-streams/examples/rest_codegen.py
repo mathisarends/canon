@@ -3,7 +3,7 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
-from fastapi_streams.codegen.openapi import ContractError, Document, validate_contract
+from fastapi_canon.sse.codegen.openapi import ContractError, Document, validate_contract
 
 
 def rest_codegen_document(document: Document) -> Document:

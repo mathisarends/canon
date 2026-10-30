@@ -1,47 +1,3 @@
-[project]
-name = "fastapi-streams"
-version = "0.5.0"
-description = "Typed FastAPI streams with generated TypeScript and Python clients."
-readme = "README.md"
-requires-python = ">=3.12"
-license = "MIT"
-authors = [{ name = "Mathis Arends" }]
-dependencies = ["fastapi>=0.143.3,<1.0", "pydantic>=2.11.2,<3"]
-
-[project.urls]
-Documentation = "https://github.com/mathisarends/canon/tree/main/packages/fastapi-streams/docs"
-Source = "https://github.com/mathisarends/canon/tree/main/packages/fastapi-streams"
-Issues = "https://github.com/mathisarends/canon/issues"
-
-[project.optional-dependencies]
-codegen = ["jsonschema>=4.23,<5", "jinja2>=3.1,<4"]
-
-[project.scripts]
-fastapi-streams = "fastapi_streams.codegen.cli:main"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["fastapi_streams"]
-
-[dependency-groups]
-client-test = ["httpx>=0.28", "httpx2>=2.13.1,<3"]
-test = [
-  { include-group = "client-test" },
-  "pytest>=8.4.2", "pytest-asyncio>=1", "uvicorn>=0.35",
-  "pyright>=1.1.400", "pytest-cov>=6",
-]
-dev = [
-  { include-group = "test" },
-  "jsonschema>=4.23,<5", "types-jsonschema>=4.23", "ruff>=0.12",
-  "build>=1.2", "jinja2>=3.1,<4",
-  "pylint>=4,<5",
-  "pre-commit>=4,<5",
-  "twine>=7,<8",
-]
-
 [tool.ruff]
 target-version = "py312"
 line-length = 88
@@ -51,7 +7,7 @@ extend-exclude = ["examples/agent_runs/generated_python", "tests/fixtures/genera
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pyright]
-include = ["fastapi_streams", "examples", "tests/fixtures/generated_python"]
+include = ["../fastapi-canon/fastapi_canon/sse", "examples", "tests/fixtures/generated_python"]
 venvPath = "../.."
 venv = ".venv"
 typeCheckingMode = "strict"
@@ -59,7 +15,7 @@ pythonVersion = "3.12"
 
 [tool.pylint.main]
 py-version = "3.12"
-ignore-paths = ["fastapi_streams/codegen/templates/.*"]
+ignore-paths = [".*/sse/codegen/templates/.*"]
 
 [tool.pylint.messages_control]
 # Ruff owns formatting and style; Pylint checks errors and warnings.
@@ -76,7 +32,7 @@ markers = ["snapshot: golden schemas and clients tied to the locked dependencies
 [tool.coverage.run]
 branch = true
 source = [
-  "fastapi_streams",
+  "fastapi_canon.sse",
   "examples.agent_runs.generated_python.runtime",
 ]
 omit = ["*/codegen/templates/*"]

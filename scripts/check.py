@@ -15,6 +15,11 @@ MEMBERS = (
     ROOT / "packages/fastapi-webrtc",
 )
 WEBRTC = MEMBERS[4]
+SOURCES = {
+    MEMBERS[1]: MEMBERS[0] / "fastapi_canon/sse",
+    MEMBERS[2]: MEMBERS[0] / "fastapi_canon/websockets",
+    WEBRTC: MEMBERS[0] / "fastapi_canon/webrtc",
+}
 WEBRTC_CLIENT = ("--output", "examples/practice/client", "--check")
 
 
@@ -36,10 +41,22 @@ def main() -> None:
                 )
                 _run(root, "-m", "ruff", "check", *targets)
                 _run(root, "-m", "ruff", "format", "--check", *targets)
+                if root in SOURCES:
+                    config = ("--config", str(root / "pyproject.toml"))
+                    _run(root, "-m", "ruff", "check", *config, str(SOURCES[root]))
+                    _run(
+                        root,
+                        "-m",
+                        "ruff",
+                        "format",
+                        *config,
+                        "--check",
+                        str(SOURCES[root]),
+                    )
         elif gate == "types":
             _run(MEMBERS[0], "-m", "mypy")
             _run(MEMBERS[1], "-m", "pyright", "--pythonpath", sys.executable)
-            _run(MEMBERS[1], "-m", "pylint", "fastapi_streams")
+            _run(MEMBERS[1], "-m", "pylint", str(SOURCES[MEMBERS[1]]))
             # Verify the installed public package; editable path discovery differs
             # between Pyright and Python, especially in a Windows workspace.
             _run(
@@ -47,16 +64,14 @@ def main() -> None:
                 "uv",
                 "build",
                 "--package",
-                "fastapi-rpckit",
+                "fastapi-canon",
                 "--out-dir",
-                str(ROOT / "dist/fastapi-rpckit"),
+                str(ROOT / "dist/typecheck"),
                 python=False,
             )
-            metadata = tomllib.loads((MEMBERS[2] / "pyproject.toml").read_text("utf-8"))
+            metadata = tomllib.loads((MEMBERS[0] / "pyproject.toml").read_text("utf-8"))
             version = metadata["project"]["version"]
-            (wheel,) = (ROOT / "dist/fastapi-rpckit").glob(
-                f"fastapi_rpckit-{version}-*.whl"
-            )
+            (wheel,) = (ROOT / "dist/typecheck").glob(f"fastapi_canon-{version}-*.whl")
             _run(
                 MEMBERS[2],
                 "uv",
@@ -67,7 +82,7 @@ def main() -> None:
                 "--python",
                 sys.executable,
                 "--with",
-                str(wheel) + "[codegen,dishka,otel]",
+                str(wheel) + "[codegen,websockets,otel]",
                 "--with",
                 "pyright==1.1.414",
                 "python",
@@ -89,14 +104,14 @@ def main() -> None:
                 _run(
                     MEMBERS[2],
                     "-m",
-                    "fastapi_rpckit.codegen.cli",
+                    "fastapi_canon.websockets.codegen.cli",
                     "generate",
                     "--config",
                     config,
                     "--check",
                 )
             _run(MEMBERS[1], "scripts/codegen.py", "--check")
-            cli = ("-m", "fastapi_webrtc.codegen.cli")
+            cli = ("-m", "fastapi_canon.webrtc.codegen.cli")
             contract = "examples/practice/contract.json"
             _run(
                 WEBRTC,

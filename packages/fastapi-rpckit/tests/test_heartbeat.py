@@ -2,8 +2,8 @@ import asyncio
 import json
 from contextlib import asynccontextmanager
 
-from fastapi_rpckit import RpcChannel, RpcLimits, RpcMiddleware, RpcService
-from fastapi_rpckit.testing import InMemorySocketFactory
+from fastapi_canon.websockets import RpcChannel, RpcLimits, RpcMiddleware, RpcService
+from fastapi_canon.websockets.testing import InMemorySocketFactory
 
 
 async def test_ping_bypasses_saturated_handlers_and_observation():

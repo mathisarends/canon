@@ -6,9 +6,8 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
-
-from fastapi_rpckit.codegen import generate_typescript_client
-from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.websockets.codegen import generate_typescript_client
+from fastapi_canon.websockets.codegen.typescript import TypeScriptClientOptions
 
 
 def test_transport_resilience_in_node(document: dict[str, Any], tmp_path: Path) -> None:

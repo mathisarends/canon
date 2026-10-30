@@ -1,22 +1,7 @@
-"""Canon admission contracts for optional fastapi-webrtc sessions."""
+"""Canon admission contracts for WebRTC sessions."""
 
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, TypeVar
-
-try:
-    from fastapi_webrtc import (
-        AdmissionErrors,
-        DataChannelSpec,
-        MediaPolicy,
-        Role,
-        SessionLimits,
-        WebRtcRouter,
-    )
-except ModuleNotFoundError as exc:
-    if exc.name != "fastapi_webrtc":
-        raise
-    msg = "CanonWebRtcRouter requires fastapi-webrtc; install fastapi-canon[webrtc]"
-    raise ModuleNotFoundError(msg, name=exc.name) from exc
 
 from fastapi import FastAPI
 from fastapi.params import Depends as DependsParam
@@ -27,6 +12,14 @@ from fastapi_canon.error.registry import AnyError, ErrorRegistry
 from fastapi_canon.error.types import ErrorConfigurationError
 from fastapi_canon.policy import normalize_raises as _normalize_raises
 from fastapi_canon.router import CanonRouter, _distinct
+from fastapi_canon.webrtc import (
+    AdmissionErrors,
+    DataChannelSpec,
+    MediaPolicy,
+    Role,
+    SessionLimits,
+    WebRtcRouter,
+)
 
 __all__ = ["CanonWebRtcRouter"]
 

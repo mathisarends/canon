@@ -7,10 +7,13 @@ from typing import Any
 import pytest
 from fastapi import APIRouter, FastAPI, WebSocket
 from fastapi.testclient import TestClient
-
-from fastapi_rpckit import Inject, RpcChannel, RpcService
-from fastapi_rpckit.integrations.dishka import Dishka, DishkaResolver, dishka_router
-from fastapi_rpckit.integrations.fastapi import RpcRoutes
+from fastapi_canon.websockets import Inject, RpcChannel, RpcService
+from fastapi_canon.websockets.integrations.dishka import (
+    Dishka,
+    DishkaResolver,
+    dishka_router,
+)
+from fastapi_canon.websockets.integrations.fastapi import RpcRoutes
 
 dishka = pytest.importorskip("dishka")
 Scope = dishka.Scope
@@ -67,7 +70,7 @@ async def test_dishka_resolver_maps_connection_and_call_scopes_to_containers() -
     assert session.calls == [{}]
 
 
-async def test_dishka_resolver_explains_when_the_optional_extra_is_missing(
+async def test_dishka_resolver_explains_a_broken_required_dependency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_import = builtins.__import__
@@ -80,7 +83,9 @@ async def test_dishka_resolver_explains_when_the_optional_extra_is_missing(
     monkeypatch.setattr(builtins, "__import__", missing_dishka)
     resolver = DishkaResolver(Container({}))  # type: ignore[arg-type]
 
-    with pytest.raises(ModuleNotFoundError, match="dishka requires the 'dishka' extra"):
+    with pytest.raises(
+        ModuleNotFoundError, match="requires a complete fastapi-canon installation"
+    ):
         async with resolver.enter_connection({}):
             pass
 
@@ -211,9 +216,9 @@ def test_dishka_injects_the_context_function(transport_parameter: str) -> None:
         async def open_owner(
             owner_id: int,
             owners: dishka.FromDishka[Owners],
-            _fastapi_rpckit_websocket: str = "context",
+            _canon_websockets_websocket: str = "context",
         ) -> Owner:
-            assert _fastapi_rpckit_websocket == "context"
+            assert _canon_websockets_websocket == "context"
             return Owner(f"{owners.prefix}-{owner_id}")
 
     RpcRoutes(router, context=open_owner, resolver=Dishka()).mount(endpoint)

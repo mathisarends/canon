@@ -8,17 +8,17 @@ guides, and agent instructions.
 
 ## Boundaries
 
-- `packages/fastapi-canon`: composition, Dishka lifecycle, HTTP contracts, optional
-  integration modules. Core must import and run without either extension.
-- `packages/fastapi-streams`: typed SSE, OpenAPI, Python/TypeScript client generation.
-- `packages/fastapi-rpckit`: successor `fastapi-rpckit` / `fastapi_rpckit`, with
-  FastAPI as a required dependency. Preserve wire behavior and client contracts.
-- `packages/fastapi-webrtc`: WebRTC sessions, signaling protocol `fastapi-webrtc.v1`,
-  engine adapters (aiortc extra) and TypeScript client generation. Browser tests
+- `packages/fastapi-canon`: the only active release target, including composition,
+  Dishka lifecycle, HTTP contracts, `sse`, `websockets`, `webrtc` and their generators.
+  Core and CLI help must run without optional codegen, telemetry or engines.
+- `packages/fastapi-streams` and `packages/fastapi-rpckit`: retained SSE and
+  WebSocket test/example/tooling directories. Preserve wire behavior and clients.
+- `packages/fastapi-webrtc`: retained WebRTC tests, examples and tooling for
+  signaling protocol `fastapi-webrtc.v1`. Browser tests
   run with `uv run --locked python scripts/check.py browser` after
   `npx playwright install chromium` in that package.
-- Extensions must not acquire a required dependency on Canon or each other.
-- Keep independent package versions. Do not add a shared core without concrete reuse.
+- Transport modules must not import each other or load optional engines eagerly.
+- Use one Canon version. Add shared abstractions only for concrete reuse.
 - Application code follows `guides/architecture.md`: feature slices, inward
   dependencies, framework-free domain, Dishka for application dependencies.
 
@@ -37,7 +37,8 @@ uv run --locked python scripts/check_distributions.py
 `check.py` also accepts `lint`, `types`, `test`, `clients`, and `browser`. It runs each
 package with its own configuration and working directory. Do not combine all
 package suites into one pytest process: their `tests`/`examples` modules collide.
-Use `uv run --locked --directory packages/<member> pytest ...` for focused work.
+For a focused feature suite, run `uv run --locked --project ../.. python -m pytest ...`
+from its retained test directory.
 
 Keep one root `uv.lock`. Preserve package-specific type/lint settings. Generated
 clients are changed through generators/templates, then checked for drift.
@@ -53,7 +54,7 @@ fixes and documentation. Count public API/signature changes, stricter accepted
 inputs or validation, changed defaults and generated-client incompatibilities
 as breaking changes, even when the wire format stays unchanged. Record them
 under a `### Breaking changes` changelog heading with concrete migration steps.
-Keep versions independent; do not classify a breaking change as a patch merely
+Use the Canon version; do not classify a breaking change as a patch merely
 because its implementation is small. Release validation checks declared breaking
 changelog sections against this policy.
 
@@ -78,13 +79,12 @@ Prepare source versions and pins, regenerate clients, pass checks and commit/mer
 to `main`. Wait for CI on that exact commit, then dispatch `release.yml` with
 `dry_run=true` for the selected package/version. Before a real publication,
 finalize the changelog date and pass CI for the final source. Only dispatch with
-`dry_run=false` when explicitly authorized to publish. Publish Streams before a
-Canon version that pins it. Verify public-index installs and release/tag results.
+`dry_run=false` when explicitly authorized to publish. Verify public-index installs and release/tag results.
 On failure, follow the documented resume procedure with the original run's
 verified artifacts; do not replace published contents or move existing tags.
 After verified publication, update the README's current-release table and the
 release/compatibility records. All workspace package releases belong in this
-repository's central GitHub Releases list, with independent package-prefixed tags.
+repository's central GitHub Releases list, under the `fastapi-canon-v` tag prefix.
 Always create the matching GitHub Release for every package publication, including
 changelog notes, the verified wheel/sdist and the release manifest. A publication
 is not complete until its PyPI install, tag, GitHub Release and attached artifacts

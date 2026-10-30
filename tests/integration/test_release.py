@@ -25,7 +25,8 @@ def release_repo(tmp_path: Path) -> Path:
         "packages/fastapi-canon/docs/streams.md",
         "packages/fastapi-canon/examples/streams/README.md",
         "packages/fastapi-streams/README.md",
-        "packages/fastapi-rpckit/fastapi_rpckit/integrations/dishka.py",
+        "packages/fastapi-canon/fastapi_canon/_version.py",
+        "packages/fastapi-canon/fastapi_canon/__init__.py",
     ]
     for package in release.packages().values():
         files.extend(
@@ -64,9 +65,9 @@ def release_repo(tmp_path: Path) -> Path:
 
 def test_release_rejects_stale_installation_docs(release_repo: Path) -> None:
     path = release_repo / "packages/fastapi-canon/docs/streams.md"
-    path.write_text("Install fastapi-streams==0.0.1", encoding="utf-8")
-    with pytest.raises(ValueError, match="does not match"):
-        release.validate_release("fastapi-canon", "0.8.1", root=release_repo)
+    path.write_text("uv add fastapi-streams==0.0.1", encoding="utf-8")
+    with pytest.raises(ValueError, match="install fastapi-canon extras"):
+        release.validate_release("fastapi-canon", "0.9.0", root=release_repo)
 
 
 def test_release_notes_resolve_links_against_the_release_commit(
@@ -88,7 +89,7 @@ def test_release_notes_resolve_links_against_the_release_commit(
 def test_release_notes_retain_external_links_titles_and_fragments(
     release_repo: Path,
 ) -> None:
-    package = release.packages(release_repo)["fastapi-streams"]
+    package = release.packages(release_repo)["fastapi-canon"]
     path = release_repo / package.directory / "CHANGELOG.md"
     path.write_text(
         "## 0.4.0 - 2026-10-18\n\n"
@@ -103,11 +104,10 @@ def test_release_notes_retain_external_links_titles_and_fragments(
     notes = release._release_notes(release_repo, package, "0.4.0", commit)
     base = f"https://github.com/mathisarends/canon/blob/{commit}"
     assert (
-        f'{base}/packages/fastapi-streams/docs/codegen.md#validation "Read this"'
-        in notes
+        f'{base}/packages/fastapi-canon/docs/codegen.md#validation "Read this"' in notes
     )
     assert f"{base}/docs/releases.md#verified" in notes
-    assert f"{base}/packages/fastapi-streams/CHANGELOG.md#upgrade" in notes
+    assert f"{base}/packages/fastapi-canon/CHANGELOG.md#upgrade" in notes
     assert "[External](https://example.test/docs#part)" in notes
     assert "[Email](mailto:maintainer@example.test)" in notes
 
@@ -144,25 +144,16 @@ def test_breaking_pre_one_releases_require_next_minor(
             release._check_breaking_version(changelog, version, section)
 
 
-@pytest.mark.parametrize(
-    ("name", "version"),
-    [
-        ("fastapi-canon", "0.8.1"),
-        ("fastapi-streams", "0.5.0"),
-        ("fastapi-rpckit", "0.4.1"),
-        ("fastapi-webrtc", "0.3.0"),
-    ],
-)
+@pytest.mark.parametrize(("name", "version"), [("fastapi-canon", "0.9.0")])
 def test_release_validates_sources_without_importing_business_modules(
     release_repo: Path, name: str, version: str
 ) -> None:
-    if name != "fastapi-canon":
-        package = release.packages(release_repo)[name]
-        module = release_repo / package.directory / package.module / "__init__.py"
-        module.write_text(
-            module.read_text("utf-8") + '\nraise RuntimeError("do not execute")\n',
-            encoding="utf-8",
-        )
+    package = release.packages(release_repo)[name]
+    module = release_repo / package.directory / package.module / "__init__.py"
+    module.write_text(
+        module.read_text("utf-8") + '\nraise RuntimeError("do not execute")\n',
+        encoding="utf-8",
+    )
     result = release.validate_release(name, version, root=release_repo)
     assert result["tag"] == f"{name}-v{version}"
     assert len(result["commit"]) == 40
@@ -176,11 +167,19 @@ def test_release_rejects_noncanonical_versions(
     release_repo: Path, version: str
 ) -> None:
     with pytest.raises(ValueError, match="canonical prerelease"):
-        release.validate_release("fastapi-rpckit", version, root=release_repo)
+        release.validate_release("fastapi-canon", version, root=release_repo)
 
 
 @pytest.mark.parametrize(
-    "name", ["canon-workspace", "fastapi-canon-reference", "arbitrary"]
+    "name",
+    [
+        "canon-workspace",
+        "fastapi-canon-reference",
+        "arbitrary",
+        "fastapi-streams",
+        "fastapi-rpckit",
+        "fastapi-webrtc",
+    ],
 )
 def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> None:
     with pytest.raises(ValueError, match="Only the workspace library"):
@@ -190,32 +189,21 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
 @pytest.mark.parametrize(
     ("path", "before", "after", "message"),
     [
-        ("uv.lock", 'version = "0.8.1"', 'version = "0.4.0"', "uv.lock"),
+        ("uv.lock", 'version = "0.9.0"', 'version = "0.4.0"', "uv.lock"),
         (
-            "packages/fastapi-rpckit/fastapi_rpckit/__init__.py",
-            '__version__ = "0.4.1"',
+            "packages/fastapi-canon/fastapi_canon/_version.py",
+            '__version__ = "0.9.0"',
             '__version__ = "9.9.9"',
             "__version__",
         ),
-        (
-            "pyproject.toml",
-            "fastapi-streams[codegen]==0.5.0",
-            "fastapi-streams[codegen]==0.0.1",
-            "Dependency pin",
-        ),
+        ("pyproject.toml", "==0.9.0", "==0.0.1", "Dependency pin"),
         (
             "examples/reference-service/pyproject.toml",
-            "fastapi-canon>=0.8,<0.9",
+            "fastapi-canon>=0.9,<0.10",
             "fastapi-canon>=0.4,<0.5",
             "Reference service",
         ),
-        ("packages/fastapi-streams/CHANGELOG.md", "## 0.5.0", "## 9.9.9", "Changelog"),
-        (
-            "packages/fastapi-canon/pyproject.toml",
-            "fastapi-webrtc==0.3.0",
-            "fastapi-webrtc==0.1.0",
-            "Dependency pin",
-        ),
+        ("packages/fastapi-canon/CHANGELOG.md", "## 0.9.0", "## 9.9.9", "Changelog"),
     ],
 )
 def test_release_rejects_inconsistent_metadata(
@@ -226,7 +214,7 @@ def test_release_rejects_inconsistent_metadata(
         target.read_text("utf-8").replace(before, after), encoding="utf-8"
     )
     with pytest.raises(ValueError, match=message):
-        release.validate_release("fastapi-streams", "0.5.0", root=release_repo)
+        release.validate_release("fastapi-canon", "0.9.0", root=release_repo)
 
 
 def test_public_canon_verification_checks_each_optional_integration(
@@ -241,46 +229,48 @@ def test_public_canon_verification_checks_each_optional_integration(
     installs = [
         command for command in commands if command[:3] == ["uv", "pip", "install"]
     ]
-    assert len(installs) == 4
-    assert any("fastapi-canon[webrtc]==0.6.0" in command for command in installs)
+    assert len(installs) == 5
+    assert any("fastapi-canon[websockets]==0.6.0" in command for command in installs)
     assert any(
-        "fastapi-canon[streams,webrtc]==0.6.0" in command for command in installs
+        "fastapi-canon[sse,websockets,webrtc,aiortc,codegen]==0.6.0" in command
+        for command in installs
     )
     smokes = [command for command in commands if "-I" in command]
     assert [command[3:] for command in smokes] == [
         ["fastapi-canon"],
-        ["fastapi-canon", "fastapi-streams"],
-        ["fastapi-canon", "fastapi-webrtc"],
-        ["fastapi-canon", "fastapi-streams", "fastapi-webrtc"],
+        ["fastapi-canon", "sse"],
+        ["fastapi-canon", "websockets"],
+        ["fastapi-canon", "webrtc"],
+        ["fastapi-canon", "sse", "webrtc", "websockets"],
     ]
 
 
 def test_publication_requires_final_changelog(release_repo: Path) -> None:
-    changelog = release_repo / "packages/fastapi-rpckit/CHANGELOG.md"
+    changelog = release_repo / "packages/fastapi-canon/CHANGELOG.md"
     lines = changelog.read_text("utf-8").splitlines()
     heading = next(
-        index for index, line in enumerate(lines) if line.startswith("## 0.4.1")
+        index for index, line in enumerate(lines) if line.startswith("## 0.9.0")
     )
-    lines[heading] = "## 0.4.1 (unreleased)"
+    lines[heading] = "## 0.9.0 (unreleased)"
     changelog.write_text("\n".join(lines) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="Finalize the changelog"):
         release.validate_release(
-            "fastapi-rpckit", "0.4.1", root=release_repo, publish=True
+            "fastapi-canon", "0.9.0", root=release_repo, publish=True
         )
 
 
 def test_publication_accepts_final_changelog(release_repo: Path) -> None:
-    path = release_repo / "packages/fastapi-rpckit/CHANGELOG.md"
+    path = release_repo / "packages/fastapi-canon/CHANGELOG.md"
     path.write_text(
         path.read_text("utf-8").replace(
-            "## 0.4.1 (unreleased)", "## 0.4.1 - 2026-10-25"
+            "## 0.9.0 - unreleased", "## 0.9.0 - 2026-10-30"
         ),
         encoding="utf-8",
     )
     report = release.validate_release(
-        "fastapi-rpckit", "0.4.1", root=release_repo, publish=True
+        "fastapi-canon", "0.9.0", root=release_repo, publish=True
     )
-    assert report["version"] == "0.4.1"
+    assert report["version"] == "0.9.0"
 
 
 def test_github_release_requires_successful_ci_for_exact_commit(
@@ -292,7 +282,7 @@ def test_github_release_requires_successful_ci_for_exact_commit(
     monkeypatch.setattr(release, "_gh", lambda endpoint: {"workflow_runs": []})
     with pytest.raises(ValueError, match="exact release commit"):
         release.validate_release(
-            "fastapi-rpckit", "0.4.1", root=release_repo, github=True
+            "fastapi-canon", "0.9.0", root=release_repo, github=True
         )
 
 
@@ -327,7 +317,7 @@ def test_github_release_rejects_existing_pypi_version(
     monkeypatch.setattr(release, "_pypi", lambda name, version: {})
     with pytest.raises(ValueError, match="already exists on PyPI"):
         release.validate_release(
-            "fastapi-rpckit", "0.4.1", root=release_repo, github=True
+            "fastapi-canon", "0.9.0", root=release_repo, github=True
         )
 
 
@@ -394,4 +384,4 @@ def test_release_workflow_keeps_dry_run_without_publish_permissions() -> None:
 def test_artifact_validation_rejects_unrelated_uploads(tmp_path: Path) -> None:
     (tmp_path / "unrelated.whl").write_bytes(b"not a release")
     with pytest.raises(ValueError, match="must contain only"):
-        release.artifact_hashes("fastapi-rpckit", "0.2.0", tmp_path)
+        release.artifact_hashes("fastapi-canon", "0.2.0", tmp_path)

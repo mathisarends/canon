@@ -8,9 +8,9 @@ sessions. A plain `WebRtcRouter` still works in `Feature.routers`; use
 from fastapi import FastAPI
 from fastapi_canon import Composition, Error, ErrorOptions, ErrorRegistry, Feature
 from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
-from fastapi_webrtc import Session
-from fastapi_webrtc.contract import build_contract
-from fastapi_webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.webrtc import Session
+from fastapi_canon.webrtc.contract import build_contract
+from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
 
 
 class BrowserMissing(Exception):
@@ -37,7 +37,7 @@ app = Composition(
 contract = build_contract(app)
 ```
 
-The engine extra remains independent: install `fastapi-webrtc[aiortc]` for this
+The engine extra remains independent: install `fastapi-canon[webrtc,aiortc]` for this
 example, or provide your own engine. Canon core imports neither WebRTC nor aiortc.
 
 Router-level `raises` and session-level `raises` combine and deduplicate by the

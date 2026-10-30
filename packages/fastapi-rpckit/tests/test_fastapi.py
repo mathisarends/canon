@@ -12,10 +12,7 @@ import pytest
 from fastapi import APIRouter, Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocketState
-from pydantic import BaseModel
-from starlette.testclient import WebSocketDenialResponse
-
-from fastapi_rpckit import (
+from fastapi_canon.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcBinaryInput,
@@ -30,12 +27,14 @@ from fastapi_rpckit import (
     RpcService,
     RpcSocket,
 )
-from fastapi_rpckit.integrations.fastapi import (
+from fastapi_canon.websockets.integrations.fastapi import (
     FastApiSocket,
     RpcRoutes,
     create_router,
     serve_websocket,
 )
+from pydantic import BaseModel
+from starlette.testclient import WebSocketDenialResponse
 
 
 class EchoParams(BaseModel):
@@ -354,7 +353,7 @@ class BlockFastApi(importlib.abc.MetaPathFinder):
 
 sys.meta_path.insert(0, BlockFastApi())
 try:
-    import fastapi_rpckit.integrations.fastapi
+    import fastapi_canon.websockets.integrations.fastapi
 except ModuleNotFoundError as error:
     print(error.name, error, sep="|")
 """
@@ -362,10 +361,7 @@ except ModuleNotFoundError as error:
         [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
 
-    assert result.stdout.strip() == (
-        "fastapi|fastapi-rpckit requires FastAPI; "
-        "reinstall fastapi-rpckit with dependencies"
-    )
+    assert result.stdout.strip() == ("fastapi|blocked fastapi")
 
 
 class Job:
@@ -1090,11 +1086,11 @@ def test_custom_handlers_without_context_preserve_internal_parameter_names() -> 
 
     async def handler(
         *,
-        _fastapi_rpckit_websocket: Inject[JobOutput],
-        _fastapi_rpckit_context: str = "custom",
+        _canon_websockets_websocket: Inject[JobOutput],
+        _canon_websockets_context: str = "custom",
     ) -> None:
-        assert _fastapi_rpckit_websocket is output
-        assert _fastapi_rpckit_context == "custom"
+        assert _canon_websockets_websocket is output
+        assert _canon_websockets_context == "custom"
         raise RpcReject(RpcRejection.FORBIDDEN, "custom rejection")
 
     router = APIRouter()

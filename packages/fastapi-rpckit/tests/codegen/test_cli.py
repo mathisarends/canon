@@ -3,8 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from fastapi_rpckit.codegen.cli import main
+from fastapi_canon.websockets.codegen.cli import main
 
 from .conftest import PACKAGE
 

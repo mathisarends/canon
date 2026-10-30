@@ -3,15 +3,15 @@ from pathlib import Path
 
 import httpx
 import pytest
-from pydantic import TypeAdapter, ValidationError
-
-from fastapi_streams.codegen.cli import main
-from fastapi_streams.codegen.ir import build_ir
-from fastapi_streams.codegen.openapi import (
+from fastapi_canon.sse.codegen.cli import main
+from fastapi_canon.sse.codegen.ir import build_ir
+from fastapi_canon.sse.codegen.openapi import (
     ContractError,
     export_schema,
     validate_contract,
 )
+from pydantic import TypeAdapter, ValidationError
+
 from tests.fixtures.generated_python import Client
 from tests.fixtures.generated_python.models import (
     FixtureEvent,

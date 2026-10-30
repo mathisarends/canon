@@ -7,9 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pytest
-from pydantic import BaseModel
-
-from fastapi_rpckit import (
+from fastapi_canon.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcChannel,
@@ -19,6 +17,7 @@ from fastapi_rpckit import (
     RpcSocket,
     RpcSocketProtocol,
 )
+from pydantic import BaseModel
 
 from .test_typed_sockets import Ping, Pong
 from .testing import RpcTestClient
@@ -184,7 +183,7 @@ def test_connection_annotations_preserve_ide_types_and_reject_wrong_sends(
         """
 from typing import assert_type
 from pydantic import BaseModel
-from fastapi_rpckit import Inject, RpcChannel, RpcSocket
+from fastapi_canon.websockets import Inject, RpcChannel, RpcSocket
 
 class Ping(BaseModel):
     value: int

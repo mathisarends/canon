@@ -1,4 +1,4 @@
-"""Typed ``calc`` clients, plugged into fastapi_rpckit's generators.
+"""Typed ``calc`` clients, plugged into fastapi_canon.websockets's generators.
 
 ``rpcgen.toml`` lists ``calc_binding:BINDING``. The generators then emit each
 source below as ``bindings/calc`` of the client, and ``calculator.session()``
@@ -9,7 +9,7 @@ client such as cdpify around the socket, and its TypeScript source would type
 commands with the devtools-protocol package.
 """
 
-from fastapi_rpckit.codegen.bindings import BindingContext, SocketBinding
+from fastapi_canon.websockets.codegen.bindings import BindingContext, SocketBinding
 
 PYTHON = '''
 import asyncio

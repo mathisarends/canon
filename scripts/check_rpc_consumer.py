@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from fastapi_rpckit.codegen import (
+from fastapi_canon.websockets.codegen import (
     PythonClientOptions,
     TypeScriptClientOptions,
     generate_python_client,

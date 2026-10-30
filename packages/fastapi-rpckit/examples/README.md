@@ -1,6 +1,6 @@
 # Examples
 
-These examples show the fastapi_rpckit API directly, without a web framework, generated
+These examples show the fastapi_canon.websockets API directly, without a web framework, generated
 client, or application structure. Each file is standalone and executable.
 
 - [`basic.py`](basic.py) declares a typed method, serves one raw JSON-RPC request,
@@ -24,7 +24,7 @@ client, or application structure. Each file is standalone and executable.
   [`rpcgen.toml`](generated_clients/rpcgen.toml):
 
   ```bash
-  uv run python -m fastapi_rpckit.codegen.cli generate \
+  uv run python -m fastapi_canon.websockets.codegen.cli generate \
     --config examples/generated_clients/rpcgen.toml
   ```
 - [`socket_protocol`](socket_protocol/README.md) declares a small CDP-shaped

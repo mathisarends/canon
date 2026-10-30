@@ -3,20 +3,19 @@
 Install the optional integration:
 
 ```console
-pip install "fastapi-canon[streams]"
+pip install "fastapi-canon[sse]"
 ```
 
 Import the router explicitly:
 
 ```python
-from fastapi_canon.integrations.streams import CanonStreamRouter
+from fastapi_canon.integrations.sse import CanonStreamRouter
 ```
 
-Canon 0.8.1 pins `fastapi-streams==0.5.0`; both releases have verified PyPI
-installs and matching GitHub Releases.
-`uv.lock` records the workspace combination. Streams upgrades require an explicit
-compatibility review and pin update. Streams requires FastAPI >=0.143.3 and Pydantic >=2.11.2.
-Installing and importing canon without the extra continues to work.
+The prepared Canon 0.9.0 release includes the SSE implementation in the same
+wheel. The `sse` extra selects FastAPI >=0.143.3 and Pydantic >=2.11.2;
+base composition keeps its existing lower bounds. No separate Streams package
+is installed. See the [migration guide](package-migration.md).
 
 ## Complete integration example
 
@@ -32,7 +31,7 @@ from fastapi import Depends, FastAPI, Header
 from pydantic import BaseModel
 
 from fastapi_canon import HTTPMethod, Composition, Error, ErrorRegistry, Feature
-from fastapi_canon.integrations.streams import CanonStreamRouter
+from fastapi_canon.integrations.sse import CanonStreamRouter
 
 
 class AuthenticationRequired(Exception):
@@ -221,13 +220,13 @@ including referenced models and event discriminators. The exported contract
 also contains the declared `application/problem+json` responses. From this repo:
 
 ```console
-uv sync --all-groups
-uv run --group streams fastapi-streams schema --app examples.streams.app:app --output openapi.json
-uv run --group streams fastapi-streams generate --schema openapi.json --language python --output generated/python
-uv run --group streams fastapi-streams generate --schema openapi.json --language typescript --output generated/typescript
+uv sync --locked --all-packages --all-groups
+uv run --locked canon sse schema --app examples.streams.app:app --output openapi.json
+uv run --locked canon sse generate --schema openapi.json --language python --output generated/python
+uv run --locked canon sse generate --schema openapi.json --language typescript --output generated/typescript
 ```
 
-Another application can install `fastapi-streams[codegen]==0.5.0` and use its own
+Another application can install `fastapi-canon[codegen]` and use its own
 module path.
 Both clients consume the same OpenAPI 3.2 contract.
 

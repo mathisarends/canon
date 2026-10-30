@@ -1,13 +1,13 @@
 import json
 
 import pytest
-
-from fastapi_rpckit.schema.export import (
+from fastapi_canon.websockets.schema.export import (
     ProtocolReferenceError,
     load_contract_source,
     load_protocol,
     render_contract,
 )
+
 from tests.test_contract import contract
 
 REFERENCE = "tests.test_contract:contract"

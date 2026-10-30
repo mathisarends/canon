@@ -1,6 +1,6 @@
-# Independent releases
+# Canon releases
 
-Release the four libraries independently from `mathisarends/canon`. The workspace
+Release the unified `fastapi-canon` distribution from `mathisarends/canon`. The workspace
 and reference service are not publication targets. `release.toml` maps package
 names, directories, modules and tag prefixes; `scripts/release.py` validates them.
 Published versions and their GitHub/PyPI assets are listed in the
@@ -43,8 +43,8 @@ assets are verified.
 | Streams | 0.5.0 | Regenerate clients. SDK-owned generated Python clients bound the connect time to 10 seconds; pass `RequestOptions(timeout=None)` or inject `httpx.AsyncClient(timeout=None)` to keep it unbounded. See the [Streams 0.5.0 notes](../packages/fastapi-streams/CHANGELOG.md#050---2026-10-25). |
 | RPCKit | 0.4.1 | None; wire output and generated clients are unchanged apart from the manifest generator version. See the [RPCKit 0.4.1 notes](../packages/fastapi-rpckit/CHANGELOG.md#041---2026-10-25). |
 
-WebRTC and Streams must be available before publishing a Canon version that pins
-them in the optional extras. RPCKit releases independently.
+Those publications used separate distributions. The prepared 0.9.0 source
+contains all transport modules in Canon and has no internal distribution pins.
 
 ### Consumer integration upgrade
 
@@ -72,9 +72,10 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 
 ## Prepared source versions
 
-All four package source versions match their published releases. No additional
-release is currently prepared. Follow the release gates below when preparing
-the next independent package version.
+Canon 0.9.0 is prepared as an unreleased breaking minor containing the unified
+package. See the [migration guide](../packages/fastapi-canon/docs/package-migration.md).
+Only Canon is an active release target; the old feature directories retain
+tests, examples and historical changelogs. No publication is implied by source versions.
 
 ## Publisher setup
 
@@ -93,8 +94,8 @@ with concrete migration steps. Release validation enforces the next minor and
 patch zero for declared breaking changes.
 
 1. Update the package version, changelog and existing `__version__` constant.
-   Canon reads its version from installed metadata.
-2. Update root pins, Canon's optional integration/development pins and the
+   Canon and its feature modules share `fastapi_canon/_version.py`.
+2. Update root pins, Canon's feature dependency ranges and the
    reference service's Canon range as needed. Run `uv lock` at the root.
 3. Regenerate clients through their generators. Run the workspace, browser,
    current/minimum wheel and installed CLI checks in [contributing](contributing.md).
@@ -106,13 +107,13 @@ patch zero for declared breaking changes.
 Local metadata validation does not establish remote publication readiness:
 
 ```console
-uv run --locked python scripts/release.py validate --package fastapi-webrtc --version NEXT_VERSION
+uv run --locked python scripts/release.py validate --package fastapi-canon --version NEXT_VERSION
 ```
 
 ## Dispatch a dry run
 
 ```console
-gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-webrtc -f version=NEXT_VERSION -f dry_run=true
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-canon -f version=NEXT_VERSION -f dry_run=true
 gh run list --repo mathisarends/canon --workflow release.yml --limit 10
 ```
 
@@ -139,17 +140,17 @@ After final changelog dates and exact-source CI, dispatch the selected package
 with `dry_run=false` only when publication is explicitly authorized:
 
 ```console
-gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-webrtc -f version=NEXT_VERSION -f dry_run=false
+gh workflow run release.yml --repo mathisarends/canon --ref main -f package=fastapi-canon -f version=NEXT_VERSION -f dry_run=false
 ```
 
 The `publish` job downloads and verifies the prepared artifacts and uploads only
 the wheel/sdist from a separate staging directory. Signature sidecars created by
 the publisher must not modify the canonical artifact directory. Existing PyPI
 files must match the original manifest; conflicting contents fail. Canon also
-requires the pinned Streams and WebRTC versions to be available first.
+contains all transport modules and their generator resources in one artifact set.
 
 After upload, verify hashes and fresh public-index installs. Canon checks core,
-`[streams]`, `[webrtc]` and both extras together. The separate `finish` job then
+`[sse]`, `[websockets]`, `[webrtc]` and combined codegen/engine extras. The separate `finish` job then
 creates the package-prefixed tag and central GitHub Release at the verified
 commit, with changelog notes, original wheel/sdist and manifest attached.
 Prereleases produce prerelease GitHub Releases. A PyPI-only upload is incomplete.

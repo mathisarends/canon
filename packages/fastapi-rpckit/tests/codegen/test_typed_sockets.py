@@ -7,17 +7,16 @@ from typing import Annotated
 from urllib.parse import urlsplit
 
 import pytest
-from pydantic import Field
-
-from fastapi_rpckit import RpcChannel, RpcService, RpcSocketProtocol
-from fastapi_rpckit.codegen import (
+from fastapi_canon.websockets import RpcChannel, RpcService, RpcSocketProtocol
+from fastapi_canon.websockets.codegen import (
     PythonClientOptions,
     TypeScriptClientOptions,
     generate_python_client,
     generate_typescript_client,
 )
-from fastapi_rpckit.codegen.bindings import bind_sockets
-from fastapi_rpckit.codegen.ir import UnsupportedSchemaError, build_ir
+from fastapi_canon.websockets.codegen.bindings import bind_sockets
+from fastapi_canon.websockets.codegen.ir import UnsupportedSchemaError, build_ir
+from pydantic import Field
 
 from ..test_typed_connections import session as typed_session
 from ..test_typed_sockets import Ping, Pong

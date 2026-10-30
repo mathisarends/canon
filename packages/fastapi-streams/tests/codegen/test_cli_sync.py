@@ -1,8 +1,7 @@
 import json
 
 import pytest
-
-from fastapi_streams.codegen.cli import main
+from fastapi_canon.sse.codegen.cli import main
 
 CONFIG = """
 [tool.fastapi-streams]

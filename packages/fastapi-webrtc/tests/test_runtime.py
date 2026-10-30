@@ -8,10 +8,7 @@ from typing import Annotated, Any, Never, NoReturn, assert_type
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, Field
-from websockets.exceptions import InvalidStatus
-
-from fastapi_webrtc import (
+from fastapi_canon.webrtc import (
     Channel,
     ConnectionState,
     DataChannelSpec,
@@ -33,8 +30,11 @@ from fastapi_webrtc import (
     WebRtcError,
     WebRtcRouter,
 )
-from fastapi_webrtc.contract import build_contract
-from fastapi_webrtc.engine import PeerConfig, PeerObserver
+from fastapi_canon.webrtc.contract import build_contract
+from fastapi_canon.webrtc.engine import PeerConfig, PeerObserver
+from pydantic import BaseModel, Field
+from websockets.exceptions import InvalidStatus
+
 from tests.fake_engine import (
     FakeEngine,
     FakePeer,
@@ -530,7 +530,7 @@ async def test_local_candidates_are_forwarded_after_the_answer() -> None:
         signal = await Signal.start(f"{base}/s")
         await signal.describe("offer", sdp())
         await signal.expect("description")
-        from fastapi_webrtc.engine import IceCandidate
+        from fastapi_canon.webrtc.engine import IceCandidate
 
         engine_of(rtc).peer.observer.ice_candidate(
             IceCandidate("candidate:9 1 udp 1 10.0.0.9 9 typ host", "0", 0, "local")

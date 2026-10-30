@@ -50,26 +50,20 @@ def main() -> None:
         _run(sys.executable, "-m", "twine", "check", "--strict", str(wheel), str(sdist))
         wheels[name] = str(wheel)
 
-    combinations = (
-        ("fastapi-canon",),
-        ("fastapi-streams",),
-        ("fastapi-rpckit",),
-        ("fastapi-canon[streams]", "fastapi-streams[codegen]"),
-        ("fastapi-canon", "fastapi-rpckit[codegen,dishka]"),
-        (
-            "fastapi-canon[streams]",
-            "fastapi-streams[codegen]",
-            "fastapi-rpckit[codegen,dishka,otel]",
-        ),
-        ("fastapi-webrtc",),
-        ("fastapi-webrtc[aiortc]",),
-        ("fastapi-canon[webrtc]", "fastapi-webrtc[aiortc]"),
-        (
-            "fastapi-canon[streams,webrtc]",
-            "fastapi-streams[codegen]",
-            "fastapi-rpckit[codegen,dishka,otel]",
-            "fastapi-webrtc[aiortc]",
-        ),
+    combinations = tuple(
+        ("fastapi-canon" + (f"[{extras}]" if extras else ""),)
+        for extras in (
+            "",
+            "sse",
+            "websockets",
+            "webrtc",
+            "webrtc,aiortc",
+            "codegen",
+            "sse,codegen",
+            "websockets,codegen",
+            "sse,websockets,codegen",
+            "sse,websockets,webrtc,aiortc,codegen,otel",
+        )
     )
     for requirements in combinations:
         with tempfile.TemporaryDirectory(prefix="canon-artifacts-") as temporary:
@@ -99,7 +93,8 @@ def main() -> None:
                 "httpx>=0.28",
             )
             _run("uv", "pip", "check", "--python", str(python))
-            names = [requirement.split("[")[0] for requirement in requirements]
+            extras = Requirement(requirements[0]).extras
+            names = ["fastapi-canon", *sorted(extras & {"sse", "websockets", "webrtc"})]
             _run(
                 str(python),
                 "-I",
@@ -193,8 +188,8 @@ def _check_reference(canon_wheel: str, python_version: str) -> None:
             "assert Path(app.__file__).resolve().is_relative_to(Path(sys.prefix)); "
             "assert Path(fastapi_canon.__file__).resolve()"
             ".is_relative_to(Path(sys.prefix)); "
-            "assert importlib.util.find_spec('fastapi_streams') is None; "
-            "assert importlib.util.find_spec('fastapi_rpckit') is None",
+            "assert importlib.util.find_spec('fastapi_canon.sse') is not None; "
+            "assert importlib.util.find_spec('fastapi_canon.websockets') is not None",
             cwd=Path(temporary),
         )
         _run(

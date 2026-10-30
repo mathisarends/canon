@@ -17,9 +17,7 @@ from fastapi.testclient import TestClient
 from starlette.types import Message, Receive, Send
 from starlette.types import Scope as ASGIScope
 
-pytest.importorskip("fastapi_streams")
-
-from fastapi_streams import StreamRouter
+pytest.importorskip("fastapi_canon.sse")
 
 from examples.streams.app import (
     RunCompleted,
@@ -44,7 +42,8 @@ from fastapi_canon import (
     HTTPMethod,
     RouterPolicy,
 )
-from fastapi_canon.integrations.streams import CanonStreamRouter
+from fastapi_canon.integrations.sse import CanonStreamRouter
+from fastapi_canon.sse import StreamRouter
 
 AUTH = {"Authorization": "Bearer demo"}
 
@@ -423,8 +422,8 @@ def test_generator_body_errors_happen_after_response_start() -> None:
 @pytest.mark.parametrize("language", ["python", "typescript"])
 def test_export_and_generate_both_clients(tmp_path: Path, language: str) -> None:
     pytest.importorskip("jinja2")
-    from fastapi_streams.codegen.cli import main
-    from fastapi_streams.codegen.openapi import export_schema
+    from fastapi_canon.sse.codegen.cli import main
+    from fastapi_canon.sse.codegen.openapi import export_schema
 
     cached = copy.deepcopy(app.openapi())
     document = export_schema(app)

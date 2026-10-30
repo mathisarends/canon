@@ -2,6 +2,35 @@
 
 All notable changes to `fastapi-canon` are documented in this file.
 
+## 0.9.0 - unreleased
+
+### Breaking changes
+
+- Consolidate SSE, WebSocket RPC/sockets and WebRTC into the `fastapi-canon`
+  distribution. Replace dependencies on `fastapi-streams`, `fastapi-rpckit` and
+  `fastapi-webrtc` with Canon's `sse`, `websockets` and `webrtc` extras. Replace
+  `fastapi-canon[streams]` with `fastapi-canon[sse]`. All transport source and
+  generator resources ship in the same wheel; extras select dependencies.
+- Migrate Python imports to `fastapi_canon.sse`, `fastapi_canon.websockets` and
+  `fastapi_canon.webrtc`. Import `CanonStreamRouter` from
+  `fastapi_canon.integrations.sse`. The former top-level modules and console
+  scripts are no longer part of this release. Use `canon sse`,
+  `canon websockets` and `canon webrtc` for the existing generator commands.
+- Regenerate clients: generator metadata now identifies Canon 0.9.0. Existing
+  generated layouts, contract formats and transport behavior are retained,
+  including JSON-RPC 2.0 and `fastapi-webrtc.v1`. Socket binding entry points move
+  to `fastapi_canon.websockets.socket_bindings`; update binding package metadata.
+  See the [package migration guide](docs/package-migration.md) for commands.
+
+### Added
+
+- One `canon` command and `python -m fastapi_canon` entry point, including
+  `canon check errors`. Root CLI help loads no transport generators.
+- Optional `codegen`, `aiortc` and WebSocket `otel` dependencies in Canon.
+  Native engine and generation dependencies remain absent from the base install.
+- Fresh-wheel checks for the base package, each feature, codegen-only and
+  combined installations, including minimum dependency profiles.
+
 ## 0.8.1 - 2026-10-25
 
 [GitHub release and artifacts](https://github.com/mathisarends/canon/releases/tag/fastapi-canon-v0.8.1)

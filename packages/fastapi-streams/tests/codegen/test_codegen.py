@@ -2,13 +2,13 @@ import json
 from pathlib import Path
 
 import pytest
+from fastapi_canon.sse.codegen.cli import main
+from fastapi_canon.sse.codegen.ir import Reference, Union, build_ir
+from fastapi_canon.sse.codegen.openapi import ContractError, export_schema
+from fastapi_canon.sse.codegen.typescript import generate_typescript
+from fastapi_canon.sse.codegen.writer import MANIFEST, write_files
 
 from examples.agent_runs import app
-from fastapi_streams.codegen.cli import main
-from fastapi_streams.codegen.ir import Reference, Union, build_ir
-from fastapi_streams.codegen.openapi import ContractError, export_schema
-from fastapi_streams.codegen.typescript import generate_typescript
-from fastapi_streams.codegen.writer import MANIFEST, write_files
 
 
 @pytest.mark.parametrize(

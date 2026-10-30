@@ -2,15 +2,14 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import pytest
-from pydantic import BaseModel, ValidationError
-
-from fastapi_rpckit import RpcChannel, RpcMiddleware
-from fastapi_rpckit.codegen.ir import build_ir
-from fastapi_rpckit.envelopes import RpcRequestEnvelope
-from fastapi_rpckit.request_metadata import (
+from fastapi_canon.websockets import RpcChannel, RpcMiddleware
+from fastapi_canon.websockets.codegen.ir import build_ir
+from fastapi_canon.websockets.envelopes import RpcRequestEnvelope
+from fastapi_canon.websockets.request_metadata import (
     REQUEST_METADATA_CAPABILITY,
     validate_request_metadata,
 )
+from pydantic import BaseModel, ValidationError
 
 
 @pytest.mark.parametrize(
@@ -92,7 +91,7 @@ def test_metadata_wire_schema_and_exact_capability_negotiation():
     async def ping() -> None:
         pass
 
-    from fastapi_rpckit.schema import render_openrpc
+    from fastapi_canon.websockets.schema import render_openrpc
 
     document = render_openrpc(channel.protocol, title="Demo")
     assert document["x-rpc-request-metadata"] == REQUEST_METADATA_CAPABILITY

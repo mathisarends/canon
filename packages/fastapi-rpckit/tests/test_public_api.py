@@ -1,9 +1,8 @@
 import importlib.util
 
+import fastapi_canon.websockets
 import pytest
-
-import fastapi_rpckit
-from fastapi_rpckit import RpcRejection, RpcServer
+from fastapi_canon.websockets import RpcRejection, RpcServer
 
 
 @pytest.mark.parametrize(
@@ -28,7 +27,7 @@ from fastapi_rpckit import RpcRejection, RpcServer
     ),
 )
 def test_removed_pre_v1_composition_symbols_are_not_public(name: str) -> None:
-    assert not hasattr(fastapi_rpckit, name)
+    assert not hasattr(fastapi_canon.websockets, name)
 
 
 def test_servers_are_created_by_an_app() -> None:
@@ -42,13 +41,16 @@ def test_authentication_rejections_are_public() -> None:
 
 
 def test_test_helpers_are_distributed() -> None:
-    assert importlib.util.find_spec("fastapi_rpckit.testing") is not None
+    assert importlib.util.find_spec("fastapi_canon.websockets.testing") is not None
 
 
 @pytest.mark.parametrize("name", ["fastapi", "dishka", "opentelemetry"])
 def test_integrations_have_no_legacy_module_aliases(name: str) -> None:
-    assert importlib.util.find_spec(f"fastapi_rpckit.integrations.{name}") is not None
-    assert importlib.util.find_spec(f"fastapi_rpckit.{name}") is None
+    assert (
+        importlib.util.find_spec(f"fastapi_canon.websockets.integrations.{name}")
+        is not None
+    )
+    assert importlib.util.find_spec(f"fastapi_canon.websockets.{name}") is None
 
 
 def test_public_signature_types_are_exported() -> None:
@@ -59,16 +61,16 @@ def test_public_signature_types_are_exported() -> None:
         "RpcErrorBinding",
         "RpcErrorDeclaration",
     ):
-        assert name in fastapi_rpckit.__all__
+        assert name in fastapi_canon.websockets.__all__
 
 
 def test_observer_module_is_removed():
-    assert importlib.util.find_spec("fastapi_rpckit.observer") is None
+    assert importlib.util.find_spec("fastapi_canon.websockets.observer") is None
 
 
 @pytest.mark.parametrize("factory", ["service", "channel", "endpoint"])
 def test_observer_registration_is_removed(factory):
-    from fastapi_rpckit import RpcChannel, RpcService
+    from fastapi_canon.websockets import RpcChannel, RpcService
 
     channel = RpcChannel("test")
     with pytest.raises(TypeError, match="observer"):

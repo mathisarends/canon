@@ -24,9 +24,7 @@ from packaging.requirements import Requirement
 from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED = frozenset(
-    {"fastapi-canon", "fastapi-streams", "fastapi-rpckit", "fastapi-webrtc"}
-)
+ALLOWED = frozenset({"fastapi-canon"})
 NUMBER = r"(?:0|[1-9][0-9]*)"
 VERSION = re.compile(rf"{NUMBER}\.{NUMBER}\.{NUMBER}(?:(?:a|b|rc){NUMBER})?")
 REPORT = Path("dist/release-report/release.json")
@@ -92,28 +90,10 @@ def validate_release(
         locked = [p["version"] for p in lock["package"] if p["name"] == key]
         if locked != [expected]:
             raise ValueError(f"uv.lock does not match {key}; run uv lock")
-        if key != "fastapi-canon":
-            _check_constant(
-                root / item.directory / item.module / "__init__.py", expected
-            )
+        _check_constant(root / item.directory / item.module / "_version.py", expected)
     root_dependencies = _toml(root / "pyproject.toml")["project"]["dependencies"]
     for key in projects:
         _check_pin(root_dependencies, key, projects[key]["version"])
-    canon = _toml(root / "packages/fastapi-canon/pyproject.toml")
-    streams_version = projects["fastapi-streams"]["version"]
-    _check_pin(
-        canon["project"]["optional-dependencies"]["streams"],
-        "fastapi-streams",
-        streams_version,
-    )
-    _check_pin(
-        canon["dependency-groups"]["streams"], "fastapi-streams", streams_version
-    )
-    _check_pin(
-        canon["project"]["optional-dependencies"]["webrtc"],
-        "fastapi-webrtc",
-        projects["fastapi-webrtc"]["version"],
-    )
     reference = _toml(root / "examples/reference-service/pyproject.toml")
     reference_canon = next(
         Requirement(value)
@@ -167,12 +147,6 @@ def validate_release(
             raise ValueError(
                 "Version already exists on PyPI; use original run artifacts to resume"
             )
-        if publish and name == "fastapi-canon":
-            for dependency in ("fastapi-streams", "fastapi-webrtc"):
-                if _pypi(dependency, projects[dependency]["version"]) is None:
-                    raise ValueError(
-                        f"Publish the pinned {dependency} version before Canon"
-                    )
         report["workflow_url"] = (
             f"https://github.com/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
         )
@@ -199,19 +173,16 @@ def artifact_hashes(
         _check_artifact_metadata(metadata, name, version)
         if f"{package.module}/py.typed" not in paths:
             raise ValueError("Wheel is missing py.typed")
-        if name != "fastapi-canon":
+        for transport in ("sse", "websockets", "webrtc"):
             if not any(
-                p.startswith(f"{package.module}/codegen/templates/") for p in paths
+                path.startswith(f"{package.module}/{transport}/codegen/templates/")
+                for path in paths
             ):
-                raise ValueError("Wheel is missing codegen templates")
-            entries = configparser.ConfigParser()
-            entries.read_string(
-                archive.read(f"{stem}.dist-info/entry_points.txt").decode()
-            )
-            if entries["console_scripts"][name] != f"{package.module}.codegen.cli:main":
-                raise ValueError(
-                    "Wheel CLI entry point does not match the release target"
-                )
+                raise ValueError(f"Wheel is missing {transport} codegen templates")
+        entries = configparser.ConfigParser()
+        entries.read_string(archive.read(f"{stem}.dist-info/entry_points.txt").decode())
+        if entries["console_scripts"]["canon"] != "fastapi_canon.cli:main":
+            raise ValueError("Wheel CLI entry point does not match Canon")
     with tarfile.open(directory / f"{stem}.tar.gz") as archive:
         member = archive.extractfile(f"{stem}/PKG-INFO")
         if member is None:
@@ -249,11 +220,16 @@ def verify_published(report: dict[str, Any], root: Path = ROOT) -> None:
         if attempt == 11:
             raise ValueError("PyPI does not yet expose all expected artifact hashes")
         time.sleep(5)
-    combinations = [(report["package"] + "==" + report["version"],)]
-    if report["package"] == "fastapi-canon":
-        combinations.append((f"fastapi-canon[streams]=={report['version']}",))
-        combinations.append((f"fastapi-canon[webrtc]=={report['version']}",))
-        combinations.append((f"fastapi-canon[streams,webrtc]=={report['version']}",))
+    combinations = [
+        (f"fastapi-canon{extras}=={report['version']}",)
+        for extras in (
+            "",
+            "[sse]",
+            "[websockets]",
+            "[webrtc]",
+            "[sse,websockets,webrtc,aiortc,codegen]",
+        )
+    ]
     for requirements in combinations:
         with tempfile.TemporaryDirectory(prefix="canon-pypi-") as temporary:
             environment = Path(temporary) / "venv"
@@ -274,12 +250,12 @@ def verify_published(report: dict[str, Any], root: Path = ROOT) -> None:
             )
             _run(["uv", "pip", "check", "--python", str(python)])
             selected = [report["package"]]
-            for extra, distribution in (
-                ("streams", "fastapi-streams"),
-                ("webrtc", "fastapi-webrtc"),
-            ):
-                if extra in Requirement(requirements[0]).extras:
-                    selected.append(distribution)
+            selected.extend(
+                sorted(
+                    Requirement(requirements[0]).extras
+                    & {"sse", "websockets", "webrtc"}
+                )
+            )
             _run(
                 [
                     str(python),
@@ -292,9 +268,7 @@ def verify_published(report: dict[str, Any], root: Path = ROOT) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Prepare and verify independent Canon releases"
-    )
+    parser = argparse.ArgumentParser(description="Prepare and verify Canon releases")
     parser.add_argument(
         "command", choices=("validate", "artifacts", "state", "verify-pypi", "finish")
     )

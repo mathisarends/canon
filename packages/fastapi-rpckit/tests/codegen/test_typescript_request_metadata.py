@@ -3,14 +3,13 @@ import subprocess
 from copy import deepcopy
 from textwrap import dedent
 
+from fastapi_canon.websockets import RpcChannel
+from fastapi_canon.websockets.codegen import render_typescript_client
+from fastapi_canon.websockets.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.websockets.integrations.opentelemetry import OpenTelemetry
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from fastapi_rpckit import RpcChannel
-from fastapi_rpckit.codegen import render_typescript_client
-from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
-from fastapi_rpckit.integrations.opentelemetry import OpenTelemetry
 
 from .test_typescript_cancellation import cancellation_sdk as cancellation_sdk
 

@@ -6,16 +6,7 @@ from collections.abc import AsyncIterator
 import pytest
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.testclient import TestClient
-from opentelemetry import baggage, trace
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import InMemoryMetricReader
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
-from opentelemetry.trace import SpanKind, StatusCode
-
-from fastapi_rpckit import (
+from fastapi_canon.websockets import (
     Inject,
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -25,9 +16,17 @@ from fastapi_rpckit import (
     RpcRequestScope,
     RpcService,
 )
-from fastapi_rpckit.integrations.fastapi import RpcRoutes, serve_websocket
-from fastapi_rpckit.integrations.opentelemetry import OpenTelemetry
-from fastapi_rpckit.testing import InMemorySocket, RpcTestClient, RpcTestError
+from fastapi_canon.websockets.integrations.fastapi import RpcRoutes, serve_websocket
+from fastapi_canon.websockets.integrations.opentelemetry import OpenTelemetry
+from fastapi_canon.websockets.testing import InMemorySocket, RpcTestClient, RpcTestError
+from opentelemetry import baggage, trace
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
+from opentelemetry.trace import SpanKind, StatusCode
 
 
 @pytest.fixture
@@ -551,16 +550,16 @@ for name in list(sys.modules):
 
 class Block:
     def find_spec(self, fullname, path=None, target=None):
-        if fullname.split(".", 1)[0] in {"dishka", "opentelemetry"}:
+        if fullname.split(".", 1)[0] in {"opentelemetry"}:
             raise ModuleNotFoundError("blocked", name=fullname)
 sys.meta_path.insert(0, Block())
-import fastapi_rpckit
-import fastapi_rpckit.integrations
-assert fastapi_rpckit.RpcMiddleware
+import fastapi_canon.websockets
+import fastapi_canon.websockets.integrations
+assert fastapi_canon.websockets.RpcMiddleware
 try:
-    import fastapi_rpckit.integrations.opentelemetry
+    import fastapi_canon.websockets.integrations.opentelemetry
 except ModuleNotFoundError as error:
-    assert "fastapi-rpckit[otel]" in str(error)
+    assert "fastapi-canon[otel]" in str(error)
 else:
     raise AssertionError("optional integration should fail without OTEL")
 """

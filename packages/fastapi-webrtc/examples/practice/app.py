@@ -24,9 +24,7 @@ from aiortc import VideoStreamTrack
 from aiortc.contrib.media import MediaRelay
 from aiortc.mediastreams import MediaStreamError
 from fastapi import Depends, FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
-
-from fastapi_webrtc import (
+from fastapi_canon.webrtc import (
     DataChannelSpec,
     Direction,
     IncomingTrack,
@@ -37,7 +35,8 @@ from fastapi_webrtc import (
     SessionLimits,
     WebRtcRouter,
 )
-from fastapi_webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
+from pydantic import BaseModel, Field
 
 DEMO_TOKEN = "demo"
 

@@ -15,10 +15,12 @@ uv run --locked python scripts/check_webrtc_artifacts.py
 ```
 
 `check.py` accepts `lint`, `types`, `test`, `clients` and `browser` individually.
-Each package keeps its lint/type settings and runs tests in a separate process:
+Each feature suite keeps its lint/type settings and runs tests in a separate process:
 their top-level `tests` and `examples` namespaces cannot share one pytest run.
 Use `uv run --locked --directory packages/fastapi-canon python -m pytest -q` for a focused
-suite. `uv run --locked pytest -q` runs only the root integration/release suite.
+suite. For the retained feature directories, run
+`uv run --locked --project ../.. python -m pytest -q` from that directory.
+`uv run --locked pytest -q` runs only the root integration/release suite.
 
 The `browser` gate is separate from `all`. Install Chromium once from
 `packages/fastapi-webrtc` with `npx playwright install chromium`, then run
@@ -28,9 +30,9 @@ have npm lockfiles. Regenerate clients through their package generators before
 checking drift; never edit generated clients directly.
 
 `check_distributions.py` builds wheels/sdists and tests ten package combinations
-in fresh environments without workspace source overrides. Current and minimum
+of the single Canon wheel in fresh environments without workspace source overrides. Current and minimum
 dependency profiles are separate checks. The current profile also installs the
-development-only reference service and tests it with transport extensions absent.
+development-only reference service and tests it without transport extras.
 The dedicated Streams and WebRTC artifact scripts verify installed CLIs and the
 clients they generate. Build outputs and dependency inventories belong in ignored
 `dist/`, not in versioned development reports.

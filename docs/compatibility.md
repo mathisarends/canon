@@ -20,9 +20,10 @@ when updating constructor wrappers and the
 before upgrading custom engines. The [release record](releases.md#current-versions)
 links the verified source and publication workflows.
 Package metadata defines dependency ranges; the root `uv.lock` selects development
-versions and does not establish support for every resolvable combination. Canon's
-Streams and WebRTC extras pin the corresponding independently versioned package.
-Canon core and each extension work independently.
+versions and does not establish support for every resolvable combination.
+The prepared, unpublished Canon 0.9.0 source combines the transport code in one
+wheel. Feature extras select third-party dependencies; no extra requires an
+earlier distribution. Base composition retains its lower dependency bounds.
 
 Canon 0.8.0 adds router policies and optional source-based error-contract checking.
 Its policy contracts and installed checker are exercised by the current/minimum
@@ -36,6 +37,14 @@ HTTP/SSE/RPC/WebRTC routing and generated RPC SDK execution and compilation.
 
 ## Verification scope
 
+The unified 0.9.0 source has been checked locally on Windows with Python 3.14
+and current compatible dependencies, plus the minimum direct dependency matrix
+on Python 3.12. Both matrices install one Canon wheel across ten feature/tool
+combinations without legacy distributions. Installed SSE CLI checks cover no
+HTTP backend, HTTPX and HTTPX2; the installed WebRTC CLI generates a client that
+compiles. Chromium scenarios cover the aiortc signaling and media paths. This
+local validation does not replace exact-source CI or establish a publication.
+
 CI runs package-specific lint/type checks, separate Python suites and generated
 client drift/TypeScript tests on Linux with Python 3.12–3.14 and Windows with
 Python 3.14. Linux/Python 3.14 also runs Chromium/aiortc browser tests and installed
@@ -45,16 +54,16 @@ The installed-wheel matrix covers:
 
 | Combination | What it establishes |
 | --- | --- |
-| Canon core | Import/runtime behavior with all extensions absent |
-| Streams | Standalone SSE and CLI behavior |
-| RPCKit | Standalone RPC, sockets and generated clients |
-| Canon + Streams | Optional integration and HTTP/SSE contracts |
-| Canon + RPCKit | Composition without Streams |
-| Canon + Streams + RPCKit | Shared application state and Dishka cleanup |
-| WebRTC core | Standalone declarations, contract/codegen and missing-engine diagnostics |
-| WebRTC + aiortc | Optional engine installation |
-| Canon + WebRTC | Admission contracts and optional integration |
-| All four packages | Combined installation, routing and client generation |
+| Canon base | Composition with optional tools and engines absent |
+| `[sse]` | SSE runtime with the required FastAPI/Pydantic bounds |
+| `[websockets]` | RPC and typed/raw/binary sockets |
+| `[webrtc]` | Session declarations, signaling, admission and missing-engine diagnostics |
+| `[webrtc,aiortc]` | Optional engine installation |
+| `[codegen]` | Offline tooling without transport or engine extras |
+| `[sse,codegen]` | SSE contracts and clients |
+| `[websockets,codegen]` | OpenRPC export and client execution/compilation |
+| `[sse,websockets,codegen]` | Shared application state and Dishka cleanup |
+| All feature/tool extras | Combined routing and client generation |
 
 Run `scripts/check_distributions.py` through the locked workspace environment for
 current compatible dependencies. Add `--python 3.12 --dependencies minimum` for

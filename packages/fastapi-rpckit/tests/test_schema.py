@@ -1,8 +1,8 @@
 import json
 
-from fastapi_rpckit import RpcChannel, RpcService
-from fastapi_rpckit.protocol import RpcProtocol
-from fastapi_rpckit.schema import render_openrpc
+from fastapi_canon.websockets import RpcChannel, RpcService
+from fastapi_canon.websockets.protocol import RpcProtocol
+from fastapi_canon.websockets.schema import render_openrpc
 
 from .conftest import GreetingNotificationMethod, GreetingRpcMethod
 

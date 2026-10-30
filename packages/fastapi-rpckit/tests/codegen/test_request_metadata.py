@@ -6,20 +6,19 @@ from contextlib import asynccontextmanager
 from copy import deepcopy
 
 import pytest
+from fastapi_canon.websockets import RpcChannel, RpcService
+from fastapi_canon.websockets.codegen import generate_python_client
+from fastapi_canon.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.websockets.integrations.opentelemetry import (
+    OpenTelemetry,
+    trace_metadata,
+)
+from fastapi_canon.websockets.testing import InMemorySocketFactory
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import TypeAdapter
-
-from fastapi_rpckit import RpcChannel, RpcService
-from fastapi_rpckit.codegen import generate_python_client
-from fastapi_rpckit.codegen.python import PythonClientOptions
-from fastapi_rpckit.integrations.opentelemetry import (
-    OpenTelemetry,
-    trace_metadata,
-)
-from fastapi_rpckit.testing import InMemorySocketFactory
 
 from .conftest import document as document
 from .test_connect import client_module as client_module

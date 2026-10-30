@@ -1,6 +1,6 @@
 # Contract and clients
 
-The service definition is the source of truth. fastapi_rpckit exports it as OpenRPC,
+The service definition is the source of truth. fastapi_canon.websockets exports it as OpenRPC,
 then generates clients from that document rather than from Python internals.
 The resulting artifact can therefore be reviewed, versioned, and consumed by
 other tooling.
@@ -8,13 +8,13 @@ other tooling.
 Install the generator extra:
 
 ```bash
-uv add "fastapi-rpckit[codegen]"
+uv add "fastapi-canon[websockets,codegen]"
 ```
 
 ## Build a contract
 
 ```python
-from fastapi_rpckit import ServerVariable
+from fastapi_canon.websockets import ServerVariable
 
 contract = app.contract(
     title="Tasks API",
@@ -67,7 +67,7 @@ with_transport = "websocket"
 Generate everything together:
 
 ```bash
-fastapi-rpckit generate --config rpcgen.toml
+canon websockets generate --config rpcgen.toml
 ```
 
 Paths are resolved relative to the config file. Client generation reads the
@@ -78,7 +78,7 @@ Run the same command in CI with `--check`. It exits nonzero and lists stale
 files instead of writing them:
 
 ```bash
-fastapi-rpckit generate --config rpcgen.toml --check
+canon websockets generate --config rpcgen.toml --check
 ```
 
 Generated directories are owned by the generator and should not be edited by
@@ -92,10 +92,10 @@ regeneration.
 The schema and client stages can also run separately:
 
 ```bash
-fastapi-rpckit schema my_api:contract \
+canon websockets schema my_api:contract \
   --output schema/tasks.openrpc.json
 
-fastapi-rpckit generate schema/tasks.openrpc.json \
+canon websockets generate schema/tasks.openrpc.json \
   --language python \
   --output src/tasks_client \
   --package tasks_client \
@@ -105,7 +105,7 @@ fastapi-rpckit generate schema/tasks.openrpc.json \
 Omit `with_transport` when integrating with an existing transport. Python
 clients accept an `RpcTransport`; TypeScript clients accept the corresponding
 transport interface. The OpenRPC generators are tolerant of ordinary tagged
-OpenRPC methods and additionally understand fastapi_rpckit's typed-error and binary
+OpenRPC methods and additionally understand fastapi_canon.websockets's typed-error and binary
 stream extensions.
 
 ## Use a generated client

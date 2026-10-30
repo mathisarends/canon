@@ -1,4 +1,8 @@
-# fastapi-webrtc
+# Canon WebRTC
+
+This directory retains feature tests, examples and guides. The implementation
+now ships in `fastapi-canon[webrtc]` (prepared 0.9.0, not yet published).
+See the [package migration guide](../fastapi-canon/docs/package-migration.md).
 
 Typed WebRTC sessions for FastAPI. You declare a session like a route: its
 factory is an ordinary FastAPI dependency, so authentication, path and query
@@ -7,14 +11,13 @@ connection exists. The package exports a contract and generates a typed,
 framework-free browser client from it.
 
 ```console
-pip install "fastapi-webrtc[aiortc]"
+pip install "fastapi-canon[webrtc,aiortc]"
 ```
 
-The core depends on FastAPI, Pydantic and Starlette >=0.41. The Starlette
+The `webrtc` extra selects Starlette >=0.41 and the other transport requirements. The Starlette
 lower bound ensures that an admission dependency's `HTTPException` returns an
 HTTP response before accepting the WebSocket. Media engines are adapters; the
-`aiortc` extra installs the reference engine. Canon, RPCKit and GStreamer are
-not dependencies.
+`aiortc` extra installs the reference engine. The implementation ships in Canon; it does not load other transport modules or GStreamer.
 
 ## Server
 
@@ -25,7 +28,7 @@ from aiortc.contrib.media import MediaRelay
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
-from fastapi_webrtc import (
+from fastapi_canon.webrtc import (
     DataChannelSpec,
     Direction,
     IncomingTrack,
@@ -34,7 +37,7 @@ from fastapi_webrtc import (
     Session,
     WebRtcRouter,
 )
-from fastapi_webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
 
 
 class Prompt(BaseModel):
@@ -116,8 +119,8 @@ when the browser only watches.
 ## Browser client
 
 ```console
-fastapi-webrtc contract --app app:app --output contract.json
-fastapi-webrtc generate --contract contract.json --output src/rtc --client-name PracticeRtcClient
+canon webrtc contract --app app:app --output contract.json
+canon webrtc generate --contract contract.json --output src/rtc --client-name PracticeRtcClient
 ```
 
 ```ts
@@ -210,8 +213,8 @@ give the server-side engine internal relay URLs.
 
 The engine interface abstracts signaling and lifecycle. `MediaKind`,
 `SignalingState`, `ConnectionState`, `TransceiverDirection` and `ChannelState`
-are public `StrEnum` classes available from `fastapi_webrtc` and
-`fastapi_webrtc.engine`. Custom adapters return enum members and convert native
+are public `StrEnum` classes available from `fastapi_canon.webrtc` and
+`fastapi_canon.webrtc.engine`. Custom adapters return enum members and convert native
 strings with constructors such as `ConnectionState(native_state)`. Use
 `MediaKind.VIDEO` for video stats and codec-preference keys, and
 `TransceiverDirection.RECVONLY` when adding a receive-only transceiver.

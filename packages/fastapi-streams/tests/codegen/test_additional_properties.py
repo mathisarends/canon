@@ -1,10 +1,10 @@
 import importlib
 
 import pytest
+from fastapi_canon.sse.codegen.ir import build_ir
+from fastapi_canon.sse.codegen.python import generate_python
 from pydantic import ConfigDict, TypeAdapter, ValidationError, create_model
 
-from fastapi_streams.codegen.ir import build_ir
-from fastapi_streams.codegen.python import generate_python
 from tests.codegen.helpers import (
     event_document,
     load_models,

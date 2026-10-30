@@ -1,9 +1,9 @@
 from typing import Annotated, Literal
 
 import pytest
+from fastapi_canon.sse.codegen.python import generate_python
 from pydantic import BaseModel, Field, ValidationError
 
-from fastapi_streams.codegen.python import generate_python
 from tests.codegen.helpers import event_contract, load_package
 
 

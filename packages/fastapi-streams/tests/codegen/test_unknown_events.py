@@ -3,9 +3,9 @@ from typing import Annotated, Literal
 
 import httpx
 import pytest
+from fastapi_canon.sse.codegen.python import generate_python
 from pydantic import BaseModel, Field, create_model
 
-from fastapi_streams.codegen.python import generate_python
 from tests.codegen.helpers import event_contract, load_package
 
 
@@ -134,7 +134,7 @@ async def test_ignore_reuses_policy_across_requests_and_keeps_nested_validation(
 
 
 def _typescript_policy(event: object) -> str | None:
-    from fastapi_streams.codegen.typescript import generate_typescript
+    from fastapi_canon.sse.codegen.typescript import generate_typescript
 
     api = next(
         text

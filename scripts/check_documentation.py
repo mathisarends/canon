@@ -12,37 +12,24 @@ def check_documentation(root: Path = ROOT) -> list[str]:
     canon = tomllib.loads(
         (root / "packages/fastapi-canon/pyproject.toml").read_text("utf-8")
     )
-    (pin,) = canon["project"]["optional-dependencies"]["streams"]
-    expected = pin.split("==")[1]
-    for name in (
-        "packages/fastapi-canon/docs/streams.md",
-        "packages/fastapi-canon/examples/streams/README.md",
+    legacy = {"fastapi-streams", "fastapi-rpckit", "fastapi-webrtc"}
+    for dependencies in (
+        canon["project"]["dependencies"],
+        *canon["project"]["optional-dependencies"].values(),
     ):
-        text = (root / name).read_text("utf-8")
-        for version in re.findall(r"fastapi-streams(?:\[codegen\])?==([\w.]+)", text):
-            if version != expected:
-                errors.append(f"{name}: Streams {version} does not match {expected}")
-    readme = (root / "packages/fastapi-streams/README.md").read_text("utf-8")
-    if "git+https://github.com/mathisarends/fastapi-streams" in readme:
-        errors.append("Streams quickstart must install the PyPI distribution")
-    streams = root / "packages/fastapi-streams"
-    for path in (streams / "README.md", *(streams / "docs").rglob("*.md")):
-        if "github.com/mathisarends/fastapi-streams" in path.read_text("utf-8"):
-            errors.append(
-                f"{path.relative_to(root)}: link the Canon workspace repository"
-            )
-    rpc = root / "packages/fastapi-rpckit"
-    for folder in ("docs", "examples"):
-        for path in (rpc / folder).rglob("*.md"):
-            if "from fastapi_rpckit.integrations.fastapi import" in path.read_text(
-                "utf-8"
+        if any(re.split(r"[\[<>=]", value)[0] in legacy for value in dependencies):
+            errors.append("Canon dependencies must not install legacy distributions")
+    for folder in ("packages", "examples", "guides"):
+        for path in (root / folder).rglob("*.md"):
+            if path.name == "CHANGELOG.md" or "node_modules" in path.parts:
+                continue
+            text = path.read_text("utf-8")
+            if re.search(
+                r"(?:uv add|pip install) [^\n]*fastapi-(?:streams|rpckit|webrtc)", text
             ):
-                errors.append(
-                    f"{path.relative_to(root)}: use package-root FastAPI imports"
-                )
-    source = (rpc / "fastapi_rpckit/integrations/dishka.py").read_text("utf-8")
-    if "'fastapi'" in source or "[fastapi]" in source:
-        errors.append("Dishka diagnostic must not suggest the removed fastapi extra")
+                errors.append(f"{path.relative_to(root)}: install fastapi-canon extras")
+            if re.search(r"from fastapi_(?:streams|rpckit|webrtc)\b", text):
+                errors.append(f"{path.relative_to(root)}: use fastapi_canon imports")
     return errors
 
 

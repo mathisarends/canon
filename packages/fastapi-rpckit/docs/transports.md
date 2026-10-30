@@ -19,7 +19,7 @@ The Python equivalents are `uvicorn.run(..., ws="websockets",
 ws_max_size=1_048_576, ws_max_queue=4)`. Use the same value in
 `RpcLimits(max_message_bytes=1_048_576)`. The message limit applies to the combined
 payload of a fragmented WebSocket message, not independently to each fragment.
-The transport may close oversized messages with WebSocket code 1009 before fastapi_rpckit
+The transport may close oversized messages with WebSocket code 1009 before fastapi_canon.websockets
 can produce a JSON-RPC response.
 
 Pin and check the backend you deploy rather than relying on `--ws auto`.
@@ -31,7 +31,7 @@ backend implementation for your installed version.
 The verified `websockets` mapping is in
 [Uvicorn 0.35.0](https://github.com/Kludex/uvicorn/blob/0.35.0/uvicorn/protocols/websockets/websockets_impl.py).
 
-Incoming transport queues, assembled messages, decoded JSON, and fastapi_rpckit's own
+Incoming transport queues, assembled messages, decoded JSON, and fastapi_canon.websockets's own
 pending items and outgoing queue all consume memory. A message-size limit alone
 does not bound their sum. The legacy `websockets` backend queues complete
 messages; text can require up to four bytes per character in Python, so four
@@ -45,7 +45,7 @@ oversized fragmented messages against the actual backend during deployment.
 FastAPI support is included in the base distribution:
 
 ```bash
-uv add fastapi-rpckit
+uv add fastapi-canon[websockets]
 ```
 
 Mount every endpoint declared on a service:
@@ -53,7 +53,7 @@ Mount every endpoint declared on a service:
 ```python
 from fastapi import FastAPI
 
-from fastapi_rpckit import create_router
+from fastapi_canon.websockets import create_router
 
 web = FastAPI()
 web.include_router(create_router(app))
@@ -110,7 +110,7 @@ other libraries. An endpoint declares the type of its connection context with
 ```python
 from collections.abc import AsyncIterator
 
-from fastapi_rpckit import Inject, RpcChannel, RpcService
+from fastapi_canon.websockets import Inject, RpcChannel, RpcService
 
 output = RpcChannel("output")
 
@@ -135,7 +135,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from fastapi_rpckit import RpcRoutes
+from fastapi_canon.websockets import RpcRoutes
 
 
 async def open_job(
@@ -169,10 +169,10 @@ always matches the contract. Mounting fails when that path lies outside the
 router's prefix or the endpoint is already mounted. JSON-RPC sockets and binary
 streams mount the same way.
 
-`resolver=` accepts any fastapi_rpckit resolver for the remaining `Inject[T]` values.
+`resolver=` accepts any fastapi_canon.websockets resolver for the remaining `Inject[T]` values.
 To integrate a DI library, pass an object implementing `FastApiResolver`
 instead: it creates a resolver per WebSocket and may wrap the context function.
-`fastapi_rpckit.integrations.dishka.Dishka` is one such [integration](dependencies.md#dishka).
+`fastapi_canon.websockets.integrations.dishka.Dishka` is one such [integration](dependencies.md#dishka).
 
 `rejects=` takes [error bindings](errors.md#bind-domain-exceptions) with a
 `rejection=`, and `rejections=` takes a mapping or callable. Both follow
@@ -193,9 +193,9 @@ resource:
 ```python
 from fastapi import WebSocket
 
-from fastapi_rpckit import Inject
-from fastapi_rpckit.integrations.dishka import Dishka
-from fastapi_rpckit import RpcRoutes
+from fastapi_canon.websockets import Inject
+from fastapi_canon.websockets.integrations.dishka import Dishka
+from fastapi_canon.websockets import RpcRoutes
 
 
 async def serve_job(
@@ -220,11 +220,11 @@ or keyword-only parameters. Other parameters retain normal FastAPI dependency,
 path, and query resolution.
 
 The context dependency runs even when the handler does not request its result.
-After successful dependency resolution, fastapi_rpckit enters one connection scope,
+After successful dependency resolution, fastapi_canon.websockets enters one connection scope,
 adds the context under the endpoint's declared type, resolves the handler's
 `Inject[T]` parameters, and calls the handler. The scope opens before the
 handler accepts the socket and exits on completion, failure, or cancellation.
-With Dishka, injected services live in the fastapi_rpckit SESSION scope and can depend
+With Dishka, injected services live in the fastapi_canon.websockets SESSION scope and can depend
 on the context through `from_context`; REQUEST-scoped services belong in RPC
 calls. Neither the context nor `Inject[T]` requires a Dishka `@inject` decorator.
 See [Dishka integration](dependencies.md#dishka) for application setup and the
@@ -238,7 +238,7 @@ closed socket is not closed again; unmapped failures propagate.
 
 The handler owns acceptance (including any subprotocol), messages, resource
 acquisition, disconnect handling, cancellation of its tasks, and socket closure.
-fastapi_rpckit does not start a serving loop or create runtime objects such as
+fastapi_canon.websockets does not start a serving loop or create runtime objects such as
 `RpcConnection` for a custom handler. Standard runtime settings such as `limits=`
 and `error_mapper=` are applied by the standard serving runtime, not by the
 custom handler wrapper. Changing the mounting handler does not change the
@@ -255,7 +255,7 @@ Starlette cancels the task after a disconnect:
 ```python
 from fastapi import WebSocket
 
-from fastapi_rpckit import serve_websocket
+from fastapi_canon.websockets import serve_websocket
 
 
 @web.websocket("/legacy/rpc")
@@ -271,7 +271,7 @@ Implement `RpcWebSocket` and pass it to `app.serve(socket)`. The protocol consis
 of a handshake property and six async operations:
 
 ```python
-from fastapi_rpckit import RpcHandshake
+from fastapi_canon.websockets import RpcHandshake
 
 
 class MySocket:
@@ -299,7 +299,7 @@ For low-level dispatch tests that do not need connection behavior, obtain an
 
 ## In-memory testing and directional faults
 
-`fastapi_rpckit.testing.InMemorySocket` implements the server adapter. Its `client` view
+`fastapi_canon.websockets.testing.InMemorySocket` implements the server adapter. Its `client` view
 (`InMemoryClientSocket`) provides `send()` / `recv()` / `close()` for generated
 Python WebSocket clients, using the same incoming and outgoing queues. Both views
 preserve close code and reason; the client exposes `close_code` and `close_reason`.
@@ -310,7 +310,7 @@ Each socket has independent `client_to_server` and `server_to_client`
 controllers before sending frames:
 
 ```python
-from fastapi_rpckit.testing import InMemorySocket, SocketFaults
+from fastapi_canon.websockets.testing import InMemorySocket, SocketFaults
 
 socket = InMemorySocket(
     "/rpc",
@@ -347,7 +347,10 @@ callback can script different failures for successive connections. `attempts`
 includes rejected attempts, and `sockets` records connections actually created:
 
 ```python
-from fastapi_rpckit.testing import InMemorySocketFactory, RpcTestHandshakeRejected
+from fastapi_canon.websockets.testing import (
+    InMemorySocketFactory,
+    RpcTestHandshakeRejected,
+)
 
 
 def configure(socket, attempt):
@@ -383,7 +386,7 @@ for a complete generated-client example using held responses.
 Measure the in-process request path over `InMemorySocket` with:
 
 ```console
-uv run --locked --directory packages/fastapi-rpckit python scripts/bench_rpc_requests.py
+uv run --locked --project ../.. --directory packages/fastapi-rpckit python scripts/bench_rpc_requests.py
 ```
 
 It reports sequential round-trip latency and pipelined requests per second for
@@ -418,8 +421,8 @@ pre-stop endpoint and wait for completion before sending the termination signal:
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi_rpckit import RpcDrain, RpcService
-from fastapi_rpckit import create_router
+from fastapi_canon.websockets import RpcDrain, RpcService
+from fastapi_canon.websockets import create_router
 
 drain = RpcDrain()
 rpc = RpcService(drain=drain)

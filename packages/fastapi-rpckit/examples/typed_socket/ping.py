@@ -1,15 +1,14 @@
 from typing import Literal
 
 from fastapi import FastAPI
-from pydantic import BaseModel, ConfigDict
-
-from fastapi_rpckit import (
+from fastapi_canon.websockets import (
     Inject,
     RpcChannel,
     RpcService,
     RpcSocket,
     create_router,
 )
+from pydantic import BaseModel, ConfigDict
 
 
 class Ping(BaseModel):

@@ -2,11 +2,11 @@ import json
 from dataclasses import replace
 
 import pytest
+from fastapi_canon.sse.codegen.cli import main
+from fastapi_canon.sse.codegen.diagnostics import accepted_diagnostics
+from fastapi_canon.sse.codegen.ir import build_ir
+from fastapi_canon.sse.codegen.openapi import ContractError, resolve_pointer
 
-from fastapi_streams.codegen.cli import main
-from fastapi_streams.codegen.diagnostics import accepted_diagnostics
-from fastapi_streams.codegen.ir import build_ir
-from fastapi_streams.codegen.openapi import ContractError, resolve_pointer
 from tests.codegen.helpers import event_document
 
 
@@ -215,7 +215,7 @@ def test_diagnostic_report_cannot_overwrite_inputs_or_generated_files(tmp_path):
 def test_report_describes_actual_target_phases_and_stable_schema_content(
     tmp_path, target, backend
 ):
-    from fastapi_streams import __version__
+    from fastapi_canon.sse import __version__
 
     document = event_document(str)
     schema, report = tmp_path / "openapi.json", tmp_path / "report.json"
@@ -240,7 +240,7 @@ def test_report_describes_actual_target_phases_and_stable_schema_content(
     manifest_path = tmp_path / "sdk" / ".fastapi-streams.json"
     manifest_bytes = manifest_path.read_bytes()
     assert json.loads(manifest_bytes)["generation"] == generation
-    assert generation["generator"] == "fastapi-streams"
+    assert generation["generator"] == "fastapi-canon"
     assert generation["generator_version"] == __version__
     assert generation["target"] == target
     assert generation["python_http_client"] == backend

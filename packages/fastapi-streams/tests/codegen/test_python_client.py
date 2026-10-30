@@ -5,6 +5,10 @@ from enum import StrEnum
 
 import httpx
 import pytest
+from fastapi_canon.sse.codegen.cli import main
+from fastapi_canon.sse.codegen.ir import build_ir
+from fastapi_canon.sse.codegen.openapi import export_schema
+from fastapi_canon.sse.codegen.python import generate_python
 from pydantic import TypeAdapter
 
 from examples.agent_runs.generated_python import (
@@ -17,10 +21,6 @@ from examples.agent_runs.generated_python import (
 )
 from examples.agent_runs.generated_python.models import RunEvent, RunRequest
 from examples.agent_runs.generated_python.runtime import iter_sse
-from fastapi_streams.codegen.cli import main
-from fastapi_streams.codegen.ir import build_ir
-from fastapi_streams.codegen.openapi import export_schema
-from fastapi_streams.codegen.python import generate_python
 
 
 class Chunks(httpx.AsyncByteStream):

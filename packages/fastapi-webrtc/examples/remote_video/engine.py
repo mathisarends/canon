@@ -2,8 +2,13 @@
 
 from typing import Any, Protocol
 
-from fastapi_webrtc import ConnectionStats, EngineCapabilities, ErrorCode, WebRtcError
-from fastapi_webrtc.engine import (
+from fastapi_canon.webrtc import (
+    ConnectionStats,
+    EngineCapabilities,
+    ErrorCode,
+    WebRtcError,
+)
+from fastapi_canon.webrtc.engine import (
     ChannelParameters,
     ConnectionState,
     DescriptionType,

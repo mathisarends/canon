@@ -1,4 +1,4 @@
-from fastapi_rpckit.testing import (
+from fastapi_canon.websockets.testing import (
     InMemorySocket,
     RpcTestClient,
     RpcTestConnectionClosed,

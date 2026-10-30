@@ -1,6 +1,6 @@
 """Check the installed WebRTC CLI and type-check the client it generates.
 
-The wheel is installed in a fresh environment. Its ``fastapi-webrtc`` command
+The wheel is installed in a fresh environment. Its ``canon webrtc`` command
 exports the practice example's contract and generates its browser client; both
 must match the committed files, and the generated TypeScript must compile.
 """
@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "packages/fastapi-webrtc"
+CANON = ROOT / "packages/fastapi-canon"
 EXAMPLE = PACKAGE / "examples/practice"
 TSC = PACKAGE / "node_modules/typescript/bin/tsc"
 TSCONFIG = {
@@ -40,15 +41,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--artifacts", type=Path)
     args = parser.parse_args()
-    version = tomllib.loads((PACKAGE / "pyproject.toml").read_text("utf-8"))["project"][
+    version = tomllib.loads((CANON / "pyproject.toml").read_text("utf-8"))["project"][
         "version"
     ]
-    pattern = f"fastapi_webrtc-{version}-*.whl"
-    directory = ROOT / "dist/fastapi-webrtc"
+    pattern = f"fastapi_canon-{version}-*.whl"
+    directory = ROOT / "dist/fastapi-canon"
     if args.artifacts and list(args.artifacts.glob(pattern)):
         directory = args.artifacts.resolve()
     else:
-        _run("uv", "build", "--package", "fastapi-webrtc", "--out-dir", str(directory))
+        _run("uv", "build", "--package", "fastapi-canon", "--out-dir", str(directory))
     (wheel,) = directory.glob(pattern)
     node = shutil.which("node")
     if node is None or not TSC.is_file():
@@ -62,10 +63,8 @@ def main() -> None:
         _run("uv", "venv", "--python", sys.executable, str(environment))
         scripts = environment / ("Scripts" if sys.platform == "win32" else "bin")
         python = scripts / ("python.exe" if sys.platform == "win32" else "python")
-        cli = scripts / (
-            "fastapi-webrtc.exe" if sys.platform == "win32" else "fastapi-webrtc"
-        )
-        _run("uv", "pip", "install", "--python", str(python), f"{wheel}[aiortc]")
+        cli = scripts / ("canon.exe" if sys.platform == "win32" else "canon")
+        _run("uv", "pip", "install", "--python", str(python), f"{wheel}[webrtc,aiortc]")
         # A copied module keeps the workspace source out of the import path.
         shutil.copyfile(EXAMPLE / "app.py", working / "practice_app.py")
         shutil.copytree(EXAMPLE / "client", working / "client")
@@ -73,6 +72,7 @@ def main() -> None:
         app = ("--app", "practice_app:app")
         _run(
             str(cli),
+            "webrtc",
             "contract",
             *app,
             "--output",
@@ -82,6 +82,7 @@ def main() -> None:
         )
         _run(
             str(cli),
+            "webrtc",
             "generate",
             "--contract",
             "contract.json",

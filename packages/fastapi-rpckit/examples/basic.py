@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 
-from fastapi_rpckit import Inject, RpcChannel, RpcModel
+from fastapi_canon.websockets import Inject, RpcChannel, RpcModel
 
 
 class GreetParams(RpcModel):

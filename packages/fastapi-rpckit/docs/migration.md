@@ -6,22 +6,27 @@ available. Version 0.1.0 is the initial successor release.
 | Before | After |
 | --- | --- |
 | distribution `pyrpckit` | `fastapi-rpckit` (initial version 0.1.0) |
-| Python import `rpckit` | `fastapi_rpckit` |
+| Python import `rpckit` | `fastapi_canon.websockets` |
 | CLI `rpckit` | `fastapi-rpckit` |
 | optional `[fastapi]` extra | FastAPI is required; remove the extra |
-| logger `rpckit` | logger `fastapi_rpckit` |
+| logger `rpckit` | logger `fastapi_canon.websockets` |
 
-Install with `uv add fastapi-rpckit`; retain `[codegen]`,
+Install with `uv add fastapi-canon[websockets]`; retain `[codegen]`,
 `[dishka]`, and `[otel]` only where needed. Update imports throughout application
 code, codegen source modules, monkeypatch targets, and configuration.
 
 The FastAPI mounting APIs are directly available:
 
 ```python
-from fastapi_rpckit import FastApiSocket, RpcRoutes, create_router, serve_websocket
+from fastapi_canon.websockets import (
+    FastApiSocket,
+    RpcRoutes,
+    create_router,
+    serve_websocket,
+)
 ```
 
-The existing `fastapi_rpckit.integrations.fastapi` paths also remain valid.
+The existing `fastapi_canon.websockets.integrations.fastapi` paths also remain valid.
 `RpcChannel`, `RpcService`, endpoint registration, and `Inject` retain their
 behavior. With Canon, put `dishka_router(service)` in a feature's routers; it
 uses Canon's application container, SESSION per connection, and REQUEST per call.
@@ -41,8 +46,8 @@ supported product experience is FastAPI WebSockets.
 
 For consumers still on pyrpckit 0.8 or earlier, also apply the predecessor's
 0.9–0.11 changelog migrations. In particular, `rpckit.fastapi` becomes the root
-FastAPI exports or `fastapi_rpckit.integrations.fastapi`, and `rpckit.dishka`
-becomes `fastapi_rpckit.integrations.dishka`. Simply replacing the namespace is
+FastAPI exports or `fastapi_canon.websockets.integrations.fastapi`, and `rpckit.dishka`
+becomes `fastapi_canon.websockets.integrations.dishka`. Simply replacing the namespace is
 insufficient for those removed modules. Observer/hooks and custom-transport
 changes also require call-site updates where used.
 
@@ -54,7 +59,7 @@ regenerate SDKs to receive that formatting fix.
 
 The initial local successor name was `fastapi-wsrpc` / `fastapi_wsrpc`. PyPI
 rejected its pending publisher registration as too similar to an existing project.
-On 2026-10-17 the user selected `fastapi-rpckit` / `fastapi_rpckit`, and PyPI
+On 2026-10-17 the user selected `fastapi-rpckit` / `fastapi_canon.websockets`, and PyPI
 accepted the new Pending Publisher for `mathisarends/canon`, `release.yml`,
 environment `pypi`. Update imports, CLI commands and codegen references
 if migrating from the earlier, unpublished workspace name.

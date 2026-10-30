@@ -10,15 +10,15 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fastapi_canon.sse.codegen.ir import build_ir
+from fastapi_canon.sse.codegen.openapi import export_schema
+from fastapi_canon.sse.codegen.python import generate_python
+from fastapi_canon.sse.codegen.typescript import generate_typescript
+from fastapi_canon.sse.codegen.writer import write_files
 from pydantic import ValidationError
 
 from examples.agent_runs.generated_python import Client
 from examples.agent_runs.generated_python.models import RunRequest
-from fastapi_streams.codegen.ir import build_ir
-from fastapi_streams.codegen.openapi import export_schema
-from fastapi_streams.codegen.python import generate_python
-from fastapi_streams.codegen.typescript import generate_typescript
-from fastapi_streams.codegen.writer import write_files
 from tests.codegen.helpers import load_package
 from tests.fixtures.integration_app import app
 
@@ -140,7 +140,7 @@ async def assert_server_cleanup(http, server, stream_id):
 
 
 @pytest.mark.parametrize("mode", ["break", "cancel"])
-async def test_current_fastapi_streams_immediately_and_closes_on_disconnect(
+async def test_current_canon_sse_immediately_and_closes_on_disconnect(
     server, current_clients, mode, python_backend
 ):
     root, python = current_clients

@@ -5,10 +5,10 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+from fastapi_canon.websockets.codegen import generate_python_client
+from fastapi_canon.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.websockets.schema import render_openrpc
 
-from fastapi_rpckit.codegen import generate_python_client
-from fastapi_rpckit.codegen.python import PythonClientOptions
-from fastapi_rpckit.schema import render_openrpc
 from tests.conftest import greeting_app
 
 PACKAGE = "greeting_client"

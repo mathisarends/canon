@@ -50,14 +50,14 @@ example's shape:
   `ProtocolMapping` from the `devtools-protocol` npm package, which the
   generated client then needs as a dependency.
 
-Publish such a binding as a package with a `fastapi_rpckit.socket_bindings`
+Publish such a binding as a package with a `fastapi_canon.websockets.socket_bindings`
 entry point to select it by name, for example `bindings = ["cdp"]`.
 
 ## Run it
 
 ```bash
 uv run uvicorn examples.socket_protocol.calculator:app
-uv run python -m fastapi_rpckit.codegen.cli generate \
+uv run python -m fastapi_canon.websockets.codegen.cli generate \
   --config examples/socket_protocol/rpcgen.toml
 ```
 

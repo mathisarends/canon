@@ -11,11 +11,10 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Literal
 
+import fastapi_canon.sse
 from fastapi import FastAPI
+from fastapi_canon.sse import StreamRouter
 from pydantic import BaseModel
-
-import fastapi_streams
-from fastapi_streams import StreamRouter
 
 
 class Event(BaseModel):
@@ -29,10 +28,10 @@ def main() -> None:
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--http-client", choices=["httpx", "httpx2"], default="httpx")
     args = parser.parse_args()
-    assert "site-packages" in str(Path(fastapi_streams.__file__).resolve())
+    assert "site-packages" in str(Path(fastapi_canon.sse.__file__).resolve())
     assert (
-        version("fastapi-streams")
-        == fastapi_streams.__version__
+        version("fastapi-canon")
+        == fastapi_canon.sse.__version__
         == args.expected_version
     )
     router = StreamRouter()
@@ -44,9 +43,7 @@ def main() -> None:
     app = FastAPI()
     app.include_router(router)
     assert "/events" in app.openapi()["paths"]
-    cli = Path(sys.executable).with_name(
-        "fastapi-streams.exe" if os.name == "nt" else "fastapi-streams"
-    )
+    cli = Path(sys.executable).with_name("canon.exe" if os.name == "nt" else "canon")
     assert cli.is_file(), f"Missing installed console script: {cli}"
     with tempfile.TemporaryDirectory() as directory:
         working = Path(directory)
@@ -55,7 +52,7 @@ def main() -> None:
             "from typing import Annotated, Literal\n"
             "from fastapi import FastAPI, Path, Query\n"
             "from pydantic import BaseModel, Field\n"
-            "from fastapi_streams import StreamRouter\n"
+            "from fastapi_canon.sse import StreamRouter\n"
             "class Event(BaseModel):\n"
             '    type: Literal["event"]\n'
             "    text: str = Field(min_length=2, max_length=20, pattern='^[a-z]+$')\n"
@@ -81,7 +78,7 @@ def main() -> None:
 
         def run(*arguments, expected=0):
             result = subprocess.run(
-                [str(cli), *arguments],
+                [str(cli), "sse", *arguments],
                 cwd=working,
                 capture_output=True,
                 text=True,
@@ -99,7 +96,7 @@ def main() -> None:
             failed = run(
                 "schema", "--app", "app:app", "--output", "openapi.json", expected=2
             )
-            assert "fastapi-streams[codegen]" in failed.stderr
+            assert "fastapi-canon[codegen]" in failed.stderr
             print("Installed core CLI reports the missing codegen extra clearly")
             return
         assert importlib.util.find_spec(args.http_client) is not None

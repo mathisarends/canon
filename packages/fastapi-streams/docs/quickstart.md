@@ -10,8 +10,8 @@ cd canon
 uv sync --locked --all-packages --all-groups
 npm ci --ignore-scripts --prefix packages/fastapi-streams
 cd packages/fastapi-streams
-uv run --locked python scripts/codegen.py
-uv run --locked uvicorn examples.agent_runs:app --reload
+uv run --locked --project ../.. python scripts/codegen.py
+uv run --locked --project ../.. uvicorn examples.agent_runs:app --reload
 ```
 
 In another terminal:
@@ -22,7 +22,7 @@ npx tsc -p tests/typescript/tsconfig.json
 node tests/typescript/dist/examples/agent_runs/consume.js
 
 # Python
-uv run --locked python -m examples.agent_runs.consume
+uv run --locked --project ../.. python -m examples.agent_runs.consume
 ```
 
 Both consume streamed tokens, including Unicode. The example also has a POST
@@ -31,9 +31,9 @@ stream authenticated with `Authorization: Bearer demo-token`, and a normal
 
 ## Define your own stream
 
-The server package needs only FastAPI and Pydantic. Install the optional
-`fastapi-streams[codegen]` extra where you generate contracts and SDKs. In another
-project use `uv add 'fastapi-streams[codegen]'`; the workspace checkout above
+Canon includes Dishka, FastAPI and Pydantic; the `sse` extra selects SSE-compatible versions. Install the optional
+`fastapi-canon[sse,codegen]` extra where you generate contracts and SDKs. In another
+project use `uv add 'fastapi-canon[sse,codegen]'`; the workspace checkout above
 already installs it.
 
 ```python
@@ -42,7 +42,7 @@ from typing import Annotated, Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from fastapi_streams import StreamRouter
+from fastapi_canon.sse import StreamRouter
 
 
 class TokenDelta(BaseModel):

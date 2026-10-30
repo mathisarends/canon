@@ -7,9 +7,6 @@ members = [
     "canon-workspace",
     "fastapi-canon",
     "fastapi-canon-reference",
-    "fastapi-rpckit",
-    "fastapi-streams",
-    "fastapi-webrtc",
 ]
 
 [[package]]
@@ -211,36 +208,48 @@ name = "canon-workspace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "fastapi-canon", extra = ["streams", "webrtc"] },
+    { name = "fastapi-canon", extra = ["aiortc", "codegen", "otel", "sse", "webrtc", "websockets"] },
     { name = "fastapi-canon-reference" },
-    { name = "fastapi-rpckit", extra = ["codegen", "dishka", "otel"] },
-    { name = "fastapi-streams", extra = ["codegen"] },
-    { name = "fastapi-webrtc", extra = ["aiortc"] },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "build" },
+    { name = "httpx" },
+    { name = "httpx2" },
     { name = "packaging" },
+    { name = "pylint" },
+    { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "twine" },
+    { name = "uvicorn" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi-canon", extras = ["streams", "webrtc"], editable = "packages/fastapi-canon" },
+    { name = "fastapi-canon", extras = ["aiortc", "codegen", "otel", "sse", "websockets", "webrtc"], editable = "packages/fastapi-canon" },
     { name = "fastapi-canon-reference", editable = "examples/reference-service" },
-    { name = "fastapi-rpckit", extras = ["codegen", "dishka", "otel"], editable = "packages/fastapi-rpckit" },
-    { name = "fastapi-streams", extras = ["codegen"], editable = "packages/fastapi-streams" },
-    { name = "fastapi-webrtc", extras = ["aiortc"], editable = "packages/fastapi-webrtc" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "build", specifier = ">=1.2" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "httpx2", specifier = ">=2.13.1,<3" },
     { name = "packaging", specifier = ">=25" },
+    { name = "pylint", specifier = ">=4,<5" },
+    { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-asyncio", specifier = ">=1" },
+    { name = "pytest-cov", specifier = ">=6" },
     { name = "ruff", specifier = ">=0.12" },
+    { name = "twine", specifier = ">=7,<8" },
+    { name = "uvicorn", specifier = ">=0.38" },
+    { name = "websockets", specifier = ">=15" },
 ]
 
 [[package]]
@@ -635,7 +644,7 @@ wheels = [
 
 [[package]]
 name = "fastapi-canon"
-version = "0.8.1"
+version = "0.9.0"
 source = { editable = "packages/fastapi-canon" }
 dependencies = [
     { name = "dishka" },
@@ -644,11 +653,31 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-streams = [
-    { name = "fastapi-streams" },
+aiortc = [
+    { name = "aiortc" },
+]
+codegen = [
+    { name = "jinja2" },
+    { name = "jsonschema" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+otel = [
+    { name = "opentelemetry-api" },
+]
+sse = [
+    { name = "fastapi" },
+    { name = "pydantic" },
 ]
 webrtc = [
-    { name = "fastapi-webrtc" },
+    { name = "anyio" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+]
+websockets = [
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -658,24 +687,34 @@ dev = [
     { name = "jsonschema" },
     { name = "mypy" },
     { name = "openapi-spec-validator" },
+    { name = "opentelemetry-sdk" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "types-jsonschema" },
 ]
-streams = [
-    { name = "fastapi-streams", extra = ["codegen"] },
-]
 
 [package.metadata]
 requires-dist = [
+    { name = "aiortc", marker = "extra == 'aiortc'", specifier = ">=1.14,<2" },
+    { name = "anyio", marker = "extra == 'webrtc'", specifier = ">=4" },
     { name = "dishka", specifier = ">=1.10,<2" },
     { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "fastapi-streams", marker = "extra == 'streams'", editable = "packages/fastapi-streams" },
-    { name = "fastapi-webrtc", marker = "extra == 'webrtc'", editable = "packages/fastapi-webrtc" },
+    { name = "fastapi", marker = "extra == 'sse'", specifier = ">=0.143.3,<1" },
+    { name = "jinja2", marker = "extra == 'codegen'", specifier = ">=3.1,<4" },
+    { name = "jsonschema", marker = "extra == 'codegen'", specifier = ">=4.23,<5" },
+    { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.30,<2" },
     { name = "pydantic", specifier = ">=2.9,<3" },
+    { name = "pydantic", marker = "extra == 'codegen'", specifier = ">=2.11.2,<3" },
+    { name = "pydantic", marker = "extra == 'sse'", specifier = ">=2.11.2,<3" },
+    { name = "pydantic", marker = "extra == 'websockets'", specifier = ">=2.11,<3" },
+    { name = "pydantic-core", marker = "extra == 'websockets'", specifier = ">=2.33" },
+    { name = "starlette", marker = "extra == 'webrtc'", specifier = ">=0.41" },
+    { name = "typing-extensions", marker = "extra == 'codegen'", specifier = ">=4.12.2" },
+    { name = "typing-extensions", marker = "extra == 'webrtc'", specifier = ">=4.12" },
+    { name = "typing-extensions", marker = "extra == 'websockets'", specifier = ">=4.12.2" },
 ]
-provides-extras = ["streams", "webrtc"]
+provides-extras = ["otel", "sse", "websockets", "webrtc", "aiortc", "codegen"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -684,12 +723,12 @@ dev = [
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "mypy", specifier = ">=1.15" },
     { name = "openapi-spec-validator", specifier = ">=0.7.1" },
+    { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pre-commit", specifier = ">=4.3" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "ruff", specifier = ">=0.11" },
     { name = "types-jsonschema", specifier = ">=4.26" },
 ]
-streams = [{ name = "fastapi-streams", extras = ["codegen"], editable = "packages/fastapi-streams" }]
 
 [[package]]
 name = "fastapi-canon-reference"
@@ -734,218 +773,6 @@ dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.25" },
     { name = "ruff", specifier = ">=0.11" },
-]
-
-[[package]]
-name = "fastapi-rpckit"
-version = "0.4.1"
-source = { editable = "packages/fastapi-rpckit" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "pydantic" },
-    { name = "pydantic-core" },
-    { name = "typing-extensions" },
-]
-
-[package.optional-dependencies]
-codegen = [
-    { name = "jinja2" },
-]
-dishka = [
-    { name = "dishka" },
-]
-otel = [
-    { name = "opentelemetry-api" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "dishka" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "jinja2" },
-    { name = "opentelemetry-sdk" },
-    { name = "pre-commit" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "uvicorn" },
-    { name = "websockets" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dishka", marker = "extra == 'dishka'", specifier = ">=1.7" },
-    { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "jinja2", marker = "extra == 'codegen'", specifier = ">=3.1" },
-    { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.30" },
-    { name = "pydantic", specifier = ">=2.11,<3" },
-    { name = "pydantic-core", specifier = ">=2.33" },
-    { name = "typing-extensions", specifier = ">=4.12.2" },
-]
-provides-extras = ["codegen", "dishka", "otel"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "dishka", specifier = ">=1.7" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "jinja2", specifier = ">=3.1" },
-    { name = "opentelemetry-sdk", specifier = ">=1.30" },
-    { name = "pre-commit", specifier = ">=3.7" },
-    { name = "pyright", specifier = "==1.1.414" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "ruff", specifier = ">=0.6" },
-    { name = "uvicorn", specifier = ">=0.38" },
-    { name = "websockets", specifier = ">=15" },
-]
-
-[[package]]
-name = "fastapi-streams"
-version = "0.5.0"
-source = { editable = "packages/fastapi-streams" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "pydantic" },
-]
-
-[package.optional-dependencies]
-codegen = [
-    { name = "jinja2" },
-    { name = "jsonschema" },
-]
-
-[package.dev-dependencies]
-client-test = [
-    { name = "httpx" },
-    { name = "httpx2" },
-]
-dev = [
-    { name = "build" },
-    { name = "httpx" },
-    { name = "httpx2" },
-    { name = "jinja2" },
-    { name = "jsonschema" },
-    { name = "pre-commit" },
-    { name = "pylint" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "twine" },
-    { name = "types-jsonschema" },
-    { name = "uvicorn" },
-]
-test = [
-    { name = "httpx" },
-    { name = "httpx2" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.143.3,<1.0" },
-    { name = "jinja2", marker = "extra == 'codegen'", specifier = ">=3.1,<4" },
-    { name = "jsonschema", marker = "extra == 'codegen'", specifier = ">=4.23,<5" },
-    { name = "pydantic", specifier = ">=2.11.2,<3" },
-]
-provides-extras = ["codegen"]
-
-[package.metadata.requires-dev]
-client-test = [
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "httpx2", specifier = ">=2.13.1,<3" },
-]
-dev = [
-    { name = "build", specifier = ">=1.2" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "httpx2", specifier = ">=2.13.1,<3" },
-    { name = "jinja2", specifier = ">=3.1,<4" },
-    { name = "jsonschema", specifier = ">=4.23,<5" },
-    { name = "pre-commit", specifier = ">=4,<5" },
-    { name = "pylint", specifier = ">=4,<5" },
-    { name = "pyright", specifier = ">=1.1.400" },
-    { name = "pytest", specifier = ">=8.4.2" },
-    { name = "pytest-asyncio", specifier = ">=1" },
-    { name = "pytest-cov", specifier = ">=6" },
-    { name = "ruff", specifier = ">=0.12" },
-    { name = "twine", specifier = ">=7,<8" },
-    { name = "types-jsonschema", specifier = ">=4.23" },
-    { name = "uvicorn", specifier = ">=0.35" },
-]
-test = [
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "httpx2", specifier = ">=2.13.1,<3" },
-    { name = "pyright", specifier = ">=1.1.400" },
-    { name = "pytest", specifier = ">=8.4.2" },
-    { name = "pytest-asyncio", specifier = ">=1" },
-    { name = "pytest-cov", specifier = ">=6" },
-    { name = "uvicorn", specifier = ">=0.35" },
-]
-
-[[package]]
-name = "fastapi-webrtc"
-version = "0.3.0"
-source = { editable = "packages/fastapi-webrtc" }
-dependencies = [
-    { name = "anyio" },
-    { name = "fastapi" },
-    { name = "pydantic" },
-    { name = "starlette" },
-    { name = "typing-extensions" },
-]
-
-[package.optional-dependencies]
-aiortc = [
-    { name = "aiortc" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "aiortc" },
-    { name = "httpx" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "twine" },
-    { name = "uvicorn" },
-    { name = "websockets" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiortc", marker = "extra == 'aiortc'", specifier = ">=1.14,<2" },
-    { name = "anyio", specifier = ">=4" },
-    { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "pydantic", specifier = ">=2.9,<3" },
-    { name = "starlette", specifier = ">=0.41" },
-    { name = "typing-extensions", specifier = ">=4.12" },
-]
-provides-extras = ["aiortc"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "aiortc", specifier = ">=1.14,<2" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "mypy", specifier = ">=1.15" },
-    { name = "pytest", specifier = ">=8.4" },
-    { name = "pytest-asyncio", specifier = ">=1" },
-    { name = "pytest-cov", specifier = ">=6" },
-    { name = "ruff", specifier = ">=0.12" },
-    { name = "twine", specifier = ">=7,<8" },
-    { name = "uvicorn", specifier = ">=0.35" },
-    { name = "websockets", specifier = ">=15" },
 ]
 
 [[package]]

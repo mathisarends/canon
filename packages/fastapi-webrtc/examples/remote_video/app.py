@@ -5,8 +5,7 @@ from contextlib import AbstractAsyncContextManager
 from typing import Protocol
 
 from fastapi import FastAPI
-
-from fastapi_webrtc import Direction, MediaPolicy, Role, Session, WebRtcRouter
+from fastapi_canon.webrtc import Direction, MediaPolicy, Role, Session, WebRtcRouter
 
 from .engine import RemoteVideoEngine, VideoLease
 

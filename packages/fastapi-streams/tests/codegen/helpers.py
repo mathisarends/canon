@@ -5,11 +5,10 @@ from contextlib import contextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI
-
-from fastapi_streams import StreamRouter
-from fastapi_streams.codegen.ir import build_ir
-from fastapi_streams.codegen.openapi import export_schema
-from fastapi_streams.codegen.writer import write_files
+from fastapi_canon.sse import StreamRouter
+from fastapi_canon.sse.codegen.ir import build_ir
+from fastapi_canon.sse.codegen.openapi import export_schema
+from fastapi_canon.sse.codegen.writer import write_files
 
 
 def event_contract(event_type):

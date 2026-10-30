@@ -19,6 +19,7 @@ outside the library's intended architecture.
 
 ## Contents
 
+- [Unified package and migration](docs/package-migration.md)
 - [Quick start](#quick-start)
 - [Feature composition](#feature-composition)
   - [Shared API router](#shared-api-router)
@@ -39,6 +40,13 @@ outside the library's intended architecture.
 - [Showcase](#showcase)
 
 ## Quick start
+
+The prepared 0.9.0 source includes SSE, WebSockets and WebRTC in the same wheel.
+Install feature dependencies with `fastapi-canon[sse,websockets,webrtc]` and
+generation tooling with `fastapi-canon[codegen]`. Use `canon sse`,
+`canon websockets` and `canon webrtc` for contracts and clients.
+See the [migration guide](docs/package-migration.md); this version is not yet
+published.
 
 ```python
 from fastapi import FastAPI
@@ -423,13 +431,13 @@ For explicit method lists, import the string enum `HTTPMethod` from
 `fastapi_canon`, for example `methods=[HTTPMethod.POST]`. Canon re-exports
 Python's standard `http.HTTPMethod`; ordinary string method names also work.
 
-### Optional fastapi-streams integration
+### Typed SSE integration
 
-Install `fastapi-canon[streams]` and import `CanonStreamRouter` from
-`fastapi_canon.integrations.streams` to combine canon's shared/local `raises=`
+Install `fastapi-canon[sse]` and import `CanonStreamRouter` from
+`fastapi_canon.integrations.sse` to combine canon's shared/local `raises=`
 with typed GET/POST SSE generators. `Feature` discovers its registry just as
 for `CanonRouter`. The native SSE `itemSchema`/`contentSchema` is preserved for
-both Streams client generators. Core imports do not require fastapi-streams.
+both Streams client generators. Core imports do not load the SSE runtime; select `fastapi-canon[sse]` for its dependencies.
 
 Run HTTP preconditions in dependencies: even generator code before the first
 `yield` runs after the response starts. `raises=` documents HTTP problems;

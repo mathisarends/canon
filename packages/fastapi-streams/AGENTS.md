@@ -1,15 +1,15 @@
 # Repository guidance
 
-`fastapi-streams` turns typed FastAPI SSE generators into an OpenAPI 3.2 contract
+`fastapi_canon.sse` turns typed FastAPI SSE generators into an OpenAPI 3.2 contract
 and generated TypeScript/Python clients. Follow the workspace rules in the root
 `AGENTS.md`; this file adds package-specific conventions.
 
 ## Layout
 
-- `fastapi_streams/router.py`: `StreamRouter` and endpoint validation.
-- `fastapi_streams/codegen/`: export (`openapi.py`), shared HTTP IR (`ir.py`),
+- `../fastapi-canon/fastapi_canon/sse/router.py`: `StreamRouter` and endpoint validation.
+- `../fastapi-canon/fastapi_canon/sse/codegen/`: export (`openapi.py`), shared HTTP IR (`ir.py`),
   emitters (`python.py`, `typescript.py`), CLI (`cli.py`) and diagnostics.
-- `fastapi_streams/codegen/templates/`: generated runtimes. `python/runtime.py`
+- `../fastapi-canon/fastapi_canon/sse/codegen/templates/`: generated runtimes. `python/runtime.py`
   and `sse.ts` are copied verbatim into every generated SDK.
 - `examples/agent_runs/` and `tests/fixtures/` contain committed generated SDKs.
 
@@ -19,9 +19,9 @@ Run from the workspace root after `uv sync --locked --all-packages --all-groups`
 and `npm ci --ignore-scripts --prefix packages/fastapi-streams`:
 
 ```console
-uv run --locked --directory packages/fastapi-streams python -m pytest -q
-uv run --locked --directory packages/fastapi-streams python scripts/codegen.py
-uv run --locked --directory packages/fastapi-streams python scripts/codegen.py --check
+uv run --locked python scripts/check.py test
+uv run --locked --project ../.. --directory packages/fastapi-streams python scripts/codegen.py
+uv run --locked python scripts/check.py clients
 npm run --prefix packages/fastapi-streams test
 npm run --prefix packages/fastapi-streams typecheck
 uv run --locked python scripts/check.py lint

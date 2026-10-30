@@ -2,9 +2,7 @@ import logging
 from collections.abc import AsyncIterator
 
 import pytest
-from pydantic import BaseModel, ValidationError
-
-from fastapi_rpckit import (
+from fastapi_canon.websockets import (
     ProtocolDefinitionError,
     RpcChannel,
     RpcError,
@@ -15,7 +13,8 @@ from fastapi_rpckit import (
     RpcRejection,
     RpcService,
 )
-from fastapi_rpckit.envelopes import RpcFailure
+from fastapi_canon.websockets.envelopes import RpcFailure
+from pydantic import BaseModel, ValidationError
 
 
 class MissingDetails(RpcModel):
