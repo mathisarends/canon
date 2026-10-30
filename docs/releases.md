@@ -72,9 +72,10 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 
 ## Prepared source versions
 
-All four package source versions match their published releases. No additional
-release is currently prepared. Follow the release gates below when preparing
-the next independent package version.
+Canon 0.9.0 is prepared in source for the optional OpenTelemetry integration.
+It is not published. The other three package versions still match their
+published releases. Follow the [Canon migration notes](../packages/fastapi-canon/CHANGELOG.md#090---unreleased)
+and the release gates below before publication.
 
 ## Publisher setup
 

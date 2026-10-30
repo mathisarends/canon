@@ -66,6 +66,7 @@ def main() -> None:
 
         routers.append(http)
         _canon_check()
+        _observation_check(enabled="--otel" in selected)
     if "fastapi-streams" in selected:
         from fastapi_streams import StreamRouter
 
@@ -184,6 +185,48 @@ def main() -> None:
             )
         assert counter.closed
     print(f"Installed artifact checks passed: {', '.join(sorted(selected))}")
+
+
+def _observation_check(*, enabled: bool) -> None:
+    """Exercise installed decorators with no optional SDK or source overrides."""
+    from dishka import FromDishka, Provider, Scope, provide
+    from dishka.integrations.fastapi import inject
+    from fastapi_canon import CanonRouter, Composition, Feature
+    from fastapi_canon.integrations.opentelemetry import Telemetry, observe
+
+    global_provider = None
+    if enabled:
+        from opentelemetry import trace
+
+        assert importlib.util.find_spec("opentelemetry.sdk") is None
+        global_provider = trace.get_tracer_provider()
+
+    class Port:
+        async def ping(self) -> str:
+            return "pong"
+
+    class Dependencies(Provider):
+        port = provide(Port, scope=Scope.REQUEST)
+        port_telemetry = observe(Port)
+
+    router = CanonRouter()
+
+    @router.get("/observed")
+    @inject
+    async def observed(port: FromDishka[Port]) -> str:
+        return await port.ping()
+
+    app = Composition(
+        Feature(name="observed", providers=[Dependencies], routers=[router]),
+        telemetry=Telemetry() if enabled else None,
+    ).apply(FastAPI())
+    with TestClient(app) as client:
+        assert client.get("/observed").json() == "pong"
+    if enabled:
+        assert trace.get_tracer_provider() is global_provider
+        assert app._telemetry["auto_configure"] is False
+    else:
+        assert "fastapi_canon.integrations.opentelemetry.ports" not in sys.modules
 
 
 def _canon_check() -> None:

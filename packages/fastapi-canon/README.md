@@ -34,6 +34,7 @@ outside the library's intended architecture.
   - [Streaming boundary](#streaming-boundary)
 - [Low-level FastAPI compatibility](#low-level-fastapi-compatibility)
 - [Installation guarantees](#installation-guarantees)
+- [Optional OpenTelemetry integration](docs/telemetry.md)
 - [Requirements](#requirements)
 - [Development](#development)
 - [Showcase](#showcase)
