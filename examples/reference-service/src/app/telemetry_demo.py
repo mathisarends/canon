@@ -75,13 +75,17 @@ class HttpNotificationGateway(NotificationGateway):
         response.raise_for_status()
 
 
+def _notifier_client() -> httpx2.AsyncClient:
+    return httpx2.AsyncClient(
+        base_url=os.getenv("NOTIFIER_URL", "http://localhost:8001")
+    )
+
+
 def _notification_feature(options: Telemetry) -> Feature:
     class NotifierProvider(Provider):
         @provide(scope=Scope.APP)
         async def client(self) -> AsyncIterator[httpx2.AsyncClient]:
-            async with httpx2.AsyncClient(
-                base_url=os.getenv("NOTIFIER_URL", "http://localhost:8001")
-            ) as client:
+            async with _notifier_client() as client:
                 # Upstream HTTPX2 helpers still expose legacy HTTPX annotations.
                 HTTPX2ClientInstrumentor.instrument_client(
                     client,  # type: ignore[arg-type]

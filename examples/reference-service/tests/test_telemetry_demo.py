@@ -1,7 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 import httpx2
 import pytest
@@ -47,12 +46,14 @@ async def test_demo_sql_and_cross_service_http_trace(
         monkeypatch.setattr(demo, "_telemetry", telemetry)
         notifier_app = demo.create_notifier_app()
 
-        class LocalClient(httpx2.AsyncClient):
-            def __init__(self, *args: Any, **kwargs: Any) -> None:
-                kwargs["transport"] = httpx2.ASGITransport(app=notifier_app)
-                super().__init__(*args, **kwargs)
-
-        monkeypatch.setattr(httpx2, "AsyncClient", LocalClient)
+        monkeypatch.setattr(
+            demo,
+            "_notifier_client",
+            lambda: httpx2.AsyncClient(
+                base_url="http://notifier",
+                transport=httpx2.ASGITransport(app=notifier_app),
+            ),
+        )
         app = demo.create_tasks_app()
         with TestClient(notifier_app), TestClient(app) as client:
             client.headers["Authorization"] = "Bearer local-development-token"
