@@ -54,6 +54,7 @@ def main() -> None:
         ("fastapi-canon" + (f"[{extras}]" if extras else ""),)
         for extras in (
             "",
+            "otel",
             "sse",
             "websockets",
             "webrtc",
@@ -100,6 +101,15 @@ def main() -> None:
                 "-I",
                 str(ROOT / "scripts/smoke_installed.py"),
                 *names,
+                *(
+                    ["--otel"]
+                    if any(
+                        "otel" in Requirement(item).extras
+                        and Requirement(item).name == "fastapi-canon"
+                        for item in requirements
+                    )
+                    else []
+                ),
                 cwd=Path(temporary),
                 timeout=120,
             )
@@ -178,6 +188,7 @@ def _check_reference(canon_wheel: str, python_version: str) -> None:
             "httpx>=0.28",
             "pytest>=8.3",
             "pytest-asyncio>=1",
+            "httpx2>=2.12,<3",
         )
         _run("uv", "pip", "check", "--python", str(python))
         _run(
@@ -192,6 +203,7 @@ def _check_reference(canon_wheel: str, python_version: str) -> None:
             "assert importlib.util.find_spec('fastapi_canon.websockets') is not None",
             cwd=Path(temporary),
         )
+
         _run(
             str(python),
             "-I",
@@ -201,6 +213,28 @@ def _check_reference(canon_wheel: str, python_version: str) -> None:
             "-c",
             str(reference / "pyproject.toml"),
             str(reference / "tests"),
+            cwd=Path(temporary),
+        )
+        _run(
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            canon_wheel + "[otel]",
+            str(wheel) + "[otel]",
+        )
+        _run("uv", "pip", "check", "--python", str(python))
+        _run(
+            str(python),
+            "-I",
+            "-m",
+            "pytest",
+            "-q",
+            "-c",
+            str(reference / "pyproject.toml"),
+            str(reference / "tests/test_telemetry.py"),
+            str(reference / "tests/test_telemetry_demo.py"),
             cwd=Path(temporary),
         )
 

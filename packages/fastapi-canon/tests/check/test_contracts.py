@@ -437,7 +437,7 @@ def test_reference_service_detects_removed_contract(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[4]
     shutil.copytree(root / "examples/reference-service/src", tmp_path / "src")
     before = _check_error_contracts([tmp_path / "src"])
-    assert len(before.operations) == 4
+    assert len(before.operations) == 6
     assert before.gaps == 0
     assert before.incomplete > 0
     router = tmp_path / "src/app/features/tasks/presentation/router.py"

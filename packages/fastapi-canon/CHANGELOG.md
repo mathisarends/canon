@@ -21,15 +21,31 @@ All notable changes to `fastapi-canon` are documented in this file.
   including JSON-RPC 2.0 and `fastapi-webrtc.v1`. Socket binding entry points move
   to `fastapi_canon.websockets.socket_bindings`; update binding package metadata.
   See the [package migration guide](docs/package-migration.md) for commands.
+- Extend the public `Composition` constructor with `telemetry=`. Update wrappers
+  or signature snapshots that mirror this constructor. Existing compositions
+  without telemetry keep their behavior. To opt in, install `fastapi-canon[otel]`
+  and pass `Telemetry(...)`; register `observe(Port)` as a Dishka Provider class
+  attribute beside the binding it decorates. `Feature` requires no new metadata.
 
 ### Added
 
 - One `canon` command and `python -m fastapi_canon` entry point, including
   `canon check errors`. Root CLI help loads no transport generators.
-- Optional `codegen`, `aiortc` and WebSocket `otel` dependencies in Canon.
+- Optional `codegen`, `aiortc` and `otel` dependencies in Canon.
   Native engine and generation dependencies remain absent from the base install.
 - Fresh-wheel checks for the base package, each feature, codegen-only and
   combined installations, including minimum dependency profiles.
+- Optional, exporter-free OpenTelemetry integration using FastAPI >=0.143 native
+  telemetry and application-owned providers. Core retains FastAPI >=0.115.
+- Dishka decorators for public async port methods, expected-exception events,
+  optional port-duration histograms, and scope/caching/finalizer preservation.
+  Port wrappers capture no argument values or exception messages/stack traces.
+- Native HTTP server-span Problem Details enrichment with `canon.problem.code`;
+  only 5xx set `error.type` and error status. Document the separate behavior of
+  FastAPI's endpoint spans for propagated domain exceptions.
+- Explicit WebSocket middleware helper forwarding application providers, isolated
+  `SpanCapture` testing helpers, reference endpoint trace contracts, and an opt-in
+  two-service OTLP demo. See the [telemetry guide](docs/telemetry.md).
 
 ## 0.8.1 - 2026-10-25
 

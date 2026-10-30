@@ -229,19 +229,21 @@ def test_public_canon_verification_checks_each_optional_integration(
     installs = [
         command for command in commands if command[:3] == ["uv", "pip", "install"]
     ]
-    assert len(installs) == 5
+    assert len(installs) == 6
+    assert any("fastapi-canon[otel]==0.6.0" in command for command in installs)
     assert any("fastapi-canon[websockets]==0.6.0" in command for command in installs)
     assert any(
-        "fastapi-canon[sse,websockets,webrtc,aiortc,codegen]==0.6.0" in command
+        "fastapi-canon[sse,websockets,webrtc,aiortc,codegen,otel]==0.6.0" in command
         for command in installs
     )
     smokes = [command for command in commands if "-I" in command]
     assert [command[3:] for command in smokes] == [
         ["fastapi-canon"],
+        ["fastapi-canon", "--otel"],
         ["fastapi-canon", "sse"],
         ["fastapi-canon", "websockets"],
         ["fastapi-canon", "webrtc"],
-        ["fastapi-canon", "sse", "webrtc", "websockets"],
+        ["fastapi-canon", "sse", "webrtc", "websockets", "--otel"],
     ]
 
 

@@ -73,7 +73,7 @@ deployed TURN/NAT, database concurrency and proxy validation remain separate wor
 ## Prepared source versions
 
 Canon 0.9.0 is prepared as an unreleased breaking minor containing the unified
-package. See the [migration guide](../packages/fastapi-canon/docs/package-migration.md).
+package and the optional native OpenTelemetry integration. See the [migration guide](../packages/fastapi-canon/docs/package-migration.md).
 Only Canon is an active release target; the old feature directories retain
 tests, examples and historical changelogs. No publication is implied by source versions.
 
@@ -150,7 +150,8 @@ files must match the original manifest; conflicting contents fail. Canon also
 contains all transport modules and their generator resources in one artifact set.
 
 After upload, verify hashes and fresh public-index installs. Canon checks core,
-`[sse]`, `[websockets]`, `[webrtc]` and combined codegen/engine extras. The separate `finish` job then
+`[otel]`, `[sse]`, `[websockets]`, `[webrtc]` and combined feature/tool extras.
+The separate `finish` job then
 creates the package-prefixed tag and central GitHub Release at the verified
 commit, with changelog notes, original wheel/sdist and manifest attached.
 Prereleases produce prerelease GitHub Releases. A PyPI-only upload is incomplete.

@@ -39,11 +39,21 @@ HTTP/SSE/RPC/WebRTC routing and generated RPC SDK execution and compilation.
 
 The unified 0.9.0 source has been checked locally on Windows with Python 3.14
 and current compatible dependencies, plus the minimum direct dependency matrix
-on Python 3.12. Both matrices install one Canon wheel across ten feature/tool
+on Python 3.12. Both matrices install one Canon wheel across eleven feature/tool
 combinations without legacy distributions. Installed SSE CLI checks cover no
 HTTP backend, HTTPX and HTTPX2; the installed WebRTC CLI generates a client that
 compiles. Chromium scenarios cover the aiortc signaling and media paths. This
 local validation does not replace exact-source CI or establish a publication.
+
+Prepared Canon 0.9.0 adds an optional `otel` extra requiring FastAPI >=0.143 and
+OpenTelemetry API >=1.40,<2. Canon core retains FastAPI >=0.115; its declarations
+and disabled Dishka decorators require no OpenTelemetry imports. Recent FastAPI
+versions have their own OpenTelemetry API dependency. The installed-wheel matrix
+covers API-only `fastapi-canon[otel]` and the reference trace tests with an application
+SDK. Runtime telemetry is exercised with the versions selected in `uv.lock`;
+minimum dependencies are checked separately. See the
+[telemetry guide](../packages/fastapi-canon/docs/telemetry.md) for native FastAPI
+bridging, instrumentation ownership, and operation-span limits.
 
 CI runs package-specific lint/type checks, separate Python suites and generated
 client drift/TypeScript tests on Linux with Python 3.12–3.14 and Windows with
@@ -54,6 +64,7 @@ The installed-wheel matrix covers:
 
 | Combination | What it establishes |
 | --- | --- |
+| `[otel]` | Native telemetry and observed ports with the API alone, without an SDK |
 | Canon base | Composition with optional tools and engines absent |
 | `[sse]` | SSE runtime with the required FastAPI/Pydantic bounds |
 | `[websockets]` | RPC and typed/raw/binary sockets |

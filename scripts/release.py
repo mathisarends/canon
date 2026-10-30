@@ -224,10 +224,11 @@ def verify_published(report: dict[str, Any], root: Path = ROOT) -> None:
         (f"fastapi-canon{extras}=={report['version']}",)
         for extras in (
             "",
+            "[otel]",
             "[sse]",
             "[websockets]",
             "[webrtc]",
-            "[sse,websockets,webrtc,aiortc,codegen]",
+            "[sse,websockets,webrtc,aiortc,codegen,otel]",
         )
     ]
     for requirements in combinations:
@@ -256,6 +257,8 @@ def verify_published(report: dict[str, Any], root: Path = ROOT) -> None:
                     & {"sse", "websockets", "webrtc"}
                 )
             )
+            if "otel" in Requirement(requirements[0]).extras:
+                selected.append("--otel")
             _run(
                 [
                     str(python),

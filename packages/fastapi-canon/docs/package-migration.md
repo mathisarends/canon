@@ -30,9 +30,9 @@ require an application import or the aiortc engine.
 Dishka is a base dependency. Python server WebSockets use FastAPI/Starlette;
 the `websockets` Python client package is only needed by generated client
 applications that select that transport. Generated SSE consumers install their
-selected HTTP backend (`httpx` or `httpx2`) separately. `otel` provides the
-WebSocket OpenTelemetry middleware dependency; application providers/exporters
-remain application-owned.
+selected HTTP backend (`httpx` or `httpx2`) separately. `otel` selects FastAPI >=0.143 and OpenTelemetry API >=1.40,<2
+for native HTTP telemetry, Dishka port observations and WebSocket middleware. Application
+providers/exporters remain application-owned. See the [telemetry guide](telemetry.md).
 
 Remove the old `fastapi-streams`, `fastapi-rpckit` and `fastapi-webrtc` direct
 dependencies from your application. Replace Canon's former `streams` extra with
