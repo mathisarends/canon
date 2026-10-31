@@ -4,11 +4,15 @@ from copy import deepcopy
 from typing import Any
 
 import pytest
-
-from fastapi_rpckit.codegen import render_python_client, render_typescript_client
-from fastapi_rpckit.codegen.ir import UnsupportedSchemaError
-from fastapi_rpckit.codegen.python import PythonClientOptions
-from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.integrations.websockets.codegen import (
+    render_python_client,
+    render_typescript_client,
+)
+from fastapi_canon.integrations.websockets.codegen.ir import UnsupportedSchemaError
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 
 
 def test_nested_apis_share_top_level_namespace_modules(

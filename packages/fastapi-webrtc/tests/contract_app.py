@@ -3,9 +3,7 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Header, Path, Query
-from pydantic import BaseModel, Field
-
-from fastapi_webrtc import (
+from fastapi_canon.integrations.webrtc import (
     DataChannelSpec,
     Direction,
     MediaPolicy,
@@ -13,6 +11,8 @@ from fastapi_webrtc import (
     Session,
     WebRtcRouter,
 )
+from pydantic import BaseModel, Field
+
 from tests.fake_engine import FakeEngine
 
 

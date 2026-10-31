@@ -1,9 +1,8 @@
 import pytest
+from fastapi_canon.integrations.websockets import ProtocolDefinitionError, RpcChannel
+from fastapi_canon.integrations.websockets.schema import render_openrpc
+from fastapi_canon.integrations.websockets.schema.components import type_name
 from pydantic import create_model
-
-from fastapi_rpckit import ProtocolDefinitionError, RpcChannel
-from fastapi_rpckit.schema import render_openrpc
-from fastapi_rpckit.schema.components import type_name
 
 
 def test_type_name_requires_an_annotation_with_a_stable_name() -> None:

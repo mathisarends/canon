@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from fastapi_canon import Composition, Error, ErrorRegistry, Feature, HTTPMethod
-from fastapi_canon.integrations.streams import CanonStreamRouter
+from fastapi_canon.integrations.sse import CanonStreamRouter
 
 
 class AuthenticationRequired(Exception):

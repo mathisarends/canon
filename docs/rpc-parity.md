@@ -3,7 +3,7 @@
 `fastapi-rpckit` is the FastAPI-first successor to pyrpckit. Its initial import
 preserved the predecessor's runtime, schemas, templates and tests from commit
 `853579eb08903bd95f8ce03f7608a3703ba40add` (pyrpckit 0.11.0), under the
-`fastapi_rpckit` namespace. FastAPI is required. There is no `rpckit` import shim.
+`fastapi_canon.integrations.websockets` namespace. FastAPI is required. There is no `rpckit` import shim.
 
 Existing `x-rpckit-*` extensions, `.rpcgen` manifests and `rpckit.*` telemetry
 names are intentional compatibility points. Subsequent releases have source and
@@ -29,12 +29,12 @@ Contract/SDK checks do not start or migrate the application.
 
 Repeat against an exported consumer contract using an actual installed wheel.
 From the workspace root, install the Streams TypeScript tooling first, build
-RPCKit and replace `VERSION` with the built package version:
+Canon and replace `VERSION` with the built package version:
 
 ```console
 npm ci --ignore-scripts --prefix packages/fastapi-streams
-uv build --package fastapi-rpckit --out-dir dist/fastapi-rpckit
-uv run --isolated --no-project --no-cache --with "dist/fastapi-rpckit/fastapi_rpckit-VERSION-py3-none-any.whl[codegen]" --with ruff python -I scripts/check_rpc_consumer.py PATH_TO_CONSUMER_OPENRPC_JSON
+uv build --package fastapi-canon --out-dir dist/fastapi-canon
+uv run --isolated --no-project --no-cache --with "dist/fastapi-canon/fastapi_canon-VERSION-py3-none-any.whl[codegen]" --with ruff python -I scripts/check_rpc_consumer.py PATH_TO_CONSUMER_OPENRPC_JSON
 ```
 
 The script generates both SDKs, checks drift, imports/compiles Python, runs its
@@ -43,13 +43,13 @@ older isolated install of a rebuilt development wheel with the same filename.
 
 ## Application migration boundary
 
-1. Replace the dependency and `rpckit` imports with `fastapi-rpckit` and
-   `fastapi_rpckit`. Use package-root FastAPI APIs and
-   `fastapi_rpckit.integrations.dishka` for Dishka integration. A mechanical
+1. Replace the dependency and `rpckit` imports with `fastapi-canon[websockets]` and
+   `fastapi_canon.integrations.websockets`. Use package-root FastAPI APIs and
+   `fastapi_canon.integrations.websockets.adapters.dishka` for Dishka integration. A mechanical
    namespace replacement can leave references to removed modules.
 2. Apply all intervening changelog migrations for request IDs, middleware,
-   transports, sockets and removed server-to-client RPC. Update separate Canon
-   pins when adopting a newer Canon version.
+   transports, sockets and removed server-to-client RPC. Use the single Canon version and migrate feature imports as documented
+   in the [package migration guide](../packages/fastapi-canon/docs/package-migration.md).
 3. Regenerate committed SDKs and run the application's mounting, authentication,
    Dishka, subscription and voice/media tests.
 

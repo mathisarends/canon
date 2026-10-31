@@ -1,1 +1,1 @@
-"""Optional integrations; import each integration explicitly."""
+"""Optional Canon integrations; import each integration explicitly."""

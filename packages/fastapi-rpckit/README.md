@@ -1,4 +1,9 @@
-# fastapi-rpckit
+# Canon WebSockets
+
+This directory retains feature tests, examples and guides. The implementation
+now ships in `fastapi-canon[websockets]` (prepared 0.9.0, not yet published).
+See the [public API](../../docs/canon.md#public-namespaces) and
+[package migration guide](../fastapi-canon/docs/package-migration.md).
 
 **Define your realtime API once in Python. Get the server, the contract, and
 typed clients for Python and TypeScript — none of which can drift apart.**
@@ -9,9 +14,9 @@ long-lived connection. So the JSON-RPC envelope gets hand-written, the dispatch
 table grows by hand, and the frontend client is maintained separately — until
 the two disagree in production.
 
-fastapi_rpckit makes the Python definition the single source of truth:
+fastapi_canon.integrations.websockets makes the Python definition the single source of truth:
 
-| You write | fastapi_rpckit gives you |
+| You write | fastapi_canon.integrations.websockets gives you |
 | --- | --- |
 | an async function on a channel | validated dispatch, injection, concurrency, shutdown |
 | a payload model | an OpenRPC contract as a build-time artifact |
@@ -22,7 +27,7 @@ fastapi_rpckit makes the Python definition the single source of truth:
 `fastapi-rpckit` is the FastAPI-first WebSocket RPC successor to
 [`pyrpckit`](https://github.com/mathisarends/pyrpckit), developed in the
 [Canon workspace](https://github.com/mathisarends/canon). FastAPI is a required
-dependency. REST and SSE stay with FastAPI/Canon and `fastapi-streams`.
+dependency. This implementation now ships in Canon; SSE uses `fastapi_canon.integrations.sse`.
 The existing dispatch engine, OpenRPC contracts, binary/raw channels, and client
 generators are retained. The old repository remains available.
 
@@ -48,7 +53,7 @@ async def updated(store: Inject[TaskStore]) -> AsyncIterator[TaskUpdated]:
 One command turns that into an OpenRPC document and clients in both languages:
 
 ```bash
-fastapi-rpckit generate --config rpcgen.toml
+canon websockets generate --config rpcgen.toml
 ```
 
 And your frontend gets the whole API fully typed — no schema written twice, no
@@ -68,19 +73,19 @@ instead of shipping.
 ## Install
 
 ```bash
-uv add fastapi-rpckit
-uv add "fastapi-rpckit[codegen]"  # client generation
-uv add "fastapi-rpckit[otel]"     # OpenTelemetry integration
+uv add fastapi-canon[websockets]
+uv add "fastapi-canon[websockets,codegen]"  # client generation
+uv add "fastapi-canon[websockets,otel]"     # OpenTelemetry integration
 ```
 
-Python 3.12–3.14. FastAPI and Pydantic are required; Dishka, codegen, and
-OpenTelemetry remain optional extras.
+Python 3.12–3.14. FastAPI, Pydantic and Dishka are Canon base dependencies.
+Code generation and OpenTelemetry dependencies remain optional extras.
 
 ## Serve with FastAPI
 
 ```python
 from fastapi import FastAPI
-from fastapi_rpckit import RpcChannel, RpcService, create_router
+from fastapi_canon.integrations.websockets import RpcChannel, RpcService, create_router
 
 greetings = RpcChannel("greetings")
 
@@ -106,7 +111,13 @@ Channels group related operations and provide their namespace; a service mounts
 them on a socket. Their dispatch logic can also be called directly:
 
 ```python
-from fastapi_rpckit import Inject, RpcChannel, RpcModel, RpcService, RpcSuccess
+from fastapi_canon.integrations.websockets import (
+    Inject,
+    RpcChannel,
+    RpcModel,
+    RpcService,
+    RpcSuccess,
+)
 
 
 class CreateTask(RpcModel):
@@ -166,7 +177,7 @@ on the client. Push data to clients with events or subscriptions instead.
 
 ## Core API
 
-Most services need only these names; everything else in `fastapi_rpckit` is for
+Most services need only these names; everything else in `fastapi_canon.integrations.websockets` is for
 hooks, limits and custom transports.
 
 | Name | Use it for |
@@ -215,5 +226,5 @@ its single lockfile:
 ```bash
 uv sync --locked --all-packages --all-groups
 uv run --locked python scripts/check.py lint
-uv run --locked --directory packages/fastapi-rpckit python -m pytest
+uv run --locked --project ../.. --directory packages/fastapi-rpckit python -m pytest
 ```

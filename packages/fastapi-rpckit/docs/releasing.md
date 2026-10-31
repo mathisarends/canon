@@ -1,17 +1,15 @@
-# Releasing fastapi-rpckit
+# Releasing Canon WebSockets
 
-The first successor release is 0.1.0, published on 2026-10-17. Follow the workspace
-[release policy](../../../docs/releases.md). Canon and Streams remain separate
-PyPI distributions with independent versions; the RPC successor is a third.
+The WebSocket implementation now ships in the single `fastapi-canon`
+distribution. This directory retains its feature-specific tests, examples,
+guides and historical changelog. It is no longer a release target.
 
-PyPI Trusted Publishing is configured for `mathisarends/canon`, workflow
-`release.yml`, environment `pypi`. Tags use `fastapi-rpckit-vX.Y.Z`, and the
-[central release list](https://github.com/mathisarends/canon/releases) contains
-each workspace library's independent releases. Only the root workflow executes.
+Follow the workspace [release policy](../../../docs/releases.md) and the
+[package migration guide](../../fastapi-canon/docs/package-migration.md).
+Use Canon's project version, `fastapi_canon/_version.py`, changelog and
+`fastapi-canon-vX.Y.Z` tag. Regenerate clients through the Canon generators and
+pass all feature suites plus installed-wheel checks before release.
 
-Update `pyproject.toml`, `fastapi_rpckit.__version__`, and `CHANGELOG.md` together,
-then update the root lockfile. Run the workspace gates, built-distribution tests,
-and generator drift checks described in the root contributor guide. Validate
-existing application consumers using the migration guide before declaring the
-successor production-ready. Real publication requires explicit user authorization;
-dispatch the root workflow with the prepared new version after its CI passes.
+The first predecessor-successor release was RPCKit 0.1.0, published on
+2026-10-17. Existing published distributions remain available. New publications
+require explicit user authorization and the root `release.yml` workflow.

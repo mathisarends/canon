@@ -4,27 +4,26 @@ version = "0.0.0"
 description = "Development workspace for the Canon FastAPI stack (not published)"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "fastapi-canon[otel,streams,webrtc]==0.9.0",
-    "fastapi-streams[codegen]==0.5.0",
-    "fastapi-rpckit[codegen,dishka,otel]==0.4.1",
-    "fastapi-webrtc[aiortc]==0.3.0",
+    "fastapi-canon[aiortc,codegen,otel,sse,websockets,webrtc]==0.9.0",
     "fastapi-canon-reference",
 ]
 
 [dependency-groups]
-dev = ["packaging>=25", "pytest>=8.4.2", "pytest-asyncio>=1", "ruff>=0.12"]
+dev = [
+    "packaging>=25", "pytest>=8.4.2", "pytest-asyncio>=1", "ruff>=0.12",
+    "pytest-cov>=6", "uvicorn>=0.38", "websockets>=15", "httpx>=0.28",
+    "httpx2>=2.13.1,<3", "pyright==1.1.414", "pylint>=4,<5",
+    "build>=1.2", "twine>=7,<8",
+]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/*", "examples/reference-service"]
+members = ["packages/fastapi-canon", "examples/reference-service"]
 
 [tool.uv.sources]
 fastapi-canon = { workspace = true }
-fastapi-streams = { workspace = true }
-fastapi-rpckit = { workspace = true }
-fastapi-webrtc = { workspace = true }
 fastapi-canon-reference = { workspace = true }
 
 [tool.ruff]

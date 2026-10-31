@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -158,7 +158,7 @@ service.socket(
     "/browser/stream",
     channels=(screencast,),
     name="streaming",
-    subprotocol="fastapi_rpckit.jsonrpc",
+    subprotocol="fastapi_canon.integrations.websockets.jsonrpc",
 )
 service.stream("/browser/screencast", frames)
 service.stream("/browser/screencast/upload", upload)

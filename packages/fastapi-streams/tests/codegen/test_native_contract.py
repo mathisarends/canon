@@ -1,12 +1,12 @@
 from copy import deepcopy
 
 import httpx
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import export_schema
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 
 from examples.native_proxy import create_app
 from examples.rest_codegen import rest_codegen_document
-from fastapi_streams.codegen.ir import build_ir
-from fastapi_streams.codegen.openapi import export_schema
-from fastapi_streams.codegen.python import generate_python
 
 
 def test_native_contract_and_private_rest_view_share_event_models():

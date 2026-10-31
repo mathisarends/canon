@@ -1,8 +1,7 @@
 import sys
 
 import pytest
-
-from fastapi_rpckit import RpcCodec, RpcParseError, RpcSuccess
+from fastapi_canon.integrations.websockets import RpcCodec, RpcParseError, RpcSuccess
 
 
 @pytest.mark.parametrize(

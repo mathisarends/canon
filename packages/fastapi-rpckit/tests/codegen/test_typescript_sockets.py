@@ -6,9 +6,13 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
-
-from fastapi_rpckit.codegen import generate_typescript_client, render_typescript_client
-from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.integrations.websockets.codegen import (
+    generate_typescript_client,
+    render_typescript_client,
+)
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 
 _RUNNER = """
 import {

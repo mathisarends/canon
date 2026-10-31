@@ -5,9 +5,7 @@ from dataclasses import asdict
 from typing import Any
 
 import pytest
-from pydantic import TypeAdapter
-
-from fastapi_webrtc import (
+from fastapi_canon.integrations.webrtc import (
     ConnectionState,
     ConnectionStats,
     DescriptionType,
@@ -20,8 +18,13 @@ from fastapi_webrtc import (
     SessionEvent,
     SessionEventKind,
 )
-from fastapi_webrtc.engine import ChannelParameters
-from fastapi_webrtc.protocol import DescriptionPayload, SessionMessage, encode
+from fastapi_canon.integrations.webrtc.engine import ChannelParameters
+from fastapi_canon.integrations.webrtc.protocol import (
+    DescriptionPayload,
+    SessionMessage,
+    encode,
+)
+from pydantic import TypeAdapter
 
 
 def test_stats_and_events_serialize_with_existing_string_values() -> None:

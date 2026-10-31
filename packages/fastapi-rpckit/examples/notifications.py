@@ -1,7 +1,12 @@
 from collections.abc import AsyncIterator
 from typing import Literal
 
-from fastapi_rpckit import Inject, RpcChannel, RpcModel, RpcService
+from fastapi_canon.integrations.websockets import (
+    Inject,
+    RpcChannel,
+    RpcModel,
+    RpcService,
+)
 
 
 class JobStarted(RpcModel):

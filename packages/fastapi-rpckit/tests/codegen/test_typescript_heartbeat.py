@@ -1,7 +1,7 @@
 import subprocess
 from textwrap import dedent
 
-from fastapi_rpckit.codegen.ir import build_ir
+from fastapi_canon.integrations.websockets.codegen.ir import build_ir
 
 from .test_typescript_cancellation import cancellation_sdk as cancellation_sdk
 

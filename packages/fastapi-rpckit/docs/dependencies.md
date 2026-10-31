@@ -1,11 +1,11 @@
 # Dependency injection
 
 Application objects do not belong in the public request schema. Mark them with
-`Inject[T]`; fastapi_rpckit resolves them by their concrete type and passes them to
+`Inject[T]`; fastapi_canon.integrations.websockets resolves them by their concrete type and passes them to
 the handler.
 
 ```python
-from fastapi_rpckit import Inject, RpcChannel, RpcModel
+from fastapi_canon.integrations.websockets import Inject, RpcChannel, RpcModel
 
 
 class CreateTask(RpcModel):
@@ -76,39 +76,40 @@ which makes request-scoped cleanup possible:
 channel = RpcChannel("tasks", resolver_scope=call_scope)
 ```
 
-After acceptance, fastapi_rpckit optionally enters the resolver's
+After acceptance, fastapi_canon.integrations.websockets optionally enters the resolver's
 `enter_connection()` context for the socket lifetime. Event sources live in
 that connection scope; binary streams additionally enter their channel's
 resolver scope.
 
 ## Dishka
 
-Install the optional integration and wrap an async Dishka container:
+Dishka ships as a Canon base dependency. Select the WebSocket requirements and
+wrap an async Dishka container:
 
 ```bash
-uv add "fastapi-rpckit[dishka]"
+uv add "fastapi-canon[websockets]"
 ```
 
 ```python
-from fastapi_rpckit.integrations.dishka import DishkaResolver
+from fastapi_canon.integrations.websockets.adapters.dishka import DishkaResolver
 
 resolver = DishkaResolver(container)
 ```
 
 The adapter maps a connection to Dishka's `SESSION` scope and each RPC call to
-a child scope. Supply it anywhere a fastapi_rpckit resolver is accepted. For FastAPI,
+a child scope. Supply it anywhere a fastapi_canon.integrations.websockets resolver is accepted. For FastAPI,
 prefer the router integration, which reads the root container when each socket
 connects:
 
 ```python
-from fastapi_rpckit.integrations.dishka import dishka_router
+from fastapi_canon.integrations.websockets.adapters.dishka import dishka_router
 
 web.include_router(dishka_router(app))
 ```
 
 The integration reads `web.state.dishka_container`; pass the APP container to
 `DishkaResolver` when constructing one manually. A SESSION container from
-`websocket.state` is rejected because fastapi_rpckit opens that scope itself and adds
+`websocket.state` is rejected because fastapi_canon.integrations.websockets opens that scope itself and adds
 `RpcConnection` to its context.
 
 To mount endpoints with FastAPI dependencies, pass `Dishka()` as the resolver
@@ -120,8 +121,8 @@ context function may then declare `FromDishka[T]` parameters without
 ```python
 from dishka.integrations.fastapi import FromDishka
 
-from fastapi_rpckit.integrations.dishka import Dishka
-from fastapi_rpckit import RpcRoutes
+from fastapi_canon.integrations.websockets.adapters.dishka import Dishka
+from fastapi_canon.integrations.websockets import RpcRoutes
 
 screencast = app.stream("/sessions/{session_id}/screencast", frames, context=Session)
 events = app.socket(
@@ -152,10 +153,10 @@ Dishka. The context also joins Dishka's SESSION context, so providers can
 receive it through `from_context`.
 
 Dishka's FastAPI middleware from `setup_dishka()` still opens its own SESSION
-container for every WebSocket, including RPC sockets. fastapi_rpckit does not use
+container for every WebSocket, including RPC sockets. fastapi_canon.integrations.websockets does not use
 that container: RPC handlers resolve from the SESSION scope opened per
 connection above, so session-scoped values are never shared between the two.
-Keep RPC dependencies in the fastapi_rpckit scope and do not rely on
+Keep RPC dependencies in the fastapi_canon.integrations.websockets scope and do not rely on
 `websocket.state.dishka_container` in RPC code.
 
 ## Authenticated connections

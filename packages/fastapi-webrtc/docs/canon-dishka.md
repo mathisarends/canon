@@ -27,8 +27,13 @@ from dishka import AsyncContainer, FromDishka, Provider, Scope, provide
 from dishka.integrations.fastapi import inject
 from fastapi import FastAPI
 from fastapi_canon import Composition, Feature
-from fastapi_webrtc import DataChannelSpec, Peer, Session, WebRtcRouter
-from fastapi_webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.integrations.webrtc import (
+    DataChannelSpec,
+    Peer,
+    Session,
+    WebRtcRouter,
+)
+from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 
 
 class Transcript:

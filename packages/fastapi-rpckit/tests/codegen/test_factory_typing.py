@@ -3,8 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from fastapi_rpckit.codegen import generate_python_client
-from fastapi_rpckit.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.codegen import generate_python_client
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
 
 
 def test_generated_backends_and_differently_named_custom_factories_are_typed(

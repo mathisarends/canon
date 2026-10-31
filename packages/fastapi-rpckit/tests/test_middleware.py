@@ -4,15 +4,13 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager, nullcontext
 from contextvars import ContextVar
 
+import fastapi_canon.integrations.websockets.middleware as middleware_module
+import fastapi_canon.integrations.websockets.runtime as runtime_module
+import fastapi_canon.integrations.websockets.server as server_module
 import pytest
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.testclient import TestClient
-from starlette.testclient import WebSocketDenialResponse
-
-import fastapi_rpckit.middleware as middleware_module
-import fastapi_rpckit.runtime as runtime_module
-import fastapi_rpckit.server as server_module
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     RpcChannel,
     RpcConnectionClose,
     RpcConnectionScope,
@@ -22,12 +20,13 @@ from fastapi_rpckit import (
     RpcService,
     RpcStreamScope,
 )
-from fastapi_rpckit.integrations.fastapi import (
+from fastapi_canon.integrations.websockets.adapters.fastapi import (
     RpcRoutes,
     create_router,
     serve_websocket,
 )
-from fastapi_rpckit.testing import InMemorySocket, RpcTestClient
+from fastapi_canon.integrations.websockets.testing import InMemorySocket, RpcTestClient
+from starlette.testclient import WebSocketDenialResponse
 
 request_id: ContextVar[object] = ContextVar("test.request", default=None)
 connection_name: ContextVar[str | None] = ContextVar("test.connection", default=None)

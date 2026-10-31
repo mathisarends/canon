@@ -23,18 +23,17 @@ async def benchmark(args, directory):
     # Select source before importing, so one harness can compare revisions with
     # the same interpreter, dependencies, payloads and measurement parameters.
     sys.path.insert(0, str(args.source_dir.resolve()))
+    import fastapi_canon.integrations.sse
     import httpx
     from fastapi import FastAPI, Query
     from fastapi import Path as PathParameter
+    from fastapi_canon.integrations.sse import StreamRouter
+    from fastapi_canon.integrations.sse.codegen.ir import build_ir
+    from fastapi_canon.integrations.sse.codegen.openapi import export_schema
+    from fastapi_canon.integrations.sse.codegen.python import generate_python
+    from fastapi_canon.integrations.sse.codegen.typescript import generate_typescript
+    from fastapi_canon.integrations.sse.codegen.writer import write_files
     from pydantic import BaseModel, Field
-
-    import fastapi_streams
-    from fastapi_streams import StreamRouter
-    from fastapi_streams.codegen.ir import build_ir
-    from fastapi_streams.codegen.openapi import export_schema
-    from fastapi_streams.codegen.python import generate_python
-    from fastapi_streams.codegen.typescript import generate_typescript
-    from fastapi_streams.codegen.writer import write_files
 
     class Token(BaseModel):
         type: Literal["token"]
@@ -84,8 +83,8 @@ async def benchmark(args, directory):
     report = {
         "version": 1,
         "source": str(args.source_dir.resolve()),
-        "imported_from": fastapi_streams.__file__,
-        "generator_version": fastapi_streams.__version__,
+        "imported_from": fastapi_canon.integrations.sse.__file__,
+        "generator_version": fastapi_canon.integrations.sse.__version__,
         "platform": platform.platform(),
         "events_per_stream": args.events,
         "iterations": args.iterations,

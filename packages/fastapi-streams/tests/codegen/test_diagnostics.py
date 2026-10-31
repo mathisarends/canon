@@ -2,10 +2,12 @@ import warnings
 from typing import Annotated, Literal
 
 import pytest
+from fastapi_canon.integrations.sse.codegen.diagnostics import (
+    OptionalDiscriminatorWarning,
+)
+from fastapi_canon.integrations.sse.codegen.ir import Object, build_ir
 from pydantic import ConfigDict, Field, create_model
 
-from fastapi_streams.codegen.diagnostics import OptionalDiscriminatorWarning
-from fastapi_streams.codegen.ir import Object, build_ir
 from tests.codegen.helpers import event_contract, event_document
 
 

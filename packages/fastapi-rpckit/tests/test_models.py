@@ -1,8 +1,12 @@
 import pytest
+from fastapi_canon.integrations.websockets import (
+    Inject,
+    ProtocolDefinitionError,
+    RpcChannel,
+    RpcModel,
+)
+from fastapi_canon.integrations.websockets.schema import render_openrpc
 from pydantic import ValidationError
-
-from fastapi_rpckit import Inject, ProtocolDefinitionError, RpcChannel, RpcModel
-from fastapi_rpckit.schema import render_openrpc
 
 
 class NavigateParams(RpcModel):

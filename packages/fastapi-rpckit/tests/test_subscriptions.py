@@ -4,8 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import pytest
-
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     RpcChannel,
     RpcErrorBinding,
     RpcLimits,
@@ -13,7 +12,7 @@ from fastapi_rpckit import (
     RpcModel,
     RpcService,
 )
-from fastapi_rpckit.testing import RpcTestClient
+from fastapi_canon.integrations.websockets.testing import RpcTestClient
 
 from .deadlines import ControlledDeadlines
 from .testing import InMemorySocket
@@ -23,10 +22,10 @@ from .testing import InMemorySocket
 async def test_subscription_ack_is_not_followed_by_a_second_response(
     monkeypatch, interrupt
 ):
-    from fastapi_rpckit.dependencies import as_resolver
-    from fastapi_rpckit.envelopes import RpcRequestEnvelope
-    from fastapi_rpckit.server import _CLIENT_CANCEL
-    from fastapi_rpckit.subscriptions import SubscriptionSession
+    from fastapi_canon.integrations.websockets.dependencies import as_resolver
+    from fastapi_canon.integrations.websockets.envelopes import RpcRequestEnvelope
+    from fastapi_canon.integrations.websockets.server import _CLIENT_CANCEL
+    from fastapi_canon.integrations.websockets.subscriptions import SubscriptionSession
 
     clock = ControlledDeadlines(monkeypatch)
     exiting, started, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
@@ -335,9 +334,9 @@ async def test_subscription_limit_and_contract() -> None:
 
 @pytest.mark.parametrize("cancel_handshake", [False, True])
 async def test_subscription_limit_reserves_blocked_handshakes(cancel_handshake):
-    from fastapi_rpckit.dependencies import as_resolver
-    from fastapi_rpckit.envelopes import RpcRequestEnvelope
-    from fastapi_rpckit.subscriptions import SubscriptionSession
+    from fastapi_canon.integrations.websockets.dependencies import as_resolver
+    from fastapi_canon.integrations.websockets.envelopes import RpcRequestEnvelope
+    from fastapi_canon.integrations.websockets.subscriptions import SubscriptionSession
 
     channel = RpcChannel("session")
     sending, release = asyncio.Event(), asyncio.Event()

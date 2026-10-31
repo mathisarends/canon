@@ -12,8 +12,8 @@ client runtimes. Edit generators/templates, then regenerate instead of editing
 generated files:
 
 ```bash
-uv run fastapi-rpckit generate --config rpcgen.toml
-uv run fastapi-rpckit generate --config rpcgen.toml --check
+uv run canon websockets generate --config rpcgen.toml
+uv run canon websockets generate --config rpcgen.toml --check
 ```
 
 Existing ordinary Python method signatures stay unchanged. TypeScript methods
@@ -31,8 +31,8 @@ traffic: defaults include 32 concurrent handlers, 1024 pending items, 32 batch
 members, 128 queued messages, a 1 MiB message bound, and a 10-second send timeout.
 See [Services and limits](services.md).
 
-Import FastAPI APIs from the `fastapi_rpckit` package root. Dishka and OTel
-integrations live under `fastapi_rpckit.integrations.*`; follow the migration
+Import FastAPI APIs from the `fastapi_canon.integrations.websockets` package root. Dishka and OTel
+integrations live under `fastapi_canon.integrations.websockets.adapters.*`; follow the migration
 guide for removed predecessor modules.
 
 ## Defaults and opt-ins
@@ -136,7 +136,7 @@ OTel is an application opt-in, with no new generated runtime dependency. Follow
 the [Python/TypeScript tracing recipes](observability.md#per-request-trace-context)
 and keep remote baggage out of authorization and automatic logging.
 
-For resilience tests, `fastapi_rpckit.testing.SocketFaults` and `InMemorySocketFactory`
+For resilience tests, `fastapi_canon.integrations.websockets.testing.SocketFaults` and `InMemorySocketFactory`
 provide deterministic disconnects, blocked sends, delayed/held responses,
 half-open sockets, and handshake rejection. Use controlled clocks and events to
 test your own retry, refresh, resync, and shutdown policy.

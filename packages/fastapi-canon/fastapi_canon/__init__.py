@@ -2,6 +2,7 @@
 
 from http import HTTPMethod
 
+from ._version import __version__
 from .error import Error, ErrorConfigurationError, ErrorRegistry, Problem
 from .feature import (
     Composition,
@@ -37,6 +38,7 @@ __all__ = [
     "ResponseHeaders",
     "RouterFactory",
     "RouterPolicy",
+    "__version__",
     "install_openapi_contracts",
     "validate_openapi_contracts",
 ]

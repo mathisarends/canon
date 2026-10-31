@@ -6,9 +6,10 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
-
-from fastapi_rpckit.codegen import generate_typescript_client
-from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.integrations.websockets.codegen import generate_typescript_client
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 
 _RUNNER = """
 import {
@@ -29,7 +30,7 @@ const sockets: FakeStreamSocket[] = [];
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-// Follows the fastapi_rpckit stream wire protocol: binary frames carry data, the
+// Follows the Canon stream wire protocol: binary frames carry data, the
 // text message {"type":"end"} ends the input, and the server closes.
 class FakeStreamSocket {
   readyState = 1;

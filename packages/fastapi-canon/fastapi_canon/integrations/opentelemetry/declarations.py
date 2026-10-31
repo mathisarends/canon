@@ -15,10 +15,13 @@ from fastapi_canon.feature import FeatureConfigurationError
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
-    from fastapi_rpckit.integrations.opentelemetry import OpenTelemetry
     from opentelemetry._logs import LoggerProvider
     from opentelemetry.metrics import MeterProvider
     from opentelemetry.trace import TracerProvider
+
+    from fastapi_canon.integrations.websockets.adapters.opentelemetry import (
+        OpenTelemetry,
+    )
 
 __all__ = ["Telemetry", "observe"]
 
@@ -139,12 +142,14 @@ class Telemetry:
             raise FeatureConfigurationError("exclude must be callable or None")
 
     def rpc_middleware(self) -> OpenTelemetry:
-        """Create RPCKit's middleware explicitly, forwarding the same providers.
+        """Create the WebSocket middleware explicitly, forwarding the same providers.
 
-        Install ``fastapi-rpckit[otel]`` and pass this to ``RpcService``. No
+        Install ``fastapi-canon[websockets,otel]`` and pass this to ``RpcService``. No
         connection span is added, and RPC baggage propagation remains disabled.
         """
-        from fastapi_rpckit.integrations.opentelemetry import OpenTelemetry
+        from fastapi_canon.integrations.websockets.adapters.opentelemetry import (
+            OpenTelemetry,
+        )
 
         return OpenTelemetry(
             tracing=self.tracing,

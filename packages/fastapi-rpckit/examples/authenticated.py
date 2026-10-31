@@ -7,8 +7,7 @@ from typing import Any
 from dishka import Provider, Scope, from_context, make_async_container, provide
 from dishka.integrations.fastapi import FromDishka, setup_dishka
 from fastapi import APIRouter, FastAPI, WebSocket
-
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcConnection,
@@ -17,8 +16,8 @@ from fastapi_rpckit import (
     RpcRoutes,
     RpcService,
 )
-from fastapi_rpckit.dependencies import RpcResolver
-from fastapi_rpckit.integrations.dishka import Dishka, DishkaResolver
+from fastapi_canon.integrations.websockets.adapters.dishka import Dishka, DishkaResolver
+from fastapi_canon.integrations.websockets.dependencies import RpcResolver
 
 
 @dataclass(frozen=True)

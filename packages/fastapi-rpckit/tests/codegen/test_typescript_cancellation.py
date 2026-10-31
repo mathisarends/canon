@@ -6,11 +6,12 @@ from copy import deepcopy
 from textwrap import dedent
 
 import pytest
-
-from fastapi_rpckit import RpcChannel, RpcDisconnect, RpcService
-from fastapi_rpckit.codegen import generate_typescript_client
-from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
-from fastapi_rpckit.testing import InMemorySocketFactory
+from fastapi_canon.integrations.websockets import RpcChannel, RpcDisconnect, RpcService
+from fastapi_canon.integrations.websockets.codegen import generate_typescript_client
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
+from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 
 
 @pytest.fixture(scope="module")

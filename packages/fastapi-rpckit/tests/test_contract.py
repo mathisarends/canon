@@ -2,10 +2,15 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
-
-from fastapi_rpckit import RpcChannel, RpcError, RpcModel, RpcService, ServerVariable
-from fastapi_rpckit.schema import render_openrpc
-from fastapi_rpckit.schema.export import render_contract
+from fastapi_canon.integrations.websockets import (
+    RpcChannel,
+    RpcError,
+    RpcModel,
+    RpcService,
+    ServerVariable,
+)
+from fastapi_canon.integrations.websockets.schema import render_openrpc
+from fastapi_canon.integrations.websockets.schema.export import render_contract
 
 
 class Missing(RpcModel):

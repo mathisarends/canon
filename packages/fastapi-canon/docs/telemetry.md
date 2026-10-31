@@ -154,11 +154,13 @@ rpc = RpcService(middleware=(telemetry.rpc_middleware(),))
 app = Composition(tasks, telemetry=telemetry).apply(FastAPI())
 ```
 
-Install `fastapi-rpckit[otel]` separately. The helper forwards providers and the
-`tracing`/`metrics` switches. It keeps RPCKit's default `connection_spans=False`,
-so operations inherit FastAPI's active WebSocket operation/connection context, and leaves baggage
-propagation disabled. ASGI exclusions do not configure RPCKit's per-operation
-exclusions; use RPCKit's `OpenTelemetry` directly for those controls.
+Select `fastapi-canon[websockets,otel]` to enable the bundled middleware. The
+helper forwards providers and the `tracing`/`metrics` switches. It keeps the
+default `connection_spans=False`, so operations inherit FastAPI's active
+WebSocket operation/connection context, and leaves baggage propagation disabled.
+ASGI exclusions do not configure per-operation exclusions; use
+`fastapi_canon.integrations.websockets.adapters.opentelemetry.OpenTelemetry` directly
+for those controls.
 
 FastAPI disables its native instrumentation when contrib ASGI instrumentation
 already owns the middleware stack. Canon's native server-span enrichment then

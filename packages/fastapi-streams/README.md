@@ -1,4 +1,9 @@
-# fastapi-streams
+# Canon SSE
+
+This directory retains feature tests, examples and guides. The implementation
+now ships in `fastapi-canon[sse]` (prepared 0.9.0, not yet published).
+See the [public API](../../docs/canon.md#public-namespaces) and
+[package migration guide](../fastapi-canon/docs/package-migration.md).
 
 [![CI](https://github.com/mathisarends/canon/actions/workflows/ci.yml/badge.svg)](https://github.com/mathisarends/canon/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
@@ -6,7 +11,7 @@
 
 **Decorate a FastAPI endpoint. Get typed streaming clients in TypeScript and Python.**
 
-Define your events with Pydantic and add `@router.stream()`. `fastapi-streams`
+Define your events with Pydantic and add `@router.stream()`. Canon SSE
 turns that definition into an OpenAPI 3.2 stream contract and generated SDKs with
 named event values, typed async iteration, and shared SSE transport code.
 
@@ -21,16 +26,16 @@ They still need to know which JSON events arrive, how to parse a fragmented
 stream, and how to stop it cleanly.
 
 OpenAPI 3.2 can describe each SSE event with `itemSchema` and its JSON payload
-with `contentSchema`. `fastapi-streams` connects that contract to both clients,
+with `contentSchema`. Canon connects that contract to both clients,
 so event models, endpoint parameters, and client types come from one definition.
 A CI check catches drift between the Python app, the contract, and generated code.
 
 ## 1. Decorate your FastAPI endpoint
 
-Install from PyPI with the optional codegen extra:
+For the prepared 0.9.0 package, select SSE and the optional codegen extra:
 
 ```sh
-uv add 'fastapi-streams[codegen]'
+uv add 'fastapi-canon[sse,codegen]'
 ```
 
 Save this as `app.py`:
@@ -42,7 +47,7 @@ from typing import Annotated, Literal
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from fastapi_streams import StreamRouter
+from fastapi_canon.integrations.sse import StreamRouter
 
 
 class TokenDelta(BaseModel):
@@ -78,13 +83,13 @@ Use `methods=["POST"]` for request-body-driven streams.
 ## 2. Export once, generate both clients
 
 ```sh
-uv run fastapi-streams schema \
+uv run canon sse schema \
   --app app:app --output openapi.json
 
-uv run fastapi-streams generate \
+uv run canon sse generate \
   --schema openapi.json --language typescript --output generated/typescript
 
-uv run fastapi-streams generate \
+uv run canon sse generate \
   --schema openapi.json --language python --output generated/python
 ```
 
@@ -158,11 +163,11 @@ explicit async-generator closure. See [client usage](docs/clients.md).
 Commit the exported schema and generated clients. Then check the complete chain:
 
 ```sh
-uv run fastapi-streams check \
+uv run canon sse check \
   --app app:app --schema openapi.json \
   --language typescript --output generated/typescript
 
-uv run fastapi-streams check \
+uv run canon sse check \
   --app app:app --schema openapi.json \
   --language python --output generated/python
 ```
@@ -174,13 +179,13 @@ event access in consumer code.
 
 To regenerate or check the schema and every client with one command, list them
 under `[tool.fastapi-streams]` in `pyproject.toml` and run
-`uv run fastapi-streams sync` (or `sync --check --diff` in CI); see the
+`uv run canon sse sync` (or `sync --check --diff` in CI); see the
 [sync configuration](docs/codegen.md#one-command-for-schema-and-clients).
 
 | Check | What it verifies |
 | --- | --- |
 | Contract validation | OpenAPI structure, JSON Schemas, and local references. |
-| `fastapi-streams check` | App → committed contract → generated client consistency. |
+| `canon sse check` | App → committed contract → generated client consistency. |
 | TypeScript / Pyright | Parameter types, event fields, and exhaustive narrowing. |
 
 [Codegen and CI reference →](docs/codegen.md)

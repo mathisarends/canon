@@ -9,8 +9,8 @@ Only the root CI and pre-commit configurations are active.
 For focused Streams work:
 
 ```console
-uv run --locked --directory packages/fastapi-streams python -m pytest -q
-uv run --locked --directory packages/fastapi-streams python scripts/codegen.py --check
+uv run --locked --project ../.. --directory packages/fastapi-streams python -m pytest -q
+uv run --locked --project ../.. --directory packages/fastapi-streams python scripts/codegen.py --check
 npm run typecheck --prefix packages/fastapi-streams
 npm run test:coverage --prefix packages/fastapi-streams
 ```

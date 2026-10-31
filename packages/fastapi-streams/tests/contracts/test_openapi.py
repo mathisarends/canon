@@ -1,13 +1,13 @@
 import copy
 
 import pytest
-
-from examples.agent_runs import app
-from fastapi_streams.codegen.openapi import (
+from fastapi_canon.integrations.sse.codegen.openapi import (
     ContractError,
     export_schema,
     validate_contract,
 )
+
+from examples.agent_runs import app
 
 
 def test_native_contract_is_valid_and_preserves_rest():

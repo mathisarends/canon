@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from fastapi_streams.codegen.cli import main
+from fastapi_canon.integrations.sse.codegen.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
 

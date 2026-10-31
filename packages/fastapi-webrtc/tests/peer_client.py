@@ -19,10 +19,9 @@ from aiortc import (
     RTCPeerConnection,
     RTCSessionDescription,
 )
+from fastapi_canon.integrations.webrtc import SUBPROTOCOL
 from websockets.asyncio.client import ClientConnection
 from websockets.typing import Subprotocol
-
-from fastapi_webrtc import SUBPROTOCOL
 
 
 class PeerClient:

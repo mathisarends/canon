@@ -5,13 +5,13 @@
 ## Export and generate
 
 ```sh
-uv run fastapi-streams schema \
+uv run canon sse schema \
   --app examples.agent_runs:app --output tests/fixtures/agent_runs.openapi.json
 
-uv run fastapi-streams generate \
+uv run canon sse generate \
   --schema tests/fixtures/agent_runs.openapi.json --language typescript --output frontend/generated
 
-uv run fastapi-streams generate \
+uv run canon sse generate \
   --schema tests/fixtures/agent_runs.openapi.json --language python --output myapp/generated
 ```
 
@@ -43,11 +43,11 @@ HTTPX is the default. To generate a Python client using HTTPX2 instead, opt in
 when generating and checking it:
 
 ```sh
-uv run fastapi-streams generate \
+uv run canon sse generate \
   --schema tests/fixtures/agent_runs.openapi.json --language python \
   --python-http-client httpx2 --output myapp/generated
 
-uv run fastapi-streams check \
+uv run canon sse check \
   --schema tests/fixtures/agent_runs.openapi.json --language python \
   --python-http-client httpx2 --output myapp/generated
 ```
@@ -93,16 +93,16 @@ and pass it explicitly. Regenerate the schema and clients after changing models.
 
 Warnings are advisory and do not change fields or defaults. Python callers can
 filter or promote this category using the standard `warnings` module; the category
-is available from `fastapi_streams.codegen.diagnostics`.
+is available from `fastapi_canon.integrations.sse.codegen.diagnostics`.
 
 ## Check drift in CI
 
 ```sh
-uv run fastapi-streams check \
+uv run canon sse check \
   --app examples.agent_runs:app --schema tests/fixtures/agent_runs.openapi.json \
   --language typescript --output examples/agent_runs/generated
 
-uv run fastapi-streams check \
+uv run canon sse check \
   --app examples.agent_runs:app --schema tests/fixtures/agent_runs.openapi.json \
   --language python --output examples/agent_runs/generated_python
 ```
@@ -143,9 +143,9 @@ diagnostics = "reports/python.json"         # optional
 ```
 
 ```sh
-uv run fastapi-streams sync            # export the schema, then regenerate every client
-uv run fastapi-streams sync --check    # read-only CI check of schema and all clients
-uv run fastapi-streams sync --check --diff
+uv run canon sse sync            # export the schema, then regenerate every client
+uv run canon sse sync --check    # read-only CI check of schema and all clients
+uv run canon sse sync --check --diff
 ```
 
 Paths and the app import resolve relative to the configuration file. `sync` runs
@@ -270,7 +270,7 @@ omission, not JSON null. Server-side validation remains necessary for every clie
 `generate`, `generate --check` and `check` accept these options:
 
 ```sh
-uv run fastapi-streams check --schema openapi.json --language python \
+uv run canon sse check --schema openapi.json --language python \
   --output generated --diagnostics reports/python.json --strict \
   --allow-diagnostics reviewed-python.json
 ```

@@ -329,7 +329,11 @@ def test_invalid_observations_and_duplicate_registration() -> None:
 
 
 def test_rpc_forwards_providers() -> None:
-    from fastapi_rpckit import RpcChannel, RpcService, create_router
+    from fastapi_canon.integrations.websockets import (
+        RpcChannel,
+        RpcService,
+        create_router,
+    )
 
     with SpanCapture() as capture:
         options = Telemetry(tracer_provider=capture.provider)

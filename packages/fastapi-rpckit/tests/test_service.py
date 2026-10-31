@@ -1,6 +1,10 @@
 import pytest
-
-from fastapi_rpckit import ProtocolDefinitionError, RpcChannel, RpcLimits, RpcService
+from fastapi_canon.integrations.websockets import (
+    ProtocolDefinitionError,
+    RpcChannel,
+    RpcLimits,
+    RpcService,
+)
 
 
 def test_endpoint_matching_and_static_priority() -> None:

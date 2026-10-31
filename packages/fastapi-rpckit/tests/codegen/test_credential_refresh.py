@@ -1,16 +1,16 @@
 import asyncio
 
 import pytest
-from pydantic import BaseModel
-
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     RpcChannel,
     RpcConnectionExpiry,
     RpcReject,
     RpcRejection,
     RpcService,
 )
-from fastapi_rpckit.testing import InMemorySocketFactory
+from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
+from pydantic import BaseModel
+
 from tests.test_expiry import expiry_clock as expiry_clock
 
 from .conftest import document as document

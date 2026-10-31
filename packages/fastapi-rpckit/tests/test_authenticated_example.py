@@ -1,15 +1,15 @@
 import time
 from types import SimpleNamespace
 
+import fastapi_canon.integrations.websockets.connection as connection_module
 import pytest
 from fastapi.testclient import TestClient
+from fastapi_canon.integrations.websockets import RpcService
+from fastapi_canon.integrations.websockets.adapters.dishka import dishka_router
 from starlette.testclient import WebSocketDenialResponse
 from starlette.websockets import WebSocketDisconnect
 
-import fastapi_rpckit.connection as connection_module
 from examples.authenticated import Login, Sessions, create_app
-from fastapi_rpckit import RpcService
-from fastapi_rpckit.integrations.dishka import dishka_router
 
 
 @pytest.mark.parametrize(

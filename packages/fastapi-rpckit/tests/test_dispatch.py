@@ -1,9 +1,12 @@
 import pytest
+from fastapi_canon.integrations.websockets import (
+    RpcChannel,
+    RpcInvalidParamsError,
+    RpcMethodNotFoundError,
+)
+from fastapi_canon.integrations.websockets.dispatch import RpcDispatcher
+from fastapi_canon.integrations.websockets.protocol import RpcProtocol
 from pydantic import BaseModel
-
-from fastapi_rpckit import RpcChannel, RpcInvalidParamsError, RpcMethodNotFoundError
-from fastapi_rpckit.dispatch import RpcDispatcher
-from fastapi_rpckit.protocol import RpcProtocol
 
 from .conftest import (
     GreetingRpcMethod,

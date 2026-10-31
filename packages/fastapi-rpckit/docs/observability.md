@@ -8,11 +8,11 @@ and generated-client instrumentation API.
 ## Enable OpenTelemetry
 
 ```bash
-uv add "fastapi-rpckit[fastapi,otel]"
+uv add "fastapi-canon[websockets,fastapi,otel]"
 ```
 
 The extra installs the OpenTelemetry API. Configure the SDK and exporters in
-your application, or pass providers from your existing telemetry setup. fastapi_rpckit
+your application, or pass providers from your existing telemetry setup. fastapi_canon.integrations.websockets
 does not create exporters, replace global providers, or shut down application
 providers. Without a configured SDK, the OTEL API uses its normal no-op behavior.
 [OpenTelemetry Python instrumentation](https://opentelemetry.io/docs/languages/python/instrumentation/)
@@ -22,9 +22,9 @@ from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 
-from fastapi_rpckit import RpcChannel, RpcService
-from fastapi_rpckit import create_router
-from fastapi_rpckit.integrations.opentelemetry import OpenTelemetry
+from fastapi_canon.integrations.websockets import RpcChannel, RpcService
+from fastapi_canon.integrations.websockets import create_router
+from fastapi_canon.integrations.websockets.adapters.opentelemetry import OpenTelemetry
 
 media = RpcChannel("media")
 
@@ -99,23 +99,23 @@ and status remain available with exception events disabled; explicitly enable
 
 ## Metrics
 
-These are fastapi_rpckit-specific instrument names. Durations are measured in seconds.
+These are fastapi_canon.integrations.websockets-specific instrument names. Durations are measured in seconds.
 
 | Instrument | Measurement |
 | --- | --- |
-| `fastapi_rpckit.rpc.calls` | Completed calls, including error and cancellation outcomes |
-| `fastapi_rpckit.rpc.active` | Calls executing now |
-| `fastapi_rpckit.rpc.duration` | Call duration, excluding the concurrency queue and socket delivery |
-| `fastapi_rpckit.connections` | Accepted connections and rejected or failed handshakes |
-| `fastapi_rpckit.connections.active` | Accepted connections currently open |
-| `fastapi_rpckit.connections.duration` | Accepted connection lifetime |
-| `fastapi_rpckit.streams` | Completed binary stream operations by close category |
-| `fastapi_rpckit.streams.active` | Binary streams executing now |
-| `fastapi_rpckit.streams.duration` | Binary stream duration |
-| `fastapi_rpckit.stream.frames` | Binary messages, split by `inbound` and `outbound` |
-| `fastapi_rpckit.stream.bytes` | Binary bytes in each direction |
-| `fastapi_rpckit.notifications` | Outgoing notification count by registered operation |
-| `fastapi_rpckit.slow_consumers` | JSON-RPC slow-consumer closures |
+| `fastapi_canon.integrations.websockets.rpc.calls` | Completed calls, including error and cancellation outcomes |
+| `fastapi_canon.integrations.websockets.rpc.active` | Calls executing now |
+| `fastapi_canon.integrations.websockets.rpc.duration` | Call duration, excluding the concurrency queue and socket delivery |
+| `fastapi_canon.integrations.websockets.connections` | Accepted connections and rejected or failed handshakes |
+| `fastapi_canon.integrations.websockets.connections.active` | Accepted connections currently open |
+| `fastapi_canon.integrations.websockets.connections.duration` | Accepted connection lifetime |
+| `fastapi_canon.integrations.websockets.streams` | Completed binary stream operations by close category |
+| `fastapi_canon.integrations.websockets.streams.active` | Binary streams executing now |
+| `fastapi_canon.integrations.websockets.streams.duration` | Binary stream duration |
+| `fastapi_canon.integrations.websockets.stream.frames` | Binary messages, split by `inbound` and `outbound` |
+| `fastapi_canon.integrations.websockets.stream.bytes` | Binary bytes in each direction |
+| `fastapi_canon.integrations.websockets.notifications` | Outgoing notification count by registered operation |
+| `fastapi_canon.integrations.websockets.slow_consumers` | JSON-RPC slow-consumer closures |
 
 Frame counters update while a stream is running and work independently of trace
 sampling. They count binary application messages, including empty messages.
@@ -139,7 +139,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi_rpckit import RpcMiddleware, RpcStreamScope
+from fastapi_canon.integrations.websockets import RpcMiddleware, RpcStreamScope
 
 logger = logging.getLogger(__name__)
 
@@ -280,14 +280,14 @@ OpenRPC advertises the convention in `x-rpc-request-metadata`:
 Request-envelope schemas also describe `meta`. Regenerated clients enable sending
 middleware metadata only for this exact capability. A nonempty carrier on a
 client generated from an older or unsupported contract fails locally before send;
-empty middleware carriers omit the extension. Non-fastapi_rpckit clients may participate
+empty middleware carriers omit the extension. Non-fastapi_canon.integrations.websockets clients may participate
 by following the advertised convention. Low-level transport users must check
 support themselves. Deploy the server and regenerate its contract before enabling
 client propagation; no handler signatures or existing parameter fields migrate.
 
 ### Python client recipe
 
-Generated clients have no hard dependency on fastapi_rpckit or OpenTelemetry. Install
+Generated clients have no hard dependency on fastapi_canon.integrations.websockets or OpenTelemetry. Install
 and configure OpenTelemetry in your application, then register this middleware
 with your generated client's constructor or `connect(middleware=[Tracing()])`.
 Replace `my_client` with the generated package:

@@ -6,6 +6,27 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ### Breaking changes
 
+- Consolidate SSE, WebSocket RPC/sockets and WebRTC into the `fastapi-canon`
+  distribution. Replace dependencies on `fastapi-streams`, `fastapi-rpckit` and
+  `fastapi-webrtc` with Canon's `sse`, `websockets` and `webrtc` extras. Replace
+  `fastapi-canon[streams]` with `fastapi-canon[sse]`. All transport source and
+  generator resources ship in the same wheel; extras select dependencies.
+- Migrate imports to `fastapi_canon.integrations.sse`,
+  `fastapi_canon.integrations.websockets` and `fastapi_canon.integrations.webrtc`.
+  Their public exports include `CanonStreamRouter` and `CanonWebRtcRouter`.
+  Update short `fastapi_canon.sse`, `.websockets` or `.webrtc` paths from earlier
+  prepared snapshots. Replace the published `fastapi_canon.integrations.streams`
+  path with `fastapi_canon.integrations.sse`. WebSocket framework adapters now
+  live under `fastapi_canon.integrations.websockets.adapters`; update former
+  `fastapi_rpckit.integrations` imports to that prefix. The former top-level
+  modules and console scripts are removed. Use `canon sse`, `canon websockets`
+  and `canon webrtc` for the existing generator commands.
+- Regenerate clients: generator metadata now identifies Canon 0.9.0. Existing
+  generated layouts, contract formats and transport behavior are retained,
+  including JSON-RPC 2.0 and `fastapi-webrtc.v1`. Socket binding entry points move
+  to `fastapi_canon.integrations.websockets.socket_bindings`; update binding
+  package metadata.
+  See the [package migration guide](docs/package-migration.md) for commands.
 - Extend the public `Composition` constructor with `telemetry=`. Update wrappers
   or signature snapshots that mirror this constructor. Existing compositions
   without telemetry keep their behavior. To opt in, install `fastapi-canon[otel]`
@@ -14,6 +35,12 @@ All notable changes to `fastapi-canon` are documented in this file.
 
 ### Added
 
+- One `canon` command and `python -m fastapi_canon` entry point, including
+  `canon check errors`. Root CLI help loads no transport generators.
+- Optional `codegen`, `aiortc` and `otel` dependencies in Canon.
+  Native engine and generation dependencies remain absent from the base install.
+- Fresh-wheel checks for the base package, each feature, codegen-only and
+  combined installations, including minimum dependency profiles.
 - Optional, exporter-free OpenTelemetry integration using FastAPI >=0.143 native
   telemetry and application-owned providers. Core retains FastAPI >=0.115.
 - Dishka decorators for public async port methods, expected-exception events,
@@ -22,7 +49,7 @@ All notable changes to `fastapi-canon` are documented in this file.
 - Native HTTP server-span Problem Details enrichment with `canon.problem.code`;
   only 5xx set `error.type` and error status. Document the separate behavior of
   FastAPI's endpoint spans for propagated domain exceptions.
-- Explicit RPCKit middleware helper forwarding application providers, isolated
+- Explicit WebSocket middleware helper forwarding application providers, isolated
   `SpanCapture` testing helpers, reference endpoint trace contracts, and an opt-in
   two-service OTLP demo. See the [telemetry guide](docs/telemetry.md).
 

@@ -17,7 +17,7 @@ Start with the [quickstart](quickstart.md), then use the
 [codegen guide](codegen.md) to integrate the clients into your project.
 
 Python 3.12+, FastAPI 0.143.3+, and Pydantic v2 are required. Code generation is
-an optional extra: `fastapi-streams[codegen]`. No running server is needed to
+an optional extra: `fastapi-canon[sse,codegen]`. No running server is needed to
 export contracts or generate clients.
 
 The [example application](../examples/agent_runs/__init__.py) includes GET and

@@ -3,10 +3,9 @@ import json
 from collections.abc import AsyncIterator
 
 import pytest
+from fastapi_canon.integrations.websockets import RpcChannel, RpcService
+from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 from pydantic import BaseModel, TypeAdapter
-
-from fastapi_rpckit import RpcChannel, RpcService
-from fastapi_rpckit.testing import InMemorySocketFactory
 
 from .test_connect import client_module as client_module
 from .test_python_runtime import ControlledSocket

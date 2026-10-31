@@ -4,8 +4,8 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+from fastapi_canon.integrations.websockets import RpcServer
 
-from fastapi_rpckit import RpcServer
 from tests.conftest import GreetingState, greeting_app
 
 

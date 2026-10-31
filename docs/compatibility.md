@@ -20,9 +20,10 @@ when updating constructor wrappers and the
 before upgrading custom engines. The [release record](releases.md#current-versions)
 links the verified source and publication workflows.
 Package metadata defines dependency ranges; the root `uv.lock` selects development
-versions and does not establish support for every resolvable combination. Canon's
-Streams and WebRTC extras pin the corresponding independently versioned package.
-Canon core and each extension work independently.
+versions and does not establish support for every resolvable combination.
+The prepared, unpublished Canon 0.9.0 source combines the transport code in one
+wheel. Feature extras select third-party dependencies; no extra requires an
+earlier distribution. Base composition retains its lower dependency bounds.
 
 Canon 0.8.0 adds router policies and optional source-based error-contract checking.
 Its policy contracts and installed checker are exercised by the current/minimum
@@ -36,11 +37,19 @@ HTTP/SSE/RPC/WebRTC routing and generated RPC SDK execution and compilation.
 
 ## Verification scope
 
+The unified 0.9.0 source has been checked locally on Windows with Python 3.14
+and current compatible dependencies, plus the minimum direct dependency matrix
+on Python 3.12. Both matrices install one Canon wheel across eleven feature/tool
+combinations without legacy distributions. Installed SSE CLI checks cover no
+HTTP backend, HTTPX and HTTPX2; the installed WebRTC CLI generates a client that
+compiles. Chromium scenarios cover the aiortc signaling and media paths. This
+local validation does not replace exact-source CI or establish a publication.
+
 Prepared Canon 0.9.0 adds an optional `otel` extra requiring FastAPI >=0.143 and
 OpenTelemetry API >=1.40,<2. Canon core retains FastAPI >=0.115; its declarations
 and disabled Dishka decorators require no OpenTelemetry imports. Recent FastAPI
 versions have their own OpenTelemetry API dependency. The installed-wheel matrix
-covers API-only `canon[otel]` and the reference trace tests with an application
+covers API-only `fastapi-canon[otel]` and the reference trace tests with an application
 SDK. Runtime telemetry is exercised with the versions selected in `uv.lock`;
 minimum dependencies are checked separately. See the
 [telemetry guide](../packages/fastapi-canon/docs/telemetry.md) for native FastAPI
@@ -55,17 +64,17 @@ The installed-wheel matrix covers:
 
 | Combination | What it establishes |
 | --- | --- |
-| Canon core | Import/runtime behavior with all extensions absent |
-| Canon + OTEL | Optional native telemetry and observed ports with the API alone, without an SDK |
-| Streams | Standalone SSE and CLI behavior |
-| RPCKit | Standalone RPC, sockets and generated clients |
-| Canon + Streams | Optional integration and HTTP/SSE contracts |
-| Canon + RPCKit | Composition without Streams |
-| Canon + Streams + RPCKit | Shared application state and Dishka cleanup |
-| WebRTC core | Standalone declarations, contract/codegen and missing-engine diagnostics |
-| WebRTC + aiortc | Optional engine installation |
-| Canon + WebRTC | Admission contracts and optional integration |
-| All four packages | Combined installation, routing and client generation |
+| `[otel]` | Native telemetry and observed ports with the API alone, without an SDK |
+| Canon base | Composition with optional tools and engines absent |
+| `[sse]` | SSE runtime with the required FastAPI/Pydantic bounds |
+| `[websockets]` | RPC and typed/raw/binary sockets |
+| `[webrtc]` | Session declarations, signaling, admission and missing-engine diagnostics |
+| `[webrtc,aiortc]` | Optional engine installation |
+| `[codegen]` | Offline tooling without transport or engine extras |
+| `[sse,codegen]` | SSE contracts and clients |
+| `[websockets,codegen]` | OpenRPC export and client execution/compilation |
+| `[sse,websockets,codegen]` | Shared application state and Dishka cleanup |
+| All feature/tool extras | Combined routing and client generation |
 
 Run `scripts/check_distributions.py` through the locked workspace environment for
 current compatible dependencies. Add `--python 3.12 --dependencies minimum` for

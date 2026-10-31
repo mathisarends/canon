@@ -5,12 +5,12 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi_canon.integrations.sse.codegen.ir import Reference
+from fastapi_canon.integrations.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.typescript import generate_typescript
+from fastapi_canon.integrations.sse.codegen.writer import write_files
 from pydantic import TypeAdapter, ValidationError
 
-from fastapi_streams.codegen.ir import Reference
-from fastapi_streams.codegen.python import generate_python
-from fastapi_streams.codegen.typescript import generate_typescript
-from fastapi_streams.codegen.writer import write_files
 from tests.codegen.helpers import load_models, schema_contract
 
 ROOT = Path(__file__).parents[2]

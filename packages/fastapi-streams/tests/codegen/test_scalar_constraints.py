@@ -1,9 +1,11 @@
 import pytest
+from fastapi_canon.integrations.sse.codegen.diagnostics import (
+    UnsupportedConstraintWarning,
+)
+from fastapi_canon.integrations.sse.codegen.openapi import ContractError
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 from pydantic import TypeAdapter, ValidationError
 
-from fastapi_streams.codegen.diagnostics import UnsupportedConstraintWarning
-from fastapi_streams.codegen.openapi import ContractError
-from fastapi_streams.codegen.python import generate_python
 from tests.codegen.helpers import load_models, schema_contract
 
 

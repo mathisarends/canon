@@ -20,11 +20,11 @@ from starlette.websockets import WebSocketDisconnect
 
 MODULES = {
     "fastapi-canon": "fastapi_canon",
-    "fastapi-streams": "fastapi_streams",
-    "fastapi-rpckit": "fastapi_rpckit",
-    "fastapi-webrtc": "fastapi_webrtc",
+    "sse": "fastapi_canon.integrations.sse",
+    "websockets": "fastapi_canon.integrations.websockets",
+    "webrtc": "fastapi_canon.integrations.webrtc",
 }
-STACK = {"fastapi-canon", "fastapi-streams", "fastapi-rpckit"}
+STACK = {"fastapi-canon", "sse", "websockets"}
 
 
 class Event(BaseModel):
@@ -45,15 +45,19 @@ def main() -> None:
     selected = set(sys.argv[1:])
     assert importlib.util.find_spec("rpckit") is None
     assert importlib.util.find_spec("fastapi_wsrpc") is None
+    for legacy in ("fastapi_streams", "fastapi_rpckit", "fastapi_webrtc"):
+        assert importlib.util.find_spec(legacy) is None
     for name, module in MODULES.items():
         if name in selected:
             installed = importlib.import_module(module)
             assert Path(installed.__file__).resolve().is_relative_to(Path(sys.prefix))
             if hasattr(installed, "__version__"):
-                assert installed.__version__ == version(name)
+                assert installed.__version__ == version("fastapi-canon")
         else:
-            assert importlib.util.find_spec(module) is None, module
+            assert importlib.util.find_spec(module) is not None, module
     app = FastAPI()
+    if importlib.util.find_spec("jsonschema") and importlib.util.find_spec("jinja2"):
+        _offline_sse_codegen()
     routers = []
     if "fastapi-canon" in selected:
         from fastapi_canon import CanonRouter
@@ -67,11 +71,11 @@ def main() -> None:
         routers.append(http)
         _canon_check()
         _observation_check(enabled="--otel" in selected)
-    if "fastapi-streams" in selected:
-        from fastapi_streams import StreamRouter
+    if "sse" in selected:
+        from fastapi_canon.integrations.sse import StreamRouter
 
         if "fastapi-canon" in selected:
-            from fastapi_canon.integrations.streams import CanonStreamRouter
+            from fastapi_canon.integrations.sse import CanonStreamRouter
 
             streams = CanonStreamRouter()
         else:
@@ -82,9 +86,9 @@ def main() -> None:
             yield Event()
 
         routers.append(streams)
-        _cli("fastapi-streams")
-    if "fastapi-rpckit" in selected:
-        from fastapi_rpckit import (
+        _cli("sse")
+    if "websockets" in selected:
+        from fastapi_canon.integrations.websockets import (
             Inject,
             RpcChannel,
             RpcService,
@@ -115,11 +119,11 @@ def main() -> None:
 
         rpc.socket("/session", session)
         routers.append(create_router(rpc))
-        _cli("fastapi-rpckit")
-    if "fastapi-webrtc" in selected:
+        _cli("websockets")
+    if "webrtc" in selected:
         engine = _RecordingEngine()
         routers.append(_webrtc_router(engine, canon="fastapi-canon" in selected))
-        _cli("fastapi-webrtc")
+        _cli("webrtc")
     if "fastapi-canon" in selected:
         from fastapi_canon import Composition, ErrorOptions, Feature
 
@@ -133,9 +137,9 @@ def main() -> None:
     with TestClient(app) as client:
         if "fastapi-canon" in selected:
             assert client.get("/health").json() == {"status": "ok"}
-        if "fastapi-streams" in selected:
+        if "sse" in selected:
             assert '"type":"ready"' in client.get("/events").text
-        if "fastapi-rpckit" in selected:
+        if "websockets" in selected:
             with client.websocket_connect("/rpc") as websocket:
                 websocket.send_json(
                     {"jsonrpc": "2.0", "id": 1, "method": "health.ping"}
@@ -156,16 +160,16 @@ def main() -> None:
                 assert websocket.receive_json() == {"value": 0}
                 websocket.send_json({"value": 41})
                 assert websocket.receive_json() == {"value": 42}
-        if "fastapi-webrtc" in selected:
+        if "webrtc" in selected:
             _webrtc_sessions(client, engine, canon="fastapi-canon" in selected)
     assert app.openapi()["openapi"]
     if "fastapi-canon" in selected:
         _router_policies()
-    if "fastapi-webrtc" in selected:
+    if "webrtc" in selected:
         _webrtc_codegen(app)
-    if "fastapi-rpckit" in selected and importlib.util.find_spec("jinja2"):
+    if "websockets" in selected and importlib.util.find_spec("jinja2"):
         _rpc_codegen(rpc)
-    if selected == STACK:
+    if selected >= STACK:
         # Run the same composition/lifecycle regression against installed wheels.
 
         example = runpy.run_path(
@@ -286,18 +290,44 @@ def _canon_check() -> None:
 
 def _cli(name: str) -> None:
     executable = Path(sys.executable).with_name(
-        f"{name}.exe" if sys.platform == "win32" else name
+        "canon.exe" if sys.platform == "win32" else "canon"
     )
     subprocess.run(
-        [str(executable), "--help"], check=True, capture_output=True, timeout=30
+        [str(executable), name, "--help"], check=True, capture_output=True, timeout=30
     )
+
+
+def _offline_sse_codegen() -> None:
+    """Generate from a saved contract, including with codegen-only dependencies."""
+    contract = (
+        Path(__file__).resolve().parents[1]
+        / "packages/fastapi-streams/tests/fixtures/models.openapi.json"
+    )
+    with tempfile.TemporaryDirectory(prefix="canon-offline-") as temporary:
+        for language in ("python", "typescript"):
+            command = [
+                sys.executable,
+                "-I",
+                "-m",
+                "fastapi_canon",
+                "sse",
+                "generate",
+                "--schema",
+                str(contract),
+                "--language",
+                language,
+                "--output",
+                str(Path(temporary) / language),
+            ]
+            subprocess.run(command, cwd=temporary, check=True, timeout=30)
+            subprocess.run([*command, "--check"], cwd=temporary, check=True, timeout=30)
 
 
 class _RecordingEngine:
     """Counts peers; admission must reject sessions before reaching it."""
 
     def __init__(self) -> None:
-        from fastapi_webrtc import EngineCapabilities
+        from fastapi_canon.integrations.webrtc import EngineCapabilities
 
         self.capabilities = EngineCapabilities(
             trickle_ice=True, ice_restart=False, renegotiation=False
@@ -314,7 +344,7 @@ class _RecordingEngine:
 
 def _webrtc_router(engine, *, canon=False):
     from fastapi import HTTPException, Query
-    from fastapi_webrtc import DataChannelSpec, Session, WebRtcRouter
+    from fastapi_canon.integrations.webrtc import DataChannelSpec, Session, WebRtcRouter
 
     class AdmissionDenied(Exception):
         pass
@@ -354,7 +384,7 @@ def _webrtc_router(engine, *, canon=False):
 
 
 def _webrtc_sessions(client, engine, *, canon=False) -> None:
-    from fastapi_webrtc import SUBPROTOCOL
+    from fastapi_canon.integrations.webrtc import SUBPROTOCOL
     from starlette.testclient import WebSocketDenialResponse
 
     try:
@@ -375,21 +405,21 @@ def _webrtc_sessions(client, engine, *, canon=False) -> None:
     assert engine.created == 1
     if importlib.util.find_spec("aiortc") is None:
         try:
-            importlib.import_module("fastapi_webrtc.engines.aiortc")
+            importlib.import_module("fastapi_canon.integrations.webrtc.engines.aiortc")
         except ImportError as error:
-            assert "fastapi-webrtc[aiortc]" in str(error)
+            assert "fastapi-canon[webrtc,aiortc]" in str(error)
         else:
             raise AssertionError("The aiortc engine imported without aiortc")
     else:
-        from fastapi_webrtc.engines.aiortc import AiortcEngine
+        from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 
         assert AiortcEngine().capabilities.renegotiation
 
 
 def _webrtc_codegen(app) -> None:
-    from fastapi_webrtc.codegen.typescript import generate_typescript
-    from fastapi_webrtc.codegen.writer import write_files
-    from fastapi_webrtc.contract import build_contract
+    from fastapi_canon.integrations.webrtc.codegen.typescript import generate_typescript
+    from fastapi_canon.integrations.webrtc.codegen.writer import write_files
+    from fastapi_canon.integrations.webrtc.contract import build_contract
 
     contract = build_contract(app)
     (session,) = contract["sessions"]
@@ -404,13 +434,13 @@ def _webrtc_codegen(app) -> None:
 
 
 def _rpc_codegen(rpc) -> None:
-    from fastapi_rpckit.codegen import (
+    from fastapi_canon.integrations.websockets.codegen import (
         PythonClientOptions,
         TypeScriptClientOptions,
         generate_python_client,
         generate_typescript_client,
     )
-    from fastapi_rpckit.testing import InMemorySocketFactory
+    from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 
     document = rpc.contract(title="Health", base_url="ws://test").to_openrpc()
     with tempfile.TemporaryDirectory(prefix="canon-rpc-client-") as temporary:

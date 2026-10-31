@@ -1,8 +1,7 @@
 import asyncio
 
 import pytest
-
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     RpcChannel,
     RpcConnectionClose,
     RpcDisconnect,
@@ -10,7 +9,7 @@ from fastapi_rpckit import (
     RpcRejection,
     RpcService,
 )
-from fastapi_rpckit.testing import (
+from fastapi_canon.integrations.websockets.testing import (
     InMemorySocket,
     InMemorySocketFactory,
     RpcTestClient,

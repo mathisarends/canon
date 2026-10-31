@@ -6,7 +6,7 @@
     -> {"id": 1, "method": "add", "params": [2, 3]}
     <- {"id": 1, "result": 5}
 
-fastapi_rpckit only declares the protocol for the contract; the handler sees
+Canon declares the protocol for the contract; the handler sees
 the raw messages. A proxy, such as one forwarding CDP to a browser, would relay
 them instead of answering.
 """
@@ -15,8 +15,7 @@ import json
 from collections.abc import Callable
 
 from fastapi import FastAPI
-
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcMessageType,

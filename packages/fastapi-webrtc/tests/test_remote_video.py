@@ -6,10 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-
-from examples.remote_video.app import create_app, create_router
-from examples.remote_video.engine import RemoteVideoEngine, VideoLease
-from fastapi_webrtc import (
+from fastapi_canon.integrations.webrtc import (
     DescriptionType,
     ErrorCode,
     Session,
@@ -17,7 +14,7 @@ from fastapi_webrtc import (
     WebRtcError,
     WebRtcRouter,
 )
-from fastapi_webrtc.engine import (
+from fastapi_canon.integrations.webrtc.engine import (
     ConnectionState,
     IceCandidate,
     PeerConfig,
@@ -25,6 +22,9 @@ from fastapi_webrtc.engine import (
     SessionDescription,
     SignalingState,
 )
+
+from examples.remote_video.app import create_app, create_router
+from examples.remote_video.engine import RemoteVideoEngine, VideoLease
 from tests.fake_engine import FakeEngine, NativeTrack, sdp
 from tests.server import serve
 from tests.signaling import Signal, until

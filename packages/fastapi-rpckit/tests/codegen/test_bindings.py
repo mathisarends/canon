@@ -12,8 +12,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import pytest
-
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcMessageType,
@@ -21,26 +20,28 @@ from fastapi_rpckit import (
     RpcSocket,
     RpcSocketProtocol,
 )
-from fastapi_rpckit.codegen import (
+from fastapi_canon.integrations.websockets.codegen import (
     generate_python_client,
     generate_typescript_client,
     render_python_client,
 )
-from fastapi_rpckit.codegen.bindings import (
+from fastapi_canon.integrations.websockets.codegen.bindings import (
     BindingContext,
     SocketBinding,
     bind_sockets,
     load_binding,
 )
-from fastapi_rpckit.codegen.cli import main
-from fastapi_rpckit.codegen.ir import (
+from fastapi_canon.integrations.websockets.codegen.cli import main
+from fastapi_canon.integrations.websockets.codegen.ir import (
     SocketDecl,
     SocketProtocolDecl,
     UnsupportedSchemaError,
     build_ir,
 )
-from fastapi_rpckit.codegen.python import PythonClientOptions
-from fastapi_rpckit.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 
 from .test_socket_roundtrip import LoopbackSocket, UnusedTransport
 
@@ -360,7 +361,9 @@ def test_the_cli_loads_bindings_next_to_the_config(
     (tmp_path / "local_echo_binding.py").write_text(
         dedent(
             f"""
-            from fastapi_rpckit.codegen.bindings import SocketBinding
+            from fastapi_canon.integrations.websockets.codegen.bindings import (
+                SocketBinding,
+            )
 
 
             class Binding:

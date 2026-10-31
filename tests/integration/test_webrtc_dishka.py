@@ -18,7 +18,7 @@ from dishka.integrations.fastapi import inject
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from fastapi_canon import Composition, Feature
-from fastapi_webrtc import (
+from fastapi_canon.integrations.webrtc import (
     DataChannelSpec,
     Direction,
     ErrorCode,
@@ -27,7 +27,7 @@ from fastapi_webrtc import (
     Session,
     WebRtcRouter,
 )
-from fastapi_webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 from starlette.testclient import WebSocketDenialResponse
 
 

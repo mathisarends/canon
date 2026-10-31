@@ -7,7 +7,7 @@ to carry text and binary unchanged. Message types come only from annotations.
 See [typed JSON messages](#typed-json-messages) and [typed connections](#typed-connections).
 
 For an untyped socket,
-fastapi_rpckit owns acceptance, dependencies, limits, cancellation, and closure, and
+fastapi_canon.integrations.websockets owns acceptance, dependencies, limits, cancellation, and closure, and
 passes every text and binary message through without JSON parsing, JSON-RPC
 envelopes, or framing. Use it to proxy a native protocol such as the Chrome
 DevTools Protocol (CDP), whose existing clients must keep speaking their own
@@ -26,7 +26,7 @@ message, in order:
 ```python
 from pydantic import BaseModel, ConfigDict
 
-from fastapi_rpckit import RpcChannel, RpcService
+from fastapi_canon.integrations.websockets import RpcChannel, RpcService
 
 
 class Ping(BaseModel):
@@ -120,7 +120,7 @@ generated clients and tests against a real WebSocket server.
 Measure JSON validation and serialization CPU cost locally with:
 
 ```console
-uv run --locked --directory packages/fastapi-rpckit python scripts/bench_socket_messages.py
+uv run --locked --project ../.. --directory packages/fastapi-rpckit python scripts/bench_socket_messages.py
 ```
 
 The benchmark reports cached input validation and output validation/serialization
@@ -134,7 +134,7 @@ Declare incoming and outgoing JSON types in the injected socket annotation. The
 handler runs once per connection and owns its receive/send loop:
 
 ```python
-from fastapi_rpckit import Inject, RpcSocket
+from fastapi_canon.integrations.websockets import Inject, RpcSocket
 
 
 type PingSocket = RpcSocket[Ping, Pong]
@@ -172,7 +172,7 @@ native client library through a protocol binding, inject bare `RpcSocket`.
 ```python
 import asyncio
 
-from fastapi_rpckit import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcErrorBinding,
@@ -232,7 +232,7 @@ the handler. JSON-RPC-only options such as `error_mapper=`, `path_model=`, and
 `close_when_events_complete=` are rejected for socket handlers.
 
 `messages=` declares the accepted message types and defaults to
-`(RpcMessageType.TEXT, RpcMessageType.BINARY)`. fastapi_rpckit closes the socket with
+`(RpcMessageType.TEXT, RpcMessageType.BINARY)`. fastapi_canon.integrations.websockets closes the socket with
 a protocol error (1002) when the client sends an undeclared type, and
 `send()` raises `TypeError` for one.
 
@@ -243,7 +243,7 @@ protocol. Declare that protocol with `protocol=` so the contract and generated
 clients know what the endpoint speaks:
 
 ```python
-from fastapi_rpckit import RpcMessageType, RpcSocketProtocol
+from fastapi_canon.integrations.websockets import RpcMessageType, RpcSocketProtocol
 
 CDP = RpcSocketProtocol(
     name="cdp",
@@ -259,7 +259,7 @@ CDP = RpcSocketProtocol(
 async def cdp(socket: Inject[RpcSocket], browsers: Inject[BrowserService]) -> None: ...
 ```
 
-The declaration is metadata only. fastapi_rpckit does not decode, validate,
+The declaration is metadata only. fastapi_canon.integrations.websockets does not decode, validate,
 correlate, or rewrite the messages: a CDP endpoint stays a CDP endpoint and
 forwards `{"id": 1, "method": "Page.enable", "params": {}}` byte for byte.
 Request correlation, events, and target sessions remain the job of the
@@ -268,7 +268,7 @@ protocol's client. The handler can read the declaration as `socket.protocol`.
 `RpcSocketProtocol` describes any protocol:
 
 ```python
-from fastapi_rpckit import RpcSocketProtocol
+from fastapi_canon.integrations.websockets import RpcSocketProtocol
 
 GRAPHQL_WS = RpcSocketProtocol(
     name="graphql-transport-ws",
@@ -290,7 +290,7 @@ the location of the exported contract document, like OpenAPI `$ref` values, so
 `schemas/graphql-ws.json` next to `contract.openrpc.json` stays valid when both
 files move together.
 
-fastapi_rpckit ships no protocol-specific declarations; the protocol belongs
+fastapi_canon.integrations.websockets ships no protocol-specific declarations; the protocol belongs
 to the application. [Typed protocol clients](#typed-protocol-clients) shows how
 generated clients can speak it.
 
@@ -302,14 +302,14 @@ binary, and waits while the socket applies backpressure. Messages are
 delivered as-is, including empty ones.
 
 Incoming messages wait in a queue that holds up to `RpcLimits.max_queue_size`
-messages. When the handler falls behind, fastapi_rpckit stops reading from the socket.
+messages. When the handler falls behind, fastapi_canon.integrations.websockets stops reading from the socket.
 A message larger than `RpcLimits.max_message_bytes` closes the socket with
 1009. A send that blocks longer than `RpcLimits.send_timeout` closes it with
 1008 (`Client too slow`).
 
 ## Lifecycle and closure
 
-fastapi_rpckit accepts the connection before the handler runs; do not accept it again.
+fastapi_canon.integrations.websockets accepts the connection before the handler runs; do not accept it again.
 Failures before acceptance, in `before_accept` or in a FastAPI context
 dependency, reject the handshake through the endpoint's `rejects=` and the
 service's or router's rejections, as for every other endpoint.
@@ -345,7 +345,7 @@ A rejection becomes its close code: `UNAUTHORIZED`, `FORBIDDEN`, and
 1013, and `INTERNAL_ERROR` with 1011.
 
 When the client disconnects, the connection closes, or the server shuts down,
-fastapi_rpckit cancels the handler. Its `finally` blocks and context managers run, so
+fastapi_canon.integrations.websockets cancels the handler. Its `finally` blocks and context managers run, so
 `async with` releases upstream connections and forwarding tasks. Requesting a
 close with `socket.close()` also cancels the handler at its next `await`.
 
@@ -362,8 +362,8 @@ routes.mount(app.endpoint("cdp"))
 
 Connection middleware sees sockets as connections. Every
 message increments the `stream_frame_sent` and `stream_frame_received`
-callbacks, so the OpenTelemetry `fastapi_rpckit.stream.frames` and
-`fastapi_rpckit.stream.bytes` counters include them. Sockets do not open a
+callbacks, so the OpenTelemetry `fastapi_canon.integrations.websockets.stream.frames` and
+`fastapi_canon.integrations.websockets.stream.bytes` counters include them. Sockets do not open a
 `stream` middleware scope.
 
 To test a socket without a server, use `RpcTestClient` with
@@ -440,12 +440,15 @@ protocol's own client library, such as an existing CDP client.
 ## Typed protocol clients
 
 A protocol binding replaces the generic socket with a typed session for every
-socket that declares its protocol. fastapi_rpckit ships no bindings; the
+socket that declares its protocol. fastapi_canon.integrations.websockets ships no bindings; the
 generators only provide the extension point in
-`fastapi_rpckit.codegen.bindings`:
+`fastapi_canon.integrations.websockets.codegen.bindings`:
 
 ```python
-from fastapi_rpckit.codegen.bindings import BindingContext, SocketBinding
+from fastapi_canon.integrations.websockets.codegen.bindings import (
+    BindingContext,
+    SocketBinding,
+)
 
 
 class CalcBinding:
@@ -484,7 +487,7 @@ bindings = ["calc_binding:BINDING"]
 ```
 
 A `module:attr` reference resolves next to the config file. A bare name looks
-up the `fastapi_rpckit.socket_bindings` entry point group, so a binding package
+up the `fastapi_canon.integrations.websockets.socket_bindings` entry point group, so a binding package
 can register itself and be selected as `bindings = ["cdp"]`. A binding whose
 protocol no socket declares, or two bindings for one protocol, fail generation.
 Sockets whose protocol has no binding keep the generic `Socket`.

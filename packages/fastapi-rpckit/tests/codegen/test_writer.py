@@ -2,8 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
-
-from fastapi_rpckit.codegen.writer import MANIFEST, write_files
+from fastapi_canon.integrations.websockets.codegen.writer import MANIFEST, write_files
 
 
 def _manifest(*files: str) -> str:

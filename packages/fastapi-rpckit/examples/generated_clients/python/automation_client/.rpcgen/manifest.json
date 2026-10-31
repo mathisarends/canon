@@ -1,9 +1,9 @@
 {
-  "generator": "fastapi_rpckit",
-  "generatorVersion": "0.4.1",
+  "generator": "fastapi-canon",
+  "generatorVersion": "0.9.0",
   "layoutVersion": 10,
   "language": "python",
-  "contractSha256": "488af1c33fcff36d329131dc87539e6ed8aee971eb48777f64425b4b16f0630d",
+  "contractSha256": "37366233e8061d0ddb246fbc75939bf9c611ecf8f52f62dc7ca95e2cba39787f",
   "files": [
     ".rpcgen/manifest.json",
     "__init__.py",

@@ -10,15 +10,17 @@ def test_core_import_runtime_and_missing_extra_diagnostic() -> None:
         import sys
         from importlib.abc import MetaPathFinder
 
-        class NoStreams(MetaPathFinder):
+        class NoOptionalTools(MetaPathFinder):
             def find_spec(self, fullname, path=None, target=None):
                 if any(fullname == name or fullname.startswith(name + ".")
-                       for name in ("fastapi_streams", "fastapi_webrtc")):
+                       for name in ("jinja2", "jsonschema", "aiortc", "opentelemetry", "fastapi.sse")):
                     raise ModuleNotFoundError("Extension deliberately unavailable", name=fullname)
 
-        sys.meta_path.insert(0, NoStreams())
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+        # FastAPI itself may import native SSE and telemetry support at startup.
+        sys.modules.pop("fastapi.sse", None)
+        sys.meta_path.insert(0, NoOptionalTools())
         from fastapi_canon import HTTPMethod, CanonRouter, Composition, Feature
         import fastapi_canon.integrations
 
@@ -31,22 +33,24 @@ def test_core_import_runtime_and_missing_extra_diagnostic() -> None:
         with TestClient(app) as client:
             assert client.get("/health").json() == {"status": "ok"}
         assert "/health" in app.openapi()["paths"]
-        assert not any(name.startswith("fastapi_streams") for name in sys.modules)
-        assert not any(name.startswith("fastapi_webrtc") for name in sys.modules)
+        assert not any(name.startswith("fastapi_canon.integrations.sse") for name in sys.modules)
+        assert not any(name.startswith("fastapi_canon.integrations.webrtc") for name in sys.modules)
         try:
-            from fastapi_canon.integrations.streams import CanonStreamRouter
+            from fastapi_canon.integrations.sse import CanonStreamRouter
         except ModuleNotFoundError as exc:
-            assert exc.name == "fastapi_streams"
-            assert "fastapi-canon[streams]" in str(exc)
+            assert exc.name == "fastapi.sse"
+            assert "fastapi-canon[sse]" in str(exc)
         else:
             raise AssertionError("The integration must require the optional dependency")
-        try:
-            from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
-        except ModuleNotFoundError as exc:
-            assert exc.name == "fastapi_webrtc"
-            assert "fastapi-canon[webrtc]" in str(exc)
-        else:
-            raise AssertionError("The integration must require the optional dependency")
+        from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
+        from fastapi_canon.integrations.websockets import RpcChannel
+        from fastapi_canon.cli import main
+        for args in (["--help"], ["websockets", "--help"], ["webrtc", "--help"]):
+            try:
+                main(args)
+            except SystemExit as result:
+                assert result.code == 0
+        assert not any(name.startswith("aiortc") for name in sys.modules)
     """)
     result = subprocess.run(
         [sys.executable, "-I", "-c", script],

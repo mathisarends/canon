@@ -17,7 +17,7 @@ message handler. Bare `RpcSocket` remains transparent text/binary transport.
 
 ```console
 uv run --locked uvicorn examples.typed_socket.ping:app
-uv run --locked python -m fastapi_rpckit.codegen.cli generate --config examples/typed_socket/rpcgen.toml
+uv run --locked python -m fastapi_canon.integrations.websockets.codegen.cli generate --config examples/typed_socket/rpcgen.toml
 ```
 
 Python:
