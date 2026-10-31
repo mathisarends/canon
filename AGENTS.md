@@ -1,5 +1,11 @@
 # Canon workspace
 
+This repository preserves the former Canon workspace and release evidence.
+Current development and future publication use `mathisarends/fastapi_canon`.
+Direct new implementation work there. Do not restore a new-release dispatch
+workflow here or publish a new version from this repository. Historical recovery
+uses the original run, source and verified artifacts documented below.
+
 Use `README.md` for the package inventory, `docs/contributing.md` for development
 commands and `docs/compatibility.md` for the tested dependency scope. Package
 guides document implemented APIs. `docs/canon.md` defines the canonical package
