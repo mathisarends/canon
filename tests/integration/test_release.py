@@ -373,14 +373,14 @@ def test_publication_resume_rejects_different_pypi_hashes(
         )
 
 
-def test_release_workflow_keeps_dry_run_without_publish_permissions() -> None:
-    source = (release.ROOT / ".github/workflows/release.yml").read_text("utf-8")
-    prepare = source.split("  prepare:", 1)[1].split("  publish:", 1)[0]
-    assert "id-token: write" not in prepare
-    assert "contents: write" not in prepare
-    assert "default: true" in source
-    assert "if: ${{ !inputs.dry_run }}" in source
-    assert "environment:\n      name: pypi" in source
+def test_former_home_has_no_active_publication_workflow() -> None:
+    workflows = release.ROOT / ".github/workflows"
+    assert not (workflows / "release.yml").exists()
+    for path in workflows.iterdir():
+        if path.suffix in {".yml", ".yaml"}:
+            source = path.read_text("utf-8")
+            assert "id-token: write" not in source
+            assert "gh-action-pypi-publish" not in source
 
 
 def test_artifact_validation_rejects_unrelated_uploads(tmp_path: Path) -> None:
