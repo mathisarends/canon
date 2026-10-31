@@ -33,8 +33,8 @@ def test_core_import_runtime_and_missing_extra_diagnostic() -> None:
         with TestClient(app) as client:
             assert client.get("/health").json() == {"status": "ok"}
         assert "/health" in app.openapi()["paths"]
-        assert not any(name.startswith("fastapi_canon.sse") for name in sys.modules)
-        assert not any(name.startswith("fastapi_canon.webrtc") for name in sys.modules)
+        assert not any(name.startswith("fastapi_canon.integrations.sse") for name in sys.modules)
+        assert not any(name.startswith("fastapi_canon.integrations.webrtc") for name in sys.modules)
         try:
             from fastapi_canon.integrations.sse import CanonStreamRouter
         except ModuleNotFoundError as exc:
@@ -43,7 +43,7 @@ def test_core_import_runtime_and_missing_extra_diagnostic() -> None:
         else:
             raise AssertionError("The integration must require the optional dependency")
         from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
-        from fastapi_canon.websockets import RpcChannel
+        from fastapi_canon.integrations.websockets import RpcChannel
         from fastapi_canon.cli import main
         for args in (["--help"], ["websockets", "--help"], ["webrtc", "--help"]):
             try:

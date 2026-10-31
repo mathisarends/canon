@@ -19,15 +19,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         commands.add_parser(name, help=description, add_help=False)
     args, remaining = parser.parse_known_args(argv)
     if args.command == "sse":
-        from fastapi_canon.sse.codegen.cli import main as sse_main
+        from fastapi_canon.integrations.sse.codegen.cli import main as sse_main
 
         return sse_main(remaining)
     elif args.command == "websockets":
-        from fastapi_canon.websockets.codegen.cli import main as websockets_main
+        from fastapi_canon.integrations.websockets.codegen.cli import (
+            main as websockets_main,
+        )
 
         return websockets_main(remaining)
     elif args.command == "webrtc":
-        from fastapi_canon.webrtc.codegen.cli import main as webrtc_main
+        from fastapi_canon.integrations.webrtc.codegen.cli import main as webrtc_main
 
         return webrtc_main(remaining)
     else:

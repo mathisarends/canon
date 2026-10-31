@@ -5,9 +5,16 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
-from fastapi_canon.websockets import RpcChannel, RpcErrorBinding, RpcModel, RpcService
-from fastapi_canon.websockets.codegen import generate_typescript_client
-from fastapi_canon.websockets.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.integrations.websockets import (
+    RpcChannel,
+    RpcErrorBinding,
+    RpcModel,
+    RpcService,
+)
+from fastapi_canon.integrations.websockets.codegen import generate_typescript_client
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 
 
 class SessionParams(RpcModel):

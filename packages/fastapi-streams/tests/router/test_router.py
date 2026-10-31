@@ -6,10 +6,10 @@ from typing import Annotated, Any
 import pytest
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
-from fastapi_canon.sse import StreamRouter
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import export_schema
-from fastapi_canon.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse import StreamRouter
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import export_schema
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 from pydantic import BaseModel, Field, TypeAdapter
 
 from examples.agent_runs import app

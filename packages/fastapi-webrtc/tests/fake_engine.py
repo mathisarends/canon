@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi_canon.webrtc.engine import (
+from fastapi_canon.integrations.webrtc.engine import (
     ChannelParameters,
     ChannelState,
     ConnectionState,

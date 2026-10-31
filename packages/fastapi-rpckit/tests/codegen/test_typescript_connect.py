@@ -6,8 +6,10 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
-from fastapi_canon.websockets.codegen import generate_typescript_client
-from fastapi_canon.websockets.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.integrations.websockets.codegen import generate_typescript_client
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 
 
 def test_generated_client_connect_behavior_in_node(

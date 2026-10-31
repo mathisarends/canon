@@ -2,7 +2,8 @@
 
 This directory retains feature tests, examples and guides. The implementation
 now ships in `fastapi-canon[sse]` (prepared 0.9.0, not yet published).
-See the [package migration guide](../fastapi-canon/docs/package-migration.md).
+See the [public API](../../docs/canon.md#public-namespaces) and
+[package migration guide](../fastapi-canon/docs/package-migration.md).
 
 [![CI](https://github.com/mathisarends/canon/actions/workflows/ci.yml/badge.svg)](https://github.com/mathisarends/canon/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
@@ -10,7 +11,7 @@ See the [package migration guide](../fastapi-canon/docs/package-migration.md).
 
 **Decorate a FastAPI endpoint. Get typed streaming clients in TypeScript and Python.**
 
-Define your events with Pydantic and add `@router.stream()`. `fastapi-streams`
+Define your events with Pydantic and add `@router.stream()`. Canon SSE
 turns that definition into an OpenAPI 3.2 stream contract and generated SDKs with
 named event values, typed async iteration, and shared SSE transport code.
 
@@ -25,7 +26,7 @@ They still need to know which JSON events arrive, how to parse a fragmented
 stream, and how to stop it cleanly.
 
 OpenAPI 3.2 can describe each SSE event with `itemSchema` and its JSON payload
-with `contentSchema`. `fastapi-streams` connects that contract to both clients,
+with `contentSchema`. Canon connects that contract to both clients,
 so event models, endpoint parameters, and client types come from one definition.
 A CI check catches drift between the Python app, the contract, and generated code.
 
@@ -46,7 +47,7 @@ from typing import Annotated, Literal
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from fastapi_canon.sse import StreamRouter
+from fastapi_canon.integrations.sse import StreamRouter
 
 
 class TokenDelta(BaseModel):

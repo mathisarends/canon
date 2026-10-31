@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fastapi_canon.websockets.codegen import build_ir
-from fastapi_canon.websockets.codegen.ir import (
+from fastapi_canon.integrations.websockets.codegen import build_ir
+from fastapi_canon.integrations.websockets.codegen.ir import (
     LiteralType,
     ModelDecl,
     NamedType,

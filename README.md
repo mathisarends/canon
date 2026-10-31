@@ -5,8 +5,9 @@ feature composition and HTTP contracts, typed SSE, WebSocket RPC, and WebRTC
 sessions.
 
 The prepared Canon 0.9.0 source consolidates the stack into one `fastapi-canon`
-distribution. Its modules include composition, HTTP contracts, SSE, WebSockets
-and WebRTC. Extras select optional dependencies:
+distribution. SSE, WebSockets and WebRTC are bundled integrations in that same
+package. Extras select their third-party dependencies; they do not install the
+earlier Canon distributions:
 
 ```console
 uv add "fastapi-canon[sse,websockets,webrtc]"
@@ -18,7 +19,15 @@ These changes are not published yet. See the
 [migration guide](packages/fastapi-canon/docs/package-migration.md) for imports,
 commands and the current codegen scope.
 
+The [Canon architecture and public API](docs/canon.md) defines the shared
+namespaces and ownership rules. The [codegen discussion](docs/unified-canon-concept.md)
+collects candidate next steps for review before implementation.
+
 ## Current releases
+
+The verified publications below belong to the earlier four-distribution layout.
+The prepared consolidation publishes only `fastapi-canon`; the other names
+remain historical releases. The unified source is not yet on PyPI.
 
 | Package | Version | GitHub | PyPI |
 | --- | --- | --- | --- |
@@ -36,9 +45,9 @@ tag, changelog and artifact set; earlier package releases remain available.
 | Component | Location | Distribution / import |
 | --- | --- | --- |
 | Composition, Dishka, HTTP contracts | [`packages/fastapi-canon`](packages/fastapi-canon) | `fastapi-canon` / `fastapi_canon` |
-| Typed SSE and generated clients | [`SSE module`](packages/fastapi-canon/fastapi_canon/sse), [`tests and guides`](packages/fastapi-streams) | `fastapi-canon[sse]` / `fastapi_canon.sse` |
-| WebSocket RPC and generated clients | [`WebSockets module`](packages/fastapi-canon/fastapi_canon/websockets), [`tests and guides`](packages/fastapi-rpckit) | `fastapi-canon[websockets]` / `fastapi_canon.websockets` |
-| WebRTC sessions and generated browser clients | [`WebRTC module`](packages/fastapi-canon/fastapi_canon/webrtc), [`tests and guides`](packages/fastapi-webrtc) | `fastapi-canon[webrtc]` / `fastapi_canon.webrtc` |
+| Typed SSE and generated clients | [`SSE module`](packages/fastapi-canon/fastapi_canon/integrations/sse), [`tests and guides`](packages/fastapi-streams) | `fastapi-canon[sse]` / `fastapi_canon.integrations.sse` |
+| WebSocket RPC and generated clients | [`WebSockets module`](packages/fastapi-canon/fastapi_canon/integrations/websockets), [`tests and guides`](packages/fastapi-rpckit) | `fastapi-canon[websockets]` / `fastapi_canon.integrations.websockets` |
+| WebRTC sessions and generated browser clients | [`WebRTC module`](packages/fastapi-canon/fastapi_canon/integrations/webrtc), [`tests and guides`](packages/fastapi-webrtc) | `fastapi-canon[webrtc]` / `fastapi_canon.integrations.webrtc` |
 | Architecture conventions | [`guides`](guides) | feature slices, inward dependencies, Dishka |
 | Runnable architecture example | [`examples/reference-service`](examples/reference-service) | development-only workspace member |
 
@@ -47,12 +56,11 @@ WebSocket engine and protocol retained. See the [RPC migration guide](packages/f
 Its initial release is 0.1.0. The existing source repositories remain available;
 current development and future Canon releases live here.
 
-Package READMEs and guides describe implemented APIs; [contributing](docs/contributing.md) covers development.
-
 Start with [architecture](guides/architecture.md) when building an application.
-Package READMEs document their current public APIs. Existing Streams integration
-in Canon is retained; the [stack example](examples/stack_service.py) combines HTTP,
-SSE, and RPC using the same Dishka application container.
+Use the [canonical namespace map](docs/canon.md#public-namespaces) to choose public
+imports and the feature guides for their implemented options. The
+[stack example](examples/stack_service.py) combines HTTP, SSE and RPC using one
+Dishka application container.
 
 Development uses a `uv` workspace with one root lockfile and separate
 test processes for each member. See [contributing](docs/contributing.md) for

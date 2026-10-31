@@ -2,14 +2,20 @@ from copy import deepcopy
 from typing import Any
 
 import pytest
-from fastapi_canon.websockets.codegen import (
+from fastapi_canon.integrations.websockets.codegen import (
     render_python_client,
     render_typescript_client,
 )
-from fastapi_canon.websockets.codegen.ir import UnsupportedSchemaError
-from fastapi_canon.websockets.codegen.names import camel_case, pascal_case, snake_case
-from fastapi_canon.websockets.codegen.python import PythonClientOptions
-from fastapi_canon.websockets.codegen.typescript import TypeScriptClientOptions
+from fastapi_canon.integrations.websockets.codegen.ir import UnsupportedSchemaError
+from fastapi_canon.integrations.websockets.codegen.names import (
+    camel_case,
+    pascal_case,
+    snake_case,
+)
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 
 
 def test_identifier_styles_handle_acronyms_stably() -> None:

@@ -14,7 +14,11 @@ select = ["B", "E", "F", "I", "RUF", "SIM", "TID251", "UP"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["../fastapi-canon/fastapi_canon/webrtc", "tests", "examples"]
+files = [
+    "../fastapi-canon/fastapi_canon/integrations/webrtc",
+    "tests",
+    "examples",
+]
 exclude = ["node_modules"]
 pretty = true
 show_error_codes = true
@@ -35,7 +39,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 branch = true
-source = ["fastapi_canon.webrtc"]
+source = ["fastapi_canon.integrations.webrtc"]
 
 [tool.coverage.report]
 show_missing = true

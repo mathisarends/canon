@@ -8,7 +8,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import websockets
-from fastapi_canon.webrtc import SUBPROTOCOL
+from fastapi_canon.integrations.webrtc import SUBPROTOCOL
 from websockets.asyncio.client import ClientConnection
 
 

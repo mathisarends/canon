@@ -42,7 +42,7 @@ from typing import Annotated, Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from fastapi_canon.sse import StreamRouter
+from fastapi_canon.integrations.sse import StreamRouter
 
 
 class TokenDelta(BaseModel):

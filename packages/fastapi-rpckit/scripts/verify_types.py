@@ -15,7 +15,7 @@ def main() -> int:
             "-m",
             "pyright",
             "--verifytypes",
-            "fastapi_canon.websockets",
+            "fastapi_canon.integrations.websockets",
             "--ignoreexternal",
             "--pythonpath",
             sys.executable,

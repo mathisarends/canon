@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi_canon.sse import StreamRouter
+from fastapi_canon.integrations.sse import StreamRouter
 from pydantic import BaseModel, Field
 
 

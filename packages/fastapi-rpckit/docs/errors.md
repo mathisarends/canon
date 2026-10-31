@@ -5,7 +5,7 @@ subclass defines a stable application code, a JSON-RPC integer code, a default
 message, and optional typed details.
 
 ```python
-from fastapi_canon.websockets import RpcError, RpcModel
+from fastapi_canon.integrations.websockets import RpcError, RpcModel
 
 
 class MissingTaskDetails(RpcModel):
@@ -68,7 +68,7 @@ share it. The service warns when explicitly assigned numeric codes collide.
 
 ## Bind domain exceptions
 
-Domain code should not have to import fastapi_canon.websockets. An `RpcErrorBinding` binds an
+Domain code should not have to import fastapi_canon.integrations.websockets. An `RpcErrorBinding` binds an
 exception it raises to the RPC error that answers it, so the exception stays
 free of transport concerns:
 
@@ -81,7 +81,11 @@ class TaskNotFound(Exception):
 
 ```python
 # tasks/rpc_errors.py
-from fastapi_canon.websockets import RpcErrorBinding, RpcModel, RpcRejection
+from fastapi_canon.integrations.websockets import (
+    RpcErrorBinding,
+    RpcModel,
+    RpcRejection,
+)
 
 
 class TaskRef(RpcModel):
@@ -193,7 +197,7 @@ without exposing their exception text. A transport may supply an
 `error_mapper` to map selected exceptions to application errors, while logs
 retain the original failure for operators.
 
-Validation, parse, invalid-request, and unknown-method failures use fastapi_canon.websockets's
+Validation, parse, invalid-request, and unknown-method failures use fastapi_canon.integrations.websockets's
 built-in JSON-RPC errors and do not need to be declared.
 
 ## Generated client behavior

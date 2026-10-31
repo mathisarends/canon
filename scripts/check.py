@@ -16,9 +16,9 @@ MEMBERS = (
 )
 WEBRTC = MEMBERS[4]
 SOURCES = {
-    MEMBERS[1]: MEMBERS[0] / "fastapi_canon/sse",
-    MEMBERS[2]: MEMBERS[0] / "fastapi_canon/websockets",
-    WEBRTC: MEMBERS[0] / "fastapi_canon/webrtc",
+    MEMBERS[1]: MEMBERS[0] / "fastapi_canon/integrations/sse",
+    MEMBERS[2]: MEMBERS[0] / "fastapi_canon/integrations/websockets",
+    WEBRTC: MEMBERS[0] / "fastapi_canon/integrations/webrtc",
 }
 WEBRTC_CLIENT = ("--output", "examples/practice/client", "--check")
 
@@ -104,14 +104,14 @@ def main() -> None:
                 _run(
                     MEMBERS[2],
                     "-m",
-                    "fastapi_canon.websockets.codegen.cli",
+                    "fastapi_canon.integrations.websockets.codegen.cli",
                     "generate",
                     "--config",
                     config,
                     "--check",
                 )
             _run(MEMBERS[1], "scripts/codegen.py", "--check")
-            cli = ("-m", "fastapi_canon.webrtc.codegen.cli")
+            cli = ("-m", "fastapi_canon.integrations.webrtc.codegen.cli")
             contract = "examples/practice/contract.json"
             _run(
                 WEBRTC,

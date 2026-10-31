@@ -5,10 +5,10 @@ from enum import StrEnum
 
 import httpx
 import pytest
-from fastapi_canon.sse.codegen.cli import main
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import export_schema
-from fastapi_canon.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.cli import main
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import export_schema
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 from pydantic import TypeAdapter
 
 from examples.agent_runs.generated_python import (

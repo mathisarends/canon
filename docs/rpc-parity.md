@@ -3,7 +3,7 @@
 `fastapi-rpckit` is the FastAPI-first successor to pyrpckit. Its initial import
 preserved the predecessor's runtime, schemas, templates and tests from commit
 `853579eb08903bd95f8ce03f7608a3703ba40add` (pyrpckit 0.11.0), under the
-`fastapi_canon.websockets` namespace. FastAPI is required. There is no `rpckit` import shim.
+`fastapi_canon.integrations.websockets` namespace. FastAPI is required. There is no `rpckit` import shim.
 
 Existing `x-rpckit-*` extensions, `.rpcgen` manifests and `rpckit.*` telemetry
 names are intentional compatibility points. Subsequent releases have source and
@@ -44,8 +44,8 @@ older isolated install of a rebuilt development wheel with the same filename.
 ## Application migration boundary
 
 1. Replace the dependency and `rpckit` imports with `fastapi-canon[websockets]` and
-   `fastapi_canon.websockets`. Use package-root FastAPI APIs and
-   `fastapi_canon.websockets.integrations.dishka` for Dishka integration. A mechanical
+   `fastapi_canon.integrations.websockets`. Use package-root FastAPI APIs and
+   `fastapi_canon.integrations.websockets.adapters.dishka` for Dishka integration. A mechanical
    namespace replacement can leave references to removed modules.
 2. Apply all intervening changelog migrations for request IDs, middleware,
    transports, sockets and removed server-to-client RPC. Use the single Canon version and migrate feature imports as documented

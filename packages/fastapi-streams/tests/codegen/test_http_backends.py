@@ -4,11 +4,11 @@ import subprocess
 import sys
 
 import pytest
-from fastapi_canon.sse.codegen.cli import main
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import ContractError, export_schema
-from fastapi_canon.sse.codegen.python import generate_python
-from fastapi_canon.sse.codegen.writer import write_files
+from fastapi_canon.integrations.sse.codegen.cli import main
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import ContractError, export_schema
+from fastapi_canon.integrations.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.writer import write_files
 
 from examples.agent_runs import app
 from tests.codegen.helpers import load_package

@@ -159,7 +159,7 @@ helper forwards providers and the `tracing`/`metrics` switches. It keeps the
 default `connection_spans=False`, so operations inherit FastAPI's active
 WebSocket operation/connection context, and leaves baggage propagation disabled.
 ASGI exclusions do not configure per-operation exclusions; use
-`fastapi_canon.websockets.integrations.opentelemetry.OpenTelemetry` directly
+`fastapi_canon.integrations.websockets.adapters.opentelemetry.OpenTelemetry` directly
 for those controls.
 
 FastAPI disables its native instrumentation when contrib ASGI instrumentation

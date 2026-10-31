@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from fastapi_canon.webrtc import (
+from fastapi_canon.integrations.webrtc import (
     DescriptionType,
     ErrorCode,
     Session,
@@ -14,7 +14,7 @@ from fastapi_canon.webrtc import (
     WebRtcError,
     WebRtcRouter,
 )
-from fastapi_canon.webrtc.engine import (
+from fastapi_canon.integrations.webrtc.engine import (
     ConnectionState,
     IceCandidate,
     PeerConfig,

@@ -1,8 +1,8 @@
 from copy import deepcopy
 
 import pytest
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 from pydantic import ValidationError
 
 from tests.codegen.helpers import event_document, load_package

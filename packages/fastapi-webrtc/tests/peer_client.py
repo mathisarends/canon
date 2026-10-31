@@ -19,7 +19,7 @@ from aiortc import (
     RTCPeerConnection,
     RTCSessionDescription,
 )
-from fastapi_canon.webrtc import SUBPROTOCOL
+from fastapi_canon.integrations.webrtc import SUBPROTOCOL
 from websockets.asyncio.client import ClientConnection
 from websockets.typing import Subprotocol
 

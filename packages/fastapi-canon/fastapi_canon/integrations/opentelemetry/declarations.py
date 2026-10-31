@@ -19,7 +19,9 @@ if TYPE_CHECKING:
     from opentelemetry.metrics import MeterProvider
     from opentelemetry.trace import TracerProvider
 
-    from fastapi_canon.websockets.integrations.opentelemetry import OpenTelemetry
+    from fastapi_canon.integrations.websockets.adapters.opentelemetry import (
+        OpenTelemetry,
+    )
 
 __all__ = ["Telemetry", "observe"]
 
@@ -145,7 +147,9 @@ class Telemetry:
         Install ``fastapi-canon[websockets,otel]`` and pass this to ``RpcService``. No
         connection span is added, and RPC baggage propagation remains disabled.
         """
-        from fastapi_canon.websockets.integrations.opentelemetry import OpenTelemetry
+        from fastapi_canon.integrations.websockets.adapters.opentelemetry import (
+            OpenTelemetry,
+        )
 
         return OpenTelemetry(
             tracing=self.tracing,

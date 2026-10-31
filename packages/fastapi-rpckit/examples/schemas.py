@@ -1,7 +1,7 @@
 import json
 
-from fastapi_canon.websockets import RpcChannel, RpcModel, RpcService
-from fastapi_canon.websockets.schema import render_openrpc
+from fastapi_canon.integrations.websockets import RpcChannel, RpcModel, RpcService
+from fastapi_canon.integrations.websockets.schema import render_openrpc
 
 
 class SearchParams(RpcModel):

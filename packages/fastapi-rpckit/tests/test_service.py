@@ -1,5 +1,5 @@
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     ProtocolDefinitionError,
     RpcChannel,
     RpcLimits,

@@ -2,10 +2,10 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import pytest
-from fastapi_canon.websockets import RpcChannel, RpcMiddleware
-from fastapi_canon.websockets.codegen.ir import build_ir
-from fastapi_canon.websockets.envelopes import RpcRequestEnvelope
-from fastapi_canon.websockets.request_metadata import (
+from fastapi_canon.integrations.websockets import RpcChannel, RpcMiddleware
+from fastapi_canon.integrations.websockets.codegen.ir import build_ir
+from fastapi_canon.integrations.websockets.envelopes import RpcRequestEnvelope
+from fastapi_canon.integrations.websockets.request_metadata import (
     REQUEST_METADATA_CAPABILITY,
     validate_request_metadata,
 )
@@ -91,7 +91,7 @@ def test_metadata_wire_schema_and_exact_capability_negotiation():
     async def ping() -> None:
         pass
 
-    from fastapi_canon.websockets.schema import render_openrpc
+    from fastapi_canon.integrations.websockets.schema import render_openrpc
 
     document = render_openrpc(channel.protocol, title="Demo")
     assert document["x-rpc-request-metadata"] == REQUEST_METADATA_CAPABILITY

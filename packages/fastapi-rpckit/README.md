@@ -2,7 +2,8 @@
 
 This directory retains feature tests, examples and guides. The implementation
 now ships in `fastapi-canon[websockets]` (prepared 0.9.0, not yet published).
-See the [package migration guide](../fastapi-canon/docs/package-migration.md).
+See the [public API](../../docs/canon.md#public-namespaces) and
+[package migration guide](../fastapi-canon/docs/package-migration.md).
 
 **Define your realtime API once in Python. Get the server, the contract, and
 typed clients for Python and TypeScript — none of which can drift apart.**
@@ -13,9 +14,9 @@ long-lived connection. So the JSON-RPC envelope gets hand-written, the dispatch
 table grows by hand, and the frontend client is maintained separately — until
 the two disagree in production.
 
-fastapi_canon.websockets makes the Python definition the single source of truth:
+fastapi_canon.integrations.websockets makes the Python definition the single source of truth:
 
-| You write | fastapi_canon.websockets gives you |
+| You write | fastapi_canon.integrations.websockets gives you |
 | --- | --- |
 | an async function on a channel | validated dispatch, injection, concurrency, shutdown |
 | a payload model | an OpenRPC contract as a build-time artifact |
@@ -26,7 +27,7 @@ fastapi_canon.websockets makes the Python definition the single source of truth:
 `fastapi-rpckit` is the FastAPI-first WebSocket RPC successor to
 [`pyrpckit`](https://github.com/mathisarends/pyrpckit), developed in the
 [Canon workspace](https://github.com/mathisarends/canon). FastAPI is a required
-dependency. This implementation now ships in Canon; SSE uses `fastapi_canon.sse`.
+dependency. This implementation now ships in Canon; SSE uses `fastapi_canon.integrations.sse`.
 The existing dispatch engine, OpenRPC contracts, binary/raw channels, and client
 generators are retained. The old repository remains available.
 
@@ -84,7 +85,7 @@ OpenTelemetry remain optional extras.
 
 ```python
 from fastapi import FastAPI
-from fastapi_canon.websockets import RpcChannel, RpcService, create_router
+from fastapi_canon.integrations.websockets import RpcChannel, RpcService, create_router
 
 greetings = RpcChannel("greetings")
 
@@ -110,7 +111,7 @@ Channels group related operations and provide their namespace; a service mounts
 them on a socket. Their dispatch logic can also be called directly:
 
 ```python
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcModel,
@@ -176,7 +177,7 @@ on the client. Push data to clients with events or subscriptions instead.
 
 ## Core API
 
-Most services need only these names; everything else in `fastapi_canon.websockets` is for
+Most services need only these names; everything else in `fastapi_canon.integrations.websockets` is for
 hooks, limits and custom transports.
 
 | Name | Use it for |

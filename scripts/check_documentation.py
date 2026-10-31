@@ -19,7 +19,7 @@ def check_documentation(root: Path = ROOT) -> list[str]:
     ):
         if any(re.split(r"[\[<>=]", value)[0] in legacy for value in dependencies):
             errors.append("Canon dependencies must not install legacy distributions")
-    for folder in ("packages", "examples", "guides"):
+    for folder in ("docs", "packages", "examples", "guides"):
         for path in (root / folder).rglob("*.md"):
             if path.name == "CHANGELOG.md" or "node_modules" in path.parts:
                 continue
@@ -30,6 +30,10 @@ def check_documentation(root: Path = ROOT) -> list[str]:
                 errors.append(f"{path.relative_to(root)}: install fastapi-canon extras")
             if re.search(r"from fastapi_(?:streams|rpckit|webrtc)\b", text):
                 errors.append(f"{path.relative_to(root)}: use fastapi_canon imports")
+            if re.search(r"from fastapi_canon\.(?:sse|websockets|webrtc)\b", text):
+                errors.append(
+                    f"{path.relative_to(root)}: use Canon integration namespaces"
+                )
     return errors
 
 

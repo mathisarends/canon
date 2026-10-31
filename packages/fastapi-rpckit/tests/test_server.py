@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     RpcChannel,
     RpcError,
     RpcErrorCode,
@@ -101,7 +101,7 @@ async def test_deadlines_include_semaphore_wait_and_method_none_disables_default
 
 async def test_deadline_cancels_dependency_resolution_and_exits_its_scope(monkeypatch):
 
-    from fastapi_canon.websockets import Inject, RpcRequestTimeoutError
+    from fastapi_canon.integrations.websockets import Inject, RpcRequestTimeoutError
 
     clock = ControlledDeadlines(monkeypatch)
     resolving = asyncio.Event()
@@ -168,7 +168,7 @@ async def test_cancelling_standalone_batch_preserves_outer_cancellation():
 
 
 async def test_handle_json_maps_deep_nesting_to_parse_error(handler, caplog) -> None:
-    caplog.set_level(logging.DEBUG, logger="fastapi_canon.websockets")
+    caplog.set_level(logging.DEBUG, logger="fastapi_canon.integrations.websockets")
     response = json.loads(await _server(handler).handle_json("[" * 100_000))
     assert response["id"] is None
     assert response["error"]["code"] == -32700
@@ -176,7 +176,7 @@ async def test_handle_json_maps_deep_nesting_to_parse_error(handler, caplog) -> 
 
 
 async def test_deep_any_params_and_recursive_models_have_controlled_outcomes(caplog):
-    caplog.set_level(logging.DEBUG, logger="fastapi_canon.websockets")
+    caplog.set_level(logging.DEBUG, logger="fastapi_canon.integrations.websockets")
 
     class AnyParams(BaseModel):
         data: dict[str, Any]
@@ -349,7 +349,7 @@ async def test_foreign_errors_are_translated_by_the_error_mapper() -> None:
 
 async def test_unmapped_handler_failures_stay_internal(caplog) -> None:
     server = broken_app.create_server()
-    with caplog.at_level(logging.ERROR, logger="fastapi_canon.websockets"):
+    with caplog.at_level(logging.ERROR, logger="fastapi_canon.integrations.websockets"):
         response = await server.handle(
             {"jsonrpc": "2.0", "id": 1, "method": "greeting.break"}
         )
@@ -420,7 +420,7 @@ async def test_a_validation_error_in_handler_is_internal(caplog) -> None:
     async def broken(params: SayParams) -> None:
         NestedParams.model_validate({"params": 1})
 
-    with caplog.at_level(logging.ERROR, logger="fastapi_canon.websockets"):
+    with caplog.at_level(logging.ERROR, logger="fastapi_canon.integrations.websockets"):
         response = await router.create_server().handle(
             {
                 "jsonrpc": "2.0",
@@ -442,7 +442,7 @@ async def test_invalid_handler_result_is_internal(caplog) -> None:
     async def broken() -> int:
         return "abc"  # type: ignore[return-value]
 
-    with caplog.at_level(logging.ERROR, logger="fastapi_canon.websockets"):
+    with caplog.at_level(logging.ERROR, logger="fastapi_canon.integrations.websockets"):
         response = await channel.create_server().handle(
             {"jsonrpc": "2.0", "id": 1, "method": "result.broken"}
         )

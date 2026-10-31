@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcChannel,
@@ -302,7 +302,7 @@ async def test_duplicate_in_flight_ids_close_without_overwriting_original(batch)
     ["42", "{", "[]", '{"jsonrpc":"2.0","id":42,"method":"$/ping"}'],
 )
 async def test_cancel_is_processed_while_writer_and_outgoing_queue_are_full(invalid):
-    from fastapi_canon.websockets.testing import SocketFaults
+    from fastapi_canon.integrations.websockets.testing import SocketFaults
 
     entered, stopped = asyncio.Event(), asyncio.Event()
     recorder = DeadlineRecorder()
@@ -440,7 +440,7 @@ async def test_response_frames_from_the_client_are_invalid_requests():
 async def test_shutdown_cancellation_releases_admission_without_cancelled_responses(
     monkeypatch, ending
 ):
-    import fastapi_canon.websockets.runtime as runtime_module
+    import fastapi_canon.integrations.websockets.runtime as runtime_module
 
     capacities = []
     original = runtime_module._PendingRequests
@@ -646,7 +646,7 @@ def test_unknown_peer_close_code_is_preserved_separately() -> None:
 
 @pytest.mark.parametrize("frame", ["{", "[" * 100_000], ids=["syntax", "deep"])
 async def test_parse_error_is_answered_and_connection_remains_usable(frame, caplog):
-    caplog.set_level(logging.DEBUG, logger="fastapi_canon.websockets")
+    caplog.set_level(logging.DEBUG, logger="fastapi_canon.integrations.websockets")
     socket = InMemorySocket("/rpc")
     task = asyncio.create_task(service.serve(socket))
     await asyncio.sleep(0)
@@ -684,7 +684,7 @@ def test_request_timeout_limit_requires_positive_finite_seconds(timeout):
 
 
 async def test_pending_rejection_logs_are_bounded_even_at_debug(caplog) -> None:
-    caplog.set_level(logging.DEBUG, logger="fastapi_canon.websockets")
+    caplog.set_level(logging.DEBUG, logger="fastapi_canon.integrations.websockets")
     entered, release = asyncio.Event(), asyncio.Event()
     channel = RpcChannel("flood")
     finished = []
@@ -868,8 +868,8 @@ async def test_invalid_batches_do_not_consume_admission_or_create_nested_batches
 
 @pytest.mark.parametrize("ending", ["success", "failure", "cancel", "disconnect"])
 async def test_item_capacity_is_released_after_every_outcome(ending, monkeypatch):
-    import fastapi_canon.websockets.runtime as runtime_module
-    from fastapi_canon.websockets import RpcInvalidParamsError
+    import fastapi_canon.integrations.websockets.runtime as runtime_module
+    from fastapi_canon.integrations.websockets import RpcInvalidParamsError
 
     capacities = []
     original = runtime_module._PendingRequests
@@ -947,7 +947,7 @@ async def test_item_capacity_is_released_after_every_outcome(ending, monkeypatch
 
 
 def test_reservation_release_is_idempotent_and_never_negative():
-    from fastapi_canon.websockets.runtime import _PendingRequests
+    from fastapi_canon.integrations.websockets.runtime import _PendingRequests
 
     capacity = _PendingRequests(1)
     reservation = capacity.reserve()
@@ -961,7 +961,7 @@ def test_reservation_release_is_idempotent_and_never_negative():
 
 @pytest.mark.parametrize("ending", ["failure", "disconnect", "shutdown"])
 async def test_documented_shared_capacity_releases_worker_permits(ending):
-    from fastapi_canon.websockets import RpcInvalidParamsError
+    from fastapi_canon.integrations.websockets import RpcInvalidParamsError
 
     guide = (Path(__file__).parents[1] / "docs/services.md").read_text(encoding="utf-8")
     snippet = guide.split("## Capacity across connections", 1)[1].split("```python", 1)[
@@ -1441,7 +1441,7 @@ def test_endpoint_rejects_takes_one_rejecting_binding_per_exception(raises) -> N
 
 
 async def test_request_envelope_is_validated_once(monkeypatch) -> None:
-    from fastapi_canon.websockets.envelopes import RpcRequestEnvelope
+    from fastapi_canon.integrations.websockets.envelopes import RpcRequestEnvelope
 
     calls = []
     original = RpcRequestEnvelope.model_validate

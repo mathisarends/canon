@@ -1,5 +1,5 @@
 import pytest
-from fastapi_canon.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 from pydantic import TypeAdapter, ValidationError
 
 from tests.codegen.helpers import load_models, schema_contract

@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from uuid import UUID
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcChannel,

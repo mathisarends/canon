@@ -1,8 +1,8 @@
 import importlib.util
 
-import fastapi_canon.websockets
+import fastapi_canon.integrations.websockets
 import pytest
-from fastapi_canon.websockets import RpcRejection, RpcServer
+from fastapi_canon.integrations.websockets import RpcRejection, RpcServer
 
 
 @pytest.mark.parametrize(
@@ -27,7 +27,7 @@ from fastapi_canon.websockets import RpcRejection, RpcServer
     ),
 )
 def test_removed_pre_v1_composition_symbols_are_not_public(name: str) -> None:
-    assert not hasattr(fastapi_canon.websockets, name)
+    assert not hasattr(fastapi_canon.integrations.websockets, name)
 
 
 def test_servers_are_created_by_an_app() -> None:
@@ -41,16 +41,24 @@ def test_authentication_rejections_are_public() -> None:
 
 
 def test_test_helpers_are_distributed() -> None:
-    assert importlib.util.find_spec("fastapi_canon.websockets.testing") is not None
+    assert (
+        importlib.util.find_spec("fastapi_canon.integrations.websockets.testing")
+        is not None
+    )
 
 
 @pytest.mark.parametrize("name", ["fastapi", "dishka", "opentelemetry"])
 def test_integrations_have_no_legacy_module_aliases(name: str) -> None:
     assert (
-        importlib.util.find_spec(f"fastapi_canon.websockets.integrations.{name}")
+        importlib.util.find_spec(
+            f"fastapi_canon.integrations.websockets.adapters.{name}"
+        )
         is not None
     )
-    assert importlib.util.find_spec(f"fastapi_canon.websockets.{name}") is None
+    assert (
+        importlib.util.find_spec(f"fastapi_canon.integrations.websockets.{name}")
+        is None
+    )
 
 
 def test_public_signature_types_are_exported() -> None:
@@ -61,16 +69,19 @@ def test_public_signature_types_are_exported() -> None:
         "RpcErrorBinding",
         "RpcErrorDeclaration",
     ):
-        assert name in fastapi_canon.websockets.__all__
+        assert name in fastapi_canon.integrations.websockets.__all__
 
 
 def test_observer_module_is_removed():
-    assert importlib.util.find_spec("fastapi_canon.websockets.observer") is None
+    assert (
+        importlib.util.find_spec("fastapi_canon.integrations.websockets.observer")
+        is None
+    )
 
 
 @pytest.mark.parametrize("factory", ["service", "channel", "endpoint"])
 def test_observer_registration_is_removed(factory):
-    from fastapi_canon.websockets import RpcChannel, RpcService
+    from fastapi_canon.integrations.websockets import RpcChannel, RpcService
 
     channel = RpcChannel("test")
     with pytest.raises(TypeError, match="observer"):

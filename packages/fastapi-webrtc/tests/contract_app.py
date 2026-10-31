@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Header, Path, Query
-from fastapi_canon.webrtc import (
+from fastapi_canon.integrations.webrtc import (
     DataChannelSpec,
     Direction,
     MediaPolicy,

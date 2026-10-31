@@ -5,7 +5,7 @@ from dataclasses import asdict
 from typing import Any
 
 import pytest
-from fastapi_canon.webrtc import (
+from fastapi_canon.integrations.webrtc import (
     ConnectionState,
     ConnectionStats,
     DescriptionType,
@@ -18,8 +18,12 @@ from fastapi_canon.webrtc import (
     SessionEvent,
     SessionEventKind,
 )
-from fastapi_canon.webrtc.engine import ChannelParameters
-from fastapi_canon.webrtc.protocol import DescriptionPayload, SessionMessage, encode
+from fastapi_canon.integrations.webrtc.engine import ChannelParameters
+from fastapi_canon.integrations.webrtc.protocol import (
+    DescriptionPayload,
+    SessionMessage,
+    encode,
+)
 from pydantic import TypeAdapter
 
 

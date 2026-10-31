@@ -3,7 +3,7 @@
 Read the [hardening stack and SDK migration guide](hardening-overview.md) for all
 15 ticket PRs, changed defaults, and integration steps.
 
-The README explains why fastapi_canon.websockets exists and gets a first service running. These
+The README explains why fastapi_canon.integrations.websockets exists and gets a first service running. These
 guides cover the individual parts of the API in more detail:
 
 - [Services and channels](services.md) — define methods and assemble endpoints
@@ -21,7 +21,7 @@ guides cover the individual parts of the API in more detail:
 Start with services and channels if you are building a server. Start with the
 contract and client guide if the server definition already exists.
 
-The stable import surface is `fastapi_canon.websockets` plus the documented integration
-the package-root FastAPI API, `fastapi_canon.websockets.integrations.dishka`, and
-`fastapi_canon.websockets.integrations.opentelemetry`, plus `fastapi_canon.websockets.testing` and `fastapi_canon.websockets.codegen`.
+The stable import surface is `fastapi_canon.integrations.websockets` plus the documented integration
+the package-root FastAPI API, `fastapi_canon.integrations.websockets.adapters.dishka`, and
+`fastapi_canon.integrations.websockets.adapters.opentelemetry`, plus `fastapi_canon.integrations.websockets.testing` and `fastapi_canon.integrations.websockets.codegen`.
 Other submodules are implementation details.

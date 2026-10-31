@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Header, Query
-from fastapi_canon.sse import StreamRouter
+from fastapi_canon.integrations.sse import StreamRouter
 from pydantic import BaseModel
 
 from examples.agent_runs import router as runs_router

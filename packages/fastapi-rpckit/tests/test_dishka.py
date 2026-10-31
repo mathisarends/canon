@@ -7,13 +7,13 @@ from typing import Any
 import pytest
 from fastapi import APIRouter, FastAPI, WebSocket
 from fastapi.testclient import TestClient
-from fastapi_canon.websockets import Inject, RpcChannel, RpcService
-from fastapi_canon.websockets.integrations.dishka import (
+from fastapi_canon.integrations.websockets import Inject, RpcChannel, RpcService
+from fastapi_canon.integrations.websockets.adapters.dishka import (
     Dishka,
     DishkaResolver,
     dishka_router,
 )
-from fastapi_canon.websockets.integrations.fastapi import RpcRoutes
+from fastapi_canon.integrations.websockets.adapters.fastapi import RpcRoutes
 
 dishka = pytest.importorskip("dishka")
 Scope = dishka.Scope

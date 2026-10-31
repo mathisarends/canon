@@ -19,6 +19,7 @@ outside the library's intended architecture.
 
 ## Contents
 
+- [Canon architecture and public API](../../docs/canon.md)
 - [Unified package and migration](docs/package-migration.md)
 - [Quick start](#quick-start)
 - [Feature composition](#feature-composition)

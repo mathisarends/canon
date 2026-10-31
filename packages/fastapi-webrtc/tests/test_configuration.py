@@ -6,7 +6,7 @@ import hmac
 from typing import Any, Never, NoReturn, assert_type
 
 import pytest
-from fastapi_canon.webrtc import (
+from fastapi_canon.integrations.webrtc import (
     ConnectionState,
     DataChannelSpec,
     Direction,
@@ -25,11 +25,15 @@ from fastapi_canon.webrtc import (
     WebRtcError,
     WebRtcRouter,
 )
-from fastapi_canon.webrtc.declarations import SessionContext
-from fastapi_canon.webrtc.engine import CandidatePairStats, ConnectionStats, MediaStats
-from fastapi_canon.webrtc.errors import close_code, default_message
-from fastapi_canon.webrtc.ice import resolve_ice_servers
-from fastapi_canon.webrtc.sdp import summarize
+from fastapi_canon.integrations.webrtc.declarations import SessionContext
+from fastapi_canon.integrations.webrtc.engine import (
+    CandidatePairStats,
+    ConnectionStats,
+    MediaStats,
+)
+from fastapi_canon.integrations.webrtc.errors import close_code, default_message
+from fastapi_canon.integrations.webrtc.ice import resolve_ice_servers
+from fastapi_canon.integrations.webrtc.sdp import summarize
 from pydantic import BaseModel
 
 from tests.fake_engine import FakeEngine

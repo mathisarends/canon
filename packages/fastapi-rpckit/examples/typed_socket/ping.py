@@ -1,7 +1,7 @@
 from typing import Literal
 
 from fastapi import FastAPI
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcService,

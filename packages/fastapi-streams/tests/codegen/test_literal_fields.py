@@ -4,9 +4,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from fastapi_canon.sse.codegen.python import generate_python
-from fastapi_canon.sse.codegen.typescript import generate_typescript
-from fastapi_canon.sse.codegen.writer import write_files
+from fastapi_canon.integrations.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.typescript import generate_typescript
+from fastapi_canon.integrations.sse.codegen.writer import write_files
 from pydantic import ValidationError
 
 from tests.codegen.helpers import load_models, schema_contract

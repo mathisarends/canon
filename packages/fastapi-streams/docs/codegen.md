@@ -93,7 +93,7 @@ and pass it explicitly. Regenerate the schema and clients after changing models.
 
 Warnings are advisory and do not change fields or defaults. Python callers can
 filter or promote this category using the standard `warnings` module; the category
-is available from `fastapi_canon.sse.codegen.diagnostics`.
+is available from `fastapi_canon.integrations.sse.codegen.diagnostics`.
 
 ## Check drift in CI
 

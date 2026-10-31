@@ -9,8 +9,8 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi_canon.websockets.codegen import generate_python_client
-from fastapi_canon.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.codegen import generate_python_client
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
 from pydantic import TypeAdapter
 
 
@@ -379,8 +379,8 @@ async def test_best_effort_cancel_workers_have_bounded_capacity(
 async def test_abandoned_call_cancels_server_once_and_preserves_local_outcome(
     websocket_runtime, monkeypatch, ending
 ):
-    from fastapi_canon.websockets import RpcChannel, RpcService
-    from fastapi_canon.websockets.testing import InMemorySocketFactory
+    from fastapi_canon.integrations.websockets import RpcChannel, RpcService
+    from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 
     before = asyncio.all_tasks()
     clock = ClientDeadlines(monkeypatch, websocket_runtime)
@@ -527,8 +527,8 @@ async def test_close_before_cancellation_skips_control_on_original_and_new_socke
 async def test_late_response_from_a_served_endpoint_keeps_the_client_usable(
     websocket_runtime: ModuleType,
 ) -> None:
-    from fastapi_canon.websockets import RpcChannel, RpcService
-    from fastapi_canon.websockets.testing import InMemorySocketFactory
+    from fastapi_canon.integrations.websockets import RpcChannel, RpcService
+    from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 
     channel = RpcChannel("resilience")
     entered, release = asyncio.Event(), asyncio.Event()
@@ -788,14 +788,14 @@ async def test_connect_errors_preserve_handshake_classification(
 async def test_served_close_preserves_code_in_requests_notifications_and_closed(
     websocket_runtime,
 ):
-    from fastapi_canon.websockets import (
+    from fastapi_canon.integrations.websockets import (
         Inject,
         RpcChannel,
         RpcConnection,
         RpcConnectionClose,
         RpcService,
     )
-    from fastapi_canon.websockets.testing import InMemorySocketFactory
+    from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 
     channel = RpcChannel("disconnect")
 
@@ -829,8 +829,12 @@ async def test_served_close_preserves_code_in_requests_notifications_and_closed(
 async def test_simultaneous_interrupted_sends_keep_their_own_delivery_state(
     websocket_runtime,
 ):
-    from fastapi_canon.websockets import RpcChannel, RpcConnectionClose, RpcService
-    from fastapi_canon.websockets.testing import (
+    from fastapi_canon.integrations.websockets import (
+        RpcChannel,
+        RpcConnectionClose,
+        RpcService,
+    )
+    from fastapi_canon.integrations.websockets.testing import (
         InMemoryClientSocket,
         InMemorySocketFactory,
     )

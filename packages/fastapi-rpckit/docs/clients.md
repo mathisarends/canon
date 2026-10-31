@@ -1,6 +1,6 @@
 # Contract and clients
 
-The service definition is the source of truth. fastapi_canon.websockets exports it as OpenRPC,
+The service definition is the source of truth. fastapi_canon.integrations.websockets exports it as OpenRPC,
 then generates clients from that document rather than from Python internals.
 The resulting artifact can therefore be reviewed, versioned, and consumed by
 other tooling.
@@ -14,7 +14,7 @@ uv add "fastapi-canon[websockets,codegen]"
 ## Build a contract
 
 ```python
-from fastapi_canon.websockets import ServerVariable
+from fastapi_canon.integrations.websockets import ServerVariable
 
 contract = app.contract(
     title="Tasks API",
@@ -105,7 +105,7 @@ canon websockets generate schema/tasks.openrpc.json \
 Omit `with_transport` when integrating with an existing transport. Python
 clients accept an `RpcTransport`; TypeScript clients accept the corresponding
 transport interface. The OpenRPC generators are tolerant of ordinary tagged
-OpenRPC methods and additionally understand fastapi_canon.websockets's typed-error and binary
+OpenRPC methods and additionally understand fastapi_canon.integrations.websockets's typed-error and binary
 stream extensions.
 
 ## Use a generated client

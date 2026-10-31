@@ -2,7 +2,7 @@ import logging
 from collections.abc import AsyncIterator
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     ProtocolDefinitionError,
     RpcChannel,
     RpcError,
@@ -13,7 +13,7 @@ from fastapi_canon.websockets import (
     RpcRejection,
     RpcService,
 )
-from fastapi_canon.websockets.envelopes import RpcFailure
+from fastapi_canon.integrations.websockets.envelopes import RpcFailure
 from pydantic import BaseModel, ValidationError
 
 

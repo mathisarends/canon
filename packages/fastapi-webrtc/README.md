@@ -2,7 +2,8 @@
 
 This directory retains feature tests, examples and guides. The implementation
 now ships in `fastapi-canon[webrtc]` (prepared 0.9.0, not yet published).
-See the [package migration guide](../fastapi-canon/docs/package-migration.md).
+See the [public API](../../docs/canon.md#public-namespaces) and
+[package migration guide](../fastapi-canon/docs/package-migration.md).
 
 Typed WebRTC sessions for FastAPI. You declare a session like a route: its
 factory is an ordinary FastAPI dependency, so authentication, path and query
@@ -28,7 +29,7 @@ from aiortc.contrib.media import MediaRelay
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
-from fastapi_canon.webrtc import (
+from fastapi_canon.integrations.webrtc import (
     DataChannelSpec,
     Direction,
     IncomingTrack,
@@ -37,7 +38,7 @@ from fastapi_canon.webrtc import (
     Session,
     WebRtcRouter,
 )
-from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 
 
 class Prompt(BaseModel):
@@ -213,8 +214,8 @@ give the server-side engine internal relay URLs.
 
 The engine interface abstracts signaling and lifecycle. `MediaKind`,
 `SignalingState`, `ConnectionState`, `TransceiverDirection` and `ChannelState`
-are public `StrEnum` classes available from `fastapi_canon.webrtc` and
-`fastapi_canon.webrtc.engine`. Custom adapters return enum members and convert native
+are public `StrEnum` classes available from `fastapi_canon.integrations.webrtc` and
+`fastapi_canon.integrations.webrtc.engine`. Custom adapters return enum members and convert native
 strings with constructors such as `ConnectionState(native_state)`. Use
 `MediaKind.VIDEO` for video stats and codec-preference keys, and
 `TransceiverDirection.RECVONLY` when adding a receive-only transceiver.

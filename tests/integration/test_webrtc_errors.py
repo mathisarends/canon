@@ -14,11 +14,10 @@ from fastapi_canon import (
     Feature,
     RouterPolicy,
 )
-from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
-from fastapi_canon.webrtc import Session
-from fastapi_canon.webrtc.codegen.typescript import generate_typescript
-from fastapi_canon.webrtc.contract import build_contract
-from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.integrations.webrtc import CanonWebRtcRouter, Session
+from fastapi_canon.integrations.webrtc.codegen.typescript import generate_typescript
+from fastapi_canon.integrations.webrtc.contract import build_contract
+from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel
 from starlette.testclient import WebSocketDenialResponse

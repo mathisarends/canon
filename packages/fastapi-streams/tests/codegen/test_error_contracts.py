@@ -5,11 +5,11 @@ import httpx
 import pytest
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
-from fastapi_canon.sse import StreamRouter
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import ContractError, export_schema
-from fastapi_canon.sse.codegen.python import generate_python
-from fastapi_canon.sse.codegen.typescript import generate_typescript
+from fastapi_canon.integrations.sse import StreamRouter
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import ContractError, export_schema
+from fastapi_canon.integrations.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.typescript import generate_typescript
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from examples.agent_runs.errors import consume_with_errors

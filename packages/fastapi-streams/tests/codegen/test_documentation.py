@@ -1,8 +1,8 @@
 import ast
 
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.python import generate_python
-from fastapi_canon.sse.codegen.typescript import generate_typescript
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.typescript import generate_typescript
 
 from tests.codegen.helpers import event_document
 

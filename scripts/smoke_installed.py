@@ -20,9 +20,9 @@ from starlette.websockets import WebSocketDisconnect
 
 MODULES = {
     "fastapi-canon": "fastapi_canon",
-    "sse": "fastapi_canon.sse",
-    "websockets": "fastapi_canon.websockets",
-    "webrtc": "fastapi_canon.webrtc",
+    "sse": "fastapi_canon.integrations.sse",
+    "websockets": "fastapi_canon.integrations.websockets",
+    "webrtc": "fastapi_canon.integrations.webrtc",
 }
 STACK = {"fastapi-canon", "sse", "websockets"}
 
@@ -72,7 +72,7 @@ def main() -> None:
         _canon_check()
         _observation_check(enabled="--otel" in selected)
     if "sse" in selected:
-        from fastapi_canon.sse import StreamRouter
+        from fastapi_canon.integrations.sse import StreamRouter
 
         if "fastapi-canon" in selected:
             from fastapi_canon.integrations.sse import CanonStreamRouter
@@ -88,7 +88,7 @@ def main() -> None:
         routers.append(streams)
         _cli("sse")
     if "websockets" in selected:
-        from fastapi_canon.websockets import (
+        from fastapi_canon.integrations.websockets import (
             Inject,
             RpcChannel,
             RpcService,
@@ -327,7 +327,7 @@ class _RecordingEngine:
     """Counts peers; admission must reject sessions before reaching it."""
 
     def __init__(self) -> None:
-        from fastapi_canon.webrtc import EngineCapabilities
+        from fastapi_canon.integrations.webrtc import EngineCapabilities
 
         self.capabilities = EngineCapabilities(
             trickle_ice=True, ice_restart=False, renegotiation=False
@@ -344,7 +344,7 @@ class _RecordingEngine:
 
 def _webrtc_router(engine, *, canon=False):
     from fastapi import HTTPException, Query
-    from fastapi_canon.webrtc import DataChannelSpec, Session, WebRtcRouter
+    from fastapi_canon.integrations.webrtc import DataChannelSpec, Session, WebRtcRouter
 
     class AdmissionDenied(Exception):
         pass
@@ -384,7 +384,7 @@ def _webrtc_router(engine, *, canon=False):
 
 
 def _webrtc_sessions(client, engine, *, canon=False) -> None:
-    from fastapi_canon.webrtc import SUBPROTOCOL
+    from fastapi_canon.integrations.webrtc import SUBPROTOCOL
     from starlette.testclient import WebSocketDenialResponse
 
     try:
@@ -405,21 +405,21 @@ def _webrtc_sessions(client, engine, *, canon=False) -> None:
     assert engine.created == 1
     if importlib.util.find_spec("aiortc") is None:
         try:
-            importlib.import_module("fastapi_canon.webrtc.engines.aiortc")
+            importlib.import_module("fastapi_canon.integrations.webrtc.engines.aiortc")
         except ImportError as error:
             assert "fastapi-canon[webrtc,aiortc]" in str(error)
         else:
             raise AssertionError("The aiortc engine imported without aiortc")
     else:
-        from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
+        from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 
         assert AiortcEngine().capabilities.renegotiation
 
 
 def _webrtc_codegen(app) -> None:
-    from fastapi_canon.webrtc.codegen.typescript import generate_typescript
-    from fastapi_canon.webrtc.codegen.writer import write_files
-    from fastapi_canon.webrtc.contract import build_contract
+    from fastapi_canon.integrations.webrtc.codegen.typescript import generate_typescript
+    from fastapi_canon.integrations.webrtc.codegen.writer import write_files
+    from fastapi_canon.integrations.webrtc.contract import build_contract
 
     contract = build_contract(app)
     (session,) = contract["sessions"]
@@ -434,13 +434,13 @@ def _webrtc_codegen(app) -> None:
 
 
 def _rpc_codegen(rpc) -> None:
-    from fastapi_canon.websockets.codegen import (
+    from fastapi_canon.integrations.websockets.codegen import (
         PythonClientOptions,
         TypeScriptClientOptions,
         generate_python_client,
         generate_typescript_client,
     )
-    from fastapi_canon.websockets.testing import InMemorySocketFactory
+    from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 
     document = rpc.contract(title="Health", base_url="ws://test").to_openrpc()
     with tempfile.TemporaryDirectory(prefix="canon-rpc-client-") as temporary:

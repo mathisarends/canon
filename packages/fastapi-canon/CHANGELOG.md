@@ -11,15 +11,21 @@ All notable changes to `fastapi-canon` are documented in this file.
   `fastapi-webrtc` with Canon's `sse`, `websockets` and `webrtc` extras. Replace
   `fastapi-canon[streams]` with `fastapi-canon[sse]`. All transport source and
   generator resources ship in the same wheel; extras select dependencies.
-- Migrate Python imports to `fastapi_canon.sse`, `fastapi_canon.websockets` and
-  `fastapi_canon.webrtc`. Import `CanonStreamRouter` from
-  `fastapi_canon.integrations.sse`. The former top-level modules and console
-  scripts are no longer part of this release. Use `canon sse`,
-  `canon websockets` and `canon webrtc` for the existing generator commands.
+- Migrate imports to `fastapi_canon.integrations.sse`,
+  `fastapi_canon.integrations.websockets` and `fastapi_canon.integrations.webrtc`.
+  Their public exports include `CanonStreamRouter` and `CanonWebRtcRouter`.
+  Update short `fastapi_canon.sse`, `.websockets` or `.webrtc` paths from earlier
+  prepared snapshots. Replace the published `fastapi_canon.integrations.streams`
+  path with `fastapi_canon.integrations.sse`. WebSocket framework adapters now
+  live under `fastapi_canon.integrations.websockets.adapters`; update former
+  `fastapi_rpckit.integrations` imports to that prefix. The former top-level
+  modules and console scripts are removed. Use `canon sse`, `canon websockets`
+  and `canon webrtc` for the existing generator commands.
 - Regenerate clients: generator metadata now identifies Canon 0.9.0. Existing
   generated layouts, contract formats and transport behavior are retained,
   including JSON-RPC 2.0 and `fastapi-webrtc.v1`. Socket binding entry points move
-  to `fastapi_canon.websockets.socket_bindings`; update binding package metadata.
+  to `fastapi_canon.integrations.websockets.socket_bindings`; update binding
+  package metadata.
   See the [package migration guide](docs/package-migration.md) for commands.
 - Extend the public `Composition` constructor with `telemetry=`. Update wrappers
   or signature snapshots that mirror this constructor. Existing compositions

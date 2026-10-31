@@ -7,10 +7,9 @@ sessions. A plain `WebRtcRouter` still works in `Feature.routers`; use
 ```python
 from fastapi import FastAPI
 from fastapi_canon import Composition, Error, ErrorOptions, ErrorRegistry, Feature
-from fastapi_canon.integrations.webrtc import CanonWebRtcRouter
-from fastapi_canon.webrtc import Session
-from fastapi_canon.webrtc.contract import build_contract
-from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.integrations.webrtc import CanonWebRtcRouter, Session
+from fastapi_canon.integrations.webrtc.contract import build_contract
+from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 
 
 class BrowserMissing(Exception):

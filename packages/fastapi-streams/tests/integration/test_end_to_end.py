@@ -10,11 +10,11 @@ from pathlib import Path
 
 import httpx
 import pytest
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import export_schema
-from fastapi_canon.sse.codegen.python import generate_python
-from fastapi_canon.sse.codegen.typescript import generate_typescript
-from fastapi_canon.sse.codegen.writer import write_files
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import export_schema
+from fastapi_canon.integrations.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.typescript import generate_typescript
+from fastapi_canon.integrations.sse.codegen.writer import write_files
 from pydantic import ValidationError
 
 from examples.agent_runs.generated_python import Client

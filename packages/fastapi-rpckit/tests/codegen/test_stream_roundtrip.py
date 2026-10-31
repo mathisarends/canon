@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -17,9 +17,12 @@ from fastapi_canon.websockets import (
     RpcDisconnect,
     RpcService,
 )
-from fastapi_canon.websockets.codegen import generate_python_client
-from fastapi_canon.websockets.codegen.python import PythonClientOptions
-from fastapi_canon.websockets.websocket import CLOSE_CODES, REJECTION_CLOSE_CODES
+from fastapi_canon.integrations.websockets.codegen import generate_python_client
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.websocket import (
+    CLOSE_CODES,
+    REJECTION_CLOSE_CODES,
+)
 
 from ..testing import InMemorySocket
 

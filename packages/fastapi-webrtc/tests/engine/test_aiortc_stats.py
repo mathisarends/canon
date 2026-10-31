@@ -10,8 +10,8 @@ from aiortc.stats import (
     RTCOutboundRtpStreamStats,
     RTCStatsReport,
 )
-from fastapi_canon.webrtc import MediaKind
-from fastapi_canon.webrtc.engines.aiortc import AiortcPeer
+from fastapi_canon.integrations.webrtc import MediaKind
+from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcPeer
 
 
 @pytest.mark.parametrize(("kind", "jitter"), [("audio", 480), ("video", 900)])

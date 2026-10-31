@@ -18,7 +18,7 @@ Fetch / HTTPX transport → typed asynchronous iteration
 
 ## Server integration
 
-[`StreamRouter`](../../fastapi-canon/fastapi_canon/sse/router.py) extends `APIRouter`. Registration
+[`StreamRouter`](../../fastapi-canon/fastapi_canon/integrations/sse/router.py) extends `APIRouter`. Registration
 checks the generator and its event annotation, then registers the original
 function with `response_class=EventSourceResponse`. FastAPI handles dependency
 resolution, request validation, event serialization, heartbeats and ASGI
@@ -31,7 +31,7 @@ variants; the library does not impose an error envelope.
 
 ## Contracts
 
-[`openapi.py`](../../fastapi-canon/fastapi_canon/sse/codegen/openapi.py) copies the app's contract,
+[`openapi.py`](../../fastapi-canon/fastapi_canon/integrations/sse/codegen/openapi.py) copies the app's contract,
 applies the OpenAPI version/dialect adjustments, and validates its structure,
 Schema Objects and local references. The official structural schema and its
 license are bundled for offline validation. Ordinary REST operations stay in
@@ -43,12 +43,12 @@ rather than the HTTP response as one JSON value.
 
 ## Shared intermediate representation
 
-[`ir.py`](../../fastapi-canon/fastapi_canon/sse/codegen/ir.py) reads the contract into HTTP-specific
+[`ir.py`](../../fastapi-canon/fastapi_canon/integrations/sse/codegen/ir.py) reads the contract into HTTP-specific
 operations, parameter locations, bodies, success statuses, error responses,
 security metadata and type declarations. Only models reachable from streaming
 operations enter client generation.
 
-[`enums.py`](../../fastapi-canon/fastapi_canon/sse/codegen/enums.py) derives named string enums for
+[`enums.py`](../../fastapi-canon/fastapi_canon/integrations/sse/codegen/enums.py) derives named string enums for
 discriminators and literal values. Overlapping discriminated unions share enum
 identity so the Python client's narrowing remains consistent.
 
@@ -58,12 +58,12 @@ traversing raw OpenAPI dictionaries. There is no RPC transport or dependency on
 
 ## Code generation and file ownership
 
-The [TypeScript](../../fastapi-canon/fastapi_canon/sse/codegen/typescript.py) and
-[Python](../../fastapi-canon/fastapi_canon/sse/codegen/python.py) renderers produce declarations,
+The [TypeScript](../../fastapi-canon/fastapi_canon/integrations/sse/codegen/typescript.py) and
+[Python](../../fastapi-canon/fastapi_canon/integrations/sse/codegen/python.py) renderers produce declarations,
 operation groups and client entry points. Jinja templates keep operation code
 separate from contract processing; shared runtime files contain transport logic.
 
-[`writer.py`](../../fastapi-canon/fastapi_canon/sse/codegen/writer.py) compares exact UTF-8 output,
+[`writer.py`](../../fastapi-canon/fastapi_canon/integrations/sse/codegen/writer.py) compares exact UTF-8 output,
 writes files atomically and records owned paths in `.fastapi-streams.json`.
 Regeneration removes stale owned files. Check mode only reads. Paths are checked
 before writing, including stale manifest entries.

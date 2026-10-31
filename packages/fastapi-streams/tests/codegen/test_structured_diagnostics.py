@@ -2,10 +2,13 @@ import json
 from dataclasses import replace
 
 import pytest
-from fastapi_canon.sse.codegen.cli import main
-from fastapi_canon.sse.codegen.diagnostics import accepted_diagnostics
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import ContractError, resolve_pointer
+from fastapi_canon.integrations.sse.codegen.cli import main
+from fastapi_canon.integrations.sse.codegen.diagnostics import accepted_diagnostics
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import (
+    ContractError,
+    resolve_pointer,
+)
 
 from tests.codegen.helpers import event_document
 
@@ -215,7 +218,7 @@ def test_diagnostic_report_cannot_overwrite_inputs_or_generated_files(tmp_path):
 def test_report_describes_actual_target_phases_and_stable_schema_content(
     tmp_path, target, backend
 ):
-    from fastapi_canon.sse import __version__
+    from fastapi_canon.integrations.sse import __version__
 
     document = event_document(str)
     schema, report = tmp_path / "openapi.json", tmp_path / "report.json"

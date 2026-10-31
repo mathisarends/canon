@@ -1,4 +1,4 @@
-from fastapi_canon.websockets import RpcChannel, RpcModel, RpcService
+from fastapi_canon.integrations.websockets import RpcChannel, RpcModel, RpcService
 
 
 class StatusResult(RpcModel):

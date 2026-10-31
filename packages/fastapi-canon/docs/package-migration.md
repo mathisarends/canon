@@ -42,16 +42,28 @@ dependencies from your application. Replace Canon's former `streams` extra with
 
 | Earlier import | Canon import |
 | --- | --- |
-| `fastapi_streams` | `fastapi_canon.sse` |
-| `fastapi_rpckit` | `fastapi_canon.websockets` |
-| `fastapi_webrtc` | `fastapi_canon.webrtc` |
-| `fastapi_canon.integrations.streams` | `fastapi_canon.integrations.sse` |
+| `fastapi_streams` | `fastapi_canon.integrations.sse` |
+| `fastapi_rpckit` | `fastapi_canon.integrations.websockets` |
+| `fastapi_webrtc` | `fastapi_canon.integrations.webrtc` |
+| `fastapi_canon.integrations.streams` | `fastapi_canon.integrations.sse` (`CanonStreamRouter`) |
 
-The same suffix applies to submodules, such as
-`fastapi_canon.websockets.integrations.dishka` and
-`fastapi_canon.webrtc.engines.aiortc`. Public class names such as `StreamRouter`,
-`RpcService`, `RpcSocket`, `WebRtcRouter` and `CanonStreamRouter` stay available.
-All feature `__version__` exports now refer to the single Canon version.
+Public class names such as `StreamRouter`, `RpcService`, `RpcSocket`,
+`WebRtcRouter`, `CanonStreamRouter` and `CanonWebRtcRouter` stay available inside
+the integration namespaces. Feature `__version__` exports refer to the single
+Canon version. The published `fastapi_canon.integrations.webrtc` admission-router
+import remains available and now contains the complete WebRTC integration.
+
+WebSocket framework adapters live under
+`fastapi_canon.integrations.websockets.adapters`, for example `.adapters.dishka`.
+Replace the former `fastapi_rpckit.integrations` prefix with that path.
+Import the optional media adapter from
+`fastapi_canon.integrations.webrtc.engines.aiortc`. WebSocket logger filters
+should use `fastapi_canon.integrations.websockets`.
+
+Earlier prepared snapshots used `fastapi_canon.sse`, `.websockets` and `.webrtc`.
+Replace those short paths with `fastapi_canon.integrations.sse`, `.websockets`
+and `.webrtc`. There are no parallel short namespace aliases. See the
+[canonical API](../../../docs/canon.md) for the public namespace map.
 
 ## Commands
 
@@ -76,7 +88,7 @@ retains its existing command options, strict diagnostics, configuration format
 and owned output directory. SSE's `[tool.fastapi-streams]` table and WebSocket
 `rpcgen.toml` are retained for this first packaging step. Update command names
 and application imports, then regenerate all clients to update their manifests.
-Binding plugins must declare `fastapi_canon.websockets.socket_bindings` entry
+Binding plugins must declare `fastapi_canon.integrations.websockets.socket_bindings` entry
 points and import the Canon binding APIs.
 
 Wire formats, OpenAPI/OpenRPC vendor extensions, WebRTC signaling identifiers,

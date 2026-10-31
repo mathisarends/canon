@@ -175,7 +175,9 @@ def artifact_hashes(
             raise ValueError("Wheel is missing py.typed")
         for transport in ("sse", "websockets", "webrtc"):
             if not any(
-                path.startswith(f"{package.module}/{transport}/codegen/templates/")
+                path.startswith(
+                    f"{package.module}/integrations/{transport}/codegen/templates/"
+                )
                 for path in paths
             ):
                 raise ValueError(f"Wheel is missing {transport} codegen templates")

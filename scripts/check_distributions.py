@@ -199,8 +199,10 @@ def _check_reference(canon_wheel: str, python_version: str) -> None:
             "assert Path(app.__file__).resolve().is_relative_to(Path(sys.prefix)); "
             "assert Path(fastapi_canon.__file__).resolve()"
             ".is_relative_to(Path(sys.prefix)); "
-            "assert importlib.util.find_spec('fastapi_canon.sse') is not None; "
-            "assert importlib.util.find_spec('fastapi_canon.websockets') is not None",
+            "assert importlib.util.find_spec('fastapi_canon.integrations.sse') "
+            "is not None; "
+            "assert importlib.util.find_spec('fastapi_canon.integrations.websockets') "
+            "is not None",
             cwd=Path(temporary),
         )
 

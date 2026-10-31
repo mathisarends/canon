@@ -1,11 +1,11 @@
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcChannel,
     RpcModel,
 )
-from fastapi_canon.websockets.schema import render_openrpc
+from fastapi_canon.integrations.websockets.schema import render_openrpc
 from pydantic import ValidationError
 
 

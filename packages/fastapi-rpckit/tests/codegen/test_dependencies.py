@@ -27,9 +27,9 @@ def run_without_jinja(code: str) -> subprocess.CompletedProcess[str]:
 
 def test_schema_cli_import_does_not_require_jinja() -> None:
     result = run_without_jinja(
-        "import fastapi_canon.websockets\n"
-        "import fastapi_canon.websockets.codegen\n"
-        "import fastapi_canon.websockets.codegen.cli\n"
+        "import fastapi_canon.integrations.websockets\n"
+        "import fastapi_canon.integrations.websockets.codegen\n"
+        "import fastapi_canon.integrations.websockets.codegen.cli\n"
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
@@ -39,7 +39,7 @@ def test_generate_without_jinja_reports_missing_extra(tmp_path: Path) -> None:
     schema = tmp_path / "contract.json"
     schema.write_text("{}", encoding="utf-8")
     result = run_without_jinja(
-        "from fastapi_canon.websockets.codegen.cli import main\n"
+        "from fastapi_canon.integrations.websockets.codegen.cli import main\n"
         f"raise SystemExit(main(['generate', {str(schema)!r}, "
         f"'--language', 'python', '--output', {str(tmp_path / 'out')!r}]))\n"
     )

@@ -2,12 +2,12 @@
 
 `RpcConnection` is available as an injected dependency in methods and events.
 Use it to inspect connection metadata or close an accepted connection. Perform
-authentication in the hosting framework before calling fastapi_canon.websockets.
+authentication in the hosting framework before calling fastapi_canon.integrations.websockets.
 
 ```python
 from collections.abc import AsyncIterator
 
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcConnection,
@@ -38,7 +38,7 @@ async def connection_path(connection: Inject[RpcConnection]) -> str:
 After acceptance, injected code can close the live connection:
 
 ```python
-from fastapi_canon.websockets import RpcConnection, RpcConnectionClose
+from fastapi_canon.integrations.websockets import RpcConnection, RpcConnectionClose
 
 
 @tasks.method()
@@ -61,7 +61,7 @@ the [error bindings](errors.md#bind-domain-exceptions) of such failures in
 `RpcRejection` its exception becomes:
 
 ```python
-from fastapi_canon.websockets import RpcErrorBinding, RpcRejection
+from fastapi_canon.integrations.websockets import RpcErrorBinding, RpcRejection
 
 session_expired = RpcErrorBinding(SessionExpired, rejection=RpcRejection.UNAUTHORIZED)
 session_not_found = RpcErrorBinding(SessionNotFound, rejection=RpcRejection.NOT_FOUND)
@@ -85,7 +85,7 @@ exception types to `RpcRejection` values, using the exception text as reason,
 or a callable that returns an `RpcReject` or `None`:
 
 ```python
-from fastapi_canon.websockets import RpcReject, RpcRejection
+from fastapi_canon.integrations.websockets import RpcReject, RpcRejection
 
 
 def reject(error: Exception) -> RpcReject | None:
@@ -305,7 +305,7 @@ middleware instance:
 ```python
 from contextlib import asynccontextmanager
 
-from fastapi_canon.websockets import RpcMiddleware, RpcService, RpcSuccess
+from fastapi_canon.integrations.websockets import RpcMiddleware, RpcService, RpcSuccess
 
 
 class GatewayMetrics(RpcMiddleware):
@@ -352,7 +352,7 @@ See [Observability](observability.md) for timing, failure policy, and OTel setup
 Configure per-connection backpressure and message limits with `RpcLimits`:
 
 ```python
-from fastapi_canon.websockets import RpcLimits
+from fastapi_canon.integrations.websockets import RpcLimits
 
 limits = RpcLimits(
     max_concurrency=16,
@@ -403,7 +403,7 @@ Authentication remains application-owned. Validate credentials in `before_accept
 and return your identity as a dependency alongside an expiry:
 
 ```python
-from fastapi_canon.websockets import RpcConnectionExpiry, RpcHandshake
+from fastapi_canon.integrations.websockets import RpcConnectionExpiry, RpcHandshake
 
 
 async def authenticate(handshake: RpcHandshake):
@@ -430,7 +430,7 @@ All endpoint types close with policy violation (1008) and the exact reason
 as transient. Other policy reasons stay terminal. For immediate revocation,
 `await connection.close(RpcConnectionClose.POLICY_VIOLATION,
 reason="credentials_revoked")` closes with a terminal reason. Your application
-can call it after a revocation event or identity check; fastapi_canon.websockets does not maintain
+can call it after a revocation event or identity check; fastapi_canon.integrations.websockets does not maintain
 an identity/revocation registry. Close reasons and middleware state contain the
 constant reason, never credentials.
 

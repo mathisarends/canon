@@ -8,7 +8,7 @@ import pytest
 from aiortc import AudioStreamTrack, VideoStreamTrack
 from av import AudioFrame, VideoFrame
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket
-from fastapi_canon.webrtc import (
+from fastapi_canon.integrations.webrtc import (
     DataChannelSpec,
     Direction,
     ErrorCode,
@@ -21,7 +21,7 @@ from fastapi_canon.webrtc import (
     SessionLimits,
     WebRtcRouter,
 )
-from fastapi_canon.webrtc.engines.aiortc import AiortcEngine
+from fastapi_canon.integrations.webrtc.engines.aiortc import AiortcEngine
 from pydantic import BaseModel
 from websockets.exceptions import InvalidStatus
 

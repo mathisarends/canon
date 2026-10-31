@@ -2,18 +2,22 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from fastapi_canon.websockets import ProtocolDefinitionError, RpcChannel, RpcService
-from fastapi_canon.websockets.codegen import (
+from fastapi_canon.integrations.websockets import (
+    ProtocolDefinitionError,
+    RpcChannel,
+    RpcService,
+)
+from fastapi_canon.integrations.websockets.codegen import (
     generate_python_client,
     generate_typescript_client,
 )
-from fastapi_canon.websockets.codegen.ir import build_ir
-from fastapi_canon.websockets.codegen.options import (
+from fastapi_canon.integrations.websockets.codegen.ir import build_ir
+from fastapi_canon.integrations.websockets.codegen.options import (
     PythonClientOptions,
     TypeScriptClientOptions,
 )
-from fastapi_canon.websockets.schema import render_openrpc
-from fastapi_canon.websockets.testing import InMemorySocketFactory
+from fastapi_canon.integrations.websockets.schema import render_openrpc
+from fastapi_canon.integrations.websockets.testing import InMemorySocketFactory
 from pydantic import TypeAdapter
 
 from .test_connect import client_module as client_module

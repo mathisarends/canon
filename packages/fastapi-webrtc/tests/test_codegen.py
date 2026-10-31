@@ -9,15 +9,15 @@ from typing import Annotated, Any
 
 import pytest
 from fastapi import Depends, FastAPI, Query
-from fastapi_canon.webrtc import Session, WebRtcRouter
-from fastapi_canon.webrtc.codegen.cli import main
-from fastapi_canon.webrtc.codegen.typescript import (
+from fastapi_canon.integrations.webrtc import Session, WebRtcRouter
+from fastapi_canon.integrations.webrtc.codegen.cli import main
+from fastapi_canon.integrations.webrtc.codegen.typescript import (
     ContractError,
     generate_typescript,
     runtime_source,
 )
-from fastapi_canon.webrtc.codegen.writer import MANIFEST, write_files
-from fastapi_canon.webrtc.contract import build_contract
+from fastapi_canon.integrations.webrtc.codegen.writer import MANIFEST, write_files
+from fastapi_canon.integrations.webrtc.contract import build_contract
 from pydantic import BaseModel, Field
 
 from tests import contract_app

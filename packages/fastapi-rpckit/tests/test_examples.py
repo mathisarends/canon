@@ -23,7 +23,7 @@ def test_generated_client_examples_match_their_source() -> None:
         [
             sys.executable,
             "-m",
-            "fastapi_canon.websockets.codegen.cli",
+            "fastapi_canon.integrations.websockets.codegen.cli",
             "generate",
             "--config",
             str(config),

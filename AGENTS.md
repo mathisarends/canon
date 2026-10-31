@@ -2,7 +2,9 @@
 
 Use `README.md` for the package inventory, `docs/contributing.md` for development
 commands and `docs/compatibility.md` for the tested dependency scope. Package
-guides document implemented APIs.
+guides document implemented APIs. `docs/canon.md` defines the canonical package
+and public namespace boundaries; `docs/unified-canon-concept.md` is a codegen
+discussion draft, not a description of implemented commands.
 Write all repository Markdown documentation in English, including changelogs,
 guides, and agent instructions.
 
@@ -11,6 +13,9 @@ guides, and agent instructions.
 - `packages/fastapi-canon`: the only active release target, including composition,
   Dishka lifecycle, HTTP contracts, `sse`, `websockets`, `webrtc` and their generators.
   Core and CLI help must run without optional codegen, telemetry or engines.
+- Keep all optional integrations under `fastapi_canon.integrations`: `sse`,
+  `websockets`, `webrtc` and `opentelemetry`. Core HTTP/composition stays at the
+  package root. WebSocket framework adapters live in `.websockets.adapters`.
 - `packages/fastapi-streams` and `packages/fastapi-rpckit`: retained SSE and
   WebSocket test/example/tooling directories. Preserve wire behavior and clients.
 - `packages/fastapi-webrtc`: retained WebRTC tests, examples and tooling for

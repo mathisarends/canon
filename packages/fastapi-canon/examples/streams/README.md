@@ -3,7 +3,7 @@
 See [`docs/streams.md`](../../docs/streams.md) for the integration API and a
 complete minimal application.
 
-`CanonStreamRouter` combines `CanonRouter` and `fastapi_canon.sse.StreamRouter`.
+`CanonStreamRouter` combines `CanonRouter` and `fastapi_canon.integrations.sse.StreamRouter`.
 It inherits the native `stream()` decorator and routes registration through
 canon's existing `api_route()` compiler. Shared and operation `raises=` use the
 same registry membership checks and deduplication as REST routes. `Feature`

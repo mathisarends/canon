@@ -1,9 +1,9 @@
 from copy import deepcopy
 
 import httpx
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import export_schema
-from fastapi_canon.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import export_schema
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 
 from examples.native_proxy import create_app
 from examples.rest_codegen import rest_codegen_document

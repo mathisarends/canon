@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcChannel,
@@ -183,7 +183,7 @@ def test_connection_annotations_preserve_ide_types_and_reject_wrong_sends(
         """
 from typing import assert_type
 from pydantic import BaseModel
-from fastapi_canon.websockets import Inject, RpcChannel, RpcSocket
+from fastapi_canon.integrations.websockets import Inject, RpcChannel, RpcSocket
 
 class Ping(BaseModel):
     value: int

@@ -3,10 +3,12 @@ import subprocess
 from copy import deepcopy
 from textwrap import dedent
 
-from fastapi_canon.websockets import RpcChannel
-from fastapi_canon.websockets.codegen import render_typescript_client
-from fastapi_canon.websockets.codegen.typescript import TypeScriptClientOptions
-from fastapi_canon.websockets.integrations.opentelemetry import OpenTelemetry
+from fastapi_canon.integrations.websockets import RpcChannel
+from fastapi_canon.integrations.websockets.adapters.opentelemetry import OpenTelemetry
+from fastapi_canon.integrations.websockets.codegen import render_typescript_client
+from fastapi_canon.integrations.websockets.codegen.typescript import (
+    TypeScriptClientOptions,
+)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter

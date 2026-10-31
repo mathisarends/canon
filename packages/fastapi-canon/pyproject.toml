@@ -69,7 +69,11 @@ dev = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-extend-exclude = ["fastapi_canon/sse", "fastapi_canon/websockets", "fastapi_canon/webrtc"]
+extend-exclude = [
+    "fastapi_canon/integrations/sse",
+    "fastapi_canon/integrations/websockets",
+    "fastapi_canon/integrations/webrtc",
+]
 
 [tool.ruff.lint]
 select = ["B", "E4", "E7", "E9", "F", "I", "RUF", "SIM", "UP"]
@@ -78,14 +82,18 @@ select = ["B", "E4", "E7", "E9", "F", "I", "RUF", "SIM", "UP"]
 python_version = "3.12"
 strict = true
 files = ["fastapi_canon", "tests"]
-exclude = ["fastapi_canon/(sse|websockets|webrtc)/"]
+exclude = ["fastapi_canon/integrations/(sse|websockets|webrtc)/"]
 pretty = true
 show_error_codes = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
 # These modules retain their own strict feature checks in scripts/check.py.
-module = ["fastapi_canon.sse.*", "fastapi_canon.websockets.*", "fastapi_canon.webrtc.*"]
+module = [
+    "fastapi_canon.integrations.sse.*",
+    "fastapi_canon.integrations.websockets.*",
+    "fastapi_canon.integrations.webrtc.*",
+]
 follow_imports = "silent"
 
 [tool.pytest.ini_options]

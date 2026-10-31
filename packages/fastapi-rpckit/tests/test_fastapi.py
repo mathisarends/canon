@@ -12,7 +12,7 @@ import pytest
 from fastapi import APIRouter, Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocketState
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcBinaryInput,
@@ -27,7 +27,7 @@ from fastapi_canon.websockets import (
     RpcService,
     RpcSocket,
 )
-from fastapi_canon.websockets.integrations.fastapi import (
+from fastapi_canon.integrations.websockets.adapters.fastapi import (
     FastApiSocket,
     RpcRoutes,
     create_router,
@@ -353,7 +353,7 @@ class BlockFastApi(importlib.abc.MetaPathFinder):
 
 sys.meta_path.insert(0, BlockFastApi())
 try:
-    import fastapi_canon.websockets.integrations.fastapi
+    import fastapi_canon.integrations.websockets.adapters.fastapi
 except ModuleNotFoundError as error:
     print(error.name, error, sep="|")
 """

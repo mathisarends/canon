@@ -2,11 +2,11 @@ import json
 from copy import deepcopy
 
 import pytest
-from fastapi_canon.sse.codegen.cli import main
-from fastapi_canon.sse.codegen.ir import build_ir
-from fastapi_canon.sse.codegen.openapi import ContractError
-from fastapi_canon.sse.codegen.python import generate_python
-from fastapi_canon.sse.codegen.typescript import generate_typescript
+from fastapi_canon.integrations.sse.codegen.cli import main
+from fastapi_canon.integrations.sse.codegen.ir import build_ir
+from fastapi_canon.integrations.sse.codegen.openapi import ContractError
+from fastapi_canon.integrations.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.typescript import generate_typescript
 
 from tests.codegen.helpers import event_document, schema_contract
 

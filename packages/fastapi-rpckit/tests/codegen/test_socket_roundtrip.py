@@ -6,7 +6,7 @@ from types import ModuleType
 from urllib.parse import urlsplit
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcConnectionClose,
@@ -18,9 +18,12 @@ from fastapi_canon.websockets import (
     RpcSocket,
     RpcSocketProtocol,
 )
-from fastapi_canon.websockets.codegen import generate_python_client
-from fastapi_canon.websockets.codegen.python import PythonClientOptions
-from fastapi_canon.websockets.websocket import CLOSE_CODES, REJECTION_CLOSE_CODES
+from fastapi_canon.integrations.websockets.codegen import generate_python_client
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.websocket import (
+    CLOSE_CODES,
+    REJECTION_CLOSE_CODES,
+)
 
 from ..testing import InMemorySocket
 

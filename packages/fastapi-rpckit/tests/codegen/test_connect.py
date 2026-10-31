@@ -9,8 +9,8 @@ from types import ModuleType
 from typing import Any
 
 import pytest
-from fastapi_canon.websockets.codegen import generate_python_client
-from fastapi_canon.websockets.codegen.python import PythonClientOptions
+from fastapi_canon.integrations.websockets.codegen import generate_python_client
+from fastapi_canon.integrations.websockets.codegen.python import PythonClientOptions
 
 PACKAGE = "connect_client"
 

@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 
 import pytest
-from fastapi_canon.websockets import Inject
-from fastapi_canon.websockets.dependencies import (
+from fastapi_canon.integrations.websockets import Inject
+from fastapi_canon.integrations.websockets.dependencies import (
     _INJECT,
     ContextResolver,
     EmptyResolver,

@@ -1,6 +1,6 @@
-# fastapi-streams integration API
+# SSE routes and HTTP contracts
 
-Install the optional integration:
+Select the SSE dependencies:
 
 ```console
 pip install "fastapi-canon[sse]"

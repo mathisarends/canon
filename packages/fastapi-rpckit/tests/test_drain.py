@@ -9,7 +9,7 @@ import httpx
 import pytest
 import uvicorn
 from fastapi import FastAPI
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcConnectionClose,
@@ -19,8 +19,8 @@ from fastapi_canon.websockets import (
     RpcService,
     RpcSocket,
 )
-from fastapi_canon.websockets.integrations.fastapi import create_router
-from fastapi_canon.websockets.testing import (
+from fastapi_canon.integrations.websockets.adapters.fastapi import create_router
+from fastapi_canon.integrations.websockets.testing import (
     InMemorySocketFactory,
     RpcTestHandshakeRejected,
 )
@@ -106,7 +106,7 @@ async def test_drain_delivers_response_rejects_new_work_and_reports_restart():
 async def test_controlled_grace_expiry_cancels_stuck_work_and_cleans_sessions(
     monkeypatch,
 ):
-    import fastapi_canon.websockets.drain as module
+    import fastapi_canon.integrations.websockets.drain as module
 
     before = asyncio.all_tasks()
     expired, timer_started = asyncio.Event(), asyncio.Event()
@@ -234,7 +234,7 @@ async def test_shutdown_cleans_subscription_while_another_request_is_stuck(drain
 
 
 async def test_blocked_flush_is_cancelled_at_grace_expiry(monkeypatch):
-    import fastapi_canon.websockets.drain as module
+    import fastapi_canon.integrations.websockets.drain as module
 
     send_started, send_cancelled, expired, timer_started = (
         asyncio.Event() for _ in range(4)
@@ -326,7 +326,7 @@ async def test_disconnect_during_drain_preserves_peer_close_cause():
 
 @pytest.mark.parametrize("kind", ["binary", "raw"])
 async def test_long_lived_streams_close_with_restart_at_grace_expiry(kind, monkeypatch):
-    import fastapi_canon.websockets.drain as module
+    import fastapi_canon.integrations.websockets.drain as module
 
     entered, cancelled, expired, timer_started = (asyncio.Event() for _ in range(4))
     channel = RpcChannel("streams")

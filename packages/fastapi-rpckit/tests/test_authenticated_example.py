@@ -1,11 +1,11 @@
 import time
 from types import SimpleNamespace
 
-import fastapi_canon.websockets.connection as connection_module
+import fastapi_canon.integrations.websockets.connection as connection_module
 import pytest
 from fastapi.testclient import TestClient
-from fastapi_canon.websockets import RpcService
-from fastapi_canon.websockets.integrations.dishka import dishka_router
+from fastapi_canon.integrations.websockets import RpcService
+from fastapi_canon.integrations.websockets.adapters.dishka import dishka_router
 from starlette.testclient import WebSocketDenialResponse
 from starlette.websockets import WebSocketDisconnect
 

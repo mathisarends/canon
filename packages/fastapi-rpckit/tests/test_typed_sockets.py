@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     ProtocolDefinitionError,
     RpcChannel,
@@ -344,7 +344,7 @@ def test_message_handler_signature_preserves_both_directions(tmp_path: Path) -> 
         """
 from typing import Literal, assert_type
 from pydantic import BaseModel
-from fastapi_canon.websockets import RpcChannel
+from fastapi_canon.integrations.websockets import RpcChannel
 
 class Ping(BaseModel):
     type: Literal["ping"] = "ping"

@@ -1,7 +1,7 @@
 import pytest
-from fastapi_canon.websockets import ProtocolDefinitionError, RpcChannel
-from fastapi_canon.websockets.schema import render_openrpc
-from fastapi_canon.websockets.schema.components import type_name
+from fastapi_canon.integrations.websockets import ProtocolDefinitionError, RpcChannel
+from fastapi_canon.integrations.websockets.schema import render_openrpc
+from fastapi_canon.integrations.websockets.schema.components import type_name
 from pydantic import create_model
 
 

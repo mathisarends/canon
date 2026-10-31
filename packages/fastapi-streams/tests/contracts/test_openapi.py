@@ -1,7 +1,7 @@
 import copy
 
 import pytest
-from fastapi_canon.sse.codegen.openapi import (
+from fastapi_canon.integrations.sse.codegen.openapi import (
     ContractError,
     export_schema,
     validate_contract,

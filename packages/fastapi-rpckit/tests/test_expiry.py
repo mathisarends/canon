@@ -3,9 +3,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
-import fastapi_canon.websockets.connection as module
+import fastapi_canon.integrations.websockets.connection as module
 import pytest
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcChannel,
     RpcConnectionClose,
@@ -14,7 +14,10 @@ from fastapi_canon.websockets import (
     RpcService,
     RpcSocket,
 )
-from fastapi_canon.websockets.testing import InMemorySocket, InMemorySocketFactory
+from fastapi_canon.integrations.websockets.testing import (
+    InMemorySocket,
+    InMemorySocketFactory,
+)
 
 
 class Timer:

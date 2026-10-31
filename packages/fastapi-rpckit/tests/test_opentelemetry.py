@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 import pytest
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.testclient import TestClient
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     Inject,
     RpcBinaryInput,
     RpcBinaryOutput,
@@ -16,9 +16,16 @@ from fastapi_canon.websockets import (
     RpcRequestScope,
     RpcService,
 )
-from fastapi_canon.websockets.integrations.fastapi import RpcRoutes, serve_websocket
-from fastapi_canon.websockets.integrations.opentelemetry import OpenTelemetry
-from fastapi_canon.websockets.testing import InMemorySocket, RpcTestClient, RpcTestError
+from fastapi_canon.integrations.websockets.adapters.fastapi import (
+    RpcRoutes,
+    serve_websocket,
+)
+from fastapi_canon.integrations.websockets.adapters.opentelemetry import OpenTelemetry
+from fastapi_canon.integrations.websockets.testing import (
+    InMemorySocket,
+    RpcTestClient,
+    RpcTestError,
+)
 from opentelemetry import baggage, trace
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
@@ -553,11 +560,11 @@ class Block:
         if fullname.split(".", 1)[0] in {"opentelemetry"}:
             raise ModuleNotFoundError("blocked", name=fullname)
 sys.meta_path.insert(0, Block())
-import fastapi_canon.websockets
-import fastapi_canon.websockets.integrations
-assert fastapi_canon.websockets.RpcMiddleware
+import fastapi_canon.integrations.websockets
+import fastapi_canon.integrations.websockets.adapters
+assert fastapi_canon.integrations.websockets.RpcMiddleware
 try:
-    import fastapi_canon.websockets.integrations.opentelemetry
+    import fastapi_canon.integrations.websockets.adapters.opentelemetry
 except ModuleNotFoundError as error:
     assert "fastapi-canon[otel]" in str(error)
 else:

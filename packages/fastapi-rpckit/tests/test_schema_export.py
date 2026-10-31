@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from fastapi_canon.websockets.schema.export import (
+from fastapi_canon.integrations.websockets.schema.export import (
     ProtocolReferenceError,
     load_contract_source,
     load_protocol,

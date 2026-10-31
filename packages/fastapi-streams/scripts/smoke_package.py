@@ -11,9 +11,9 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Literal
 
-import fastapi_canon.sse
+import fastapi_canon.integrations.sse
 from fastapi import FastAPI
-from fastapi_canon.sse import StreamRouter
+from fastapi_canon.integrations.sse import StreamRouter
 from pydantic import BaseModel
 
 
@@ -28,10 +28,12 @@ def main() -> None:
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--http-client", choices=["httpx", "httpx2"], default="httpx")
     args = parser.parse_args()
-    assert "site-packages" in str(Path(fastapi_canon.sse.__file__).resolve())
+    assert "site-packages" in str(
+        Path(fastapi_canon.integrations.sse.__file__).resolve()
+    )
     assert (
         version("fastapi-canon")
-        == fastapi_canon.sse.__version__
+        == fastapi_canon.integrations.sse.__version__
         == args.expected_version
     )
     router = StreamRouter()
@@ -52,7 +54,7 @@ def main() -> None:
             "from typing import Annotated, Literal\n"
             "from fastapi import FastAPI, Path, Query\n"
             "from pydantic import BaseModel, Field\n"
-            "from fastapi_canon.sse import StreamRouter\n"
+            "from fastapi_canon.integrations.sse import StreamRouter\n"
             "class Event(BaseModel):\n"
             '    type: Literal["event"]\n'
             "    text: str = Field(min_length=2, max_length=20, pattern='^[a-z]+$')\n"

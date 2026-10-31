@@ -1,6 +1,6 @@
 import asyncio
 
-import fastapi_canon.websockets.server as server_module
+import fastapi_canon.integrations.websockets.server as server_module
 
 
 class ControlledDeadlines:

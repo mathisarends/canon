@@ -1,15 +1,15 @@
 # Repository guidance
 
-`fastapi_canon.sse` turns typed FastAPI SSE generators into an OpenAPI 3.2 contract
+`fastapi_canon.integrations.sse` turns typed FastAPI SSE generators into an OpenAPI 3.2 contract
 and generated TypeScript/Python clients. Follow the workspace rules in the root
 `AGENTS.md`; this file adds package-specific conventions.
 
 ## Layout
 
-- `../fastapi-canon/fastapi_canon/sse/router.py`: `StreamRouter` and endpoint validation.
-- `../fastapi-canon/fastapi_canon/sse/codegen/`: export (`openapi.py`), shared HTTP IR (`ir.py`),
+- `../fastapi-canon/fastapi_canon/integrations/sse/router.py`: `StreamRouter` and endpoint validation.
+- `../fastapi-canon/fastapi_canon/integrations/sse/codegen/`: export (`openapi.py`), shared HTTP IR (`ir.py`),
   emitters (`python.py`, `typescript.py`), CLI (`cli.py`) and diagnostics.
-- `../fastapi-canon/fastapi_canon/sse/codegen/templates/`: generated runtimes. `python/runtime.py`
+- `../fastapi-canon/fastapi_canon/integrations/sse/codegen/templates/`: generated runtimes. `python/runtime.py`
   and `sse.ts` are copied verbatim into every generated SDK.
 - `examples/agent_runs/` and `tests/fixtures/` contain committed generated SDKs.
 

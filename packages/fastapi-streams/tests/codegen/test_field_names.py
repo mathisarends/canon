@@ -1,6 +1,6 @@
 import pytest
-from fastapi_canon.sse.codegen.openapi import ContractError
-from fastapi_canon.sse.codegen.python import generate_python
+from fastapi_canon.integrations.sse.codegen.openapi import ContractError
+from fastapi_canon.integrations.sse.codegen.python import generate_python
 from pydantic import ValidationError, create_model
 
 from tests.codegen.helpers import event_contract, load_package, schema_contract

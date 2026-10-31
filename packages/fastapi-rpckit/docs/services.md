@@ -14,7 +14,7 @@ Methods are async free functions. Their public input is either absent or one
 Pydantic model, and their return annotation describes the result.
 
 ```python
-from fastapi_canon.websockets import RpcChannel, RpcModel, RpcService
+from fastapi_canon.integrations.websockets import RpcChannel, RpcModel, RpcService
 
 
 class CreateTask(RpcModel):
@@ -67,7 +67,7 @@ system = RpcChannel("system", namespace="")
 ```
 
 Channels, operations, and namespaces must remain unambiguous across a service.
-fastapi_canon.websockets rejects duplicate names and cases where an operation is also the
+fastapi_canon.integrations.websockets rejects duplicate names and cases where an operation is also the
 prefix of another operation when the protocol is materialized.
 
 ## Mount endpoints
@@ -247,7 +247,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 
-from fastapi_canon.websockets import (
+from fastapi_canon.integrations.websockets import (
     RpcConnectionScope,
     RpcHandshake,
     RpcMiddleware,
@@ -318,7 +318,7 @@ accounting when the required bound spans workers or hosts.
 
 ## Use Pydantic directly
 
-`RpcModel` is fastapi_canon.websockets's strict Pydantic base model. Existing Pydantic
+`RpcModel` is fastapi_canon.integrations.websockets's strict Pydantic base model. Existing Pydantic
 `BaseModel` classes are supported too, so domain models do not need to inherit
 from `RpcModel` merely to appear in an RPC signature.
 
@@ -329,5 +329,5 @@ Declare `@channel.method(idempotent=True)` only when concurrent or repeated
 execution with the same params has the same intended effect. The contract exports
 `x-rpc-idempotent: true`; generated route metadata carries the flag. Omitted or
 false declarations leave methods non-idempotent. This is a service guarantee:
-fastapi_canon.websockets does not deduplicate requests or provide idempotency keys. Read operations
+fastapi_canon.integrations.websockets does not deduplicate requests or provide idempotency keys. Read operations
 often qualify; writes require careful service-level design.
