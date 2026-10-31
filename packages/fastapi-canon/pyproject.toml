@@ -1,6 +1,6 @@
 [project]
 name = "fastapi-canon"
-version = "0.8.1"
+version = "0.9.0"
 description = "Opinionated FastAPI feature composition with Dishka and Problem Details"
 readme = "README.md"
 authors = [{ name = "mathisarends" }]
@@ -22,6 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+otel = ["fastapi>=0.143,<1", "opentelemetry-api>=1.40,<2"]
 streams = [
     "fastapi-streams==0.5.0",
 ]
@@ -42,6 +43,7 @@ packages = ["fastapi_canon"]
 
 [dependency-groups]
 dev = [
+    "opentelemetry-sdk>=1.40,<2",
     "httpx>=0.27",
     "httpx2>=2.12.0",
     "jsonschema>=4.23",

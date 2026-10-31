@@ -117,14 +117,15 @@ def _domain_handler(registry: ErrorRegistry) -> ExceptionHandler:
                     "exception_class": type(exception).__qualname__,
                 },
             )
-            return _internal_error_response(registry)
-        return _problem_response(problem.as_dict(), error.status, headers=headers)
+            return _internal_error_response(registry, connection)
+        return _problem_response(
+            connection, problem.as_dict(), error.status, headers=headers
+        )
 
     return cast(ExceptionHandler, handler)
 
 
 async def _http_exception_handler(request: Request, exception: Exception) -> Response:
-    del request
     if not isinstance(exception, HTTPException):
         raise exception
     status = exception.status_code
@@ -138,12 +139,11 @@ async def _http_exception_handler(request: Request, exception: Exception) -> Res
     }
     if detail is not None:
         payload["detail"] = detail
-    return _problem_response(payload, status, headers=exception.headers)
+    return _problem_response(request, payload, status, headers=exception.headers)
 
 
 def _request_validation_handler(registry: ErrorRegistry) -> ExceptionHandler:
     async def handler(request: Request, exception: Exception) -> Response:
-        del request
         if not isinstance(exception, RequestValidationError):
             raise exception
         errors: list[JsonValue] = []
@@ -156,33 +156,31 @@ def _request_validation_handler(registry: ErrorRegistry) -> ExceptionHandler:
             "code": "request_validation_error",
             "errors": errors,
         }
-        return _problem_response(payload, 422)
+        return _problem_response(request, payload, 422)
 
     return cast(ExceptionHandler, handler)
 
 
 def _response_validation_handler(registry: ErrorRegistry) -> ExceptionHandler:
     async def handler(request: Request, exception: Exception) -> Response:
-        del request
         if not isinstance(exception, ResponseValidationError):
             raise exception
         logger.error(
             "FastAPI response validation failed",
             exc_info=(type(exception), exception, exception.__traceback__),
         )
-        return _internal_error_response(registry)
+        return _internal_error_response(registry, request)
 
     return cast(ExceptionHandler, handler)
 
 
 def _unhandled_handler(registry: ErrorRegistry) -> ExceptionHandler:
     async def handler(request: Request, exception: Exception) -> Response:
-        del request
         logger.error(
             "Unhandled application exception",
             exc_info=(type(exception), exception, exception.__traceback__),
         )
-        return _internal_error_response(registry)
+        return _internal_error_response(registry, request)
 
     return cast(ExceptionHandler, handler)
 
@@ -208,8 +206,9 @@ def _escape_pointer(value: object) -> str:
     return str(value).replace("~", "~0").replace("/", "~1")
 
 
-def _internal_error_response(registry: ErrorRegistry) -> Response:
+def _internal_error_response(registry: ErrorRegistry, request: Request) -> Response:
     return _problem_response(
+        request,
         {
             "type": _builtin_type(registry, "internal_server_error"),
             "title": "Internal Server Error",
@@ -228,11 +227,15 @@ def _builtin_type(registry: ErrorRegistry, code: str) -> str:
 
 
 def _problem_response(
+    request: Request,
     payload: dict[str, JsonValue],
     status: int,
     *,
     headers: Mapping[str, str] | None = None,
 ) -> Response:
+    enrich = getattr(request.app.state, "_canon_problem_telemetry", None)
+    if enrich is not None:
+        enrich(request.scope, str(payload["code"]), status)
     return JSONResponse(
         payload,
         status_code=status,

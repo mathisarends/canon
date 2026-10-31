@@ -66,7 +66,7 @@ def test_release_rejects_stale_installation_docs(release_repo: Path) -> None:
     path = release_repo / "packages/fastapi-canon/docs/streams.md"
     path.write_text("Install fastapi-streams==0.0.1", encoding="utf-8")
     with pytest.raises(ValueError, match="does not match"):
-        release.validate_release("fastapi-canon", "0.8.1", root=release_repo)
+        release.validate_release("fastapi-canon", "0.9.0", root=release_repo)
 
 
 def test_release_notes_resolve_links_against_the_release_commit(
@@ -147,7 +147,7 @@ def test_breaking_pre_one_releases_require_next_minor(
 @pytest.mark.parametrize(
     ("name", "version"),
     [
-        ("fastapi-canon", "0.8.1"),
+        ("fastapi-canon", "0.9.0"),
         ("fastapi-streams", "0.5.0"),
         ("fastapi-rpckit", "0.4.1"),
         ("fastapi-webrtc", "0.3.0"),
@@ -190,7 +190,7 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
 @pytest.mark.parametrize(
     ("path", "before", "after", "message"),
     [
-        ("uv.lock", 'version = "0.8.1"', 'version = "0.4.0"', "uv.lock"),
+        ("uv.lock", 'version = "0.9.0"', 'version = "0.4.0"', "uv.lock"),
         (
             "packages/fastapi-rpckit/fastapi_rpckit/__init__.py",
             '__version__ = "0.4.1"',
@@ -205,7 +205,7 @@ def test_release_excludes_nonlibrary_targets(release_repo: Path, name: str) -> N
         ),
         (
             "examples/reference-service/pyproject.toml",
-            "fastapi-canon>=0.8,<0.9",
+            "fastapi-canon>=0.9,<0.10",
             "fastapi-canon>=0.4,<0.5",
             "Reference service",
         ),

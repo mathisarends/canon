@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dishka import AsyncContainer, Provider, make_async_container
 from dishka.exceptions import DishkaError  # type: ignore[attr-defined]  # not exported
@@ -18,6 +20,10 @@ from fastapi_canon.openapi import (
 )
 from fastapi_canon.policy import RouterPolicy
 from fastapi_canon.router import CanonRouter
+
+if TYPE_CHECKING:
+    from fastapi_canon.integrations.opentelemetry import Telemetry
+
 
 type FeatureLifespan = Lifespan[FastAPI]
 type ProviderFactory = Callable[[], Provider]
@@ -153,6 +159,7 @@ class Composition:
     errors: ErrorOptions
     router_factory: RouterFactory | None
     router_policy: RouterPolicy | None
+    telemetry: Telemetry | None
 
     def __init__(
         self,
@@ -160,7 +167,16 @@ class Composition:
         errors: ErrorOptions | None = None,
         router_factory: RouterFactory | None = None,
         router_policy: RouterPolicy | None = None,
+        telemetry: Telemetry | None = None,
     ) -> None:
+        if telemetry is not None:
+            from fastapi_canon.integrations.opentelemetry import Telemetry
+
+            if not isinstance(telemetry, Telemetry):
+                raise FeatureConfigurationError(
+                    "telemetry must be a Telemetry instance or None"
+                )
+        object.__setattr__(self, "telemetry", telemetry)
         normalized_features = _unique_instances(features, Feature, "features")
         _validate_unique_feature_names(normalized_features)
         raw_errors: object = errors
@@ -202,6 +218,8 @@ class _Installation:
     router_factory_id: int | None
     router_policy: RouterPolicy | None = field(compare=False)
     router_policy_id: int | None
+    telemetry: Telemetry | None = field(compare=False)
+    telemetry_id: int | None
     container: AsyncContainer | None = field(compare=False)
 
 
@@ -217,6 +235,10 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
         msg = "app must be a FastAPI instance"
         raise FeatureConfigurationError(msg)
     requested = _Installation(
+        telemetry=composition.telemetry,
+        telemetry_id=id(composition.telemetry)
+        if composition.telemetry is not None
+        else None,
         features=composition.features,
         feature_ids=tuple(id(feature) for feature in composition.features),
         errors=composition.errors,
@@ -241,6 +263,9 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
             raise FeatureConfigurationError(msg)
         return
 
+    telemetry = composition.telemetry
+    if telemetry is not None:
+        telemetry._prepare(app)
     routers = _flatten_routers(composition.features)
     provider_sources = _flatten_provider_sources(composition.features)
     handler_specs = _flatten_handlers(composition.features)
@@ -273,9 +298,21 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
         name=composition.errors.registry_name,
         type_base=composition.errors.type_base,
     )
-    container = _make_container(
-        tuple(contribution.provider for contribution in materialized_providers)
-    )
+    providers = tuple(contribution.provider for contribution in materialized_providers)
+    if providers:
+        from fastapi_canon.integrations.opentelemetry.declarations import (
+            _observer_provider,
+        )
+
+        observer_provider = _observer_provider(
+            tuple(
+                (item.feature_name, item.provider) for item in materialized_providers
+            ),
+            telemetry,
+        )
+        if observer_provider is not None:
+            providers = (*providers, observer_provider)
+    container = _make_container(providers)
     policy_operations = _validate_error_installation(
         app,
         installed_routers,
@@ -290,6 +327,10 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
         msg = "features with providers must be installed before the app starts"
         raise FeatureConfigurationError(msg)
 
+    if telemetry is not None:
+        from fastapi_canon.integrations.opentelemetry.native import install
+
+        install(app, telemetry)
     original_lifespan = app.router.lifespan_context
     for router in installed_routers:
         app.include_router(router)
@@ -318,6 +359,10 @@ def _apply_composition(app: FastAPI, composition: Composition) -> None:
         )
 
     completed = _Installation(
+        telemetry=composition.telemetry,
+        telemetry_id=id(composition.telemetry)
+        if composition.telemetry is not None
+        else None,
         features=composition.features,
         feature_ids=requested.feature_ids,
         errors=composition.errors,
@@ -359,6 +404,8 @@ def _validate_applied_composition(app: object, composition: Composition) -> None
     )
     if not isinstance(installed, _Installation) or (
         installed.feature_ids != tuple(id(feature) for feature in composition.features)
+        or installed.telemetry_id
+        != (id(composition.telemetry) if composition.telemetry is not None else None)
         or installed.errors != composition.errors
         or installed.router_factory_id != expected_router_factory_id
         or installed.router_policy_id

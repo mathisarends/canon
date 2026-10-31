@@ -27,10 +27,11 @@ Chromium peers against aiortc. RPC TypeScript tests use npx; Streams and WebRTC
 have npm lockfiles. Regenerate clients through their package generators before
 checking drift; never edit generated clients directly.
 
-`check_distributions.py` builds wheels/sdists and tests ten package combinations
+`check_distributions.py` builds wheels/sdists and tests eleven package combinations
 in fresh environments without workspace source overrides. Current and minimum
 dependency profiles are separate checks. The current profile also installs the
-development-only reference service and tests it with transport extensions absent.
+development-only reference service and tests it with transport extensions absent,
+then installs its optional telemetry dependencies and checks SQL/HTTP trace contracts.
 The dedicated Streams and WebRTC artifact scripts verify installed CLIs and the
 clients they generate. Build outputs and dependency inventories belong in ignored
 `dist/`, not in versioned development reports.
