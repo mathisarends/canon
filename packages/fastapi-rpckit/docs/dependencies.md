@@ -83,7 +83,8 @@ resolver scope.
 
 ## Dishka
 
-Install the optional integration and wrap an async Dishka container:
+Dishka ships as a Canon base dependency. Select the WebSocket requirements and
+wrap an async Dishka container:
 
 ```bash
 uv add "fastapi-canon[websockets]"

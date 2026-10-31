@@ -78,8 +78,8 @@ uv add "fastapi-canon[websockets,codegen]"  # client generation
 uv add "fastapi-canon[websockets,otel]"     # OpenTelemetry integration
 ```
 
-Python 3.12–3.14. FastAPI and Pydantic are required; Dishka, codegen, and
-OpenTelemetry remain optional extras.
+Python 3.12–3.14. FastAPI, Pydantic and Dishka are Canon base dependencies.
+Code generation and OpenTelemetry dependencies remain optional extras.
 
 ## Serve with FastAPI
 
