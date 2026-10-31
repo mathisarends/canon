@@ -1,8 +1,13 @@
-# Canon releases
+# Historical Canon releases
 
-Release the unified `fastapi-canon` distribution from `mathisarends/canon`. The workspace
-and reference service are not publication targets. `release.toml` maps package
-names, directories, modules and tag prefixes; `scripts/release.py` validates them.
+Future releases use [`mathisarends/fastapi_canon`](https://github.com/mathisarends/fastapi_canon)
+and its [release guide](https://github.com/mathisarends/fastapi_canon/blob/main/docs/releases.md).
+The new-release dispatch workflow in `mathisarends/canon` is retired. This
+document preserves the original publication and recovery context; commands below
+are historical and must not be used to start a new release here.
+
+The retained `release.toml` maps historical package names, directories, modules
+and tag prefixes; `scripts/release.py` preserves validation and recovery tooling.
 Published versions and their GitHub/PyPI assets are listed in the
 [README](../README.md#current-releases). Package changelogs contain migration notes;
 GitHub Releases and Actions retain publication evidence.

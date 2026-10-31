@@ -1,5 +1,21 @@
 # Canon
 
+Development, issues and future `fastapi-canon` releases have moved to
+**[`mathisarends/fastapi_canon`](https://github.com/mathisarends/fastapi_canon)**.
+That repository contains the complete consolidated source and Git history,
+including SSE, WebSockets, WebRTC, telemetry and the existing generators.
+
+The PyPI project remains `fastapi-canon`; Python imports remain `fastapi_canon`.
+Use the new repository's [contributing guide](https://github.com/mathisarends/fastapi_canon/blob/main/docs/contributing.md)
+and [repository migration record](https://github.com/mathisarends/fastapi_canon/blob/main/docs/repository-migration.md).
+
+This repository preserves the former workspace, discussions, tags, GitHub
+Releases, workflow runs and verified artifacts at their original URLs. Its
+new-release dispatch workflow is retired. Future changes and releases belong in
+`fastapi_canon`; the repositories are not synchronized.
+
+## Historical workspace snapshot
+
 One workspace for the FastAPI application stack: architecture conventions,
 feature composition and HTTP contracts, typed SSE, WebSocket RPC, and WebRTC
 sessions.
@@ -53,8 +69,9 @@ tag, changelog and artifact set; earlier package releases remain available.
 
 `fastapi-rpckit` is the FastAPI-first successor to `pyrpckit`, with its existing
 WebSocket engine and protocol retained. See the [RPC migration guide](packages/fastapi-rpckit/docs/migration.md).
-Its initial release is 0.1.0. The existing source repositories remain available;
-current development and future Canon releases live here.
+Its initial release is 0.1.0. The existing source repositories and their imported
+histories remain available. Current development and future Canon releases use
+[`mathisarends/fastapi_canon`](https://github.com/mathisarends/fastapi_canon).
 
 Start with [architecture](guides/architecture.md) when building an application.
 Use the [canonical namespace map](docs/canon.md#public-namespaces) to choose public
@@ -67,5 +84,5 @@ test processes for each member. See [contributing](docs/contributing.md) for
 commands, [compatibility](docs/compatibility.md) for the tested scope, and
 [releases](docs/releases.md) for publication checks and historical releases.
 
-The imported repositories remain available in Git history. Current development
-and releases use `mathisarends/canon`; predecessor repositories are preserved.
+The imported repositories remain available in Git history. Historical releases
+remain here; current development and future releases use `mathisarends/fastapi_canon`.
